@@ -75,7 +75,7 @@
          (build (and compiled (file-name-concat directory "build")))
          (source-root (file-name-directory (locate-library "niwa")))
          (load-path (if build (cons build load-path) load-path))
-         (index (file-name-concat (getenv "XDG_STATE_HOME") "niwa/remote-notes.el"))
+         (index (file-name-concat (getenv "XDG_STATE_HOME") "niwa/remote-notes.eld"))
          (result (file-name-concat directory "result.el"))
          (sources (mapcar (lambda (suffix)
                             (file-name-concat root
@@ -83,7 +83,7 @@
                                                       (file-name-nondirectory directory) suffix)))
                           '(one two)))
          (state (file-name-concat root ".niwa"))
-         (store (file-name-concat state "instructions.el"))
+         (store (file-name-concat state "instructions.eld"))
          (leases (file-name-concat state "leases"))
          (niwa-test--write-roots (cons root niwa-test--write-roots))
          (tramp-histfile-override t)

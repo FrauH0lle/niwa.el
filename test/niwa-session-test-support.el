@@ -1052,7 +1052,7 @@ The result is a plist whose :tempdir owns every created file."
                      (niwa-session-agent-registry session)))
          :source-agent-buffer source-agent-buffer
          :source-invocation source-invocation
-         :parent-sidecar-text (funcall committed "session.meta.el")
+         :parent-sidecar-text (funcall committed "session.meta.eld")
          :parent-segment-1-text (funcall committed "segment-0001.chat.org")
          :parent-segment-2-text (funcall committed "segment-0002.chat.org")
          :session-state

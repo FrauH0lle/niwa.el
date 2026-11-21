@@ -378,7 +378,7 @@ guard detects only changes made by the current test invocation."
          ((file-symlink-p path) '(symlink))
          (t '(other))))))
    '(".lease" ".recovery" "agents" "plans" "file-history" "instructions"
-     "session.meta.el")))
+     "session.meta.eld")))
 
 (defvar niwa-agent--registry)
 

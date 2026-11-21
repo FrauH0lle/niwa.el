@@ -93,13 +93,13 @@ honor `niwa-user-dir'."
   (pcase scope
     ('workspace
      (file-name-concat (niwa-workspace-state-dir workspace)
-                       "permissions.el"))
+                       "permissions.eld"))
     ('global
      (let ((target (niwa-permission--workspace-target workspace)))
        (if (niwa-execution-target-remote-p target)
            (niwa-execution-target-expand-path
-            target "~/.niwa/permissions.el")
-         (file-name-concat niwa-user-dir "permissions.el"))))
+            target "~/.niwa/permissions.eld")
+         (file-name-concat niwa-user-dir "permissions.eld"))))
     (_ (error "Invalid permission scope: %S" scope))))
 
 (defun niwa-permission--valid-plist-p (plist allowed required)

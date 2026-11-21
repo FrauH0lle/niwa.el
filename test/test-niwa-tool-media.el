@@ -75,7 +75,7 @@
           (should (string-search niwa-tool-media--data-open result))
           (let* ((media-dir (file-name-concat dir "media"))
                  (file (car (directory-files media-dir t
-                                             (rx "media-" (+ hex) ".el"))))
+                                             (rx "media-" (+ hex) ".eld"))))
                  (read-eval nil)
                  (record (with-temp-buffer
                            (insert-file-contents-literally file)
@@ -213,9 +213,9 @@
                    "visible" media local-store "toolu_remote_replay")))
          (source (car (directory-files
                        (file-name-concat local-store "media") t
-                       (rx "media-" (+ hex) ".el"))))
+                       (rx "media-" (+ hex) ".eld"))))
          (name (file-name-nondirectory source))
-         (id (substring name 6 -3))
+         (id (substring name 6 -4))
          (logical (file-name-concat "tool-results" "media" name))
          (fixed (file-name-concat save-path logical))
          (published (file-name-concat
@@ -237,7 +237,7 @@
           (let ((coding-system-for-write 'no-conversion))
             (write-region bytes nil published nil 'silent))
           (setf (niwa-session-publication session)
-                (list :head ".publications/generation/manifest.el"
+                (list :head ".publications/generation/manifest.eld"
                       :sidecar nil
                       :artifacts
                       (list (list logical :published published

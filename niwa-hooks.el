@@ -599,7 +599,7 @@ Without SCOPE the source is user-wide configuration."
 
 (defun niwa-hooks--trust-file ()
   "Return the user hook trust database path."
-  (file-name-concat niwa-user-dir "trusted-hooks.el"))
+  (file-name-concat niwa-user-dir "trusted-hooks.eld"))
 
 (defun niwa-hooks--read-trust-db ()
   "Read the trusted hook hash database."
@@ -1367,7 +1367,7 @@ EVENT labels each generated hook event block."
 (defun niwa-hooks-log-path (session)
   "Return the persistent hook log path for SESSION, or nil."
   (when-let* ((save-path (and session (niwa-session-save-path session))))
-    (file-name-concat save-path "hook-log.el")))
+    (file-name-concat save-path "hook-log.eld")))
 
 (defun niwa-hooks--persist-log-content (session content)
   "Append serialized hook log CONTENT for SESSION."

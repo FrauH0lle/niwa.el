@@ -316,7 +316,7 @@
   (with-current-buffer (save-window-excursion (open-for-inspection))
     (niwa-cockpit-goto-id id)
     (let* ((row (niwa-cockpit-surface-selected))
-           (file (file-name-concat (niwa-memory-store--directory workspace (plist-get row :pass)) "accepted.el")))
+           (file (file-name-concat (niwa-memory-store--directory workspace (plist-get row :pass)) "accepted.eld")))
       (write-region "Corrupted acceptance.\n" nil file nil 'silent)
       (should-error (niwa-memory-list--details row context))
       (should-error (niwa-memory-list-accept))

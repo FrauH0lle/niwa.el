@@ -96,7 +96,7 @@ network permission, or filesystem grants, and cannot broaden an exact directory
 into a recursive grant. Explicit hard denies, Plan and integrity checks remain
 outside model authority. When logging is enabled, `permission-review-completed`
 retains a settled reviewer decision's bounded explanation as `:review-reason`
-in the session's `permission-log.el`, including `ask` and `deny` decisions.
+in the session's `permission-log.eld`, including `ask` and `deny` decisions.
 Failures and timeouts have no reviewer explanation. Raw responses and supplied
 evidence snapshots are not added to that event. The explanation is model-authored
 free text, not redacted text, and may quote evidence. It is diagnostic, not

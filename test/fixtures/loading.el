@@ -165,7 +165,7 @@ temporary one."
              (should-not (featurep 'niwa-notes))
              (let ((source (find-file-noselect "source.el")))
                (with-current-buffer source (niwa-note-create "Cold note"))
-               (should (file-exists-p ".niwa/instructions.el"))
+               (should (file-exists-p ".niwa/instructions.eld"))
                (kill-buffer source))
              (with-current-buffer (find-file-noselect "source.el")
                (should (seq-some (lambda (ov)
@@ -249,7 +249,7 @@ temporary one."
              ;; A saved intent can exist before installation/startup restores
              ;; lobbies.  Stop all must forget it without opening a transport.
              (make-directory niwa-user-dir t)
-             (let ((intent (file-name-concat niwa-user-dir "lobbies.el")))
+             (let ((intent (file-name-concat niwa-user-dir "lobbies.eld")))
                (with-temp-file intent (prin1 (list root) (current-buffer)))
                (cl-letf (((symbol-function 'message) #'ignore))
                  (call-interactively 'niwa-collaboration-stop-all))

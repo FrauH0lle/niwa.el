@@ -142,7 +142,7 @@
   :type 'boolean
   :group 'niwa)
 
-(defcustom niwa-telemetry-file-name "telemetry-log.el"
+(defcustom niwa-telemetry-file-name "telemetry-log.eld"
   "File name for the append-only per-session telemetry stream."
   :type 'string
   :group 'niwa)
@@ -1597,7 +1597,7 @@ so version control never hears about any of it."
         (mode profile)
         (let* ((profile-file
                 (file-name-concat
-                 directory (format "profiler-%s-profile.el" mode)))
+                 directory (format "profiler-%s-profile.eld" mode)))
                (report-file
                 (file-name-concat
                  directory (format "profiler-%s-report.txt" mode)))

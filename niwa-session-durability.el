@@ -629,11 +629,11 @@ defaults to GENERATION."
   (let ((path
          (file-name-concat
           (niwa-session-control-fs-physical-path directory)
-          (format "%020d.el" generation))))
+          (format "%020d.eld" generation))))
     (niwa-session-control-fs-physical-path path)))
 
 (defconst niwa-session-durability--generation-name-regexp
-  "\\`[0-9]\\{20\\}\\.el\\'"
+  "\\`[0-9]\\{20\\}\\.eld\\'"
   "Name shape of a lease generation record.")
 
 (defun niwa-session-durability--validate-generation-names (names)
@@ -1667,7 +1667,7 @@ Reobserve all blockers, then prove their absence under the election lock."
     (let* ((results
             (niwa-session-control-fs-run-program
              (list (list :op 'verify :path path :content bytes)
-                   (list :op 'verify-latest :path path :content ".el")
+                   (list :op 'verify-latest :path path :content ".eld")
                    (niwa-session-control-fs-listing-proof
                     directory (plist-get assessment :names))
                    (list :op 'absent :path (file-name-concat session-dir ".lock"))
@@ -3089,7 +3089,7 @@ before launch; JOB and CONTEXT are as for
                                 (mapcar
                                  (lambda (name)
                                    (and (string-match-p
-                                         "\\`request-[0-9]\\{20\\}\\.el\\'"
+                                         "\\`request-[0-9]\\{20\\}\\.eld\\'"
                                          name)
                                         (expand-file-name
                                          name requests-directory)))

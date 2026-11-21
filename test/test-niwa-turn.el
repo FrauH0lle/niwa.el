@@ -543,7 +543,7 @@
           (with-temp-buffer
             (insert-file-contents
              (file-name-concat (niwa-session-save-path session)
-                               "telemetry-log.el"))
+                               "telemetry-log.eld"))
             (let (settled)
               (condition-case nil
                   (while t

@@ -475,7 +475,7 @@ directories -- the existence probes and the lease listings."
                    (lease (copy-sequence (niwa-session-lease session)))
                    (path (file-name-concat
                           directory ".lease"
-                          (format "%020d.el" (plist-get lease :generation)))))
+                          (format "%020d.eld" (plist-get lease :generation)))))
               (niwa-session-durability-lease-release directory session)
               (kill-buffer buffer)
               (setq lease (plist-put lease :status 'publishing)

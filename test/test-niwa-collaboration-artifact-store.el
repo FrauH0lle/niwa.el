@@ -65,7 +65,7 @@
                          (should (cl-every (lambda (op) (eq 'read (plist-get op :op)))
                                            operations)))
                        (cl-incf reads
-                                (cl-count "meta.el" operations :test #'equal
+                                (cl-count "meta.eld" operations :test #'equal
                                           :key (lambda (op)
                                                  (file-name-nondirectory
                                                   (plist-get op :path)))))

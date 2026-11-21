@@ -641,7 +641,7 @@ model-visible context, submitted content, control flow, or permissions,
 the hook audit surface includes the system message as supporting detail.
 
 When the session has been materialized on disk, the same entries are also
-appended to `<session>/hook-log.el` as one sanitized plist per line.  Local
+appended to `<session>/hook-log.eld` as one sanitized plist per line.  Local
 sessions append each entry in UTF-8, without rereading the log or checking an
 already-existing parent directory; remote process callbacks enqueue
 and the next successful session settlement publishes the append atomically.

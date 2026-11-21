@@ -21,6 +21,11 @@
 (require 'niwa-session-control-fs)
 (require 'niwa-system)
 (require 'niwa-workspace-identity)
+;; Name the source: stale bytecode beside the script would otherwise shadow it.
+(require 'niwa-migrate-session
+         (file-name-concat (file-name-directory
+                            (or load-file-name buffer-file-name byte-compile-current-file))
+                           ".." "scripts" "migrate-sessions.el"))
 
 (niwa-deftest niwa-memory-cleanup-entry
     (:vars* ((root (make-temp-file "niwa-memory-retention-" t))
@@ -94,10 +99,90 @@
       (plist-get (niwa-memory-decision-reject workspace (plist-get prepared :id) (plist-get proposal :id)) :decision))
     (should (= 2 (plist-get (niwa-journal-cleanup-expired workspace) :count)))
     (should-not (niwa-journal-store-entries root))
-    (should-not (niwa-session-control-fs-list-directory (niwa-memory-decision--directory workspace) "\\.el\\'"))
+    (should-not (niwa-session-control-fs-list-directory (niwa-memory-decision--directory workspace) "\\.eld\\'"))
     (niwa-memory-decision-recover workspace)
     (niwa-memory-store-recover workspace)
     (should-not (niwa-memory-list--collect (list :workspace workspace))))
+  :doc "a v0.6.0 expiry record migrates to the exact bytes the current runtime writes"
+  (let ((proposal (topic)))
+    (cl-letf (((symbol-function 'niwa-journal-store-timestamp) (lambda (_) "2000-01-01T00:00:00Z")))
+      (plist-get (niwa-memory-decision-reject workspace (plist-get prepared :id) (plist-get proposal :id)) :decision))
+    (should (= 2 (plist-get (niwa-journal-cleanup-expired workspace) :count)))
+    (let* ((journal (niwa-journal-store-directory root))
+           (state (niwa-journal-store-state-directory journal))
+           (path (car (niwa-session-control-fs-list-directory
+                       (file-name-concat state "expiry") "\\.json\\'")))
+           (done (concat path ".done"))
+           (read (lambda (file) (with-temp-buffer (insert-file-contents file) (buffer-string))))
+           (manifest (niwa-journal-cleanup--read journal path))
+           (outcome (niwa-journal-claim--path (plist-get manifest :token) t))
+           (text (funcall read path))
+           (outcome-text (funcall read outcome))
+           (done-text (funcall read done))
+           ;; The v0.6.0 release named its private files `.el' and bound the
+           ;; manifest's own hash into its outcome and receipt.
+           (old (replace-regexp-in-string "\\.eld\"" ".el\"" text))
+           (old-hash (secure-hash 'sha256 old)))
+      (should (equal done-text (plist-get manifest :hash)))
+      (should-not (equal old text))
+      (write-region old nil path nil 'silent)
+      (write-region old-hash nil done nil 'silent)
+      (write-region (replace-regexp-in-string (regexp-quote done-text) old-hash outcome-text)
+                    nil outcome nil 'silent)
+      (should-error (niwa-journal-cleanup--read journal path))
+      (should (eq 'migrated (plist-get (niwa-migrate-workspace root) :status)))
+      (should (equal text (funcall read path)))
+      (should (equal done-text (funcall read done)))
+      (should (equal outcome-text (funcall read outcome)))
+      (should (equal (plist-get manifest :hash)
+                     (plist-get (niwa-journal-cleanup--read journal path) :hash)))
+      (should (eq 'current (plist-get (niwa-migrate-workspace root) :status)))))
+  :doc "an unfinished v0.6.0 expiry record migrates and recovery then finishes it"
+  (let* ((proposal (topic))
+         (journal (niwa-journal-store-directory root))
+         (state (niwa-journal-store-state-directory journal))
+         (snapshot (make-temp-file "niwa-expiry-snapshot-" t))
+         (read (lambda (file) (with-temp-buffer (insert-file-contents file) (buffer-string)))))
+    (unwind-protect
+        (progn
+          (cl-letf (((symbol-function 'niwa-journal-store-timestamp) (lambda (_) "2000-01-01T00:00:00Z")))
+            (plist-get (niwa-memory-decision-reject workspace (plist-get prepared :id) (plist-get proposal :id)) :decision))
+          (copy-directory state (file-name-as-directory snapshot) nil t t)
+          (should (= 2 (plist-get (niwa-journal-cleanup-expired workspace) :count)))
+          (let* ((path (car (niwa-session-control-fs-list-directory
+                             (file-name-concat state "expiry") "\\.json\\'")))
+                 (done (concat path ".done"))
+                 (manifest (niwa-journal-cleanup--read journal path))
+                 (outcome (niwa-journal-claim--path (plist-get manifest :token) t))
+                 (text (funcall read path))
+                 (outcome-text (funcall read outcome))
+                 (done-text (funcall read done))
+                 (private (cl-loop for entry across (plist-get manifest :entries)
+                                   append (cl-loop for record across (gethash "private" entry)
+                                                   collect (gethash "file" record))))
+                 ;; As v0.6.0 left it: accepted, not applied, private files `.el'.
+                 (old (replace-regexp-in-string "\\.eld\"" ".el\"" text))
+                 (old-hash (secure-hash 'sha256 old)))
+            (should private)
+            (dolist (file private)
+              (let ((legacy (file-name-concat state (string-remove-suffix "d" file))))
+                (make-directory (file-name-directory legacy) t)
+                (copy-file (file-name-concat snapshot file) legacy)))
+            (delete-file done)
+            (write-region old nil path nil 'silent)
+            (write-region (replace-regexp-in-string (regexp-quote done-text) old-hash outcome-text)
+                          nil outcome nil 'silent)
+            (should (eq 'migrated (plist-get (niwa-migrate-workspace root) :status)))
+            (should (equal text (funcall read path)))
+            (should (equal outcome-text (funcall read outcome)))
+            (dolist (file private)
+              (should (file-exists-p (file-name-concat state file))))
+            (should (= 1 (niwa-journal-cleanup-recover journal)))
+            (should (equal done-text (funcall read done)))
+            (dolist (file private)
+              (should-not (file-exists-p (file-name-concat state file)))
+              (should-not (file-exists-p (file-name-concat state (string-remove-suffix "d" file)))))))
+      (delete-directory snapshot t)))
   :doc "expires applied and reversed evidence together while preserving current memory files"
   (let ((proposal (topic)))
     (cl-letf (((symbol-function 'niwa-journal-store-timestamp) (lambda (_) "2000-01-01T00:00:00Z")))
@@ -111,7 +196,7 @@
     (should-not (niwa-journal-store-entries root))
     (should-not (niwa-journal-store-entries root))
     (should-not (niwa-memory-list--collect (niwa-cockpit-workspace-context workspace)))
-    (should-not (niwa-session-control-fs-list-directory (niwa-memory-decision--directory workspace) "\\.el\\'"))
+    (should-not (niwa-session-control-fs-list-directory (niwa-memory-decision--directory workspace) "\\.eld\\'"))
     (should-not (file-exists-p (file-name-concat root "memory" "topic.md")))
     (niwa-memory-decision-recover workspace))
   :doc "a recent terminal decision retains an older review and its evidence"
@@ -231,13 +316,13 @@
       (should (= 1 pass-reads))
       (should (= 4 decision-reads)))
     (should-not (niwa-journal-store-entries root))
-    (should-not (niwa-session-control-fs-list-directory (niwa-memory-decision--directory workspace) "\\.el\\'")))
+    (should-not (niwa-session-control-fs-list-directory (niwa-memory-decision--directory workspace) "\\.eld\\'")))
   :doc "expires an old no-action review and its private body without later republication"
   (progn
     (publish)
     (should (= 1 (plist-get (niwa-journal-cleanup-expired workspace) :count)))
     (should-not (niwa-journal-store-entries root))
-    (dolist (file '("prepared.el" "accepted.el"))
+    (dolist (file '("prepared.eld" "accepted.eld"))
       (should-not (file-exists-p (file-name-concat
                                 (niwa-memory-store--directory workspace (plist-get prepared :id)) file))))
     (niwa-memory-store-recover workspace)
@@ -321,7 +406,7 @@
   :doc "accepted expiry resumes after private deletion is interrupted without exposing a pending proposal"
   (progn
     (publish)
-    (let* ((path (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id)) "accepted.el"))
+    (let* ((path (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id)) "accepted.eld"))
            (original (symbol-function 'niwa-session-control-fs-delete-file)))
       (niwa-test--with-captured-messages nil
         (cl-letf (((symbol-function 'niwa-session-control-fs-delete-file)
@@ -336,7 +421,7 @@
   :doc "changed private bytes remain after accepted retirement and cannot be silently deleted"
   (progn
     (publish)
-    (let* ((path (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id)) "accepted.el"))
+    (let* ((path (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id)) "accepted.eld"))
            (original (symbol-function 'niwa-session-control-fs-delete-file)))
       (niwa-test--with-captured-messages nil
         (cl-letf (((symbol-function 'niwa-session-control-fs-delete-file)
@@ -377,7 +462,7 @@
   :doc "history observations never hide accepted-pass edits from a later recovery"
   (let* ((proposal (topic))
          (pass (plist-get prepared :id))
-         (path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.el")))
+         (path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.eld")))
     (plist-get (niwa-memory-decision-reject workspace pass (plist-get proposal :id)) :decision)
     (niwa-memory-decision-recover workspace)
     (let ((text (niwa-session-control-fs-read-file path)))
@@ -392,7 +477,7 @@
     (cl-letf (((symbol-function 'niwa-journal-store-timestamp) (lambda (_) "2000-01-01T00:00:00Z")))
       (setq decision (plist-get (niwa-memory-decision-reject workspace (plist-get prepared :id) (plist-get proposal :id)) :decision)))
     (let ((path (file-name-concat (niwa-memory-decision--directory workspace)
-                                 (concat (plist-get decision :decision-id) ".el")))
+                                 (concat (plist-get decision :decision-id) ".eld")))
           messages)
       (niwa-test--with-captured-messages messages
         (cl-letf (((symbol-function 'niwa-memory-cleanup--history)
@@ -411,7 +496,7 @@
     (should (= 0 (plist-get (niwa-journal-cleanup-expired workspace) :count)))
     (should (= 2 (length (niwa-journal-store-entries root))))
     (should (= 2 (length (niwa-session-control-fs-list-directory
-                         (niwa-memory-decision--directory workspace) "\\.el\\'"))))
+                         (niwa-memory-decision--directory workspace) "\\.eld\\'"))))
     (should-not (niwa-journal-cleanup-pass-retired-p root (plist-get prepared :id))))
   :doc "unreviewed overdue evidence survives until a successful no-action review"
   (let ((entry (niwa-journal-store-publish-digest

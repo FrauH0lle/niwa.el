@@ -895,7 +895,7 @@ source cannot be identified without reading it."
 
 (defun niwa-session-artifacts-sidecar-path (save-path)
   "Return the absolute path to the session sidecar under SAVE-PATH."
-  (file-name-concat save-path "session.meta.el"))
+  (file-name-concat save-path "session.meta.eld"))
 
 
 ;;
@@ -1725,7 +1725,7 @@ every durable mutation boundary; unchanged targets take no durability I/O."
                target)
               (when (niwa-session-save-path session)
                 (when (niwa-session-artifacts-artifact-present-p
-                       session "session.meta.el" t)
+                       session "session.meta.eld" t)
                   (niwa-session-artifacts-publish-sidecar-state
                    session root-buffer)))
               (niwa-execution-target-acknowledge-incarnation target))))))))
@@ -2313,7 +2313,7 @@ is checked before the artifact is built."
                (niwa-session-execution-target session))
     (error "Session state publication requires a materialized session"))
   (unless (niwa-session-artifacts-artifact-present-p
-           session "session.meta.el" t)
+           session "session.meta.eld" t)
     (error "Session sidecar is not published"))
   (niwa-session-artifacts-assert-mutation-authority
    session root-buffer)
@@ -2397,7 +2397,7 @@ Return nil if INVOCATION's epoch is superseded during the authority check."
                  (niwa-agent-persistence-transcript-path-p
                   relative save-path)
                  (niwa-session-artifacts-artifact-present-p
-                  session "session.meta.el"))
+                  session "session.meta.eld"))
       (error "Portable terminal agent state is not materialized"))
     (with-current-buffer buffer
       (unless (and buffer-file-name
@@ -2544,7 +2544,7 @@ read.  The caller owns every staged source until acknowledgement."
     (unless marker (error "Staged save requires a sidecar marker"))
     (unless (and comparable (not (plist-get frozen :force)) (null changed)
                  (equal (plist-get marker :source-sha256)
-                        (plist-get (cdr (assoc "session.meta.el" entries)) :sha256)))
+                        (plist-get (cdr (assoc "session.meta.eld" entries)) :sha256)))
       ;; The staged marker already holds the frozen sidecar as the checkpoint
       ;; owner projected it at stage time, merged recovery rows included.  It
       ;; is a detached local file: reading it never touches live fields.
@@ -2868,7 +2868,7 @@ gate token; a deferred preparation receives its own."
            (or (bound-and-true-p
                 niwa-session-durability--asserted-directories)
                (list nil))))
-      (when (niwa-session-artifacts-artifact-present-p session "session.meta.el" t)
+      (when (niwa-session-artifacts-artifact-present-p session "session.meta.eld" t)
         (niwa--with-gc-batched
           (niwa-transport-with-exclusive-connection
             (niwa-session-artifacts-assert-mutation-authority

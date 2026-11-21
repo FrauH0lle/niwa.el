@@ -268,7 +268,7 @@
            session
            (list (list :path (niwa-session-artifacts-segment-path save-path 1)
                        :content "committed transcript\n")
-                 (list :path (file-name-concat save-path "session.meta.el")
+                 (list :path (file-name-concat save-path "session.meta.eld")
                        :content (niwa-session-artifacts-printed-value
                                  (niwa-session-codec-serialize session))
                        :commit-marker t)))

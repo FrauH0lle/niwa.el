@@ -1834,7 +1834,7 @@ An error result is signalled, as a Read that failed before waiting does."
           (setf (niwa-session-save-path session)
                 (file-name-as-directory save-path)
                 (niwa-session-publication session)
-                (list :head ".publications/generation/manifest.el"
+                (list :head ".publications/generation/manifest.eld"
                       :sidecar published
                       :artifacts
                       (list (list logical
@@ -1902,7 +1902,7 @@ An error result is signalled, as a Read that failed before waiting does."
           (setf (niwa-session-save-path session)
                 (file-name-as-directory save-path)
                 (niwa-session-publication session)
-                (list :head ".publications/generation/manifest.el"
+                (list :head ".publications/generation/manifest.eld"
                       :sidecar nil :artifacts nil))
           (with-temp-buffer
             (setq-local niwa--session session)

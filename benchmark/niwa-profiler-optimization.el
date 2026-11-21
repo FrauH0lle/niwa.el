@@ -331,7 +331,7 @@ returns additional counters from one unprofiled workload run."
   (let* ((root (file-name-concat directory "session"))
          (session (niwa-benchmark--session root))
          (events 250)
-         (log-file (file-name-concat root "telemetry-log.el")))
+         (log-file (file-name-concat root "telemetry-log.eld")))
     (cl-labels
         ((run (enabled output)
            (let ((workload

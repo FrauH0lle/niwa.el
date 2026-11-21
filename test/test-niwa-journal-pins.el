@@ -18,7 +18,7 @@
   (let ((directory (make-temp-file "niwa-journal-pins-" t))
         (first (make-string 64 ?a))
         (second (make-string 64 ?b))
-        (head ".publications/generation-0123456789abcdef0123/manifest.el"))
+        (head ".publications/generation-0123456789abcdef0123/manifest.eld"))
     (unwind-protect
         (progn
           (should-not (niwa-journal-pins-present-p directory))
@@ -61,7 +61,7 @@
   (let* ((directory (make-temp-file "niwa-journal-pins-observe-" t))
          (first (make-string 64 ?a))
          (second (make-string 64 ?b))
-         (head ".publications/generation-0123456789abcdef0123/manifest.el")
+         (head ".publications/generation-0123456789abcdef0123/manifest.eld")
          (proved (lambda (proof)
                    (cl-every (lambda (result) (eq 'ok (plist-get result :status)))
                              (niwa-session-control-fs-run-program proof)))))

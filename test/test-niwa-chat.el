@@ -1887,7 +1887,7 @@
             (should (equal "retry-name"
                            (plist-get
                             (read (niwa-session-artifacts-read-artifact
-                                   session "session.meta.el" t))
+                                   session "session.meta.eld" t))
                             :session-name)))))
       (niwa-session-persistence-lock-release
        (niwa-session-save-path session) session)

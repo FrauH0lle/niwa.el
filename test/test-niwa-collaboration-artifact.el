@@ -90,7 +90,7 @@
             `(:kind patch :files
               ((:kind add :path ,(file-name-concat save-path "notes.html"))
                ;; Host bookkeeping lives under `.state/'.
-               (:kind add :path ,(file-name-concat dir ".state/mockup/meta.el"))
+               (:kind add :path ,(file-name-concat dir ".state/mockup/meta.eld"))
                (:kind add :path ,(file-name-concat dir ".state/mockup/versions/000001.html"))
                (:kind delete :path ,path)))))
           (should-not (niwa-collaboration--artifact-fields
@@ -417,7 +417,7 @@ as (PEER . FRAME), guest 1 reads and guest 2 writes in both rooms."
     (should (cl-every (lambda (row) (eq :json-false (plist-get row :attached)))
                       (plist-get (niwa-collaboration--store-frame lobby) :artifacts)))
     ;; Unreadable metadata leaves its artifact out, not the listing.
-    (write-region "(:kind" nil (file-name-concat store ".state" "draft" "meta.el") nil 'silent)
+    (write-region "(:kind" nil (file-name-concat store ".state" "draft" "meta.eld") nil 'silent)
     (should (equal '("page") (mapcar (lambda (row) (plist-get row :id))
                                      (niwa-collaboration--store-rows lobby))))))
 

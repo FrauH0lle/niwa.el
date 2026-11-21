@@ -115,8 +115,8 @@ owners must first fence mutation claims.  Unsolicited signals report errors."
     (error "Unsupported journal worker operation"))
   (require 'niwa-journal-store)
   (let* ((directory (make-temp-file "niwa-journal-worker-" t))
-         (request (file-name-concat directory "request.el"))
-         (reply (file-name-concat directory "reply.el"))
+         (request (file-name-concat directory "request.eld"))
+         (reply (file-name-concat directory "reply.eld"))
          (root (niwa-workspace-root workspace))
          (default-directory temporary-file-directory)
          (limit (niwa-journal-worker--reply-limit

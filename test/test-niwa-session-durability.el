@@ -1020,7 +1020,7 @@ holder identity is recorded by an owner lease acquired before the call."
             ;; Real record bytes, because the round trip through `read' is
             ;; part of what makes these values reachable at all.
             (with-temp-file (file-name-concat
-                             lease-dir "00000000000000000001.el")
+                             lease-dir "00000000000000000001.eld")
               (prin1 (list :generation 1 :transfer-generation 1
                            :status 'active :publication-head nil
                            :unsettled-mutation nil
@@ -1202,7 +1202,7 @@ holder identity is recorded by an owner lease acquired before the call."
                              session-dir))
                  (phantom (file-name-concat
                            directory
-                           (format "%020d.el" 6000))))
+                           (format "%020d.eld" 6000))))
             (write-region "" nil phantom nil 'silent)
             (should (niwa-session-durability--lease-head directory))
             (should (equal owner
@@ -2703,7 +2703,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (owner (make-string 64 ?a))
          (successor (make-string 64 ?b))
          (niwa-session-durability--client-id owner)
-         (head ".publications/0001/manifest.el"))
+         (head ".publications/0001/manifest.eld"))
     (make-directory session-dir t)
     (setf (niwa-session-save-path owner-session) session-dir
           (niwa-session-save-path successor-session) session-dir)
@@ -2714,8 +2714,8 @@ holder identity is recorded by an owner lease acquired before the call."
           (dolist (invalid
                    '(nil "" "/absolute" "../manifest" "a/../manifest"
                      "/ssh:host:/manifest" "~/manifest" "a//manifest"
-                     "a/./manifest" "manifest/" "session.meta.el"
-                     ".lease/manifest.el" ".publications/plain.el"))
+                     "a/./manifest" "manifest/" "session.meta.eld"
+                     ".lease/manifest.eld" ".publications/plain.el"))
             (should-error
              (niwa-session-durability-commit-publication-head
               owner-session invalid)
@@ -2782,7 +2782,7 @@ holder identity is recorded by an owner lease acquired before the call."
             owner-session))
           (should
            (niwa-session-durability-commit-publication-head
-            owner-session ".publications/old/manifest.el"))
+            owner-session ".publications/old/manifest.eld"))
           (setq now 80.0)
           ;; The stale commit states its precondition as the `verify'
           ;; opening its program; a successor takeover immediately before
@@ -2804,12 +2804,12 @@ holder identity is recorded by an owner lease acquired before the call."
             (should (equal
                      (should-error
                       (niwa-session-durability-commit-publication-head
-                       owner-session ".publications/stale/manifest.el")
+                       owner-session ".publications/stale/manifest.eld")
                       :type 'user-error)
                      '(user-error "Portable session lease changed before this update committed"))))
           (should triggered)
           (should
-           (equal ".publications/old/manifest.el"
+           (equal ".publications/old/manifest.eld"
                   (plist-get (niwa-session-lease successor-session)
                              :publication-head)))
           (let ((niwa-session-durability--client-id successor))
@@ -2818,9 +2818,9 @@ holder identity is recorded by an owner lease acquired before the call."
               successor-session))
             (should
              (niwa-session-durability-commit-publication-head
-              successor-session ".publications/new/manifest.el"))
+              successor-session ".publications/new/manifest.eld"))
             (should
-             (equal ".publications/new/manifest.el"
+             (equal ".publications/new/manifest.eld"
                     (niwa-session-durability-publication-head session-dir)))
             (niwa-session-durability-lease-release
              session-dir successor-session)))
@@ -2853,14 +2853,14 @@ holder identity is recorded by an owner lease acquired before the call."
              (niwa-session-durability--create-plist
               (niwa-session-durability--generation-path lease-directory 1)
               (niwa-session-durability--lease-record
-               "*old*" 1 'active ".publications/old/manifest.el" nil
+               "*old*" 1 'active ".publications/old/manifest.eld" nil
                (niwa-session-durability--target-time lease-directory)))))
           (let ((niwa-session-durability--client-id (make-string 64 ?b)))
             (should
              (niwa-session-durability--create-plist
               (niwa-session-durability--generation-path lease-directory 2)
               (niwa-session-durability--lease-record
-               "*new*" 2 'active ".publications/new/manifest.el" nil
+               "*new*" 2 'active ".publications/new/manifest.eld" nil
                (niwa-session-durability--target-time lease-directory)))))
           (cl-letf
               (((symbol-function 'niwa-session-control-fs-list-directory)
@@ -2870,7 +2870,7 @@ holder identity is recorded by an owner lease acquired before the call."
                     (setq helper-called t)
                     (funcall list-directory-function directory regexp)))))
             (should
-             (equal ".publications/new/manifest.el"
+             (equal ".publications/new/manifest.eld"
                     (niwa-session-durability-publication-head
                      session-dir))))
           (should helper-called))
@@ -2917,7 +2917,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (segment (file-name-concat session-dir "segment.chat.org"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a)))
     (make-directory session-dir t)
@@ -2955,10 +2955,10 @@ holder identity is recorded by an owner lease acquired before the call."
              :type 'error)
             (with-temp-file manifest-path
               (prin1
-               (list :sidecar "session.meta.el"
+               (list :sidecar "session.meta.eld"
                      :artifacts
                      (list
-                      (list "session.meta.el"
+                      (list "session.meta.eld"
                             :published ".lease/forged.el"
                             :sha256 (make-string 64 ?a))))
                (current-buffer)))
@@ -2975,11 +2975,11 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (segment (file-name-concat session-dir "segment.chat.org"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (outside-dir (file-name-as-directory
                        (file-name-concat local-root "outside")))
          (session (test-niwa-session-durability--local-session local-root))
-         (escaped-head ".publications/escaped-head/manifest.el")
+         (escaped-head ".publications/escaped-head/manifest.eld")
          (niwa-session-durability--client-id (make-string 64 ?a)))
     (make-directory session-dir t)
     (make-directory outside-dir t)
@@ -2998,7 +2998,7 @@ holder identity is recorded by an owner lease acquired before the call."
                   (file-name-concat session-dir
                                     (plist-get publication :head))))
             (copy-file manifest
-                       (file-name-concat outside-dir "manifest.el"))
+                       (file-name-concat outside-dir "manifest.eld"))
             (make-symbolic-link
              outside-dir
              (file-name-concat session-dir ".publications" "escaped-head"))
@@ -3023,7 +3023,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (segment (file-name-concat session-dir "segment.chat.org"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (outside-dir (file-name-as-directory
                        (file-name-concat local-root "outside")))
          (session (test-niwa-session-durability--local-session local-root))
@@ -3047,18 +3047,18 @@ holder identity is recorded by an owner lease acquired before the call."
                  (manifest
                   (niwa-session-durability--read-plist manifest-path))
                  (sidecar-entry
-                  (cdr (assoc "session.meta.el"
+                  (cdr (assoc "session.meta.eld"
                               (plist-get manifest :artifacts)))))
             (copy-file
              (file-name-concat
               session-dir (plist-get sidecar-entry :published))
-             (file-name-concat outside-dir "session.meta.el"))
+             (file-name-concat outside-dir "session.meta.eld"))
             (make-symbolic-link
              outside-dir
              (file-name-concat
               session-dir ".publications" "escaped-artifact"))
             (setf (plist-get sidecar-entry :published)
-                  ".publications/escaped-artifact/session.meta.el")
+                  ".publications/escaped-artifact/session.meta.eld")
             (with-temp-file manifest-path
               (let ((print-length nil)
                     (print-level nil))
@@ -3076,7 +3076,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (segment (file-name-concat session-dir "segment.chat.org"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (publication-dir (file-name-concat session-dir ".publications"))
          (outside-dir (file-name-concat local-root "outside-publications"))
          (session (test-niwa-session-durability--local-session local-root))
@@ -3106,14 +3106,14 @@ holder identity is recorded by an owner lease acquired before the call."
   ,test
   (test)
   :doc "accepts normalized session artifacts outside durability control paths"
-  (dolist (path '("session.meta.el" "agents/worker.chat.org"
+  (dolist (path '("session.meta.eld" "agents/worker.chat.org"
                   "instructions/current.el"))
     (should (niwa-session-publication-logical-path-p path)))
   (dolist (path '(nil "" "/absolute" "../escape" "a/../escape"
                   ".lock" ".lease/0001.el" ".publications/generation/file"
                   ".journal-pins" ".journal-pins/capture.json"
                   ".recovery/recovery-0001/bytes"
-                  "/ssh:other:/session.meta.el" "~/session.meta.el"))
+                  "/ssh:other:/session.meta.eld" "~/session.meta.eld"))
     (should-not (niwa-session-publication-logical-path-p path))))
 
 (niwa-deftest niwa-session-publication-uncommitted-artifact ()
@@ -3197,7 +3197,7 @@ holder identity is recorded by an owner lease acquired before the call."
                       (make-temp-file "niwa-publication-rollback-" t)))
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a))
          old-head
@@ -3312,7 +3312,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (duplicate (file-name-concat session-dir "duplicate.el"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (external (file-name-concat local-root "external.el"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a)))
@@ -3334,7 +3334,7 @@ holder identity is recorded by an owner lease acquired before the call."
                   (niwa-session-publication-read session-dir))
                  (artifacts (plist-get publication :artifacts))
                  (entry (cdr (assoc "duplicate.el" artifacts))))
-            (should (equal '("duplicate.el" "session.meta.el")
+            (should (equal '("duplicate.el" "session.meta.eld")
                            (mapcar #'car artifacts)))
             (should (equal "last"
                            (with-temp-buffer
@@ -3389,7 +3389,7 @@ holder identity is recorded by an owner lease acquired before the call."
              (niwa-session-publication-publish
               session
               (list
-               (list :path (file-name-concat session-dir "session.meta.el")
+               (list :path (file-name-concat session-dir "session.meta.eld")
                      :content "sidecar" :commit-marker t)))))
           (should (= 2 immutable-directories))
           (should (file-remote-p
@@ -3408,7 +3408,7 @@ holder identity is recorded by an owner lease acquired before the call."
                        (file-name-concat local-root "session")))
          (first (file-name-concat session-dir "first.el"))
          (second (file-name-concat session-dir "second.el"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a)))
     (make-directory session-dir t)
@@ -3437,7 +3437,7 @@ holder identity is recorded by an owner lease acquired before the call."
                  (plist-get
                   (niwa-session-publication-read session-dir)
                   :artifacts)))
-            (should (equal '("second.el" "session.meta.el")
+            (should (equal '("second.el" "session.meta.eld")
                            (mapcar #'car artifacts)))
             (should-not (assoc "first.el" artifacts)))
           (should (file-exists-p first)))
@@ -3453,7 +3453,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (first (file-name-concat session-dir "first.el"))
          (second (file-name-concat session-dir "second.el"))
          (required (file-name-concat session-dir "required.el"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a))
          (publish-artifact
@@ -3493,7 +3493,7 @@ holder identity is recorded by an owner lease acquired before the call."
              (niwa-session-publication-publish
               session (list (list :path first :content "first")))))
           (should
-           (equal '("first.el" "second.el" "session.meta.el")
+           (equal '("first.el" "second.el" "session.meta.eld")
                   (mapcar
                    #'car
                    (plist-get
@@ -3511,7 +3511,7 @@ holder identity is recorded by an owner lease acquired before the call."
                       (make-temp-file "niwa-publication-invalid-" t)))
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a)))
     (make-directory session-dir t)
@@ -3524,10 +3524,10 @@ holder identity is recorded by an owner lease acquired before the call."
               (artifacts
                (list
                 (list (list :path (file-name-concat
-                                   session-dir "nested/session.meta.el")
+                                   session-dir "nested/session.meta.eld")
                             :content "nested" :commit-marker t))
                 (list (list :path (file-name-concat
-                                   local-root "session.meta.el")
+                                   local-root "session.meta.eld")
                             :content "external" :commit-marker t))
                 (list (list :path (file-name-concat
                                    session-dir ".lease/forged.el")
@@ -3556,7 +3556,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (segment (file-name-concat session-dir "segment-0001.chat.org"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a)))
     (make-directory session-dir t)
@@ -3632,7 +3632,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (segment (file-name-concat session-dir "segment.chat.org"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a))
          (temporary-file-directory local-root)
@@ -3686,7 +3686,7 @@ holder identity is recorded by an owner lease acquired before the call."
           (should (cl-every (lambda (path) (not (file-exists-p path)))
                             recovery))
           (should
-           (equal '("segment.chat.org" "session.meta.el")
+           (equal '("segment.chat.org" "session.meta.eld")
                   (mapcar
                    #'car
                    (plist-get
@@ -3701,7 +3701,7 @@ holder identity is recorded by an owner lease acquired before the call."
                       (make-temp-file "niwa-publication-post-cas-" t)))
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a))
          (temporary-file-directory local-root)
@@ -3825,7 +3825,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir
           (format "/niwamock:%s:%s/" host session-dir-local))
          (first (file-name-concat session-dir "first.el"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (blocker-local (file-name-concat session-dir-local "blocker"))
          (second (file-name-concat session-dir "blocker" "second.el"))
          (session (test-niwa-session-durability--remote-session
@@ -4079,7 +4079,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (session-dir (file-name-as-directory
                        (file-name-concat local-root "session")))
          (artifact (file-name-concat session-dir "artifacts" "mockup.html"))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (session (test-niwa-session-durability--local-session local-root))
          (niwa-session-durability--client-id (make-string 64 ?a)))
     (make-directory session-dir t)
@@ -4134,7 +4134,7 @@ holder identity is recorded by an owner lease acquired before the call."
             (insert "initial transcript")
             (niwa-session-artifacts-save session (current-buffer))
             (let* ((save-path (niwa-session-save-path session))
-                   (log-path (file-name-concat save-path "hook-log.el"))
+                   (log-path (file-name-concat save-path "hook-log.eld"))
                    (entry '(:event Stop :status completed))
                    (run-program
                     (symbol-function
@@ -4222,7 +4222,7 @@ holder identity is recorded by an owner lease acquired before the call."
               (should-not
                (niwa-session-publication-append-diagnostic
                 session
-                (file-name-concat session-dir "telemetry-log.el")
+                (file-name-concat session-dir "telemetry-log.eld")
                 "(:event probe)\n"))))
           (should (string-empty-p captured))
           ;; The lease itself is untouched; the next attempt may publish.
@@ -4242,7 +4242,7 @@ holder identity is recorded by an owner lease acquired before the call."
           (file-name-as-directory (file-name-concat local-root "session")))
          (session-dir
           (format "/niwamock:%s:%s/" host session-dir-local))
-         (diagnostic (file-name-concat session-dir "hook-log.el"))
+         (diagnostic (file-name-concat session-dir "hook-log.eld"))
          (critical (file-name-concat session-dir "segment.chat.org"))
          (session
           (test-niwa-session-durability--remote-session host local-root))
@@ -4330,7 +4330,7 @@ holder identity is recorded by an owner lease acquired before the call."
           (format "/niwamock:%s:%s" host session-dir-local))
          (transcript-relative "agents/explorer.chat.org")
          (transcript (concat session-dir transcript-relative))
-         (sidecar (concat session-dir "session.meta.el"))
+         (sidecar (concat session-dir "session.meta.eld"))
          session
          target
          (parent (generate-new-buffer " *remote-agent-parent*"))
@@ -4555,7 +4555,7 @@ holder identity is recorded by an owner lease acquired before the call."
             (let* ((save-path (niwa-session-save-path session))
                    (segment (file-name-concat
                              save-path "segment-0001.chat.org"))
-                   (sidecar (file-name-concat save-path "session.meta.el")))
+                   (sidecar (file-name-concat save-path "session.meta.eld")))
               (should-not (file-exists-p segment))
               (should (niwa-session-artifacts-artifact-present-p
                        session "segment-0001.chat.org" t))
@@ -4623,7 +4623,7 @@ holder identity is recorded by an owner lease acquired before the call."
                  (= 2
                     (plist-get
                      (niwa-session-codec-read
-                      (file-name-concat save-path "session.meta.el"))
+                      (file-name-concat save-path "session.meta.eld"))
                      :current-segment)))
                 (should-not
                  (niwa-session-pending-publication session))
@@ -4673,7 +4673,7 @@ holder identity is recorded by an owner lease acquired before the call."
                  (= 2
                     (plist-get
                      (niwa-session-codec-read
-                      (file-name-concat save-path "session.meta.el"))
+                      (file-name-concat save-path "session.meta.eld"))
                      :current-segment)))
                 (niwa-session-persistence-lock-release
                  save-path session)))))
@@ -4718,7 +4718,7 @@ holder identity is recorded by an owner lease acquired before the call."
                  (= 2
                     (plist-get
                      (niwa-session-codec-read
-                      (file-name-concat save-path "session.meta.el"))
+                      (file-name-concat save-path "session.meta.eld"))
                      :current-segment)))
                 (niwa-session-persistence-lock-release
                  save-path session)))))
@@ -5122,7 +5122,7 @@ holder identity is recorded by an owner lease acquired before the call."
                    (recovery-root (file-name-concat session-dir ".recovery"))
                    (recovery-dir (file-name-concat recovery-root id))
                    (marker (file-name-concat
-                            recovery-root (concat "recovery-" id ".el"))))
+                            recovery-root (concat "recovery-" id ".eld"))))
               (make-directory recovery-dir t)
               (with-temp-file marker
                 (prin1 (list :version 1
@@ -5162,12 +5162,12 @@ holder identity is recorded by an owner lease acquired before the call."
         (progn
           (setf (niwa-session-lease session)
                 '(:state foreign
-                  :publication-head ".publications/current/manifest.el")
+                  :publication-head ".publications/current/manifest.eld")
                 (niwa-session-pending-publication session)
                 '(:reason "offline"))
           (let ((status (niwa-session-publication-status session)))
             (should (eq 'foreign (plist-get status :lease-state)))
-            (should (equal ".publications/current/manifest.el"
+            (should (equal ".publications/current/manifest.eld"
                            (plist-get status :publication-head)))
             (should (eq t (plist-get status :pending-publication)))
             (should (equal "offline" (plist-get status :pending-reason)))
@@ -5357,7 +5357,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (should (equal '(invalid-authority) (plist-get assessment :reasons)))
     (should-not (file-exists-p lease-dir)))
   :doc "cleanup preserves an old session with neither a PID lock nor a lease"
-  (let ((sidecar (file-name-concat directory "session.meta.el"))
+  (let ((sidecar (file-name-concat directory "session.meta.eld"))
         (transcript (file-name-concat directory "segment-0001.chat.org"))
         (old (seconds-to-time 1)))
     (write-region "(:version 1 :name \"legacy\")\n" nil sidecar nil 'silent)
@@ -5412,7 +5412,7 @@ holder identity is recorded by an owner lease acquired before the call."
   :doc "corrupt generations are unknown, never missing or recoverable authority"
   (progn
     (make-directory lease-dir)
-    (dolist (name '("00000000000000000001.el" "0.el"))
+    (dolist (name '("00000000000000000001.eld" "0.eld"))
       (write-region "(:generation" nil (file-name-concat lease-dir name) nil 'silent)
       (let ((assessment (niwa-session-durability-cleanup-assessment directory)))
         (should (eq 'unknown (plist-get assessment :state)))
@@ -5488,7 +5488,7 @@ holder identity is recorded by an owner lease acquired before the call."
                "owner" 1 'released nil nil
                (niwa-session-durability--target-time lease-dir)))
              "\nmalformed trailing record")
-     nil (file-name-concat lease-dir "00000000000000000001.el") nil 'silent)
+     nil (file-name-concat lease-dir "00000000000000000001.eld") nil 'silent)
     (let ((assessment (niwa-session-durability-cleanup-assessment directory)))
       (should (equal '(invalid-authority) (plist-get assessment :reasons)))
       (should (eq 'unknown (plist-get assessment :state))))))
@@ -5627,7 +5627,7 @@ holder identity is recorded by an owner lease acquired before the call."
                  (when (seq-some (lambda (op) (eq 'delete-directory (plist-get op :op)))
                                  operations)
                    (write-region "malformed authority" nil
-                                 (file-name-concat lease-dir "0.el") nil 'silent))
+                                 (file-name-concat lease-dir "0.eld") nil 'silent))
                  (funcall run operations lock-directory))))
       (should-error (niwa-session-durability-discard-session session #'ignore)))
     (should (file-directory-p directory)))

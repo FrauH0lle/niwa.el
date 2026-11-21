@@ -63,7 +63,7 @@
          (path (if (niwa-session-codec-portable-authority-p session)
                    (plist-get (niwa-session-publication-read
                                (niwa-session-save-path session)) :sidecar)
-                 (file-name-concat (niwa-session-save-path session) "session.meta.el")))
+                 (file-name-concat (niwa-session-save-path session) "session.meta.eld")))
          (raw (niwa-session-persistence-load-sidecar path))
          (restored (niwa-session-codec-deserialize
                     raw (niwa-session-workspace session))))

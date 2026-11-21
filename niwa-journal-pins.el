@@ -19,7 +19,7 @@
   "Exact capture pin filename spelling.")
 
 (defconst niwa-journal-pins--head-regexp
-  "\\`\\.publications/generation-[0-9a-f]\\{20\\}/manifest\\.el\\'"
+  "\\`\\.publications/generation-[0-9a-f]\\{20\\}/manifest\\.eld\\'"
   "Exact immutable publication head accepted by an evidence pin.")
 
 (defun niwa-journal-pins--directory (session-dir)

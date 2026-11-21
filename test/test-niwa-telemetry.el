@@ -75,7 +75,7 @@
           (setf (niwa-session-save-path session) root)
           (niwa-telemetry-flush session)
           (let* ((entries (test-niwa-telemetry--read
-                           (file-name-concat root "telemetry-log.el")))
+                           (file-name-concat root "telemetry-log.eld")))
                  (entry (car entries)))
             (should (= 1 (length entries)))
             (should (= 1 (plist-get entry :schema-version)))
@@ -103,7 +103,7 @@
                          (prin1-to-string entry)))
             (with-temp-buffer
               (insert-file-contents
-               (file-name-concat root "telemetry-log.el"))
+               (file-name-concat root "telemetry-log.eld"))
               (should (= 1 (count-lines (point-min) (point-max))))))
           (should-not (niwa-session-telemetry-pending session))
           (should-not (string-match-p "Added to"
@@ -126,7 +126,7 @@
            :additional-permissions
            '(:file-system ((:path "/home/someone/other.el" :access read))))
           (let ((entry (car (test-niwa-telemetry--read
-                             (file-name-concat root "telemetry-log.el")))))
+                             (file-name-concat root "telemetry-log.eld")))))
             (should (eq 'allow (plist-get entry :outcome)))
             (should (eq :path (plist-get entry :specifier-key)))
             (should-not (string-match-p "secret\\|other"
@@ -144,7 +144,7 @@
           (setf (niwa-session-save-path session) root)
           (niwa-telemetry-record session 'one :dropped-keys '(:invented))
           (let ((entry (car (test-niwa-telemetry--read
-                             (file-name-concat root "telemetry-log.el")))))
+                             (file-name-concat root "telemetry-log.eld")))))
             (should-not (memq :invented (plist-get entry :dropped-keys)))))
       (delete-directory root t)))
 
@@ -165,7 +165,7 @@
            :provider-error-code "stream_required"
            :error "provider refused: stream must be true")
           (let ((entry (car (test-niwa-telemetry--read
-                             (file-name-concat root "telemetry-log.el")))))
+                             (file-name-concat root "telemetry-log.eld")))))
             (should (eq 'provider-error (plist-get entry :outcome)))
             (should (eq 'provider (plist-get entry :error-class)))
             (should (equal "HTTP/2 4" (plist-get entry :provider-status)))
@@ -197,7 +197,7 @@
           (should-not (niwa-session-telemetry-pending session))
           (let ((entries
                  (test-niwa-telemetry--read
-                  (file-name-concat restored "telemetry-log.el"))))
+                  (file-name-concat restored "telemetry-log.eld"))))
             (should (= 2 (length entries)))
             (should (eq 'provider-request
                         (plist-get (car entries) :event)))
@@ -230,7 +230,7 @@
           (should-not (niwa-session-telemetry-pending session))
           (pcase-let ((`((,path ,content)) calls))
             (should
-             (equal (file-name-concat root "telemetry-log.el") path))
+             (equal (file-name-concat root "telemetry-log.eld") path))
             (with-temp-buffer
               (insert content)
               (goto-char (point-min))
@@ -836,7 +836,7 @@
                          (mapcar (lambda (entry) (plist-get entry :event))
                                  (test-niwa-telemetry--read
                                   (file-name-concat root
-                                                    "telemetry-log.el"))))))
+                                                    "telemetry-log.eld"))))))
       (delete-directory root t))))
 
 (niwa-deftest niwa-session-persistence-flush-diagnostic-logs
@@ -879,7 +879,7 @@
             (niwa-telemetry-finish span :outcome 'success))
           (pcase-let ((`(,start ,finish)
                        (test-niwa-telemetry--read
-                        (file-name-concat root "telemetry-log.el"))))
+                        (file-name-concat root "telemetry-log.eld"))))
             (should (eq 'start (plist-get start :stage)))
             (should (eq 'finish (plist-get finish :stage)))
             (should (equal (plist-get start :span-id)
@@ -904,7 +904,7 @@
             'y-or-n-p (lambda (&rest _) t) secret)
            :type 'user-error)
           (let* ((entries (test-niwa-telemetry--read
-                           (file-name-concat root "telemetry-log.el")))
+                           (file-name-concat root "telemetry-log.eld")))
                  (entry (car entries))
                  (printed (prin1-to-string entry)))
             (should (= 1 (length entries)))
@@ -970,7 +970,7 @@
           (should-error (y-or-n-p "SECRET advised prompt") :type 'user-error)
           (let ((entry
                  (car (test-niwa-telemetry--read
-                       (file-name-concat root "telemetry-log.el")))))
+                       (file-name-concat root "telemetry-log.eld")))))
             (should (eq 'y-or-n-p (plist-get entry :prompt-function)))
             (should-not (string-match-p "SECRET" (prin1-to-string entry)))))
       (niwa-telemetry--remove-prompt-guard)
@@ -1487,7 +1487,7 @@
 			 (should (file-exists-p
 				  (file-name-concat
 				   (niwa-session-save-path session)
-				   "session.meta.el"))))
+				   "session.meta.eld"))))
 		     (delete-directory root t)))
 
 		 :doc "refuses when the session cannot be materialized"
@@ -1600,7 +1600,7 @@
 			 (should-not niwa-telemetry--profiler-run-id)
 			 (let ((entry
 				(car (test-niwa-telemetry--read
-				      (file-name-concat root "telemetry-log.el")))))
+				      (file-name-concat root "telemetry-log.eld")))))
 			   (should (eq 'profiler-stopped (plist-get entry :event)))
 			   (should (equal '(cpu) (plist-get entry :modes)))
 			   (should (= 7 (plist-get entry :profile-bytes-total)))
@@ -1623,7 +1623,7 @@
 			 (should-not niwa-telemetry--profiler-run-id)
 			 (let ((entry
 				(car (last (test-niwa-telemetry--read
-					    (file-name-concat root "telemetry-log.el"))))))
+					    (file-name-concat root "telemetry-log.eld"))))))
 			   (should (eq 'profiler-stop-failed (plist-get entry :event)))
 			   (should (eq 'save-artifacts
 				       (plist-get entry :failure-stage)))))
@@ -1876,7 +1876,7 @@
                :input-bytes 128 :pass-id "pass-1" :reviewed-count 3
                :attempt-generation 2 :evidence "SECRET evidence"
                :prompt "SECRET prompt")))
-          (let* ((path (file-name-concat root ".niwa" "state" "diagnostics" "telemetry-log.el"))
+          (let* ((path (file-name-concat root ".niwa" "state" "diagnostics" "telemetry-log.eld"))
                  (events (test-niwa-telemetry--read path)))
             (should (= 2 (length events)))
             (dolist (event events)
@@ -1906,7 +1906,7 @@
                  :reasoning "SECRET reasoning" :arguments "SECRET arguments"
                  diagnostics)
           (let ((event (car (test-niwa-telemetry--read
-                             (file-name-concat root ".niwa" "state" "diagnostics" "telemetry-log.el")))))
+                             (file-name-concat root ".niwa" "state" "diagnostics" "telemetry-log.eld")))))
             (cl-loop for (key value) on diagnostics by #'cddr
                      do (should (equal value (plist-get event key))))
             (should (eq 'output-limit (plist-get event :failure-class)))

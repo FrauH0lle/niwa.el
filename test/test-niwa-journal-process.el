@@ -96,7 +96,7 @@
                (funcall (car callbacks) "Late replacement" nil)
                (with-temp-buffer
                  (insert-file-contents
-                  (file-name-concat root ".niwa" "state" "diagnostics" "telemetry-log.el"))
+                  (file-name-concat root ".niwa" "state" "diagnostics" "telemetry-log.eld"))
                  (goto-char (point-min))
                  (let ((event (read (current-buffer))))
                    (should (eq 'journal-digest-written (plist-get event :event)))
@@ -145,7 +145,7 @@
          (should (= 1 calls))
          (should-not scheduled)
          (with-temp-buffer
-           (insert-file-contents (file-name-concat root ".niwa/state/diagnostics/telemetry-log.el"))
+           (insert-file-contents (file-name-concat root ".niwa/state/diagnostics/telemetry-log.eld"))
            (goto-char (point-min))
            (let ((event (read (current-buffer))))
              (should (eq 'journal-digest-omitted (plist-get event :event)))
@@ -201,7 +201,7 @@
          (with-temp-buffer
            (insert-file-contents
             (file-name-concat (niwa-workspace-root workspace)
-                              ".niwa" "state" "diagnostics" "telemetry-log.el"))
+                              ".niwa" "state" "diagnostics" "telemetry-log.eld"))
            (goto-char (point-min))
            (dotimes (attempt 3)
              (let ((event (read (current-buffer))))

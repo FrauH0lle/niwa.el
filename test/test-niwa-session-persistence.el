@@ -1346,7 +1346,7 @@
                        (with-temp-buffer
                          (insert (niwa-session-artifacts-read-artifact
                                   (buffer-local-value 'niwa--session restored)
-                                  "session.meta.el"))
+                                  "session.meta.eld"))
                          (goto-char (point-min))
                          (read (current-buffer)))))
                   (should (equal "First authored prompt"
@@ -1907,7 +1907,7 @@
                      :path (niwa-session-artifacts-sidecar-path session-dir)
                      :content
                      (niwa-session-artifacts-read-artifact
-                      fixture-session "session.meta.el" t)
+                      fixture-session "session.meta.eld" t)
                      :commit-marker t)))
                 (niwa-session-durability-lease-release
                  session-dir fixture-session))
@@ -2669,7 +2669,7 @@
                 ;; The replaced closed segment survives publication cleanup.
                 (with-temp-buffer
                   (insert-file-contents
-                   (file-name-concat session-dir "segment-repair-backups.el"))
+                   (file-name-concat session-dir "segment-repair-backups.eld"))
                   (goto-char (point-min))
                   (let ((record (read (current-buffer))))
                     (should (equal "segment-0001.chat.org" (plist-get record :segment)))
@@ -2868,7 +2868,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                 (lambda (&rest _) nil))
                ((symbol-function
                  'niwa-session-publication-read)
-                (lambda (_) '(:sidecar "/committed/session.meta.el")))
+                (lambda (_) '(:sidecar "/committed/session.meta.eld")))
                ((symbol-function
                  'niwa-session-persistence-load-sidecar)
                 (lambda (_ &optional _scope) '(:committed t)))
@@ -3219,7 +3219,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                            (with-temp-buffer
                              (insert
                               (niwa-session-artifacts-read-artifact
-                               session "session.meta.el" t))
+                               session "session.meta.eld" t))
                              (goto-char (point-min))
                              (read (current-buffer)))))
                       (should (equal "clone"
@@ -3778,7 +3778,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
   :doc "reuses batched publication observations and rejects fresh contradictions"
   (let* ((root (make-temp-file "niwa-discover-proof-" t))
          (entry (file-name-concat root "session"))
-         (sidecar (file-name-concat entry "session.meta.el"))
+         (sidecar (file-name-concat entry "session.meta.eld"))
          (session (test-niwa-session-persistence--gate-session entry))
          (native (symbol-function 'process-file))
          (programs 0))
@@ -3912,7 +3912,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
   (test)
   :doc "prefers a parseable stamp, then the sidecar mtime, then the directory"
   (let* ((root (make-temp-file "niwa-update-time-" t))
-         (sidecar (file-name-concat root "session.meta.el"))
+         (sidecar (file-name-concat root "session.meta.eld"))
          (stamp "2026-03-04T05-06-07"))
     (unwind-protect
         (progn
@@ -3958,7 +3958,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                           (niwa-session-artifacts-sessions-dir workspace) "old"))))
               (make-directory old)
               (niwa-session-codec-write
-               (file-name-concat old "session.meta.el")
+               (file-name-concat old "session.meta.eld")
                '(:version "v0.5.3" :updated-at "2026-01-01T00-00-00"))
               (let* ((result (niwa-session-persistence--enumerate-sessions workspace))
                      (incompatible (car (plist-get result :incompatible))))
@@ -3993,7 +3993,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                         (niwa-session-artifacts-sessions-dir workspace) "old"))))
             (make-directory old t)
             (niwa-session-codec-write
-             (file-name-concat old "session.meta.el")
+             (file-name-concat old "session.meta.eld")
              (test-niwa-session-persistence--complete-sidecar
               (list :session-id "old" :authority-mode 'pid-lock
                     :workspace (list :type 'file))))
@@ -5567,7 +5567,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                   (niwa-session-artifacts-save session buf))
                 (setq session-dir (niwa-session-save-path session))
                 (let ((history-path
-                       (file-name-concat tempdir ".niwa/input-history.el")))
+                       (file-name-concat tempdir ".niwa/input-history.eld")))
                   (make-directory (file-name-directory history-path) t)
                   (niwa-session-codec-write
                    history-path
@@ -5923,7 +5923,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                        (with-temp-buffer
                          (insert
                           (niwa-session-artifacts-read-artifact
-                           session "session.meta.el" t))
+                           session "session.meta.eld" t))
                          (goto-char (point-min))
                          (read (current-buffer)))
                        :session-name)))))

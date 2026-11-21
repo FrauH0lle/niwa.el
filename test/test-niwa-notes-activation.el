@@ -258,7 +258,7 @@ WITHOUT-MODE is non-nil."
   (progn
     (make-directory (file-name-concat root ".niwa"))
     (write-region "(:format 2 :files nil :ids nil)\n" nil
-                  (file-name-concat root ".niwa/instructions.el") nil 'silent)
+                  (file-name-concat root ".niwa/instructions.eld") nil 'silent)
     (niwa-notes-activation-test--cold
      `(progn
         (find-file-noselect ,file)
@@ -294,7 +294,7 @@ WITHOUT-MODE is non-nil."
         (require 'niwa)
         (with-current-buffer (find-file-noselect ,file)
           (niwa-note-create "First persistent note"))
-        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.el"))
+        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.eld"))
           (error "First note was not saved"))
         (when (or (featurep 'niwa-chat) (featurep 'niwa-buddy))
           (error "Creating a note started AI")))))
@@ -303,7 +303,7 @@ WITHOUT-MODE is non-nil."
     (should (zerop (call-process "git" nil nil nil "init" "-q" root)))
     (write-region ".niwa/\n" nil (file-name-concat root ".gitignore") nil 'silent)
     (make-directory (file-name-concat old "instructions") t)
-    (with-temp-file (file-name-concat old "session.meta.el")
+    (with-temp-file (file-name-concat old "session.meta.eld")
       (prin1 '(:version "v0.5.6" :session-id "20261107T000000-aaaaaaaaaaaa")
              (current-buffer)))
     ;; The pre-store snapshot shape: directives plus overlay presentations.
@@ -332,7 +332,7 @@ WITHOUT-MODE is non-nil."
           (with-current-buffer (find-file-noselect ,file)
             (niwa-note-create "Fresh note"))
           (when warnings (error "Unexpected warnings: %S" warnings)))
-        (let ((store ,(file-name-concat root ".niwa/instructions.el")))
+        (let ((store ,(file-name-concat root ".niwa/instructions.eld")))
           (unless (file-exists-p store) (error "First note was not saved"))
           (let ((text (with-temp-buffer (insert-file-contents store) (buffer-string))))
             (unless (string-search "Fresh note" text) (error "Store lacks the new note"))
@@ -379,7 +379,7 @@ WITHOUT-MODE is non-nil."
             (error "Missing or repeated gitignore notice: %S" messages)))
         (when (file-exists-p ,(file-name-concat root ".gitignore"))
           (error "Note command edited gitignore"))
-        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.el"))
+        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.eld"))
           (error "Unignored note was not saved")))))
   :doc "project.el projects without VCS also persist their first note"
   (niwa-notes-activation-test--cold
@@ -394,7 +394,7 @@ WITHOUT-MODE is non-nil."
           ;; This command comes directly from generated package autoloads.
           (with-current-buffer (find-file-noselect ,file)
             (niwa-note-create "Non-VCS project")))
-        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.el"))
+        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.eld"))
           (error "Project.el note was not saved"))
         (unless (seq-some (lambda (text) (string-match-p "not.*gitignore" text))
                           messages)

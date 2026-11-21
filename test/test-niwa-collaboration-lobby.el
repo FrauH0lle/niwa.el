@@ -1032,7 +1032,7 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
 (niwa-deftest niwa-collaboration-lobby--intent-path
   (:doc "keeps the running lobbies in the user directory")
   (let ((niwa-user-dir "/home/user/.niwa/"))
-    (should (equal "/home/user/.niwa/lobbies.el"
+    (should (equal "/home/user/.niwa/lobbies.eld"
                    (niwa-collaboration-lobby--intent-path)))))
 
 (niwa-deftest niwa-collaboration-lobby--intended

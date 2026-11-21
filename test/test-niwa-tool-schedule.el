@@ -89,7 +89,7 @@
   "Return the schedules SESSION's sidecar under ROOT restores."
   (niwa-session-schedules
    (plist-get (niwa-session-codec-deserialize
-               (niwa-session-codec-read (file-name-concat root "session.meta.el"))
+               (niwa-session-codec-read (file-name-concat root "session.meta.eld"))
                (niwa-session-workspace session))
               :session)))
 

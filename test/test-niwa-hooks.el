@@ -1070,7 +1070,7 @@
                   :hooks ((:type elisp
                            :function niwa-hooks-test--deny-fn))))))
              (current-buffer)))
-          (with-temp-file (file-name-concat user-dir "trusted-hooks.el")
+          (with-temp-file (file-name-concat user-dir "trusted-hooks.eld")
             (prin1 (list (intern "test-niwa-view.el."))
                    (current-buffer)))
           (should-not (assq 'PreToolUse
@@ -2229,7 +2229,7 @@
                             (plist-get entry :event-source))
                           (niwa-session-hook-log session))))
           (with-temp-buffer
-            (insert-file-contents (file-name-concat root "hook-log.el"))
+            (insert-file-contents (file-name-concat root "hook-log.eld"))
             (should (equal "resume" (plist-get (read (current-buffer))
                                                :event-source)))
             (should (equal "startup" (plist-get (read (current-buffer))

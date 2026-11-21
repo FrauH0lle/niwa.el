@@ -69,7 +69,7 @@ Cold sessions use minimal metadata solely for disposable transcript inspection."
                                              (error "The answering session is unavailable"))))
                        (sidecar (niwa-session-codec-read
                                  (or (plist-get publication :sidecar)
-                                     (file-name-concat path "session.meta.el"))))
+                                     (file-name-concat path "session.meta.eld"))))
                        (number (plist-get sidecar :current-segment)))
                   (niwa-session-codec-validate-current-sidecar sidecar)
                   (unless (and (equal (plist-get sidecar :version) niwa-session-codec-format-version)

@@ -84,7 +84,7 @@
               (record (niwa-session-codec-read path)))
          (plist-put record :session-id "different-source-session")
          (niwa-session-codec-write path record)
-         (setf (plist-get (cdr (assoc "session.meta.el" (plist-get manifest :artifacts))) :sha256)
+         (setf (plist-get (cdr (assoc "session.meta.eld" (plist-get manifest :artifacts))) :sha256)
                (secure-hash 'sha256 (niwa-session-artifacts-read-file-raw path)))
          (niwa-session-codec-write manifest-path manifest))
        (let ((result (car (niwa-journal-recovery-run workspace))))

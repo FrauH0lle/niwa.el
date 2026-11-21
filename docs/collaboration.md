@@ -730,7 +730,7 @@ returns the lobby with its links under `:link-view`, `:link-full` and
 Unlike a room, a lobby's credentials persist, and so does the lobby itself.
 The credentials are generated once and stored in `.niwa/lobby` in the
 workspace state directory, readable only by the user. A lobby runs until it is
-stopped: starting one records its workspace root in `lobbies.el` under
+stopped: starting one records its workspace root in `lobbies.eld` under
 `niwa-user-dir`, and exiting Emacs leaves that record in place. When the
 next Emacs runs `niwa-install`, it restarts every recorded lobby, after
 startup has finished when it is installed from the init file, so the relay

@@ -484,7 +484,7 @@ after which the stub drains the pending request context like admission does."
             ;; The firing and its removal from the store committed together.
             (let ((saved (niwa-session-codec-read
                           (file-name-concat (niwa-session-save-path restored-session)
-                                            "session.meta.el"))))
+                                            "session.meta.eld"))))
               (should-not (plist-get saved :schedules))
               (should (equal '(WAKE_UP) (mapcar (lambda (record) (plist-get record :type))
                                                 (plist-get saved :messages)))))

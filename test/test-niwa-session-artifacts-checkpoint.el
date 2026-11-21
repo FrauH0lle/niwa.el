@@ -128,7 +128,7 @@
          (should (equal head (plist-get (niwa-session-publication session) :head)))
          (let* ((artifacts (plist-get prepared :artifacts))
                 (marker (car (last artifacts))))
-           (should (equal "session.meta.el"
+           (should (equal "session.meta.eld"
                           (file-name-nondirectory (plist-get marker :path))))
            (should (plist-get marker :commit-marker))
            (should (plist-get marker :checkpoint))

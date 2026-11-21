@@ -108,7 +108,7 @@ discovered from workspace `.niwa/plugins/`, workspace
 `~/.agents/plugins/`, then `niwa-plugin-extra-roots`. Plugin
 activation is workspace-scoped: plugins are inactive by default in each
 project until enabled, and the state is stored in that workspace's
-`.niwa/plugins.el`. Activating a plugin enables all implemented plugin
+`.niwa/plugins.eld`. Activating a plugin enables all implemented plugin
 components for that workspace; plugins with executable hooks require a
 concise consent summary before those hooks are enabled. The summary shows
 the plugin identity/source, exposed skills, each executable hook handler's
@@ -352,7 +352,7 @@ Plugin management:
   is idle, niwa runs `git ls-remote origin HEAD` asynchronously, one
   managed Git clone at a time, and compares the result with local `HEAD`.
   Nothing touches the network at load or startup, and the last check time is
-  stored in `plugin-update-check.el` under `niwa-user-dir`, so restarts
+  stored in `plugin-update-check.eld` under `niwa-user-dir`, so restarts
   inside the interval do not check again. Results are cached per plugin:
   the cockpit shows "update available" (or "check failed") after the source
   path, and one echo-area message ("updates available for N plugins;
@@ -421,7 +421,7 @@ Disabled skills stay on the session for inspection, but they are omitted
 from `$` completion, rejected by explicit `$skill` invocation and
 `Skill(name=...)`, and omitted from model-facing skill discovery and
 `skill://` resources. The denylist is stored as
-`(:disabled-keys (...))` in `<workspace>/.niwa/skills-state.el`; a missing
+`(:disabled-keys (...))` in `<workspace>/.niwa/skills-state.eld`; a missing
 file leaves every skill enabled. Project-contained skill sources use portable
 workspace-relative identities, while external user, bundled, managed, and
 plugin skill sources use canonical absolute identities. Visible names and
@@ -434,7 +434,7 @@ normal storage disclosure and lease checks; a sessionless inspector cannot
 mutate it. A scan reads state once and caches effective enablement on the
 session's skill objects. A command or cockpit toggle updates every live session
 in that workspace immediately. The former global
-`~/.niwa/skills-state.el` is no longer read and is left untouched for manual
+`~/.niwa/skills-state.eld` is no longer read and is left untouched for manual
 reference.
 
 Completion offers local command names at leading `/` and user-invocable

@@ -641,7 +641,7 @@ Returns (buffer . overlay)."
           (write-region "poisoned media cache\n" nil media-fixed nil 'silent)
           (write-region media-content nil media-published nil 'silent)
           (setf (niwa-session-publication session)
-                (list :head ".publications/generation/manifest.el"
+                (list :head ".publications/generation/manifest.eld"
                       :sidecar nil
                       :artifacts
                       (list

@@ -122,7 +122,7 @@
     (should (equal (list timestamp) (times)))
     (should-not (file-exists-p
                  (file-name-concat (niwa-memory-store--directory workspace (plist-get entry :pass-id))
-                                   "accepted.el"))))
+                                   "accepted.eld"))))
   :doc "retiring a focused journal review never starts the general clock"
   (let ((record (retire (review (list (digest)) "Specific claim"))))
     (should (eq t (gethash "journal-bearing" record)))

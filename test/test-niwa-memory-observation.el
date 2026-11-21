@@ -24,7 +24,7 @@
              (bundle (car (niwa-test-memory-history-build
                            'inspect/slot-batches root (lambda () (niwa-test-memory-history-create workspace 1 10 100)))))
              (ids (mapcar (lambda (p) (plist-get p :id)) (plist-get bundle :proposals)))
-             (paths (mapcar (lambda (id) (file-name-concat (niwa-memory-decision--directory workspace) (concat id ".el"))) ids)))
+             (paths (mapcar (lambda (id) (file-name-concat (niwa-memory-decision--directory workspace) (concat id ".eld"))) ids)))
             :after-each ((delete-directory root t)))
   ,test
   (test)

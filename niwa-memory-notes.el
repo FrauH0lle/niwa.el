@@ -485,7 +485,7 @@ have not been published are included.  Unreadable accepted state signals."
                 (mapcar (lambda (directory) (file-name-nondirectory (directory-file-name directory)))
                         (seq-filter
                          (lambda (directory)
-                           (niwa-session-control-fs-path-exists-p (file-name-concat directory "accepted.el")))
+                           (niwa-session-control-fs-path-exists-p (file-name-concat directory "accepted.eld")))
                          (niwa-session-control-fs-list-directory
                           (file-name-concat (niwa-journal-store-state-directory (niwa-journal-store-directory root))
                                             "passes")
@@ -886,7 +886,7 @@ changed; the summary is recorded as the latest observation."
 
 (defun niwa-memory-notes--observation-path (directory)
   "Return the latest-observation record for physical shared DIRECTORY."
-  (file-name-concat (niwa-memory-notes-control-directory directory) "observation.el"))
+  (file-name-concat (niwa-memory-notes-control-directory directory) "observation.eld"))
 
 (defun niwa-memory-notes--record (directory summary)
   "Record SUMMARY as the latest observation of shared DIRECTORY.

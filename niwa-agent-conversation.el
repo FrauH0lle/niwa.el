@@ -875,7 +875,7 @@ debounced save is cancelled because this freeze supersedes it."
                  (niwa-session-codec-portable-authority-p session)
                  (buffer-live-p root)
                  (niwa-session-artifacts-artifact-present-p
-                  session "session.meta.el" t))
+                  session "session.meta.eld" t))
         (niwa-agent-conversation--cancel-save invocation)
         (with-current-buffer buffer
           (let* ((checkpoint
@@ -972,7 +972,7 @@ ownership, handed to gated writers."
                          (setq checkpoint (plist-get frozen :checkpoint))
                          (if (and (buffer-live-p root)
                                   (niwa-session-artifacts-artifact-present-p
-                                   session "session.meta.el" t))
+                                   session "session.meta.eld" t))
                              (progn
                                (niwa-session-artifacts-publish-transcript-state
                                 session root buffer-file-name content checkpoint

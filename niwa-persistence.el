@@ -854,7 +854,7 @@ changing what was authored, so these never decide a conflict.")
 
 (defun niwa-instruction-store-path (workspace)
   "Return WORKSPACE's instruction store file."
-  (file-name-concat (niwa-workspace-state-dir workspace) "instructions.el"))
+  (file-name-concat (niwa-workspace-state-dir workspace) "instructions.eld"))
 
 (defun niwa-instruction-store--applicable-p (workspace)
   "Return non-nil when WORKSPACE keeps its instructions in a store.

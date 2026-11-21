@@ -1343,7 +1343,7 @@ them are set, so the committing save keeps them."
                        starts ended
                        (before-sidecar
                         (niwa-session-artifacts-read-artifact
-                         session "session.meta.el" t)))
+                         session "session.meta.eld" t)))
                   (cl-letf (((symbol-function 'display-buffer) #'ignore)
                             ((symbol-function 'yes-or-no-p)
                              (lambda (&rest _) nil))
@@ -1359,7 +1359,7 @@ them are set, so the committing save keeps them."
                    (equal
                     before-sidecar
                     (niwa-session-artifacts-read-artifact
-                     session "session.meta.el" t)))
+                     session "session.meta.eld" t)))
                   (should
                    (equal "second"
                           (with-temp-buffer
@@ -1418,7 +1418,7 @@ them are set, so the committing save keeps them."
                   (let ((sidecar
                          (car (read-from-string
                                (niwa-session-artifacts-read-artifact
-                                session "session.meta.el" t)))))
+                                session "session.meta.eld" t)))))
                     (should (= 0 (plist-get sidecar :total-turn-count)))
                     (should-not (plist-get sidecar
                                            :forked-from-session-id)))))
@@ -1438,7 +1438,7 @@ them are set, so the committing save keeps them."
          (logical "tool-results/ToolCall-aA1b2c.txt")
          (content "returned value\n")
          (publication
-          (list :head ".publications/0001/manifest.el"
+          (list :head ".publications/0001/manifest.eld"
                 :artifacts
                 (list (cons logical
                             (list :published published
@@ -1465,7 +1465,7 @@ them are set, so the committing save keeps them."
   (let* ((tempdir (make-temp-file "niwa-materialize-escape-" t))
          (staging (file-name-concat tempdir "staging"))
          (publication
-          (list :head ".publications/0001/manifest.el"
+          (list :head ".publications/0001/manifest.eld"
                 :artifacts (list (cons "../outside.txt"
                                        (list :published (file-name-concat tempdir "x")
                                              :sha256 "0")))))
@@ -1921,7 +1921,7 @@ them are set, so the committing save keeps them."
   (test)
   :doc "names the turns and captured files a restore returns"
   (let ((session (niwa-session--create :name "main"))
-        (entry (list :head ".publications/generation-abc/manifest.el"
+        (entry (list :head ".publications/generation-abc/manifest.eld"
                      :time '(0 0) :turn-count 4 :transcript-bytes 2048)))
     (should
      (string-match-p
@@ -1947,7 +1947,7 @@ them are set, so the committing save keeps them."
   (with-temp-buffer
     (let* ((session (niwa-session--create
                      :name "main" :authority-mode 'portable))
-           (entry '(:head ".publications/generation-abc/manifest.el"))
+           (entry '(:head ".publications/generation-abc/manifest.eld"))
            restored hook-source)
       (setq-local niwa--session session)
       (cl-letf (((symbol-function 'niwa-session-rewind-published-heads)
@@ -2540,7 +2540,7 @@ them are set, so the committing save keeps them."
   (let ((session (niwa-session--create)))
     (should-error
      (niwa-session-rewind-restore-head
-      session (current-buffer) ".publications/generation-x/manifest.el")
+      session (current-buffer) ".publications/generation-x/manifest.eld")
      :type 'user-error)))
 
 

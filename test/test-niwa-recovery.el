@@ -162,7 +162,7 @@
 (defun test-niwa-recovery--saved-follow-ups (session)
   "Return SESSION's follow-ups as its committed sidecar holds them."
   (plist-get (car (read-from-string
-                   (niwa-session-artifacts-read-artifact session "session.meta.el")))
+                   (niwa-session-artifacts-read-artifact session "session.meta.eld")))
              :pending-follow-ups))
 
 (niwa-deftest niwa-recovery-save (:quiet t)
@@ -211,7 +211,7 @@
 	   ;; The intent was durable before dispatch; delivery itself writes
 	   ;; nothing, and a restart reviews the uncertain prompt.
 	   (let* ((saved (car (read-from-string
-			       (niwa-session-artifacts-read-artifact session "session.meta.el"))))
+			       (niwa-session-artifacts-read-artifact session "session.meta.eld"))))
 		  (restored (plist-get (niwa-session-codec-deserialize saved workspace) :session)))
 	     (should (eq 'dispatching (plist-get (car (plist-get saved :pending-follow-ups)) :state)))
 	     (should (eq 'failed-turn (plist-get (car (niwa-session-pending-follow-ups restored)) :state)))

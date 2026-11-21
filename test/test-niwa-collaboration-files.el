@@ -60,7 +60,7 @@
       (niwa-collaboration-files-test--write root ".niwa/lobby")
       (niwa-collaboration-files-test--write root ".niwa/shared/x.md")
       (niwa-collaboration-files-test--write root "app/.niwa/lobby")
-      (niwa-collaboration-files-test--write root "app/.niwa/permissions.el")
+      (niwa-collaboration-files-test--write root "app/.niwa/permissions.eld")
       (should (equal '("data/table.csv" "notes.md")
                      (niwa-collaboration-files--listing root))))
     (niwa-collaboration-files-test--with-root root

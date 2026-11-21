@@ -272,7 +272,7 @@
             (niwa-session-publication-publish
              session (list (list :path (niwa-session-artifacts-segment-path directory number)
                                  :content (buffer-string))
-                           '(:path "session.meta.el" :content "(:fixture archive-only)"
+                           '(:path "session.meta.eld" :content "(:fixture archive-only)"
                              :commit-marker t)) t))
           (erase-buffer)
           (setq-local niwa--session session gptel-track-response t
@@ -295,7 +295,7 @@
           ;; A damaged archive within the selected prefix still fails visibly.
           (niwa-session-publication-publish
            session '((:path "segment-0003.chat.org" :delete t)
-                     (:path "session.meta.el" :content "(:fixture archive-only)"
+                     (:path "session.meta.eld" :content "(:fixture archive-only)"
                       :commit-marker t)) t)
           (should-error (niwa-collaboration-editing--conversation session "doc") :type 'user-error))
       (advice-remove 'niwa-session-artifacts-read-segment probe)
@@ -322,7 +322,7 @@
           (niwa-session-publication-publish
            session (list (list :path (niwa-session-artifacts-segment-path directory 1)
                                :content (buffer-string))
-                         '(:path "session.meta.el" :content "(:fixture archive-only)"
+                         '(:path "session.meta.eld" :content "(:fixture archive-only)"
                            :commit-marker t)) t)
           (erase-buffer)
           (niwa-shared-conversation-test--turn "Tail question" "Tail answer" "doc" "q2")
@@ -367,7 +367,7 @@
             (should-not (string-match-p "Other question\\|Other answer" data)))
           (niwa-session-publication-publish
            session '((:path "segment-0001.chat.org" :delete t)
-                     (:path "session.meta.el" :content "(:fixture archive-only)"
+                     (:path "session.meta.eld" :content "(:fixture archive-only)"
                       :commit-marker t)) t)
           (should-error (niwa-shared-conversation-history session "doc" :live-buffer (current-buffer))
                         :type 'user-error))

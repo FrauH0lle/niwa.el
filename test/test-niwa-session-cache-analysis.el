@@ -53,7 +53,7 @@
   "Run BODY with temporary ROOT and default telemetry FILE, then remove ROOT."
   (declare (indent 1))
   `(let* ((,root (make-temp-file "niwa-cache-analysis-" t))
-          (,file (file-name-concat ,root "session-1" "telemetry-log.el")))
+          (,file (file-name-concat ,root "session-1" "telemetry-log.eld")))
      (unwind-protect (progn ,@body)
        (delete-directory ,root t))))
 
@@ -210,7 +210,7 @@
 
   :doc "overlapping paths and identical copied events count each identity once"
   (test-niwa-session-cache-analysis--with-log (root file)
-    (let* ((copy (file-name-concat root "copy" "session-1" "telemetry-log.el"))
+    (let* ((copy (file-name-concat root "copy" "session-1" "telemetry-log.eld"))
            (records (list (test-niwa-session-cache-analysis--event "same" 'start)
                           (test-niwa-session-cache-analysis--event "same" 'finish))))
       (test-niwa-session-cache-analysis--write file records)
@@ -258,7 +258,7 @@
            (test-niwa-session-cache-analysis--event
             "summary" 'finish :workload 'context-summary :purpose 'compaction)))
     (test-niwa-session-cache-analysis--write
-     (file-name-concat root "session-2" "telemetry-log.el")
+     (file-name-concat root "session-2" "telemetry-log.eld")
      (list (test-niwa-session-cache-analysis--event
             "z-early" 'finish :time "2026-10-03T09:00:00.000+0000"
             :workload 'agent :agent-path "/root/reviewer"
@@ -278,7 +278,7 @@
 
   :doc "empty older and mixed logs never substitute settlement usage"
   (test-niwa-session-cache-analysis--with-log (root file)
-    (let ((older (file-name-concat root "older" "telemetry-log.el")))
+    (let ((older (file-name-concat root "older" "telemetry-log.eld")))
       (test-niwa-session-cache-analysis--write file nil)
       (let ((empty (niwa-analyze-session-cache (list root))))
         (should (= (alist-get 'calls (alist-get 'summary empty)) 0))
@@ -368,7 +368,7 @@
       (dolist (pattern '("1 calls in 1 files" "Cached-input share: 50.00%"
                          "Positive cache reads: 100.00%" "1/1 calls covered"
                          "cache_write_tokens=40" "By session:" "By backend_model:"
-                         "By workload:" "observed" "telemetry-log.el:1"))
+                         "By workload:" "observed" "telemetry-log.eld:1"))
         (should (string-match-p (regexp-quote pattern) text))))))
 
 (niwa-deftest niwa-analyze-session-cache-main

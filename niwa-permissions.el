@@ -866,7 +866,7 @@ root SESSION by reference, so the rule immediately applies to the tree."
 Only session-scoped authority is bound to a target incarnation: the exact
 and dropped-file grants, command profile paths, and the frozen copy a
 running request holds.  Command and network approvals remain effective.
-The workspace store in `.niwa/permissions.el' is deliberate, durable
+The workspace store in `.niwa/permissions.eld' is deliberate, durable
 configuration shared through version control between machines, so a
 reboot or a different host must leave it alone; a grant there that does
 not apply on this target simply matches nothing."

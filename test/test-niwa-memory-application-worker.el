@@ -340,7 +340,7 @@ the public verb, not this helper, constructs and drives the operation."
   (niwa-test-application-fixture
     (let* ((decision (niwa-test-application-reject workspace accepted proposal (make-string 4096 ?r)))
            (file (file-name-concat (niwa-memory-decision--directory workspace)
-                                   (concat (plist-get decision :decision-id) ".el")))
+                                   (concat (plist-get decision :decision-id) ".eld")))
            (text (niwa-session-control-fs-read-file file))
            (start (symbol-function 'niwa-journal-worker-start)) injected)
       (unwind-protect
@@ -592,7 +592,7 @@ the public verb, not this helper, constructs and drives the operation."
     (niwa-test-application-fixture
       (let* ((start (symbol-function 'niwa-journal-worker-start))
              (file (if (eq tamper 'accepted)
-                       (file-name-concat (niwa-memory-store--directory workspace (plist-get (plist-get accepted :prepared) :id)) "accepted.el")
+                       (file-name-concat (niwa-memory-store--directory workspace (plist-get (plist-get accepted :prepared) :id)) "accepted.eld")
                      (file-name-concat root ".niwa" "workspace-id")))
              (text (niwa-session-control-fs-read-file file)) injected)
         (unwind-protect
@@ -729,7 +729,7 @@ the public verb, not this helper, constructs and drives the operation."
                                             (when-let* ((entry (cdar (plist-get observation :requirements))))
                                               (setq changed-path
                                                     (file-name-concat (niwa-memory-decision--directory workspace)
-                                                                      (concat (plist-get entry :decision-id) ".el"))
+                                                                      (concat (plist-get entry :decision-id) ".eld"))
                                                     original-text (niwa-session-control-fs-read-file changed-path))
                                               (write-region "\n" nil changed-path t 'silent))
                                             (funcall callback observation)) args))))
@@ -759,7 +759,7 @@ the public verb, not this helper, constructs and drives the operation."
   :doc "selection authenticates decided evidence rather than trusting public status to omit it"
   (niwa-test-application-fixture
     (let* ((decision (niwa-test-application-reject workspace accepted proposal))
-           (file (file-name-concat (niwa-memory-decision--directory workspace) (concat (plist-get decision :decision-id) ".el"))))
+           (file (file-name-concat (niwa-memory-decision--directory workspace) (concat (plist-get decision :decision-id) ".eld"))))
       (write-region "\n" nil file t 'silent)
       (should (equal "Accepted memory decision changed"
                      (error-message-string (should-error (niwa-memory-decision-pending workspace))))))))
@@ -1644,7 +1644,7 @@ the public verb, not this helper, constructs and drives the operation."
                           (list :entries (vector (list :file (plist-get digest :file) :kind "digest"
                                                        :id (plist-get digest :capture-id) :private []
                                                        :sha256 (secure-hash 'sha256 (plist-get digest :text))))))))
-           (file (file-name-concat (niwa-memory-store--directory workspace (plist-get (plist-get accepted :prepared) :id)) "accepted.el"))
+           (file (file-name-concat (niwa-memory-store--directory workspace (plist-get (plist-get accepted :prepared) :id)) "accepted.eld"))
            (original (niwa-session-control-fs-read-file file))
            (start (symbol-function 'niwa-journal-worker-start)) synchronous ran)
       (unwind-protect
@@ -2163,7 +2163,7 @@ the public verb, not this helper, constructs and drives the operation."
                      (lambda (&rest _) (error "Unexpected public journal scan"))))
             (should (eq 'rejected (plist-get (plist-get (niwa-memory-decision-recover-child workspace payload) :previous) :status)))
             (write-region "\n" nil (file-name-concat (niwa-memory-decision--directory workspace)
-                                                     (concat (plist-get decision :decision-id) ".el")) t 'silent)
+                                                     (concat (plist-get decision :decision-id) ".eld")) t 'silent)
             (should (equal "Accepted memory decision changed"
                            (error-message-string (should-error (niwa-memory-decision-recover-child workspace payload))))))
         (niwa-journal-claim-settle claim 'cancelled "")))))

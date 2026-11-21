@@ -89,7 +89,7 @@ output budgets, guarded during streaming; cancellation retains incurred usage.
 Files beyond the configured bound stay blocked with an explicit request to split, delete
 or move them manually; unreadable files and links also stay blocked with a reason.
 The latest observation of ready, waiting and blocked items is
-recorded in `.niwa/state/shared-notes/observation.el`; it counts every
+recorded in `.niwa/state/shared-notes/observation.eld`; it counts every
 blocked item and lists at most 64 with reasons. `s` in the memory cockpit
 shows it, and review completion messages report the counts.
 

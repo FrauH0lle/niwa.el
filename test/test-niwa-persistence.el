@@ -30,7 +30,7 @@
   (let* ((root (file-name-as-directory
                 (make-temp-file "niwa-outdated-persistence-" t)))
          (source (file-name-concat root "source.el"))
-         (snapshot (file-name-concat root "instructions.el"))
+         (snapshot (file-name-concat root "instructions.eld"))
          (workspace (niwa-workspace--create
                      :type 'file :id root :root root :name "test"))
          (original "alpha\nreference\nmiddle\nsecond\nomega\n")

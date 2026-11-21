@@ -360,7 +360,7 @@
           (write-region content nil published nil 'silent)
           (write-region "uncommitted image bytes" nil staged nil 'silent)
           (setf (niwa-session-publication session)
-                (list :head ".publications/generation/manifest.el"
+                (list :head ".publications/generation/manifest.eld"
                       :sidecar nil
                       :artifacts
                       (list (list logical :published published
@@ -398,7 +398,7 @@
                   (when (buffer-live-p opened)
                     (kill-buffer opened)))))
             (setf (niwa-session-publication session)
-                  (list :head ".publications/generation/manifest.el"
+                  (list :head ".publications/generation/manifest.eld"
                         :sidecar nil :artifacts nil))
             (setq created nil)
             (with-temp-buffer
@@ -598,7 +598,7 @@
           (make-directory (file-name-directory published) t)
           (write-region content nil published nil 'silent)
           (setf (niwa-session-publication session)
-                (list :head ".publications/generation/manifest.el"
+                (list :head ".publications/generation/manifest.eld"
                       :sidecar nil
                       :artifacts
                       (list (list logical :published published
@@ -653,7 +653,7 @@
           (make-directory (file-name-directory fixed) t)
           (write-region "unpublished fixed cache" nil fixed nil 'silent)
           (setf (niwa-session-publication session)
-                (list :head ".publications/generation/manifest.el"
+                (list :head ".publications/generation/manifest.eld"
                       :sidecar nil :artifacts nil))
           (with-temp-buffer
             (setq-local niwa--session session)

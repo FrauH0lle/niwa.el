@@ -726,7 +726,7 @@ typing, posting without **Ask assistant**, and synchronization never start model
 
 ## Durability and recovery
 
-An item is `<workspace>/.niwa/artifacts/.state/ID/state.json`, with `meta.el`
+An item is `<workspace>/.niwa/artifacts/.state/ID/state.json`, with `meta.eld`
 naming its kind, title and revision, and `versions/`. Catalogs read these small
 metadata records without parsing the item's CRDT state or history.
 

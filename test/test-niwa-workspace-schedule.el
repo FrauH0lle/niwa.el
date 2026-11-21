@@ -280,7 +280,7 @@ sessions, as an Emacs restart would."
              (schedule (niwa-workspace-schedule-test--create workspace :when timing))
              (id (plist-get schedule :id))
              (directory (niwa-workspace-schedule--path workspace id))
-             (file (file-name-concat directory "schedule.el"))
+             (file (file-name-concat directory "schedule.eld"))
              (niwa-notify-function (lambda (kind details)
                                         (push (cons kind (plist-get details :text)) notices))))
         (ert-info (timing)
@@ -386,7 +386,7 @@ sessions, as an Emacs restart would."
                      (should-not (niwa-workspace-schedule--commit
                                   workspace
                                   (list (list :op 'create
-                                              :path (file-name-concat other-directory "schedule.el")
+                                              :path (file-name-concat other-directory "schedule.eld")
                                               :content (niwa-workspace-schedule--bytes other))))))
                    (funcall list-directory directory regexp))))
         (should-error (niwa-workspace-schedule-test--create workspace) :type 'user-error))
@@ -498,23 +498,23 @@ sessions, as an Emacs restart would."
   (niwa-workspace-schedule-test--with-workspace
     (let* ((schedule (niwa-workspace-schedule-test--create workspace :when "30m"))
            (index (niwa-schedule-workspace-index-directory))
-           (gone (file-name-concat index "gone.el")))
+           (gone (file-name-concat index "gone.eld")))
       (with-temp-file gone (prin1 (file-name-concat root "missing") (current-buffer)))
       (restart)
       (should-not niwa-schedule--timer)
       (niwa-schedule-restore)
       (should niwa-schedule--timer)
       (should-not (file-exists-p gone))
-      (should (= 1 (length (directory-files index nil "\\.el\\'"))))
+      (should (= 1 (length (directory-files index nil "\\.eld\\'"))))
       (setq now (plist-get schedule :due))
       (niwa-schedule-run-due)
       (should (= 1 (length submitted)))
       ;; Once its first request settles, a finished job leaves the index.
       (niwa-workspace-schedule-runs-test--settle submitted 'success)
       (should-not niwa-schedule--workspaces)
-      (should (directory-files index nil "\\.el\\'"))
+      (should (directory-files index nil "\\.eld\\'"))
       (niwa-schedule-restore)
-      (should-not (directory-files index nil "\\.el\\'"))))
+      (should-not (directory-files index nil "\\.eld\\'"))))
 
   :doc "a schedule created while restore prunes the workspace keeps its index entry"
   (niwa-workspace-schedule-test--with-workspace
@@ -534,14 +534,14 @@ sessions, as an Emacs restart would."
                    (apply delete file args))))
         (niwa-schedule-restore))
       (should created)
-      (should (directory-files index nil "\\.el\\'"))
+      (should (directory-files index nil "\\.eld\\'"))
       (should (equal (list (plist-get created :due))
                      (mapcar #'cdr niwa-schedule--workspaces)))))
 
   :doc "an index entry that cannot be read now is kept and restored once readable"
   (niwa-workspace-schedule-test--with-workspace
     (let* ((schedule (niwa-workspace-schedule-test--create workspace :when "30m"))
-           (file (car (directory-files (niwa-schedule-workspace-index-directory) t "\\.el\\'")))
+           (file (car (directory-files (niwa-schedule-workspace-index-directory) t "\\.eld\\'")))
            warnings)
       (restart)
       (set-file-modes file #o000)
@@ -576,7 +576,7 @@ sessions, as an Emacs restart would."
                     (niwa-schedule-restore))
                 (set-file-modes parent modes))
               (should (string-search "not restored" warnings))
-              (should (directory-files index nil "\\.el\\'"))))
+              (should (directory-files index nil "\\.eld\\'"))))
         (delete-directory niwa-user-dir t)))))
 
 (defun niwa-workspace-schedule-runs-test--settle (submitted outcome &optional reason)

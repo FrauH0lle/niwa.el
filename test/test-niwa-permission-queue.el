@@ -573,7 +573,7 @@
           (should-not (niwa-session-permission-log-pending session))
           (pcase-let ((`((,path ,content)) calls))
             (should
-             (equal (file-name-concat root "permission-log.el") path))
+             (equal (file-name-concat root "permission-log.eld") path))
             (with-temp-buffer
               (insert content)
               (goto-char (point-min))

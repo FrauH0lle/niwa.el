@@ -44,7 +44,7 @@
                         (file-name-concat data "sessions/test/.publications/old/000001.data")
                         nil 'silent)
           (write-region (file-name-nondirectory (nth 2 paths)) nil
-                        (file-name-concat data "input-history.el") nil 'silent)
+                        (file-name-concat data "input-history.eld") nil 'silent)
           (with-current-buffer buffer
             (insert (file-name-nondirectory (nth 3 paths)))
             (narrow-to-region (point-max) (point-max))
@@ -79,7 +79,7 @@
                      (lambda (&rest _) 'foreign)))
             (should-not (niwa-state-cleanup workspace)))
           (should (file-exists-p path))
-          (let ((record (file-name-concat session ".lease/00000000000000000001.el")))
+          (let ((record (file-name-concat session ".lease/00000000000000000001.eld")))
             (write-region "malformed" nil record nil 'silent)
             (should-not (niwa-state-cleanup workspace))
             (should (file-exists-p path))

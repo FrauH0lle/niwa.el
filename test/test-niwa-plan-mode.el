@@ -42,7 +42,7 @@
   (niwa-session-publication-publish
    session
    (list (list :path path :content body)
-         (list :path (file-name-concat (niwa-session-save-path session) "session.meta.el")
+         (list :path (file-name-concat (niwa-session-save-path session) "session.meta.eld")
                :content (niwa-session-artifacts-printed-value
                          (niwa-session-codec-serialize session))
                :commit-marker t))))

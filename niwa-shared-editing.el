@@ -89,7 +89,7 @@ before replacing them, and the parsed state."
          (results (niwa-session-control-fs-run-program
                    (list (list :op 'read :coding 'no-conversion
                                :path (file-name-concat
-                                      (file-name-directory state-path) "meta.el"))
+                                      (file-name-directory state-path) "meta.eld"))
                          (list :op 'read :path state-path))))
          (bytes (progn
                   (when (cl-some (lambda (result) (eq 'absent (plist-get result :status)))
@@ -148,7 +148,7 @@ item out rather than failing every request."
                     (unless (niwa-artifact-store-id-p id)
                       (error "Invalid artifact id: %S" id))
                     (list :op 'read :optional t
-                          :path (file-name-concat store ".state" id "meta.el"))) ids))
+                          :path (file-name-concat store ".state" id "meta.eld"))) ids))
          batches results catalog)
     (while operations
       (push (niwa-session-control-fs-run-program
@@ -175,7 +175,7 @@ current the commit reads it and retries.  Return the metadata's bytes."
   (let* ((id (plist-get state :id))
          (directory (file-name-directory (niwa-shared-editing--state-path workspace id)))
          (authored (file-name-concat (niwa-artifact-store-directory workspace) id))
-         (meta-path (file-name-concat directory "meta.el"))
+         (meta-path (file-name-concat directory "meta.eld"))
          (bytes (or meta-bytes
                     (let ((metadata (car (niwa-session-control-fs-run-program
                                           (list (list :op 'read :path meta-path

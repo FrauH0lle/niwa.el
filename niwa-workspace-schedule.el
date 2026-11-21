@@ -6,7 +6,7 @@
 ;; starts a new session with the schedule's prompt, base preset and
 ;; implementation policy.  The workspace state is the source of truth:
 ;;
-;;   .niwa/schedules/ID/schedule.el        the schedule
+;;   .niwa/schedules/ID/schedule.eld        the schedule
 ;;   .niwa/schedules/ID/runs/SECONDS.el    one record per run
 ;;   .niwa/schedules/ID/notify-receipts.json
 ;;
@@ -154,7 +154,7 @@ Ids name store directories, so nothing else may reach a store path."
   "Return the record of WORKSPACE's schedule ID run due at SCHEDULED-AT."
   (niwa-workspace-schedule--path
    workspace (niwa-workspace-schedule--id id) "runs"
-   (format "%d.el" scheduled-at)))
+   (format "%d.eld" scheduled-at)))
 
 (defun niwa-workspace-schedule--bytes (value)
   "Return VALUE printed in full, as stored."
@@ -209,7 +209,7 @@ created, whose directory the same commit writes and so cannot prove."
         ;; List before reading: a record published after the listing makes
         ;; the listing proof fail, while one read as absent and published
         ;; before a later listing would pass it uncounted.
-        (let* ((file (file-name-concat directory "schedule.el"))
+        (let* ((file (file-name-concat directory "schedule.eld"))
                (entries (niwa-session-control-fs-list-directory directory ""))
                (stored (and (member file entries) (niwa-workspace-schedule--read file))))
           (cond
@@ -267,7 +267,7 @@ Statuses and keys added by other modules are allowed."
                         (niwa-workspace-schedule--path workspace)
                         "\\`s-[0-9a-f]\\{6\\}\\'"))
       (when-let* ((entry (car (niwa-workspace-schedule--read
-                               (file-name-concat directory "schedule.el"))))
+                               (file-name-concat directory "schedule.eld"))))
                   ((niwa-workspace-schedule-entry-p entry))
                   ((equal (plist-get entry :id) (file-name-nondirectory directory))))
         (push entry schedules)))
@@ -278,7 +278,7 @@ Statuses and keys added by other modules are allowed."
 Signal for an ID that is not a canonical schedule id."
   (let ((entry (car (niwa-workspace-schedule--read
                      (niwa-workspace-schedule--path
-                      workspace (niwa-workspace-schedule--id id) "schedule.el")))))
+                      workspace (niwa-workspace-schedule--id id) "schedule.eld")))))
     (and (niwa-workspace-schedule-entry-p entry)
          (equal id (plist-get entry :id))
          entry)))
@@ -288,7 +288,7 @@ Signal for an ID that is not a canonical schedule id."
   (let* ((paths (niwa-session-control-fs-list-directory
                  (niwa-workspace-schedule--path
                   workspace (niwa-workspace-schedule--id id) "runs")
-                 "\\`[0-9]+\\.el\\'"))
+                 "\\`[0-9]+\\.eld\\'"))
          (results (and paths
                        (niwa-session-control-fs-run-program
                         (mapcar (lambda (path) (list :op 'read :path path :optional t))
@@ -341,7 +341,7 @@ makes a finished or expired schedule active or paused again must fit
 within `niwa-workspace-schedule-max'."
   (niwa-workspace-schedule--update-file
    workspace (niwa-workspace-schedule--path
-              workspace (niwa-workspace-schedule--id id) "schedule.el")
+              workspace (niwa-workspace-schedule--id id) "schedule.eld")
    (lambda (entry)
      (and (niwa-workspace-schedule-entry-p entry) (equal id (plist-get entry :id))))
    function #'niwa-workspace-schedule--holds-slot-p))
@@ -463,7 +463,7 @@ active or paused schedules."
                    (append (niwa-workspace-schedule-admit workspace (plist-get entry :id))
                            (list (list :op 'create
                                        :path (niwa-workspace-schedule--path
-                                              workspace (plist-get entry :id) "schedule.el")
+                                              workspace (plist-get entry :id) "schedule.eld")
                                        :content (niwa-workspace-schedule--bytes entry)))))
      until (null status)
      when (eq status 'conflict)
@@ -489,7 +489,7 @@ active or paused schedules."
 (defun niwa-workspace-schedule--index-file (root)
   "Return the index file naming workspace ROOT."
   (file-name-concat (niwa-schedule-workspace-index-directory)
-                    (concat (md5 root) ".el")))
+                    (concat (md5 root) ".eld")))
 
 (defun niwa-workspace-schedule--index (root)
   "Name workspace ROOT in the index unless it already is."
@@ -557,7 +557,7 @@ Run at startup.  Only entries proven stale are removed: malformed ones,
 and those whose workspace is provably gone or whose readable store holds
 no active schedule.  An entry that cannot be read now is kept."
   (let ((inhibit-interaction t))
-    (dolist (file (directory-files (niwa-schedule-workspace-index-directory) t "\\.el\\'"))
+    (dolist (file (directory-files (niwa-schedule-workspace-index-directory) t "\\.eld\\'"))
       (let (root)
         (condition-case err
             (progn
@@ -640,7 +640,7 @@ Return the recorded run, or nil when there was nothing to fire or another
 Emacs fired it."
   (cl-loop
    repeat 5
-   do (pcase-let* ((path (niwa-workspace-schedule--path workspace id "schedule.el"))
+   do (pcase-let* ((path (niwa-workspace-schedule--path workspace id "schedule.eld"))
                    (`(,schedule . ,bytes) (niwa-workspace-schedule--read path)))
         (unless (and (niwa-workspace-schedule-entry-p schedule)
                      (eq 'active (plist-get schedule :status))

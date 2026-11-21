@@ -1048,7 +1048,7 @@ ARGS carries the original tool arguments, including the yield interval."
          (session (niwa-queue--current-session))
          (owner (niwa-current-origin))
          (script-file (make-temp-file "niwa-eval-fresh-" nil ".el"))
-         (result-file (make-temp-file "niwa-eval-fresh-result-" nil ".el"))
+         (result-file (make-temp-file "niwa-eval-fresh-result-" nil ".eld"))
          (script (niwa-tool-exec--eval-fresh-script
                   expression result-file workdir load-path))
          cleaned

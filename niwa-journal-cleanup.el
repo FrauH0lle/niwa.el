@@ -76,15 +76,15 @@
          (let* ((paths (mapcar (lambda (record) (gethash "file" record)) private))
                 ;; Only replay of an existing expiry may consume the old grammar.
                 (old (seq-some (lambda (path) (string-match-p "\\`\\(?:decisions\\|writes\\)/" path)) paths))
-                (required (append (list (format "passes/%s/accepted.el" id) (format "passes/%s/prepared.el" id))
-                                  (mapcar (lambda (record) (format "%s/%s.el" (if old "decisions" "decision-slots")
+                (required (append (list (format "passes/%s/accepted.eld" id) (format "passes/%s/prepared.eld" id))
+                                  (mapcar (lambda (record) (format "%s/%s.eld" (if old "decisions" "decision-slots")
                                                                   (gethash "id" record))) related))))
            (and (= (length paths) (length (delete-dups (copy-sequence paths))))
                 (or (not old) (cl-every (lambda (r) (niwa-journal-store-id-p (gethash "id" r))) related))
                 (cl-every (lambda (path) (member path paths)) required)
                 (cl-every (lambda (path)
                             (or (member path required)
-                                (and old (string-match-p (concat "\\`writes/" niwa-journal-store-hash-regexp "\\.el\\'") path)))) paths))))))
+                                (and old (string-match-p (concat "\\`writes/" niwa-journal-store-hash-regexp "\\.eld\\'") path)))) paths))))))
 
 (defun niwa-journal-cleanup--read (root path)
   "Read a bounded immutable expiry manifest at PATH under journal ROOT."

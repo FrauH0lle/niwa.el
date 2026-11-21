@@ -104,7 +104,7 @@ Each entry is (RELATIVE . CONTENT), or (RELATIVE . :delete) to remove it."
                    (list :path (expand-file-name (car entry) root)
                          :content (cdr entry))))
                entries)
-       (list (list :path (expand-file-name "session.meta.el" root)
+       (list (list :path (expand-file-name "session.meta.eld" root)
                    ;; The fixtures' registries are not live-valid; the
                    ;; commit marker only needs a well-formed sidecar.
                    :content (let ((registry

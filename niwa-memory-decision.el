@@ -101,12 +101,12 @@ Journal-only review retains its separate sparse-digest and elapsed-time gates."
   (file-name-concat (niwa-journal-store-state-directory (niwa-journal-store-directory (niwa-workspace-root workspace))) "decision-slots"))
 
 (defconst niwa-memory-decision--file-regexp
-  (concat "\\`" niwa-journal-store-decision-id-regexp "\\.el\\'")
+  (concat "\\`" niwa-journal-store-decision-id-regexp "\\.eld\\'")
   "Exact immutable private decision filenames.")
 
 (defun niwa-memory-decision--newer-slot-p (a b)
   "Return whether A takes precedence over B: reversal, decision, then attempts."
-  (cond ((string-suffix-p ".reverse.el" b) nil) ((string-suffix-p ".reverse.el" a) t)
+  (cond ((string-suffix-p ".reverse.eld" b) nil) ((string-suffix-p ".reverse.eld" a) t)
         ((not (string-match-p "\\.attempt-" (file-name-nondirectory b))) nil)
         ((not (string-match-p "\\.attempt-" (file-name-nondirectory a))) t)
         (t (string-version-lessp b a))))
@@ -116,7 +116,7 @@ Journal-only review retains its separate sparse-digest and elapsed-time gates."
   (unless (niwa-journal-store-id-p proposal) (error "Invalid proposal identity"))
   (sort (niwa-session-control-fs-list-directory
          (niwa-memory-decision--directory workspace)
-         (concat "\\`" proposal "\\(?:\\.reverse\\|\\.attempt-[1-9][0-9]*\\)?\\.el\\'"))
+         (concat "\\`" proposal "\\(?:\\.reverse\\|\\.attempt-[1-9][0-9]*\\)?\\.eld\\'"))
         #'niwa-memory-decision--newer-slot-p))
 
 (defun niwa-memory-decision-status (workspace proposal &optional _entries passes _writes records)
@@ -131,7 +131,7 @@ PASSES and RECORDS are optional caches scoped to one observation."
   "Return accepted private state matching public decision ENTRY in WORKSPACE.
 PASSES, WRITES and RECORDS are the current observation described by the readers."
   (let* ((path (file-name-concat (niwa-memory-decision--directory workspace)
-                                (concat (plist-get entry :decision-id) ".el")))
+                                (concat (plist-get entry :decision-id) ".eld")))
          (record (and records (gethash path records)))
          (accepted (progn
                      (when (and records (not record)) (error "Unavailable decision record"))
@@ -158,7 +158,7 @@ PASSES, WRITES and RECORDS are the current observation described by the readers.
     (unless (and (proper-list-p data) (= 8 (length data))
                  (cl-every (lambda (key) (plist-member data key)) '(:metadata :source :before :after))
                  (niwa-journal-store-id-p (plist-get data :source))
-                 (equal (file-name-nondirectory path) (concat id ".el"))
+                 (equal (file-name-nondirectory path) (concat id ".eld"))
                  (pcase (plist-get metadata :status)
                    ((or 'applied 'rejected) (equal id proposal))
                    ('reversed (equal id (concat proposal ".reverse")))
@@ -210,7 +210,7 @@ supplied, is the current pinned slot read from the same observation."
           (error "Decision does not match accepted proposal"))
         (when (eq (plist-get metadata :status) 'reversed)
           (let* ((original (niwa-memory-decision--read
-                            workspace (file-name-concat (file-name-directory path) (concat (plist-get item :id) ".el")) passes)))
+                            workspace (file-name-concat (file-name-directory path) (concat (plist-get item :id) ".eld")) passes)))
             (unless (and (eq (plist-get (plist-get original :metadata) :status) 'applied)
                          (equal before (plist-get original :before)) (equal after (plist-get original :after))
                          (not (niwa-memory-proposal-note-action-p (plist-get item :action))))
@@ -251,7 +251,7 @@ release.  Return the published decision metadata."
    (lambda (mutation)
      (let* ((root (niwa-workspace-root workspace))
             (decision (niwa-memory-decision--read
-                       workspace (file-name-concat (niwa-memory-decision--directory workspace) (concat id ".el")))))
+                       workspace (file-name-concat (niwa-memory-decision--directory workspace) (concat id ".eld")))))
        (unless (and decision (equal hash (plist-get decision :hash)))
          (error "Accepted decision publication changed"))
        (let* ((accepted (plist-get decision :accepted))
@@ -611,7 +611,7 @@ A hold unwinds the prepared write through a private signal."
 (defun niwa-memory-decision--preimage (workspace proposal index)
   "Return PROPOSAL's rebased index preimage path for output INDEX in WORKSPACE."
   (file-name-concat (niwa-memory-decision--directory workspace)
-                    (concat proposal ".index-" (secure-hash 'sha256 (niwa-memory-store--print index)) ".el")))
+                    (concat proposal ".index-" (secure-hash 'sha256 (niwa-memory-store--print index)) ".eld")))
 
 (defun niwa-memory-decision--elect (workspace owner accepted item slots status reason plan)
   "Elect a decision in WORKSPACE using the exact lock-holding OWNER.
@@ -623,7 +623,7 @@ STATUS and REASON describe the outcome; PLAN retains original before/after."
                ('reversed (concat proposal ".reverse"))
                ((or 'stale 'unavailable)
                 (concat proposal ".attempt-"
-                        (number-to-string (1+ (if (and slots (string-match "\\.attempt-\\([0-9]+\\)\\.el\\'" (car slots)))
+                        (number-to-string (1+ (if (and slots (string-match "\\.attempt-\\([0-9]+\\)\\.eld\\'" (car slots)))
                                                    (string-to-number (match-string 1 (car slots))) 0)))))))
          (before (plist-get plan :before)) (after (plist-get plan :after))
          (directory (niwa-memory-decision--directory workspace))
@@ -637,7 +637,7 @@ STATUS and REASON describe the outcome; PLAN retains original before/after."
     (niwa-journal-store--validate-metadata metadata 'decision)
     (mapc #'niwa-session-control-fs-program-value
           (niwa-session-control-fs-lock-session-run
-           owner (list (list :op 'create :path (file-name-concat directory (concat id ".el")) :content text))))
+           owner (list (list :op 'create :path (file-name-concat directory (concat id ".eld")) :content text))))
     (append data (list :hash (secure-hash 'sha256 text)))))
 
 (cl-defun niwa-memory-decision--transact (workspace pass proposal verb &key reason live automatic on-applied superseded-by observation)
@@ -1700,7 +1700,7 @@ See `niwa-memory-decision-inspect'."
       (let* ((directories (seq-remove (lambda (path) (member (file-name-nondirectory path) skip))
                                       (niwa-session-control-fs-list-directory (file-name-concat state "passes") niwa-journal-store-id-regexp)))
              (exists (niwa-session-control-fs-paths-exist
-                      (mapcar (lambda (directory) (file-name-concat directory "accepted.el")) directories))))
+                      (mapcar (lambda (directory) (file-name-concat directory "accepted.eld")) directories))))
         (cl-mapc (lambda (directory present)
                    (when present
                      (push (list :kind 'consolidation :pass-id (file-name-nondirectory (directory-file-name directory))) entries)))
@@ -1759,7 +1759,7 @@ See `niwa-memory-decision-inspect'."
                   ;; Reject this pass's rows if expiry raced our held proofs.
                   (dolist (result (niwa-session-control-fs-run-program
                                    (list (list :op 'absent :optional t :path (file-name-concat state "retired-passes" pass))
-                                         (list :op 'verify-hash :path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.el")
+                                         (list :op 'verify-hash :path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.eld")
                                                :content (plist-get accepted :hash)))))
                     (unless (and (eq (plist-get result :op) 'absent) (eq (plist-get result :status) 'absent))
                       (niwa-session-control-fs-program-value result))))
@@ -1816,7 +1816,7 @@ Require every private slot to be published and every proposal settled."
           (puthash id record published)
           (setq resolved-at (max resolved-at (float-time (date-to-time (plist-get entry :created)))))
           (push (list :id id :file (plist-get entry :file) :sha256 (secure-hash 'sha256 (plist-get entry :text))) related)
-          (push (list :file (format "decision-slots/%s.el" id) :sha256 (plist-get record :hash)) private))))
+          (push (list :file (format "decision-slots/%s.eld" id) :sha256 (plist-get record :hash)) private))))
     (dolist (proposal (plist-get accepted :proposals))
       (let* ((slots (niwa-memory-decision--slots workspace (plist-get proposal :id)))
              (latest (and slots (gethash (file-name-base (car slots)) published))))

@@ -71,7 +71,7 @@
 		       session (niwa-agent-invocation-transcript-relative-path inv) t)))
 	     (should (string-match-p
 		      "default--publication"
-		      (niwa-session-artifacts-read-artifact session "session.meta.el" t)))
+		      (niwa-session-artifacts-read-artifact session "session.meta.eld" t)))
 	     ;; A failed combined commit retains the dirty transcript and
 	     ;; metadata for retry; the prior published head stays usable.
 	     (let ((head (plist-get (niwa-session-publication session) :head)))
@@ -659,7 +659,7 @@ head and the unreadable observation are injected only while the job runs."
              (should (string-match-p
                       "default--overlap"
                       (niwa-session-artifacts-read-artifact
-                       session "session.meta.el" t))))
+                       session "session.meta.eld" t))))
          (niwa-agent-conversation--cancel-save inv)
          (with-current-buffer child
            (setq-local kill-buffer-hook nil)
@@ -681,7 +681,7 @@ head and the unreadable observation are injected only while the job runs."
        (should (string-match-p "Prepared task" (plist-get (car artifacts) :content)))
        (should (equal (expand-file-name relative (niwa-session-save-path session))
                       (plist-get (car artifacts) :path)))
-       (should (equal "session.meta.el"
+       (should (equal "session.meta.eld"
                       (file-name-nondirectory
                        (plist-get (cadr artifacts) :path))))
        (should (plist-get (cadr artifacts) :checkpoint))

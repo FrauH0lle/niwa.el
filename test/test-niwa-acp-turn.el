@@ -222,7 +222,7 @@
       (let* ((sidecar
               (read (decode-coding-string
                      (niwa-session-artifacts-read-artifact
-                      session "session.meta.el" t)
+                      session "session.meta.eld" t)
                      'utf-8-unix)))
              (metadata (plist-get sidecar :plan-metadata)))
         (should (eq 'proposed (plist-get metadata :status)))

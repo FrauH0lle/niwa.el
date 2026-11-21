@@ -1354,7 +1354,6 @@ STAGING-PATH is created when absent."
   "Remove post-target artifacts from CANDIDATE's STAGING-PATH snapshot.
 TARGET identifies the retained segment and turn."
   (let ((target-segment (plist-get target :segment))
-        (target-turn (or (niwa-session-turn-count candidate) 0))
         (agents
          (delq nil
                (mapcar
@@ -1368,10 +1367,6 @@ TARGET identifies the retained segment and turn."
                    "\\`segment-\\([0-9]+\\)\\.chat\\.org\\'" logical)
                   (> (string-to-number (match-string 1 logical))
                      target-segment))
-             (and (string-match
-                   "\\`instructions/turn-\\([0-9]+\\)\\.el\\'" logical)
-                  (> (string-to-number (match-string 1 logical))
-                     target-turn))
              (and (string-prefix-p "agents/" logical)
                   (not (member logical agents)))
              (string-prefix-p "plans/" logical)
@@ -1478,7 +1473,7 @@ state.  STATE, when non-nil, supplies the logical sidecar state without
 replacing SESSION's live lease runtime."
   (niwa--with-gc-busy
     (let* ((save-path (niwa-session-save-path session))
-           (sidecar-name "session.meta.el")
+           (sidecar-name "session.meta.eld")
            artifacts)
       (dolist (path (sort (directory-files-recursively staging-path ".*")
                           #'string<))

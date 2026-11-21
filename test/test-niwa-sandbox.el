@@ -558,20 +558,20 @@
   (let* ((root (file-name-as-directory (make-temp-file "niwa-sandbox-anchor-" t)))
          (scratch (file-name-as-directory (make-temp-file "niwa-sandbox-scratch-" t)))
          (niwa-protected-paths
-          '(("**/.niwa/input-history.el" . read-only)
+          '(("**/.niwa/input-history.eld" . read-only)
             ("**/.niwa/leases/**" . read-only))))
     (unwind-protect
         (progn
           (make-directory (file-name-concat root ".niwa") t)
           (let ((candidates (niwa-sandbox--protected-candidates root (list root))))
-            (should (equal (list (list :path (file-name-concat root ".niwa/input-history.el")
+            (should (equal (list (list :path (file-name-concat root ".niwa/input-history.eld")
                                        :mode 'read-only :directory-p nil)
                                  (list :path (file-name-concat root ".niwa/leases")
                                        :mode 'read-only :directory-p t :create-parents t))
                            (sort candidates (lambda (a b) (string< (plist-get a :path)
                                                                    (plist-get b :path))))))
             ;; Nothing is made where the file belongs.
-            (should-not (file-exists-p (file-name-concat root ".niwa/input-history.el")))))
+            (should-not (file-exists-p (file-name-concat root ".niwa/input-history.eld")))))
       (delete-directory root t)
       (delete-directory scratch t)))
 
@@ -2649,10 +2649,10 @@ a broad read grant keeps an inaccessible descendant masked"
             (progn
               (when existing
                 (make-directory (file-name-concat state "old") t)
-                (write-region "metadata" nil (file-name-concat state "old/meta.el") nil 'silent))
+                (write-region "metadata" nil (file-name-concat state "old/meta.eld") nil 'silent))
               (setq prepared
                     (niwa-sandbox-prepare
-                     '("sh" "-c" "set -e; cd .niwa/artifacts; mkdir new; printf original >new/index.html; printf replacement >new/tmp; mv new/tmp new/index.html; printf asset >new/style.css; if (printf forged >.state/old/meta.el) 2>/dev/null; then exit 1; fi; if mkdir .state/new 2>/dev/null; then exit 2; fi; if touch ../leases/forged 2>/dev/null; then exit 3; fi")
+                     '("sh" "-c" "set -e; cd .niwa/artifacts; mkdir new; printf original >new/index.html; printf replacement >new/tmp; mv new/tmp new/index.html; printf asset >new/style.css; if (printf forged >.state/old/meta.eld) 2>/dev/null; then exit 1; fi; if mkdir .state/new 2>/dev/null; then exit 2; fi; if touch ../leases/forged 2>/dev/null; then exit 3; fi")
                      root (list root)))
               (should (eq 'confined (plist-get prepared :state)))
               (with-temp-buffer
@@ -2667,7 +2667,7 @@ a broad read grant keeps an inaccessible descendant masked"
               (when existing
                 (should (equal "metadata"
                                (with-temp-buffer
-                                 (insert-file-contents (file-name-concat state "old/meta.el"))
+                                 (insert-file-contents (file-name-concat state "old/meta.eld"))
                                  (buffer-string))))))
           (niwa-sandbox-cleanup prepared)
           (delete-directory root t)))))

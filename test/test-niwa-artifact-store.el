@@ -180,7 +180,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
       (niwa-artifact-store-test--note
        session (niwa-artifact-store-test--write store "flow/logo.png" "png"))
       (niwa-artifact-store-test--note
-       session (niwa-artifact-store-test--write store ".state/ignored/meta.el" "()"))
+       session (niwa-artifact-store-test--write store ".state/ignored/meta.eld" "()"))
       (niwa-artifact-store-test--note
        session (niwa-artifact-store-test--write store "loose.html" "x"))
       (niwa-artifact-store-note-writes
@@ -212,7 +212,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
         (cl-letf* ((insert (symbol-function 'insert-file-contents-literally))
                    ((symbol-function 'insert-file-contents-literally)
                     (lambda (file &rest args)
-                      (if (string-suffix-p "meta.el" file)
+                      (if (string-suffix-p "meta.eld" file)
                           (signal 'file-error (list "Connection lost" file))
                         (apply insert file args)))))
           (should-error (niwa-artifact-store-note-writes
@@ -501,7 +501,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
                 (should-error (niwa-artifact-store-duplicate workspace "a" "b")))
               (should swapped)
               (should (equal "secret" (niwa-artifact-store--read-bytes victim)))
-              (should-not (file-exists-p (file-name-concat store ".state/b/meta.el"))))
+              (should-not (file-exists-p (file-name-concat store ".state/b/meta.eld"))))
           (delete-directory outside t)))))
 
   :doc "cleans up an incomplete duplicate without copying dedicated-session ownership"
@@ -623,7 +623,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
            (source (niwa-artifact-store-test--write store "a/x.md" "hello")))
       (niwa-artifact-store-test--note session source)
       (let* ((directory (niwa-artifact-store-bookkeeping-directory workspace "a"))
-             (metadata (file-name-concat directory "meta.el"))
+             (metadata (file-name-concat directory "meta.eld"))
              (saved (file-name-concat root "original-meta.el")))
         (rename-file metadata saved)
         (make-symbolic-link saved metadata)
@@ -929,7 +929,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
     (let ((victim (niwa-artifact-store-test--write root "victim.md" "original")))
       (niwa-artifact-store-create-meta workspace "a" "x.md")
       (niwa-artifact-store-test--write
-       store ".state/a/meta.el"
+       store ".state/a/meta.eld"
        "(:kind markdown :title \"Bad\" :file \"../../../victim.md\")")
       (should-error (niwa-artifact-store-restore-version workspace "a" 1))
       (should (equal "original" (niwa-artifact-store--read-bytes victim))))))
@@ -1004,7 +1004,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
   :doc "rejects escaping and malformed index entries before restoration or pruning"
   (niwa-artifact-store-test--with-workspace
     (dolist (row '((:n 1 :file "../../victim" :bytes 1 :time 0)
-                  (:n 1 :file "index.el" :bytes 1 :time 0)
+                  (:n 1 :file "index.eld" :bytes 1 :time 0)
                   (:n 1 :file "000002.md" :bytes 1 :time 0)
                   (:n -1 :file "000001.md" :bytes 1 :time 0)
                   (:n 1 :file "000001.md" :bytes -1 :time 0)))
@@ -1055,7 +1055,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
     (let* ((directory (niwa-artifact-store-test--site workspace store))
            (outside (make-temp-file "niwa-store-outside-" t))
            (bookkeeping (niwa-artifact-store-bookkeeping-directory workspace "a"))
-           (meta (niwa-artifact-store-test--bytes bookkeeping "meta.el"))
+           (meta (niwa-artifact-store-test--bytes bookkeeping "meta.eld"))
            (page-hash (niwa-artifact-store-test--hash niwa-artifact-store-test--page)))
       (unwind-protect
           (progn
@@ -1063,8 +1063,8 @@ It has a page, its primary file, and a binary asset.  Return its directory."
                                 (file-name-concat directory "linked.html"))
             (make-symbolic-link outside (file-name-concat directory "linked"))
             (niwa-artifact-store-test--write outside "secret.html" "secret")
-            (dolist (file (list "../.state/a/meta.el" "../a/index.html"
-                                (file-name-concat bookkeeping "meta.el") "/etc/passwd"
+            (dolist (file (list "../.state/a/meta.eld" "../a/index.html"
+                                (file-name-concat bookkeeping "meta.eld") "/etc/passwd"
                                 "assets/../index.html" "./index.html" "assets/" ""
                                 "linked.html" "linked/secret.html" "linked/new.html"))
               (dolist (call
@@ -1085,7 +1085,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
             ;; valid change that shared a batch with a refused one.
             (should (equal "secret" (niwa-artifact-store-test--bytes outside "secret.html")))
             (should-not (file-exists-p (file-name-concat outside "new.html")))
-            (should (equal meta (niwa-artifact-store-test--bytes bookkeeping "meta.el")))
+            (should (equal meta (niwa-artifact-store-test--bytes bookkeeping "meta.eld")))
             (should (equal niwa-artifact-store-test--page
                            (niwa-artifact-store-test--bytes directory "index.html")))
             (should-not (file-exists-p (file-name-concat directory "ok.css")))
@@ -1372,7 +1372,7 @@ It has a page, its primary file, and a binary asset.  Return its directory."
                        (advice-add 'niwa-artifact-store--read-bytes :around
                                    (lambda (read file)
                                      (let ((bytes (funcall read file)))
-                                       (when (and (not waited) (equal (file-name-nondirectory file) "index.el"))
+                                       (when (and (not waited) (equal (file-name-nondirectory file) "index.eld"))
                                          (setq waited t)
                                          (write-region "ready" nil ,ready nil 'silent)
                                          (while (not (file-exists-p ,gate)) (sleep-for 0.01)))

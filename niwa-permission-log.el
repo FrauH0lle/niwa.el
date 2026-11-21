@@ -62,7 +62,7 @@
   :type 'boolean
   :group 'niwa)
 
-(defcustom niwa-permission-log-file-name "permission-log.el"
+(defcustom niwa-permission-log-file-name "permission-log.eld"
   "File name for per-session permission diagnostics."
   :type 'string
   :group 'niwa)

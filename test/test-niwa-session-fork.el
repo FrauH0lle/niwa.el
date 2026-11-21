@@ -1215,7 +1215,7 @@
                  (child-sidecar
                   (car (read-from-string
                         (niwa-session-artifacts-read-artifact
-                         child "session.meta.el" t)))))
+                         child "session.meta.eld" t)))))
             (should-not (equal (niwa-session-session-id session)
                                (niwa-session-session-id child)))
             (should (string= (niwa-session-session-id child)
@@ -1273,7 +1273,7 @@
             (should (equal (plist-get fixture :parent-sidecar-text)
                            (decode-coding-string
                             (niwa-session-artifacts-read-artifact
-                             session "session.meta.el" t)
+                             session "session.meta.eld" t)
                             'utf-8-unix)))
             ;; The Source keeps its lease and its published head.
             (should (niwa-session-durability-lease-owned-p session))
@@ -1327,7 +1327,7 @@
             (should (equal (plist-get fixture :parent-sidecar-text)
                            (decode-coding-string
                             (niwa-session-artifacts-read-artifact
-                             session "session.meta.el" t)
+                             session "session.meta.eld" t)
                             'utf-8-unix))))
         (test-niwa-session-persistence--cleanup-fork-fixture fixture)))))
 
@@ -1581,7 +1581,7 @@
          (backup-name "tracked@v1")
          (backup-path
           (file-name-concat session-dir "file-history" backup-name))
-         (sidecar (file-name-concat session-dir "session.meta.el"))
+         (sidecar (file-name-concat session-dir "session.meta.eld"))
          (child
           (niwa-session--create
            :worktree-source-root source-root
@@ -1768,7 +1768,7 @@
                    (niwa-session-codec-serialize session))
                   (source-sidecar
                    (niwa-session-artifacts-read-artifact
-                    session "session.meta.el" t))
+                    session "session.meta.eld" t))
                   (source-head
                    (plist-get (niwa-session-publication session) :head)))
               (write-region "dirty Source state\n" nil
@@ -1866,7 +1866,7 @@
                 (should
                  (equal source-sidecar
                         (niwa-session-artifacts-read-artifact
-                         session "session.meta.el" t)))
+                         session "session.meta.eld" t)))
                 ;; The Source keeps its lease and its published head.
                 (should (niwa-session-durability-lease-owned-p session))
                 (should

@@ -83,7 +83,7 @@ would; `live' returns the session's live root buffer, or nil."
 (defun niwa-schedule-restart-test--stored (session)
   "Return SESSION's committed sidecar."
   (niwa-session-codec-read
-   (file-name-concat (niwa-session-save-path session) "session.meta.el")))
+   (file-name-concat (niwa-session-save-path session) "session.meta.eld")))
 
 (defun niwa-schedule-restart-test--mail (buffer)
   "Return the types of BUFFER's session's unread mail once it is committed."
@@ -96,7 +96,7 @@ would; `live' returns the session's live root buffer, or nil."
 (defun niwa-schedule-restart-test--index-files ()
   "Return the wake-up index files under `niwa-user-dir'."
   (let ((index (file-name-concat niwa-user-dir "wake-ups")))
-    (and (file-directory-p index) (directory-files index t "\\.el\\'"))))
+    (and (file-directory-p index) (directory-files index t "\\.eld\\'"))))
 
 (defun niwa-schedule-restart-test--snapshot-index ()
   "Return the index files and their contents, to put back later."
@@ -308,7 +308,7 @@ would; `live' returns the session's live root buffer, or nil."
       (should (equal (file-name-as-directory copy)
                      (file-name-as-directory (niwa-session-save-path session))))
       (should-not (plist-get (niwa-session-codec-read
-                              (file-name-concat parent "session.meta.el"))
+                              (file-name-concat parent "session.meta.eld"))
                              :schedules))
       (should (= 1 (length (plist-get (niwa-schedule-restart-test--stored session)
                                       :schedules))))

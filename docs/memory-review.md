@@ -295,7 +295,7 @@ from reviving evidence already committed for expiry. The prepared record retains
 the original scope, complete digest bodies, source fingerprints, and focus.
 Focus must fit the public record's 4 KiB bound before inference begins.
 
-Private records live in `.niwa/state/journal/passes/<pass-id>/prepared.el` and `accepted.el`.
+Private records live in `.niwa/state/journal/passes/<pass-id>/prepared.eld` and `accepted.eld`.
 They use bounded durable Lisp data, preserving literal byte strings in captured
 before-state; each record is limited to 5 MiB. Reading disables evaluation and
 circular-reader syntax. Evidence pins live under
@@ -414,7 +414,7 @@ batch per day. Use an explicit general `/remember` or `/remember drain` to revie
 sooner; explicit review bypasses timing, not safety checks.
 Under the existing workspace claim, it freezes a bounded finite
 cohort of eligible path/version metadata before starting bounded batches. The
-private `.niwa/state/shared-notes/cycle.el` record binds the workspace identity,
+private `.niwa/state/shared-notes/cycle.eld` record binds the workspace identity,
 physical shared root and execution target. It contains cycle identity, admission
 time, frozen cohort and hash, attempted members with accepted pass identities,
 deferred members and reasons, an in-flight original pass/claim reservation, and

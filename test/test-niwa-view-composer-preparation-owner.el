@@ -189,7 +189,7 @@
     (should-not niwa--current-request)
     (let ((saved (read (decode-coding-string
                        (niwa-session-artifacts-read-artifact
-                        session "session.meta.el" t) 'utf-8-unix))))
+                        session "session.meta.eld" t) 'utf-8-unix))))
       (should (eq 'paused (plist-get (plist-get saved :goal) :status)))
       (should (equal "Owned readiness failure"
                      (plist-get (plist-get saved :goal) :reason))))))

@@ -264,7 +264,7 @@
                       (should-not (file-exists-p spare)))
                   (niwa-journal-claim-settle successor 'cancelled "")))
               (should-error (niwa-memory-store-release workspace id))
-              (let* ((path (file-name-concat (niwa-journal-store-state-directory (niwa-journal-store-directory root)) "passes" id "accepted.el"))
+              (let* ((path (file-name-concat (niwa-journal-store-state-directory (niwa-journal-store-directory root)) "passes" id "accepted.eld"))
                      (text (niwa-session-control-fs-read-file path)))
                 (write-region (concat text "\nChanged after acceptance") nil path nil 'silent)
                 (should-error (niwa-memory-store-accepted workspace id))
@@ -319,7 +319,7 @@
                     workspace prepared
                     "## Promote\n- none\n## Update\n- none\n## Merge\n- none\n## Remove\n- none\n## Instructions\n- none\n## No action\n- none"
                     (list entry) "test:model" nil))
-         (path (file-name-concat (niwa-memory-store--directory workspace id) "accepted.el"))
+         (path (file-name-concat (niwa-memory-store--directory workspace id) "accepted.eld"))
          (pin (niwa-memory-store--pin workspace id (plist-get entry :id)))
          (publisher (symbol-function 'niwa-memory-store-publish))
          (calls 0) successor)
@@ -455,7 +455,7 @@
     (niwa-test-memory-store--with-pass
      (lambda (workspace prepared)
        (let* ((id (plist-get prepared :id))
-              (path (file-name-concat (niwa-memory-store--directory workspace id) "prepared.el")))
+              (path (file-name-concat (niwa-memory-store--directory workspace id) "prepared.eld")))
          (pcase (car case)
            (:retired (niwa-test-memory-store--retire workspace id))
            (:retired-absent (niwa-test-memory-store--retire workspace id) (delete-file path))
@@ -511,7 +511,7 @@
     (niwa-test-memory-store--with-pass
      (lambda (workspace prepared)
        (let* ((id (plist-get prepared :id))
-              (path (file-name-concat (niwa-memory-store--directory workspace id) "prepared.el")))
+              (path (file-name-concat (niwa-memory-store--directory workspace id) "prepared.eld")))
          (niwa-test-memory-store--accept workspace prepared)
          (pcase (car case)
            (:retired (niwa-test-memory-store--retire workspace id))

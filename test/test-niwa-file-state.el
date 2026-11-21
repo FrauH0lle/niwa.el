@@ -475,16 +475,16 @@
             (write-region "(:schema-version 1)" nil
                           (niwa-session-artifacts-sidecar-path dir)
                           nil 'silent))
-          (dolist (path (list (file-name-concat own "telemetry-log.el")
+          (dolist (path (list (file-name-concat own "telemetry-log.eld")
                               (file-name-concat own "segment-0001.chat.org")
                               (file-name-concat own "file-history" "abc")
                               (file-name-concat own "artifacts" "page.html")
-                              (file-name-concat sibling "telemetry-log.el")))
+                              (file-name-concat sibling "telemetry-log.eld")))
             (should (niwa-session-file-cache-excluded-p session path)))
           (dolist (path (list (file-name-concat root ".niwa" "artifacts" "a" "index.html")
-                              (file-name-concat neighbour "telemetry-log.el")
+                              (file-name-concat neighbour "telemetry-log.eld")
                               (file-name-concat root ".niwa"
-                                                "permissions.el")
+                                                "permissions.eld")
                               (file-name-concat root "niwa-view.el")))
             (should-not (niwa-session-file-cache-excluded-p session path))))
       (delete-directory root t)))
@@ -549,7 +549,7 @@
   ;; session and let a multi-megabyte log evict every real entry.
   (let* ((root (make-temp-file "niwa-ia-own-" t))
          (own (file-name-concat root ".niwa" "sessions" "main-1"))
-         (log (file-name-concat own "telemetry-log.el"))
+         (log (file-name-concat own "telemetry-log.eld"))
          (ws (niwa-workspace--create
               :type 'file :id "record-access-own" :root root :name "test"
               :file-cache (niwa-test-file-cache-create)))

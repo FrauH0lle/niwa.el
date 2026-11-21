@@ -77,7 +77,7 @@ Return the number of removed preparations, at most LIMIT per opportunity."
       (let ((id (file-name-nondirectory directory)))
         (when (and (< removed limit)
                    (not (niwa-journal-cleanup-pass-retired-p (niwa-workspace-root workspace) id))
-                   (niwa-session-control-fs-path-exists-p (file-name-concat directory "prepared.el")))
+                   (niwa-session-control-fs-path-exists-p (file-name-concat directory "prepared.eld")))
           (let* ((prepared (niwa-memory-store-read workspace id))
                  (claim (plist-get prepared :claim))
                  (outcome (niwa-journal-claim-outcome claim)))
@@ -87,7 +87,7 @@ Return the number of removed preparations, at most LIMIT per opportunity."
               (let (files)
                 ;; Remove the preparation last so interrupted deletion keeps
                 ;; the authority and deadline needed to finish collection.
-                (dolist (name '("accepted.el" "prepared.el"))
+                (dolist (name '("accepted.eld" "prepared.eld"))
                   (iter-yield nil)
                   (let ((path (file-name-concat directory name)))
                     (when (niwa-session-control-fs-path-exists-p path)
@@ -113,7 +113,7 @@ references instead of guessing that their claim can be removed."
     (dolist (directory (niwa-session-control-fs-list-directory
                         (file-name-concat (niwa-journal-store-state-directory root) "passes") niwa-journal-store-id-regexp))
       (iter-yield nil)
-      (let ((path (file-name-concat directory "prepared.el")))
+      (let ((path (file-name-concat directory "prepared.eld")))
         (when (niwa-session-control-fs-path-exists-p path) (push path files))))
     (dolist (path files)
       (iter-yield nil)

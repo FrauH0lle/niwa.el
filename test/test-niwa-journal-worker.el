@@ -59,7 +59,7 @@
   :doc "round-trips text holding NUL bytes beside non-ASCII characters"
   ;; Coding detection would read such a file as raw bytes, leaving every
   ;; non-ASCII string unibyte and unserializable as JSON.
-  (let* ((file (make-temp-file "niwa-journal-worker-" nil ".el"))
+  (let* ((file (make-temp-file "niwa-journal-worker-" nil ".eld"))
          (evidence (concat "Niwa\u2019s header\n\\x89PNG\r\n"
                            (string ?\C-z ?\n 0 0) "\u2014 done"))
          (value (list :prepared (list :capture (list :evidence evidence)))))

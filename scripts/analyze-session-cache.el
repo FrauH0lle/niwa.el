@@ -81,7 +81,7 @@ are searched recursively without following directory symlinks."
            ((file-directory-p path)
             (setq files
                   (append (directory-files-recursively
-                           path "\\(?:\\`\\|/\\)telemetry-log\\.el\\'")
+                           path "\\(?:\\`\\|/\\)telemetry-log\\.eld\\'")
                           files)))
            ((file-regular-p path) (push path files))
            (t (push (niwa-analyze-session-cache--issue

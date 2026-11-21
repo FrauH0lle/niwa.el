@@ -1594,7 +1594,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
           (unless artifact-p
             (write-region
              "(:poisoned-cache t)" nil
-             (file-name-concat save-path "session.meta.el") nil 'silent))
+             (file-name-concat save-path "session.meta.eld") nil 'silent))
           (setf (niwa-agent-invocation-parent-session invocation) session
                 (niwa-agent-invocation-parent-data-buffer invocation) parent
                 (niwa-agent-invocation-transcript-relative-path invocation)
@@ -1612,7 +1612,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                      (lambda (seen-session logical)
                        (push (list 'presence logical) events)
                        (and (eq seen-session session)
-                            (equal logical "session.meta.el")
+                            (equal logical "session.meta.eld")
                             artifact-p)))
                     ((symbol-function 'niwa-agent-runtime--finalize)
                      (lambda (inv status &optional _token)
@@ -1835,11 +1835,11 @@ ARTIFACT-P selects whether its sidecar counts as committed."
 
   :doc "batches only materialized portable terminal state after registry update"
   (should
-   (equal '((presence "session.meta.el")
+   (equal '((presence "session.meta.eld")
             (finalize t) (callback t) publication delivery)
           (test-niwa-agent-runtime--terminal-settlement-events t)))
   (should
-   (equal '((presence "session.meta.el")
+   (equal '((presence "session.meta.eld")
             (finalize nil) (callback t) commit delivery)
           (test-niwa-agent-runtime--terminal-settlement-events nil)))
 

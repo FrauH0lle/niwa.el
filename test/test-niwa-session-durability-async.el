@@ -555,7 +555,7 @@ run while it is pending."
   (test)
   :doc "commits a head over a reserved lease and keeps it publishing"
   (test-niwa-durability-async--with-lease (root session)
-    (let ((head ".publications/0001/manifest.el"))
+    (let ((head ".publications/0001/manifest.eld"))
       (should (equal '(t nil)
                      (test-niwa-durability-async--call
                       #'niwa-session-durability-reserve-publication-lease-async
@@ -572,7 +572,7 @@ run while it is pending."
                   (plist-get (niwa-session-lease session) :status)))))
   :doc "a final commit returns the lease to active in the same program"
   (test-niwa-durability-async--with-lease (root session)
-    (let ((head ".publications/0002/manifest.el"))
+    (let ((head ".publications/0002/manifest.eld"))
       (should (car (test-niwa-durability-async--call
                     #'niwa-session-durability-reserve-publication-lease-async
                     session)))
@@ -601,11 +601,11 @@ run while it is pending."
       (let ((bound (niwa-session-lease session)))
         (setf (niwa-session-lease session)
               (plist-put (copy-sequence bound) :publication-head
-                         ".publications/stale/manifest.el")))
+                         ".publications/stale/manifest.eld")))
       (should (equal '(nil (user-error "Portable session publication head changed"))
                      (test-niwa-durability-async--call
                       #'niwa-session-durability-commit-publication-head-async
-                      session ".publications/0003/manifest.el"))))))
+                      session ".publications/0003/manifest.eld"))))))
 
 (niwa-deftest niwa-session-durability-reserve-publication-lease-async ()
   ,test
@@ -625,12 +625,12 @@ run while it is pending."
            (bound (plist-put
                    (niwa-session-durability--strip-assumption
                     (niwa-session-lease session))
-                   :publication-head ".publications/unseen/manifest.el"))
+                   :publication-head ".publications/unseen/manifest.eld"))
            (path (niwa-session-durability--generation-path
                   directory (plist-get bound :generation))))
       (niwa-session-durability--write-generation directory bound)
       (let ((bytes (niwa-session-control-fs-read-file path)))
-        (dolist (head '(nil ".publications/stale/manifest.el"))
+        (dolist (head '(nil ".publications/stale/manifest.eld"))
           (setf (niwa-session-lease session) (copy-sequence bound)
                 (niwa-session-publication session) (list :head head))
           (should (equal '(nil (user-error "Portable session publication head changed"))
@@ -644,7 +644,7 @@ run while it is pending."
   (test)
   :doc "returns a publishing lease to active and keeps the committed head"
   (test-niwa-durability-async--with-lease (root session)
-    (let ((head ".publications/0001/manifest.el"))
+    (let ((head ".publications/0001/manifest.eld"))
       (should (car (test-niwa-durability-async--call
                     #'niwa-session-durability-reserve-publication-lease-async
                     session)))
@@ -670,7 +670,7 @@ run while it is pending."
   (test)
   :doc "reports the newest head and ownership without changing the binding"
   (test-niwa-durability-async--with-lease (root session)
-    (let ((head ".publications/0001/manifest.el"))
+    (let ((head ".publications/0001/manifest.eld"))
       (should (car (test-niwa-durability-async--call
                     #'niwa-session-durability-reserve-publication-lease-async
                     session)))
@@ -695,13 +695,13 @@ run while it is pending."
           directory (1+ (plist-get lease :generation)))
          (niwa-session-durability--lease-record
           "*thief*" (1+ (plist-get lease :generation)) 'active
-          ".publications/9999/manifest.el" nil
+          ".publications/9999/manifest.eld" nil
           (plist-get lease :renewed-at)))
         (let ((observed
                (car (test-niwa-durability-async--call
                      #'niwa-session-durability-observe-publication-head-async
                      session))))
-          (should (equal ".publications/9999/manifest.el"
+          (should (equal ".publications/9999/manifest.eld"
                          (plist-get observed :publication-head)))
           ;; The observer's own client id is the thief's here, so the
           ;; record is live authority for it; under the owner it is not.
@@ -710,7 +710,7 @@ run while it is pending."
              (car (test-niwa-durability-async--call
                    #'niwa-session-durability-observe-publication-head-async
                    session))))
-        (should (equal ".publications/9999/manifest.el"
+        (should (equal ".publications/9999/manifest.eld"
                        (plist-get observed :publication-head)))
         (should-not (plist-get observed :owned))))))
 
@@ -756,11 +756,11 @@ run while it is pending."
            (bound (plist-put
                    (niwa-session-durability--strip-assumption
                     (niwa-session-lease session))
-                   :publication-head ".publications/unseen/manifest.el")))
+                   :publication-head ".publications/unseen/manifest.eld")))
       (niwa-session-durability--write-generation directory bound)
       ;; A fallback may already know the target lease without its publication.
       (setf (niwa-session-lease session) bound)
-      (dolist (head '(nil ".publications/stale/manifest.el"))
+      (dolist (head '(nil ".publications/stale/manifest.eld"))
         (setf (niwa-session-publication session) (list :head head))
         (should (equal '(nil (user-error "Portable session publication head changed"))
                        (test-niwa-durability-async--call

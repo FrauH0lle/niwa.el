@@ -51,7 +51,7 @@ decision/write evidence still prevents history expiry.
 
 The authoritative result is an immutable private slot in
 `.niwa/state/journal/decision-slots/`. An application or rejection elects
-`<proposal>.el`; a reversal elects `<proposal>.reverse.el`. Numbered attempt
+`<proposal>.eld`; a reversal elects `<proposal>.reverse.eld`. Numbered attempt
 slots record stale or unavailable attempts without blocking an explicit retry.
 Reading a slot verifies its metadata, its source pass and the derived before
 and after states against that pass. A public journal entry alone cannot settle

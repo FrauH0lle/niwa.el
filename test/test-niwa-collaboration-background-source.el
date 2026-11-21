@@ -36,7 +36,7 @@
     (write-region (point-min) (point-max) path nil 'silent)
     (niwa-session-publication-publish
      session (list (list :path path :content (buffer-string))
-                   '(:path "session.meta.el" :content "(:fixture archive-only)"
+                   '(:path "session.meta.eld" :content "(:fixture archive-only)"
                      :commit-marker t)) t)))
 
 (niwa-deftest niwa-background-source-native-lookup

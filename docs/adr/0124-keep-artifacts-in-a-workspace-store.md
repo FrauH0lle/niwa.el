@@ -252,10 +252,10 @@ push out every earlier version, including the state before the turn.
   finishes, which blocked the artifact too. Deletion now closes an idle open
   conversation and keeps one it cannot delete yet as an ordinary session; only
   a running turn still refuses it.
-- **Who records the conversation.** At first only `meta.el` named its
+- **Who records the conversation.** At first only `meta.eld` named its
   dedicated session, and finding the dedicated sessions meant reading every
   artifact's metadata -- on each default-chat lookup, lobby listing and
-  session chooser, 0.4 s at 50 artifacts over TRAMP. A `meta.el` copied
+  session chooser, 0.4 s at 50 artifacts over TRAMP. A `meta.eld` copied
   outside niwa also made deleting the copy delete the original's
   conversation. The session now records its artifact too, and only a pair
   that agrees counts.

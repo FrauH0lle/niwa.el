@@ -516,7 +516,7 @@
     (make-directory (niwa-artifact-store-bookkeeping-directory workspace "bad") t)
     (write-region "(:kind" nil (file-name-concat
                                 (niwa-artifact-store-bookkeeping-directory workspace "bad")
-                                "meta.el")
+                                "meta.eld")
                   nil 'silent)
     (should (equal '("board") (mapcar (lambda (item) (plist-get item :id)) (niwa-shared-editing-list workspace))))
     (should (niwa-shared-editing-present-p workspace "board"))
@@ -912,7 +912,7 @@
 
 (niwa-deftest niwa-shared-editing--read
   (:doc "pinned reads and commits reject linked ancestors and leaves without repeated host walks")
-  (dolist (leaf '("meta.el" "state.json" nil))
+  (dolist (leaf '("meta.eld" "state.json" nil))
     (niwa-shared-editing-test--with-workspace
       (should-not (plist-get
                    (niwa-shared-editing-test--call
@@ -942,13 +942,13 @@
     (dotimes (index 35)
       (let* ((id (format "doc%d" index))
              (path (file-name-concat (niwa-artifact-store-directory workspace)
-                                     ".state" id "meta.el")))
+                                     ".state" id "meta.eld")))
         (make-directory (file-name-directory path) t)
         (with-temp-file path
           (prin1 (list :kind 'document :file "state.json" :title id :revision 7)
                  (current-buffer)))))
     (let* ((store (niwa-artifact-store-directory workspace))
-           (linked (file-name-concat store ".state/doc3/meta.el"))
+           (linked (file-name-concat store ".state/doc3/meta.eld"))
            (victim (file-name-concat root "outside"))
            (run (symbol-function 'niwa-session-control-fs-run-program))
            calls catalog)
@@ -967,7 +967,7 @@
                  (and (<= (length batch) 32)
                       (cl-every (lambda (operation)
                                   (and (eq 'read (plist-get operation :op))
-                                       (string-suffix-p "/meta.el" (plist-get operation :path)))) batch)))
+                                       (string-suffix-p "/meta.eld" (plist-get operation :path)))) batch)))
                calls)))))
 
 (niwa-deftest niwa-shared-editing-list

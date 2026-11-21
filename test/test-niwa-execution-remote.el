@@ -2956,7 +2956,7 @@ work in flight genuinely unprovable rather than merely finished."
           (should (niwa-session-durability-lease-acquire
                    (niwa-session-save-path session) "main" session))
           (niwa-permission-persistence-write-store
-           (file-name-concat niwa-user-dir "permissions.el")
+           (file-name-concat niwa-user-dir "permissions.eld")
            '(:rules (("Read" :action deny)) :resource-grants nil))
           (setq global-created t)
           (let* ((path (niwa-execution-target-expand-path target "~/.npm"))

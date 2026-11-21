@@ -60,7 +60,7 @@ same shape the real filter persists."
   "Return SESSION's persisted telemetry entries, or nil."
   (let ((log (and (niwa-session-save-path session)
                   (file-name-concat (niwa-session-save-path session)
-                                    "telemetry-log.el"))))
+                                    "telemetry-log.eld"))))
     (when (and log (file-exists-p log))
       (with-temp-buffer
         (insert-file-contents log)
@@ -444,7 +444,7 @@ Each call is a plist of :backend, :model, :effort, :prompt, :callback,
           (sidecar (lambda ()
                      (car (read-from-string
                            (niwa-session-artifacts-read-artifact
-                            session "session.meta.el" t)))))
+                            session "session.meta.eld" t)))))
           (head (plist-get (niwa-session-publication session) :head))
           injected)
       (should (eq 'attempted (plist-get (funcall sidecar) :naming-state)))
@@ -871,7 +871,7 @@ Each call is a plist of :backend, :model, :effort, :prompt, :callback,
                            (with-temp-buffer
                              (insert
                               (niwa-session-artifacts-read-artifact
-                               session "session.meta.el" t))
+                               session "session.meta.eld" t))
                              (goto-char (point-min))
                              (read (current-buffer)))))
                       (should (equal "renamed"

@@ -21,7 +21,7 @@
       (should (niwa-claude-code-backend-p gptel-backend))
       (should (file-directory-p (niwa-session-save-path session)))
       (niwa-session-artifacts-save session buffer)
-      (should (niwa-session-artifacts-read-artifact session "session.meta.el" t)))))
+      (should (niwa-session-artifacts-read-artifact session "session.meta.eld" t)))))
 
 (niwa-deftest niwa-claude-code-register ()
   (let ((gptel--known-backends nil))
@@ -1049,7 +1049,7 @@
             (should (equal "effect\n" (with-temp-buffer (insert-file-contents file) (buffer-string))))
             (let* ((path (niwa-session-save-path session))
                    (metadata (car (read-from-string
-                                   (niwa-session-artifacts-read-artifact session "session.meta.el" t))))
+                                   (niwa-session-artifacts-read-artifact session "session.meta.eld" t))))
                    (history (cdr (assoc "root" (plist-get metadata :external-conversations)))))
               (should (eq 'uncertain (plist-get history :state)))
               (test-niwa-session-persistence--release-and-kill buffer session)

@@ -50,7 +50,7 @@
            (should (equal reserved (niwa-memory-cycle-inflight-claim workspace)))
            (should-not (file-exists-p
                         (file-name-concat (niwa-memory-store--directory workspace (plist-get reserved :owner))
-                                          "prepared.el")))
+                                          "prepared.eld")))
            (should (niwa-journal-claim-settle reserved 'cancelled ""))
            (setq unreferenced (niwa-journal-claim-acquire key 120))
            (should unreferenced)

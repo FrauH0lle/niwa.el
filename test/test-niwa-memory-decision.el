@@ -68,7 +68,7 @@
                          (niwa-memory-decision--record
                           workspace
                           (file-name-concat (niwa-memory-decision--directory workspace)
-                                            (concat (plist-get decision :decision-id) ".el")))
+                                            (concat (plist-get decision :decision-id) ".eld")))
                          :metadata)
                         :decision-id))))
       (should (= calls 1)))
@@ -240,7 +240,7 @@
       (should (file-exists-p (niwa-memory-store--pin workspace pass (plist-get digest :id))))
       (let* ((status (niwa-memory-decision-status workspace (plist-get (car items) :id)))
              (path (file-name-concat (niwa-memory-decision--directory workspace)
-                                     (concat (plist-get status :decision-id) ".el"))))
+                                     (concat (plist-get status :decision-id) ".eld"))))
         ;; A complete public index cannot hide changed private acceptance bytes.
         (write-region "(:changed t)\n" nil path nil 'silent)
         (should-error (niwa-memory-decision--settled-p workspace batch)))))
@@ -330,14 +330,14 @@
     (should-error (niwa-memory-decision--settled-p workspace accepted))
     (should (file-exists-p pin)))
   :doc "changed accepted before-state cannot authorize a rejection"
-  (let* ((path (file-name-concat (niwa-memory-store--directory workspace pass) "prepared.el"))
+  (let* ((path (file-name-concat (niwa-memory-store--directory workspace pass) "prepared.eld"))
          (original (niwa-session-control-fs-read-file path)))
     ;; Changing original scope bytes invalidates its accepted bundle fingerprint.
     (write-region (concat original "\n") nil path nil 'silent)
     (should-error (plist-get (niwa-memory-decision-reject workspace pass (plist-get proposal :id)) :decision))
     (should (equal (list review digest) (niwa-journal-store-entries root))))
   :doc "each rejection-evidence observation revalidates the accepted private bundle"
-  (let ((path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.el")))
+  (let ((path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.eld")))
     (plist-get (niwa-memory-decision-reject workspace pass (plist-get proposal :id)) :decision)
     (should (string-match-p "PRIVATE PROPOSED TOPIC" (niwa-memory-decision-rejections workspace)))
     (write-region "\n" nil path t 'silent)

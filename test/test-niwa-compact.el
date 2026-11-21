@@ -105,7 +105,7 @@
             (should-not (niwa--compact-should-compact-p 10)))
           (let ((entry (with-temp-buffer
                          (insert-file-contents
-                          (file-name-concat root "telemetry-log.el"))
+                          (file-name-concat root "telemetry-log.eld"))
                          (read (current-buffer)))))
             (should (eq 'compaction-threshold-evaluated (plist-get entry :event)))
             (should (= 128000 (plist-get entry :model-context-window)))

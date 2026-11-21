@@ -76,7 +76,7 @@
                               session
                               (list (list :path (niwa-session-artifacts-segment-path directory 1)
                                           :content ":PROPERTIES:\n:GPTEL_BOUNDS: nil\n:END:\n\nArchived prompt\n")
-                                    (list :path (file-name-concat directory "session.meta.el")
+                                    (list :path (file-name-concat directory "session.meta.eld")
                                           :content (niwa-session-artifacts-printed-value
                                                     (niwa-session-codec-serialize session))
                                           :commit-marker t)))

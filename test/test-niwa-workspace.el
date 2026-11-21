@@ -461,7 +461,7 @@
             (let ((content (buffer-string)))
               (dolist (entry '("/.niwa/sessions/"
                                "/.niwa/tool-results/"
-                               "/.niwa/input-history.el"
+                               "/.niwa/input-history.eld"
                                "/.niwa/leases/"
                                "/.niwa/state/"))
                 (goto-char (point-min))

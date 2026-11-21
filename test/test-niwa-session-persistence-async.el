@@ -161,8 +161,8 @@ anew.  The result is a plist of :transcript, :turns, :latest and :mail IDs."
        (niwa-session-publication-publish
         session
         (list (list :path (file-name-concat directory "unseen.txt") :content "Keep me")
-              (list :path (file-name-concat directory "session.meta.el")
-                    :content (niwa-session-artifacts-read-artifact session "session.meta.el" t)
+              (list :path (file-name-concat directory "session.meta.eld")
+                    :content (niwa-session-artifacts-read-artifact session "session.meta.eld" t)
                     :commit-marker t))
         t)
        (let ((target (niwa-session-publication session)))

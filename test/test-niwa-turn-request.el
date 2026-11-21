@@ -473,7 +473,7 @@
                  (list :path segment :content "Published transcript\n")
                  (list
                   :path
-                  (file-name-concat session-dir "session.meta.el")
+                  (file-name-concat session-dir "session.meta.eld")
                   :content
                   (let ((print-length nil)
                         (print-level nil)
@@ -523,7 +523,7 @@
                          (niwa-request-begin session))))
               (let* ((sidecar-text
                       (niwa-session-artifacts-read-artifact
-                       session "session.meta.el" t))
+                       session "session.meta.eld" t))
                      (sidecar
                       (with-temp-buffer
                         (insert sidecar-text)
@@ -744,7 +744,7 @@
                    (with-temp-buffer
                      (insert
                       (niwa-session-artifacts-read-artifact
-                       session "session.meta.el" t))
+                       session "session.meta.eld" t))
                      (goto-char (point-min))
                      (read (current-buffer)))))
               (should (equal "old-incarnation"
@@ -762,7 +762,7 @@
                      (with-temp-buffer
                        (insert
                         (niwa-session-artifacts-read-artifact
-                         session "session.meta.el" t))
+                         session "session.meta.eld" t))
                        (goto-char (point-min))
                        (read (current-buffer)))))
                 (should (equal "new-incarnation"

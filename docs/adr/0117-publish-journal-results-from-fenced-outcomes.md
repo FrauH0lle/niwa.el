@@ -312,7 +312,7 @@ superseded by [ADR 0128, One daily review, bounded batches](0128-extract-memory-
 The implementation-specific ownership and recovery boundaries remain below.
 
 `niwa-memory-cycle.el` owns the private metadata-only
-`.niwa/state/shared-notes/cycle.el` record per actual workspace journal, bound
+`.niwa/state/shared-notes/cycle.eld` record per actual workspace journal, bound
 to the workspace identity, physical shared root and target. It is not a
 directory/target-tuple store or a cross-alias mapping. A directory or target
 identity change while the cycle is active or unreconciled fails visibly closed;

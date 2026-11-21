@@ -845,7 +845,7 @@
              (sidecar (niwa-session-codec-read path)))
         (niwa-session-codec-write path (plist-put sidecar :updated-at "2001-01-01T00-00-00")))
       (write-region "unreadable instruction store" nil
-                    (file-name-concat root ".niwa" "instructions.el") nil 'silent)
+                    (file-name-concat root ".niwa" "instructions.eld") nil 'silent)
       (let ((niwa-session-max-age-days 0)
             (niwa-session-keep-recent-count 1))
         (should (zerop (niwa-session-persistence-cleanup-expired workspace t))))
@@ -875,7 +875,7 @@
       (let ((niwa-session-max-age-days 0)
             (niwa-session-keep-recent-count 10)
             (read-file (symbol-function 'niwa-session-control-fs-read-file))
-            (store (file-name-concat root ".niwa" "instructions.el"))
+            (store (file-name-concat root ".niwa" "instructions.eld"))
             (reads 0))
         (cl-letf (((symbol-function 'niwa-session-control-fs-read-file)
                    (lambda (file &optional coding max-bytes)
@@ -894,7 +894,7 @@
   :doc "deletion and cleanup retain dirty live and killed-buffer references absent from the disk store"
   (niwa-note-conversation-test--with-source
     (let* ((note (niwa-note-create "Still in use"))
-           (store (file-name-concat root ".niwa" "instructions.el"))
+           (store (file-name-concat root ".niwa" "instructions.eld"))
            (unsent (with-temp-buffer (insert-file-contents store) (buffer-string)))
            (view (niwa-note-send note))
            (data (buffer-local-value 'niwa--data-buffer view))
@@ -964,7 +964,7 @@
            (data (buffer-local-value 'niwa--data-buffer view))
            (session (buffer-local-value 'niwa--session data))
            (path (niwa-session-save-path session))
-           (store (file-name-concat root ".niwa" "instructions.el"))
+           (store (file-name-concat root ".niwa" "instructions.eld"))
            (niwa-session-max-age-days 0)
            (niwa-session-keep-recent-count 0))
       (niwa-note-conversation-test--answer (car sent) "Keep when uncertain")
@@ -1087,7 +1087,7 @@
   (test)
   :doc "ordinary cleanup and deletion add no instruction-store reads"
   (niwa-note-conversation-test--with-source
-    (let ((store (file-name-concat root ".niwa" "instructions.el"))
+    (let ((store (file-name-concat root ".niwa" "instructions.eld"))
           (read-file (symbol-function 'niwa-session-control-fs-read-file))
           (reads 0)
           paths)

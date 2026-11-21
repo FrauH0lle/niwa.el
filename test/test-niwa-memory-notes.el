@@ -140,7 +140,7 @@
     (let* ((accepted (accept (capture)))
            (id (plist-get (plist-get accepted :prepared) :id))
            (path (file-name-concat (niwa-journal-store-state-directory (niwa-journal-store-directory root))
-                                   "passes" id "accepted.el")))
+                                   "passes" id "accepted.eld")))
       (write-region " " nil path t 'silent)
       (should-error (capture)))))
 

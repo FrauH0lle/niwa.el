@@ -148,7 +148,7 @@
                      (niwa-session-resource-grants session-b))
                     (let* ((text
                             (niwa-session-artifacts-read-artifact
-                             session-b "session.meta.el" t))
+                             session-b "session.meta.eld" t))
                            (sidecar
                             (with-temp-buffer
                               (insert text)

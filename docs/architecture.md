@@ -121,7 +121,7 @@ Notes are not structs; see the instruction store below.
 - `niwa--instruction-states`: workspace-keyed instruction alists and ID state
   for notes, the recently-closed list, and display-number state. The note is
   the only instruction type: marked code with optional text, kept in the
-  workspace instruction store (`.niwa/instructions.el`, format 2). Its
+  workspace instruction store (`.niwa/instructions.eld`, format 2). Its
   overlay properties carry the author (user, agent, or Buddy), tags, state
   (unsent, sent, or taken), the note conversation's session id once sent, and at
   most one waiting prepared change. Note context reaches a prompt only when the

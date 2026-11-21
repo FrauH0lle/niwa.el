@@ -89,7 +89,7 @@
   ,test
   (test)
   :doc "keeps fixed copies only for artifacts read from their fixed path"
-  (dolist (logical '("session.meta.el" "tool-results/ToolCall-a.txt"
+  (dolist (logical '("session.meta.eld" "tool-results/ToolCall-a.txt"
                      "agents/registry.el" "agents/a.compact-1.chat.org"))
     (should (niwa-session-publication--fixed-artifact-p
              (list :logical logical))))
@@ -138,7 +138,7 @@
   (let* ((directory (make-temp-file "niwa-generation-" t))
          (root (file-name-concat directory ".publications"))
          (source (file-name-concat directory "source"))
-         (artifacts (list (list :logical "session.meta.el" :source source)
+         (artifacts (list (list :logical "session.meta.eld" :source source)
                           (list :logical "agents/a.chat.org" :source source)))
          (write
           (lambda (entries)
@@ -157,7 +157,7 @@
           (let* ((first (funcall write nil))
                  (same (funcall write (cdr first))))
             (should (equal (cdr first) (cdr same)))
-            (should (equal '("manifest.el")
+            (should (equal '("manifest.eld")
                            (directory-files (car same) nil "^[^.].*")))
             (write-region "changed" nil source nil 'silent)
             (let ((changed (funcall write (cdr same))))
@@ -204,12 +204,12 @@
   (let* ((root (make-temp-file "niwa-publication-paths-" t))
          (prefix ".publications/generation-0123456789abcdef0123/")
          (artifacts (cl-loop for n below 100
-                             collect (list (if (zerop n) "session.meta.el"
+                             collect (list (if (zerop n) "session.meta.eld"
                                              (format "file-history/%d" n))
                                            :published (concat prefix (format "%d.data" n))
                                            :sha256 (make-string 64 ?a))))
-         (raw (list :head (concat prefix "manifest.el")
-                    :sidecar "session.meta.el" :artifacts artifacts))
+         (raw (list :head (concat prefix "manifest.eld")
+                    :sidecar "session.meta.eld" :artifacts artifacts))
          (original (copy-tree raw))
          (physical (symbol-function 'niwa-session-control-fs-physical-path))
          (calls 0))
@@ -240,12 +240,12 @@
                     ".publications/generation-0123456789abcdef0123/nested/file"))
       (should-error
        (niwa-session-publication--capture-publication
-        root (list :artifacts (list (list "session.meta.el" :published path)))))))
+        root (list :artifacts (list (list "session.meta.eld" :published path)))))))
   (let* ((path ".publications/generation-0123456789abcdef0123/1.data")
          (root "/ssh:example.invalid:/workspace//session/")
          (captured
           (niwa-session-publication--capture-publication
-           root (list :artifacts (list (list "session.meta.el" :published path))))))
+           root (list :artifacts (list (list "session.meta.eld" :published path))))))
     (should (equal (plist-get captured :sidecar)
                    (concat "/ssh:example.invalid:/workspace/session/" path))))
   (should-not (niwa-session-publication--capture-publication "/tmp/unused" nil)))
@@ -339,7 +339,7 @@ and its segment path."
           (niwa-session-publication-publish
            session
            (list (list :path segment :content bytes)
-                 (list :path (file-name-concat session-dir "session.meta.el")
+                 (list :path (file-name-concat session-dir "session.meta.eld")
                        :content (niwa-session-artifacts-printed-value raw)
                        :commit-marker t)))))
        (should-not (niwa-session-pending-publication session))
@@ -360,7 +360,7 @@ and its segment path."
        (niwa-session-checkpoint-seed session (plist-put (copy-tree raw) :total-turn-count 1))
        (setq raw (plist-put raw :total-turn-count 7))
        (let* ((candidate (niwa-session-checkpoint-capture session "/root" raw))
-              (artifact (list :path (file-name-concat session-dir "session.meta.el")
+              (artifact (list :path (file-name-concat session-dir "session.meta.eld")
                               :content (niwa-session-artifacts-printed-value raw)
                               :commit-marker t :checkpoint candidate)))
          (cl-letf (((symbol-function 'niwa-session-durability-commit-publication-head)
@@ -410,13 +410,13 @@ and its segment path."
                        (eq 'queued
                            (niwa-session-publication-publish
                             session
-                            (list (list :path (file-name-concat session-dir "session.meta.el")
+                            (list (list :path (file-name-concat session-dir "session.meta.eld")
                                         :content (niwa-session-artifacts-printed-value second)
                                         :commit-marker t :checkpoint second-candidate)))))
                       (should (= 7 (plist-get (niwa-session-checkpoint-project owner raw)
                                              :total-turn-count)))))))
          (niwa-session-publication-publish
-          session (list (list :path (file-name-concat session-dir "session.meta.el")
+          session (list (list :path (file-name-concat session-dir "session.meta.eld")
                               :content (niwa-session-artifacts-printed-value first)
                               :commit-marker t :checkpoint first-candidate))))
        (should (equal '(8 7) observations))
@@ -427,7 +427,7 @@ and its segment path."
   (test-niwa-session-publication--with-published
    "publication-prewrite" "niwa-prewrite-" ?c
    (lambda (session session-dir _segment)
-     (let* ((path (file-name-concat session-dir "session.meta.el"))
+     (let* ((path (file-name-concat session-dir "session.meta.eld"))
             (raw (niwa-session-artifacts-build-sidecar session (current-buffer)))
             (run (symbol-function 'niwa-session-control-fs-run-program))
             (publish
@@ -452,10 +452,10 @@ and its segment path."
                                                  :title)))
                  programs)))
             (merged (funcall publish "merged")))
-       ;; A newer `.el' entry beside the lease stops the reservation-side write;
+       ;; A newer `.eld' entry beside the lease stops the reservation-side write;
        ;; the fixed sidecar is then written by its own program, as before.
        (niwa-session-control-fs-write-file
-        (file-name-concat (niwa-session-durability--lease-path session-dir) "zzz.el")
+        (file-name-concat (niwa-session-durability--lease-path session-dir) "zzz.eld")
         "not a generation")
        (should (= (1+ merged) (funcall publish "fallback")))))))
 
@@ -477,7 +477,7 @@ and its segment path."
   (test-niwa-session-publication--with-published
    "publication-deadline" "niwa-deadline-" ?c
    (lambda (session session-dir _segment)
-     (let* ((path (file-name-concat session-dir "session.meta.el"))
+     (let* ((path (file-name-concat session-dir "session.meta.eld"))
             (raw (niwa-session-artifacts-build-sidecar session (current-buffer)))
             (commit (symbol-function 'niwa-session-durability--commit-lease))
             (head (plist-get (niwa-session-publication session) :head))
@@ -515,7 +515,7 @@ and its segment path."
             (root (plist-put (copy-tree raw) :total-turn-count 7))
             (candidate (niwa-session-checkpoint-capture session "/root" root))
             (agent (niwa-session-checkpoint-capture session "/root/worker"))
-            (path (file-name-concat session-dir "session.meta.el"))
+            (path (file-name-concat session-dir "session.meta.eld"))
             (write-generation (symbol-function 'niwa-session-publication--prepare-generation))
             (queued nil)
             observed)
@@ -557,7 +557,7 @@ and its segment path."
             (mail (list :id "consumed" :type 'MAIL :sender "/root/worker"
                         :recipient "/root" :payload "consumed" :timestamp (current-time)))
             (stale (plist-put (copy-tree raw) :messages (list mail)))
-            (path (file-name-concat session-dir "session.meta.el"))
+            (path (file-name-concat session-dir "session.meta.eld"))
             (write-generation (symbol-function 'niwa-session-publication--prepare-generation))
             (calls 0))
        (niwa-session-checkpoint-consume session "/root" (list mail))
@@ -1020,7 +1020,7 @@ and its segment path."
        (let* ((raw (plist-put (niwa-session-artifacts-build-sidecar session (current-buffer))
                               :total-turn-count (if required 8 7)))
               (candidate (niwa-session-checkpoint-capture session "/root" raw))
-              (artifact (list :path (file-name-concat session-dir "session.meta.el")
+              (artifact (list :path (file-name-concat session-dir "session.meta.eld")
                               :content (niwa-session-artifacts-printed-value raw)
                               :commit-marker t :checkpoint candidate))
               (calls 0))
@@ -1053,7 +1053,7 @@ and its segment path."
      (let* ((raw (niwa-session-artifacts-build-sidecar session (current-buffer)))
             (first (plist-put (copy-tree raw) :total-turn-count 7))
             (last (plist-put (copy-tree raw) :total-turn-count 8))
-            (path (file-name-concat session-dir "session.meta.el")))
+            (path (file-name-concat session-dir "session.meta.eld")))
        ;; Last-write-wins chooses the actual sidecar, not the marker object.
        (niwa-session-publication-publish
         session
@@ -1085,7 +1085,7 @@ and its segment path."
            (should-error
             (niwa-session-publication-publish
              session
-             (list (list :path (file-name-concat session-dir "session.meta.el")
+             (list (list :path (file-name-concat session-dir "session.meta.eld")
                          :commit-marker t :checkpoint candidate
                          :content (niwa-session-artifacts-printed-value raw))))))))
        (should (zerop commits))
@@ -1097,7 +1097,7 @@ and its segment path."
    "publication-checkpoint-replace" "niwa-checkpoint-replace-" ?c
    (lambda (session session-dir _segment)
      (let* ((raw (niwa-session-artifacts-build-sidecar session (current-buffer)))
-            (path (file-name-concat session-dir "session.meta.el")))
+            (path (file-name-concat session-dir "session.meta.eld")))
        (niwa-session-checkpoint-seed session (plist-put (copy-tree raw) :total-turn-count 1))
        (setq raw (plist-put raw :total-turn-count 7))
        ;; A metadata-only commit cannot adopt live, uncheckpointed root state.
@@ -1173,7 +1173,7 @@ and its segment path."
   (test-niwa-session-publication--with-published
    "publication-clock" "niwa-publication-clock-" ?c
    (lambda (session session-dir _segment)
-     (let* ((path (file-name-concat session-dir "session.meta.el"))
+     (let* ((path (file-name-concat session-dir "session.meta.eld"))
             (content (niwa-session-artifacts-printed-value
                       (niwa-session-artifacts-build-sidecar session (current-buffer))))
             (program (symbol-function 'niwa-session-control-fs-run-program))
@@ -1209,7 +1209,7 @@ and its segment path."
                                   (niwa-session-telemetry-pending session)))))
        (setf (niwa-session-telemetry-pending session) nil)
        (niwa-session-publication-publish
-        session (list (list :path (file-name-concat session-dir "session.meta.el")
+        session (list (list :path (file-name-concat session-dir "session.meta.eld")
                             :content content :commit-marker t))
         t)
        ;; One publication event carrying its input size, and the target
@@ -1240,7 +1240,7 @@ and its segment path."
        (advice-add 'niwa-session-durability--update-owned-lease :around count)
        (unwind-protect
            (niwa-session-publication-publish
-            session (list (list :path (file-name-concat session-dir "session.meta.el")
+            session (list (list :path (file-name-concat session-dir "session.meta.eld")
                                 :content content :commit-marker t))
             t)
          (advice-remove 'niwa-session-durability--update-owned-lease count))
@@ -1254,7 +1254,7 @@ and its segment path."
    "publication-transcripts" "niwa-transcript-copies-" ?c
    (lambda (session session-dir _segment)
      (let* ((paths '("segment-0002.chat.org" "agents/worker.chat.org"))
-            (marker (list :path (file-name-concat session-dir "session.meta.el")
+            (marker (list :path (file-name-concat session-dir "session.meta.eld")
                           :content (niwa-session-artifacts-printed-value
                                     (niwa-session-artifacts-build-sidecar
                                      session (current-buffer)))
@@ -1333,7 +1333,7 @@ and its segment path."
        (should (niwa-session-publication-uncommitted-artifact session logical))
        ;; The next marker commits it through the immutable publication.
        (niwa-session-publication-publish
-        session (list (list :path (file-name-concat session-dir "session.meta.el")
+        session (list (list :path (file-name-concat session-dir "session.meta.eld")
                             :content (niwa-session-artifacts-printed-value
                                       (niwa-session-artifacts-build-sidecar
                                        session (current-buffer)))
@@ -1349,7 +1349,7 @@ and its segment path."
    (lambda (session session-dir _segment)
      (let* ((paths (cl-loop for n below 40
                             collect (file-name-concat session-dir "file-history" (format "unused-%d" n))))
-            (marker (list :path (file-name-concat session-dir "session.meta.el")
+            (marker (list :path (file-name-concat session-dir "session.meta.eld")
                           :content (niwa-session-artifacts-printed-value
                                     (niwa-session-artifacts-build-sidecar session (current-buffer)))
                           :commit-marker t))
@@ -1465,7 +1465,7 @@ and its segment path."
      "publication-file-collection" "niwa-file-collection-" ?a
      (lambda (session directory _segment)
        (setf (niwa-session-turn-count session) 1)
-       (let ((marker (list :path (file-name-concat directory "session.meta.el")
+       (let ((marker (list :path (file-name-concat directory "session.meta.eld")
                            :content (niwa-session-artifacts-printed-value
                                      (niwa-session-artifacts-build-sidecar session (current-buffer)))
                            :commit-marker t)))
@@ -1490,7 +1490,7 @@ and its segment path."
                                    (lambda (op)
                                      (and (memq (plist-get op :op) '(delete-file delete-directory))
                                           (not (equal (file-name-nondirectory (plist-get op :path))
-                                                      "manifest.el")))) operations)
+                                                      "manifest.eld")))) operations)
                               (error "Injected interrupted payload sweep"))
                             (funcall program operations lock-directory))))
                  (should
@@ -1524,7 +1524,7 @@ and its segment path."
     (test-niwa-session-publication--with-published
      "publication-list-batch" "niwa-list-batch-" ?a
      (lambda (session directory _segment)
-       (let ((marker (list :path (file-name-concat directory "session.meta.el")
+       (let ((marker (list :path (file-name-concat directory "session.meta.eld")
                            :content (niwa-session-artifacts-printed-value
                                      (niwa-session-artifacts-build-sidecar session (current-buffer)))
                            :commit-marker t))
@@ -1831,7 +1831,7 @@ and its segment path."
   (:doc "Caches compact observations only after a successful immutable read")
   (let ((niwa-session-publication--generation-cache
          (make-hash-table :test #'equal))
-        (head ".publications/generation-deadbeef/manifest.el")
+        (head ".publications/generation-deadbeef/manifest.eld")
         (reads 0))
     (cl-letf (((symbol-function
                 'niwa-session-publication--read-publication-raw)
@@ -1852,13 +1852,13 @@ and its segment path."
 (niwa-deftest niwa-session-publication-generation-summary/space ()
   (let* ((root (make-temp-file "niwa-generation-cache-" t))
          (name "generation-0123456789abcdef0123")
-         (head (file-name-concat ".publications" name "manifest.el"))
+         (head (file-name-concat ".publications" name "manifest.eld"))
          (manifest-path (file-name-concat root head))
          (sidecar (file-name-concat ".publications" name "sidecar.data"))
          (generation (list :name name :head head :time (current-time)))
          (niwa-session-publication--generation-cache (make-hash-table :test #'equal))
          (artifacts
-          (cons (list "session.meta.el" :published sidecar :sha256 (make-string 64 ?a))
+          (cons (list "session.meta.eld" :published sidecar :sha256 (make-string 64 ?a))
                 (cl-loop for index below 1200
                          collect (list (format "file-history/%d" index)
                                        :published (file-name-concat ".publications" name (format "%d.data" index))
@@ -1867,7 +1867,7 @@ and its segment path."
         (progn
           (make-directory (file-name-directory manifest-path) t)
           (with-temp-file manifest-path
-            (prin1 (list :sidecar "session.meta.el" :artifacts artifacts) (current-buffer)))
+            (prin1 (list :sidecar "session.meta.eld" :artifacts artifacts) (current-buffer)))
           (let ((summary (niwa-session-publication-generation-summary root generation)))
             (should (plist-get summary :manifest-readable-p))
             (should (equal (plist-get summary :references) (list name)))
@@ -1885,7 +1885,7 @@ and its segment path."
   (:doc "Caches only successfully read immutable sidecar facts")
   (let ((niwa-session-publication--facts-cache
          (make-hash-table :test #'equal))
-        (head ".publications/generation-deadbeef/manifest.el")
+        (head ".publications/generation-deadbeef/manifest.eld")
         (reads 0))
     (cl-letf (((symbol-function 'niwa-session-publication--sidecar-facts)
                (lambda (&rest _)
@@ -1928,7 +1928,7 @@ and its segment path."
                                 (pcase (plist-get operation :op)
                                   ('target-time (plist-put result :value now))
                                   ((or 'write 'create)
-                                   (when (string-match-p "/\\.lease/[0-9]+\\.el\\'" path)
+                                   (when (string-match-p "/\\.lease/[0-9]+\\.eld\\'" path)
                                      (push (cons now (car (read-from-string
                                                           (plist-get operation :content))))
                                            records)))))))
@@ -2293,14 +2293,14 @@ and its segment path."
         (calls 0))
     (cl-letf (((symbol-function 'file-remote-p)
                (lambda (&rest args) (cl-incf calls) (apply remote args))))
-      (dolist (leaf '("manifest.el" "artifact-1" "a b" ".hidden" "a..b" "~name"))
+      (dolist (leaf '("manifest.eld" "artifact-1" "a b" ".hidden" "a..b" "~name"))
         (should (niwa-session-publication--valid-published-path-p
                  (concat prefix leaf))))
       (dolist (leaf '("" "." ".." "a/b" "/a" "a/" "../a"))
         (should-not (niwa-session-publication--valid-published-path-p
                      (concat prefix leaf))))
-      (dolist (path '(nil 1 "/ssh:host:/file" "../manifest.el" "~/.publications/x"
-                          ".publications/generation-short/manifest.el"))
+      (dolist (path '(nil 1 "/ssh:host:/file" "../manifest.eld" "~/.publications/x"
+                          ".publications/generation-short/manifest.eld"))
         (should-not (niwa-session-publication--valid-published-path-p path))))
     ;; The fixed relative grammar itself proves this is not a remote spelling.
     (should (= 0 calls))))

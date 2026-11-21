@@ -46,7 +46,7 @@ class ProjectHookPolicyTests(unittest.TestCase):
             "*** Delete File: generated.elc\n",
             "*** Update File: source.el\n*** Move to: generated.elc\n@@\n-old\n+new\n",
             "*** Update File: generated.elc\n*** Move to: source.el\n@@\n-old\n+new\n",
-            "*** Delete File: .niwa/sessions/session/session.meta.el\n",
+            "*** Delete File: .niwa/sessions/session/session.meta.eld\n",
             "*** Delete File: /tmp/project/.niwa/sessions/session/data\n",
             "*** Delete File: .niwa/other/../sessions/session/data\n",
             "  *** Delete File: generated.elc  \r\n",

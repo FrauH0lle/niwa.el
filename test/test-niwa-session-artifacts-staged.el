@@ -30,7 +30,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
                   (mapcar (lambda (logical)
                             (list :path (file-name-concat root logical) :delete t))
                           deletes)
-                  (list (list :path (file-name-concat root "session.meta.el")
+                  (list (list :path (file-name-concat root "session.meta.eld")
                               ;; A real sidecar: the selector reads the staged
                               ;; marker as the frozen, projected snapshot.
                               :content (or marker-text
@@ -65,7 +65,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
                                 (niwa-session-artifacts--live-sidecar session buffer))
                       :stamp "2099-01-01T00-00-00" :force nil :comparable t
                       :entries (test-niwa-staged--entries
-                                batch '("notes/a.txt" "session.meta.el")))))
+                                batch '("notes/a.txt" "session.meta.eld")))))
     (while overrides
       (setf (plist-get frozen (pop overrides)) (pop overrides)))
     frozen))
@@ -146,14 +146,14 @@ synchronously computed digest, as the asynchronous digest step would set it."
             (stamp (niwa-session-updated-at session))
             (marker-bytes (test-niwa-staged--read
                            (plist-get (test-niwa-staged--artifact
-                                       batch "session.meta.el")
+                                       batch "session.meta.eld")
                                       :source))))
        (should-not (niwa-session-artifacts--select-staged-save session batch frozen))
        (should (equal before frozen))
        (should (equal stamp (niwa-session-updated-at session)))
        (should (equal marker-bytes
                       (test-niwa-staged--read
-                       (plist-get (test-niwa-staged--artifact batch "session.meta.el")
+                       (plist-get (test-niwa-staged--artifact batch "session.meta.eld")
                                   :source)))))))
   :doc "a changed payload keeps only it and stamps a marker with the correct bytes and hash"
   (test-niwa-publication-async--fixture
@@ -163,7 +163,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
             (frozen (test-niwa-staged--frozen
                      session buffer batch
                      :entries (append (test-niwa-staged--entries
-                                       batch '("notes/b.txt" "session.meta.el"))
+                                       batch '("notes/b.txt" "session.meta.eld"))
                                       '(("notes/a.txt" :published "p" :sha256 "old")))))
             (expected (encode-coding-string
                        (niwa-session-artifacts-printed-value
@@ -174,9 +174,9 @@ synchronously computed digest, as the asynchronous digest step would set it."
                                (lambda (&rest _) (ert-fail "Live sidecar read"))))
                       (niwa-session-artifacts--select-staged-save
                        session batch frozen)))
-            (marker (test-niwa-staged--artifact result "session.meta.el")))
+            (marker (test-niwa-staged--artifact result "session.meta.eld")))
        (should (eq batch result))
-       (should (equal '("notes/a.txt" "session.meta.el")
+       (should (equal '("notes/a.txt" "session.meta.eld")
                       (mapcar (lambda (artifact) (plist-get artifact :logical))
                               (plist-get result :artifacts))))
        (should (eq marker (car (last (plist-get result :artifacts)))))
@@ -201,7 +201,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
        (let* ((result (niwa-session-artifacts--select-staged-save
                        session batch frozen))
               (disk (test-niwa-staged--read
-                     (plist-get (test-niwa-staged--artifact result "session.meta.el")
+                     (plist-get (test-niwa-staged--artifact result "session.meta.eld")
                                 :source))))
          (should-not (string-match-p "mutated-live" disk))
          (should (string-match-p (regexp-quote frozen-name) disk))
@@ -215,7 +215,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
             (frozen (test-niwa-staged--frozen session buffer batch :comparable nil))
             (result (niwa-session-artifacts--select-staged-save session batch frozen)))
        (should result)
-       (should (equal '("notes/a.txt" "session.meta.el")
+       (should (equal '("notes/a.txt" "session.meta.eld")
                       (mapcar (lambda (artifact) (plist-get artifact :logical))
                               (plist-get result :artifacts)))))))
   :doc "a forced save is never an exact no-op and keeps only changed payloads"
@@ -226,7 +226,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
             (frozen (test-niwa-staged--frozen session buffer batch :force t))
             (result (niwa-session-artifacts--select-staged-save session batch frozen)))
        (should result)
-       (should (equal '("session.meta.el")
+       (should (equal '("session.meta.eld")
                       (mapcar (lambda (artifact) (plist-get artifact :logical))
                               (plist-get result :artifacts)))))))
   :doc "a sidecar that differs from the manifest is written even when payloads match"
@@ -238,11 +238,11 @@ synchronously computed digest, as the asynchronous digest step would set it."
                      session buffer batch
                      :entries (append (test-niwa-staged--entries
                                        batch '("notes/a.txt"))
-                                      '(("session.meta.el" :published "p"
+                                      '(("session.meta.eld" :published "p"
                                          :sha256 "different")))))
             (result (niwa-session-artifacts--select-staged-save session batch frozen)))
        (should result)
-       (should (equal '("session.meta.el")
+       (should (equal '("session.meta.eld")
                       (mapcar (lambda (artifact) (plist-get artifact :logical))
                               (plist-get result :artifacts)))))))
   :doc "a replacing artifact is always kept"
@@ -263,7 +263,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
                    (test-niwa-staged--frozen
                     session buffer batch
                     :entries (append (test-niwa-staged--entries
-                                      batch '("notes/a.txt" "session.meta.el"))
+                                      batch '("notes/a.txt" "session.meta.eld"))
                                      '(("notes/gone.txt" :published "p" :sha256 "x"))))))
             (batch2 (test-niwa-staged--batch
                      session buffer '(("notes/a.txt" . "alpha")) '("notes/gone.txt"))))
@@ -302,7 +302,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
      (let* ((batch (test-niwa-staged--batch
                     session buffer '(("notes/a.txt" . "alpha"))))
             (frozen (test-niwa-staged--frozen session buffer batch :entries nil))
-            (marker (test-niwa-staged--artifact batch "session.meta.el")))
+            (marker (test-niwa-staged--artifact batch "session.meta.eld")))
        ;; Deferred after the sidecar was captured, before stage-time projection.
        (niwa-session-checkpoint-defer-ptc
         session "/root" (list (list :id "deferred-ptc-row")))
@@ -310,7 +310,7 @@ synchronously computed digest, as the asynchronous digest step would set it."
        (let* ((result (niwa-session-artifacts--select-staged-save
                        session batch frozen))
               (disk (niwa-session-publication--read-staged-sidecar
-                     (plist-get (test-niwa-staged--artifact result "session.meta.el")
+                     (plist-get (test-niwa-staged--artifact result "session.meta.eld")
                                 :source))))
          (should (member "deferred-ptc-row"
                          (mapcar (lambda (row) (plist-get row :id))

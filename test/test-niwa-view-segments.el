@@ -87,7 +87,7 @@ SEGMENT.  RESPONSE-BOUND-LENGTH may simulate a stale persisted response end."
    session (append (mapcar (lambda (path)
                              (list :path path :content
                                    (niwa-session-artifacts-read-file-raw path))) paths)
-                   '((:path "session.meta.el" :content "(:fixture archive-only)" :commit-marker t))) t))
+                   '((:path "session.meta.eld" :content "(:fixture archive-only)" :commit-marker t))) t))
 
 (defmacro niwa-view-segments-test--with-view (&rest body)
   "Run BODY in a rendered three-segment view with two archived segments."
@@ -454,7 +454,7 @@ SEGMENT.  RESPONSE-BOUND-LENGTH may simulate a stale persisted response end."
   (niwa-view-segments-test--with-view
     (niwa-session-publication-publish
      session '((:path "segment-0001.chat.org" :delete t)
-               (:path "session.meta.el" :content "(:fixture archive-only)"
+               (:path "session.meta.eld" :content "(:fixture archive-only)"
                 :commit-marker t)) t)
     (let ((before (buffer-string)))
       (should-error (niwa-view-segments-jump-to-prompt 1 44)

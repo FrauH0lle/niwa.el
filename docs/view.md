@@ -1887,9 +1887,9 @@ visible after cloning a Git repository that omits their empty authored directori
   ID/
     <name>           ; authored artifact file and optional assets
   .state/ID/
-    meta.el          ; kind, title, primary file, created, dedicated session
+    meta.eld          ; kind, title, primary file, created, dedicated session
     state.json       ; a whiteboard's or document's state
-    versions/        ; numbered copies plus index.el
+    versions/        ; numbered copies plus index.eld
     discussions.json ; an HTML artifact's discussions, each naming its answering session
 ```
 
@@ -1906,11 +1906,11 @@ artifact's title, or its id when the title is blank. The name follows the
 title: renaming a whiteboard or document renames its conversation while it is
 open in this Emacs, and opening the conversation renames it when the title
 changed meanwhile; a rename the session refuses, such as one another client
-holds, is reported and keeps the old name. The two name each other: `meta.el`
+holds, is reported and keeps the old name. The two name each other: `meta.eld`
 records the session's id and the
 session records the artifact's (`:dedicated-artifact`). A saved session is
 hidden from the session chooser and the lobby listing and kept from expiry
-only while both agree; an open one goes by its own record, so a `meta.el` copied outside niwa never makes another
+only while both agree; an open one goes by its own record, so a `meta.eld` copied outside niwa never makes another
 artifact's conversation its own, and one whose artifact is gone is an
 ordinary session again. A fork or Save As of it is an ordinary chat. Deleting the artifact deletes its
 dedicated session too. One open in this Emacs is closed first, ending its
@@ -1923,7 +1923,7 @@ tool. After a settled ApplyPatch, `niwa-tool-patch-apply` reports its
 writes to the store:
 
 - a write into a new id directory creates the artifact; the host writes its
-  `meta.el`, with the kind from the file type and the id as its title;
+  `meta.eld`, with the kind from the file type and the id as its title;
 - a turn that wrote an artifact's primary file records one version of it when
   the turn settles, as for whiteboards and documents, so the version before
   the turn survives its many small patches; a write outside a turn records
@@ -2861,7 +2861,7 @@ Configure additional top-level composer keys before opening or reinitializing
 a view; registration derives the available entry points from the composer maps.
 
 History persists at the workspace level as
-`<workspace-root>/.niwa/input-history.el`, so new and resumed
+`<workspace-root>/.niwa/input-history.eld`, so new and resumed
 sessions in the same project share prompt recall. When persistence is not
 writable, the active ring remains available in memory. Rewind keeps the current
 workspace ring and composer draft. The Lisp sidecar is printed with circle

@@ -35,7 +35,7 @@
    session (append (mapcar (lambda (path)
                              (list :path path :content
                                    (niwa-session-artifacts-read-file-raw path))) paths)
-                   '((:path "session.meta.el" :content "(:fixture archive-only)" :commit-marker t))) t))
+                   '((:path "session.meta.eld" :content "(:fixture archive-only)" :commit-marker t))) t))
 
 (niwa-deftest niwa-view--insert-hook-audit-block/display-insets ()
   ,test
@@ -1647,7 +1647,7 @@
                                           (buffer-string))))
               (niwa-session-publication-publish
                session '((:path "agents/worker.compact-0001.chat.org" :delete t)
-                         (:path "session.meta.el" :content "(:fixture archive-only)"
+                         (:path "session.meta.eld" :content "(:fixture archive-only)"
                           :commit-marker t)) t)
               (should (= 2 (length
                             (niwa-session-artifacts-transcript-segments

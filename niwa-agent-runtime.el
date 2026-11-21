@@ -670,7 +670,7 @@ TOKEN, possibly nil, is the gate ownership its mutations hand on explicitly."
               (and (not fenced-p) session
                    save-path
                    (niwa-session-artifacts-artifact-present-p
-                    session "session.meta.el")
+                    session "session.meta.eld")
                    (niwa-agent-invocation-transcript-relative-path
                     invocation)
                    (buffer-live-p

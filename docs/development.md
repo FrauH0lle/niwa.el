@@ -969,6 +969,22 @@ with `(interpreted-function-p (symbol-function 'niwa-transcript-segments))`.
   `niwa-tools--validate-params`)
 - **Path construction**: use `file-name-concat`, not `concat`, to join
   filesystem path components.
+- **`.el` versus `.eld`**: use `.el` only for Emacs Lisp code that is loaded,
+  byte-compiled or evaluated: libraries, tests, scripts, the `hooks.el` files,
+  and plugin or skill Lisp. Use `.eld` for Lisp data that niwa writes or reads
+  with `read` and never evaluates: state, indexes, logs, settings stores and
+  records, including temporary ones. Emacs opens `.eld` in `lisp-data-mode`, so
+  checkdoc, flycheck and byte-compilation do not treat data as a library, and a
+  reader can see the file is inert. New persisted Lisp files use `.eld`, and
+  any regexp that selects data files matches `\\.eld\\'`. Renaming a persisted
+  file needs a migration in the same change: a new step in
+  `scripts/migrate-sessions.el`, with a session format bump for session files.
+- **Version numbers**: the package version (`niwa.el`, `Eask`, `niwa-version`)
+  moves with every release. The session format
+  (`niwa-session-codec-format-version`) is named after the package release
+  that last changed it, and stays unchanged in releases that don't: a release
+  that changes the on-disk format sets both to the same version and adds one
+  migration step.
 - **Provide**: each file ends with `(provide 'niwa-MODNAME)` and
   `;;; niwa-MODNAME.el ends here`
 - **ASCII in code, unicode only in UI-facing strings**: comments,

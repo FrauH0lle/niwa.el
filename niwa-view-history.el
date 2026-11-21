@@ -171,7 +171,7 @@ duplicates are skipped.  History navigation state is reset."
   (when-let* ((sess (or session (niwa-view-history--session)))
               (workspace (niwa-session-workspace sess)))
     (file-name-concat (niwa-workspace-state-dir workspace)
-                      "input-history.el")))
+                      "input-history.eld")))
 
 (defun niwa-view-history--call-global-key (key)
   "Invoke KEY's global binding, or report it as undefined.

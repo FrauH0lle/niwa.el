@@ -6,7 +6,7 @@ is not session state and is never read during resume.
 
 ## Storage and representation
 
-The stream lives at `SESSION_DIR/telemetry-log.el`. Each line is one readable
+The stream lives at `SESSION_DIR/telemetry-log.eld`. Each line is one readable
 Emacs Lisp plist. This uses the package's existing append-only log convention,
 requires no serializer dependency, and remains streamable even when a run is
 interrupted. Every entry has schema version 1, an ISO wall time,
@@ -24,13 +24,13 @@ identity from the containing directory for all rows, including previously
 written rows with the now-redundant session field.
 
 Sessionless background work uses the same compact envelope and privacy filter at
-`WORKSPACE/.niwa/state/diagnostics/telemetry-log.el`, through target-native control
+`WORKSPACE/.niwa/state/diagnostics/telemetry-log.eld`, through target-native control
 operations on local and TRAMP workspaces. It has no session identity or Goal
 and does not manufacture a conversation. It follows the same enable switch;
 disabled telemetry creates no diagnostic state.
 
-Workspace appends rotate before `telemetry-log.el` exceeds 10 MiB, keeping one
-`telemetry-log.el.1` archive. Cooperating writers share a target directory lock.
+Workspace appends rotate before `telemetry-log.eld` exceeds 10 MiB, keeping one
+`telemetry-log.eld.1` archive. Cooperating writers share a target directory lock.
 The next rotation replaces the old archive. An already oversized log is trimmed
 to its last complete lines within 10 MiB on rotation; a single oversized event
 is rejected with the ordinary telemetry failure diagnostic. No age timer is
@@ -50,7 +50,7 @@ owner-request sweeps, cancellations, and aborts retain distinct event or
 `:settlement-source` values. Captured admission modes are separate from Eval's
 `:eval-mode` (`live` or `fresh`). See [permission diagnostics](permissions.md)
 for event semantics and the richer resource-scope fields restricted to
-`permission-log.el`.
+`permission-log.eld`.
 
 Telemetry may be disabled with `niwa-telemetry-enabled`. Events emitted
 before a new session has a directory are held in the session and flushed as
@@ -491,9 +491,9 @@ appear in log order.
 Each profiler run gets a directory containing:
 
 ```text
-profiler-cpu-profile.el       native readable Emacs CPU profile, when enabled
+profiler-cpu-profile.eld      native readable Emacs CPU profile, when enabled
 profiler-cpu-report.txt       rendered CPU report, when enabled
-profiler-memory-profile.el    native readable Emacs memory profile, when enabled
+profiler-memory-profile.eld   native readable Emacs memory profile, when enabled
 profiler-memory-report.txt    rendered memory report, when enabled
 full-suite-time.txt           GNU time report, when a full Eask suite ran
 gptel-debug.log               gptel log captured by niwa-session-debug
@@ -644,7 +644,7 @@ emacs -Q --batch -l scripts/analyze-session-cache.el \
 
 # Structured report for explicit logs or session directories.
 emacs -Q --batch -l scripts/analyze-session-cache.el \
-  -f niwa-analyze-session-cache-main -- --json /path/to/session/telemetry-log.el
+  -f niwa-analyze-session-cache-main -- --json /path/to/session/telemetry-log.eld
 ```
 
 The analyzer accepts telemetry files, session directories, or sessions
@@ -687,7 +687,7 @@ The file can be read incrementally with ordinary Lisp `read`:
 
 ```elisp
 (with-temp-buffer
-  (insert-file-contents "/path/to/session/telemetry-log.el")
+  (insert-file-contents "/path/to/session/telemetry-log.eld")
   (let (events)
     (condition-case nil
         (while t (push (read (current-buffer)) events))

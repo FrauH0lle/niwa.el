@@ -72,7 +72,7 @@
                            (session (niwa-session-create "cold" workspace))
                            (sidecar (niwa-session-codec-serialize session))
                            (path (file-name-concat directory
-                                                  "session.meta.el")))
+                                                  "session.meta.eld")))
                       (niwa-session-codec-authority-mode-for-path
                        directory session)
                       (niwa-session-codec-write path sidecar)

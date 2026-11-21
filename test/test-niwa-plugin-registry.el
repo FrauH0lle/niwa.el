@@ -322,7 +322,7 @@
     (unwind-protect
         (progn
           (niwa-plugins--write-state '(("demo" :enabled t)) workspace)
-          (should (equal '("plugins.el")
+          (should (equal '("plugins.eld")
                          (directory-files
                           (niwa-workspace-state-dir workspace) nil
                           directory-files-no-dot-files-regexp))))
@@ -341,7 +341,7 @@
             '(("demo" :enabled t)) workspace)
            :type 'user-error)
           (should-not
-           (file-exists-p (file-name-concat root ".niwa" "plugins.el"))))
+           (file-exists-p (file-name-concat root ".niwa" "plugins.eld"))))
       (delete-directory root t)))
 
   :doc "remote plugin state discloses, leases, and publishes on the target"

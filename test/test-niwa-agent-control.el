@@ -2197,7 +2197,7 @@
               (should
                (file-exists-p
                 (file-name-concat (niwa-session-save-path session)
-                                  "session.meta.el")))
+                                  "session.meta.eld")))
               (let ((record (plist-get outcome :record)))
               (should (equal "/root/worker"
                              (niwa-agent-record-path record)))

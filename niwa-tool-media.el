@@ -77,7 +77,7 @@ When SESSION is non-nil, publish through its durability seam."
   (when (stringp tool-results-dir)
     (let* ((id (plist-get record :id))
            (dir (file-name-concat tool-results-dir "media"))
-           (file (file-name-concat dir (concat "media-" id ".el")))
+           (file (file-name-concat dir (concat "media-" id ".eld")))
            (content
             (let ((print-level nil)
                   (print-length nil)
@@ -104,7 +104,7 @@ remote session artifacts through their committed publication."
                        (and (stringp tool-results-dir)
                             (file-name-concat tool-results-dir "media"))
                      (niwa-tool-media--store-dir tool-results-dir)))
-              (file (file-name-concat dir (concat "media-" id ".el"))))
+              (file (file-name-concat dir (concat "media-" id ".eld"))))
     (when (or session (file-readable-p file))
       (condition-case _
           (let* ((bytes

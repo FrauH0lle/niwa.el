@@ -63,7 +63,7 @@
           (should (niwa-session-durability-lease-owned-p session))
           (should (file-directory-p (file-name-concat directory ".lease")))
           (should (niwa-session-publication-read directory))
-          (let* ((text (niwa-session-artifacts-read-artifact session "session.meta.el" t))
+          (let* ((text (niwa-session-artifacts-read-artifact session "session.meta.eld" t))
                  (sidecar (car (read-from-string text))))
             (should-not (string-search ":workspace-origin" text))
             (should-not (plist-get sidecar :permission-rules))

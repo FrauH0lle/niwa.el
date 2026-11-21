@@ -172,7 +172,7 @@ target directories would mutate the session on behalf of an observer."
   (let ((path
          (file-name-concat
           (niwa-session-transfer--path directory "fences")
-          (format "fence-%020d.el" generation))))
+          (format "fence-%020d.eld" generation))))
     (niwa-session-control-fs-physical-path path)))
 
 (defun niwa-session-transfer--valid-fence-p (record &optional now)
@@ -232,7 +232,7 @@ Use OBSERVATION, a pinned read result, when supplied by session discovery."
   (let ((path
          (file-name-concat
           (niwa-session-transfer--path directory "requests")
-          (format "request-%020d.el" generation))))
+          (format "request-%020d.eld" generation))))
     (niwa-session-control-fs-physical-path path)))
 
 (defun niwa-session-transfer--decision-path
@@ -241,7 +241,7 @@ Use OBSERVATION, a pinned read result, when supplied by session discovery."
   (let ((path
          (file-name-concat
           (niwa-session-transfer--path directory "requests")
-          (format "decision-%020d.el" generation))))
+          (format "decision-%020d.eld" generation))))
     (niwa-session-control-fs-physical-path path)))
 
 (defun niwa-session-transfer--valid-request-p (record &optional now)
@@ -345,7 +345,7 @@ as its owner, so a request left over from an earlier ownership cannot
 cross a release."
   (let* ((generation (plist-get lease :generation))
          (now (or now (niwa-session-durability--target-time directory)))
-         (regexp "\\`request-[0-9]\\{20\\}\\.el\\'")
+         (regexp "\\`request-[0-9]\\{20\\}\\.eld\\'")
          (path
           (car (sort
                 (if listing

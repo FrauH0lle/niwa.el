@@ -416,7 +416,7 @@ remembering off clears its path and network selections, without converting them
 to independent grants. Independent selections remain unchanged. The `g` extent
 selector preserves each path's remembering scope.
 The current invocation always receives the complete approved request.
-`.niwa/permissions.el` stores a plist containing both `:rules` and
+`.niwa/permissions.eld` stores a plist containing both `:rules` and
 `:resource-grants`, and optionally `:safe-env-vars`, a list of environment
 variable names (see [Rule format](#rule-format)). It lives with the project on
 its execution target and stores
@@ -432,8 +432,8 @@ to the session's execution target:
 
 | Session | Global store | Project store |
 | --- | --- | --- |
-| Local | `niwa-user-dir/permissions.el` (default `~/.niwa/permissions.el`) | `PROJECT/.niwa/permissions.el` |
-| TRAMP | Target user's `~/.niwa/permissions.el` | Target's `PROJECT/.niwa/permissions.el` |
+| Local | `niwa-user-dir/permissions.eld` (default `~/.niwa/permissions.eld`) | `PROJECT/.niwa/permissions.eld` |
+| TRAMP | Target user's `~/.niwa/permissions.eld` | Target's `PROJECT/.niwa/permissions.eld` |
 
 Both stores contribute `:rules`, `:resource-grants`, and `:safe-env-vars`; the
 safe variable names of both stores are combined. Global and project
@@ -499,7 +499,7 @@ replacement checks.
 A remote session does not inherit the client's global file, even if its target
 global file is missing or unavailable. Global authority is read at runtime,
 not copied into a project or portable session. Store replacement is atomic
-and descriptor-pinned; a symlink in the state path or at `permissions.el`
+and descriptor-pinned; a symlink in the state path or at `permissions.eld`
 fails closed before any linked target is changed.
 
 Global and project stores are validated when a fresh, resumed, or forked
@@ -856,7 +856,7 @@ with the generic permission chain, persists approved authority, and adapts
 Bash and Eval decisions to the permission queue. Execution and rendering stay
 in `niwa-tool-exec.el`.
 
-Permission diagnostics are persisted to `permission-log.el` in the session
+Permission diagnostics are persisted to `permission-log.eld` in the session
 directory when `niwa-permission-log-enabled` is non-nil. The log is
 diagnostic only: resume never replays it into live permission state.
 Entries recorded before first materialization are buffered transiently and
@@ -889,7 +889,7 @@ is `permission-enqueued`; refreshing a card's scope or queue count does not emit
 another display. Automatic review records `permission-review-completed` with
 outcome, source, elapsed seconds and the settled reviewer's bounded explanation
 (`:review-reason`), without adding raw reviewer responses or supplied user
-evidence. The explanation stays in `permission-log.el`, not unified telemetry
+evidence. The explanation stays in `permission-log.eld`, not unified telemetry
 or forwarded side audits, and does not confer authority. It does not count
 as a displayed card or a human answer. Each admitted request settles once as
 `permission-resolved` for a user answer, `permission-coalesced` for a covering

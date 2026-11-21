@@ -69,7 +69,7 @@ Run PREPARE with the live session, buffer and capture before closing."
         (progn
           (plist-put sidecar :session-name "Replacement")
           (niwa-session-publication-publish
-           session (list (list :path (file-name-concat directory "session.meta.el")
+           session (list (list :path (file-name-concat directory "session.meta.eld")
                                :content (prin1-to-string sidecar) :commit-marker t)) t))
       (niwa-session-durability-lease-release directory session))))
 

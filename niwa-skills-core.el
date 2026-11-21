@@ -223,7 +223,7 @@ skills."
 ;;
 ;;; Skill state
 
-(defconst niwa-skills--state-file-name "skills-state.el"
+(defconst niwa-skills--state-file-name "skills-state.eld"
   "Workspace skill state file under `.niwa'.")
 
 (defun niwa-skills--state-file (workspace)

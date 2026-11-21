@@ -48,7 +48,7 @@
                          (niwa-session-publication-read
                           (niwa-session-save-path session))
                          (niwa-session-artifacts-read-artifact
-                          session "session.meta.el" t))))
+                          session "session.meta.eld" t))))
            '(:expression "(CheckpointProbe)"))
           (with-timeout (3 (ert-fail "Tool completion was not delivered"))
             (while (not delivered) (accept-process-output nil 0.01)))

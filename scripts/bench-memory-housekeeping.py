@@ -305,7 +305,7 @@ def main():
                 for shard in sorted((run / "shards").iterdir()):
                     shutil.copytree(shard, copied, dirs_exist_ok=True)
                 journal = copied / ".niwa/state/journal"
-                counts = [len(list((journal / "passes").glob("*/accepted.el"))),
+                counts = [len(list((journal / "passes").glob("*/accepted.eld"))),
                           len(list((journal / "decisions").glob("*.el"))),
                           len(list((journal / "writes").glob("*.el")))]
                 if counts != [80, 320, 320]:
@@ -318,7 +318,7 @@ def main():
             measure("generate", 0)
         steps = ["control"] if args.self_test else ["recovery", "application", "publication", "cleanup"]
         journal = baseline / ".niwa/state/journal"
-        inventory = {"accepted_passes": len(list((journal / "passes").glob("*/accepted.el"))),
+        inventory = {"accepted_passes": len(list((journal / "passes").glob("*/accepted.eld"))),
                      "decisions": len(list((journal / "decisions").glob("*.el"))),
                      "writes": len(list((journal / "writes").glob("*.el")))}
         samples = []

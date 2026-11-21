@@ -159,7 +159,9 @@ state, or workflows.
 - Call out destructive effects in the handoff, but do not preserve the old
   behavior merely to avoid a break.
 
-Maintain one standalone session migration script outside the runtime loader:
+Maintain one standalone persisted-state migration script outside the runtime
+loader. It covers sessions, through a versioned chain, and the workspace and
+user state that sits beside them, through idempotent renames:
 
 - Accept a session directory or project directory through one command-line
   entry point. Discover the relevant sessions and their stored versions and
@@ -176,6 +178,13 @@ Maintain one standalone session migration script outside the runtime loader:
 - When changing the persisted session format, update the script, its tests,
   and migration documentation in the same change. Keep legacy-format knowledge
   in the migration script, not in runtime readers or writers.
+- Renaming a persisted file is a format change. A session step that changes
+  file names owns that change as its layout function, so dropping the step
+  deletes it. Workspace and user files carry no version: their pass renames
+  only the explicit files it names, from family lists named after the release
+  that needs them, does nothing when the new name already exists alone, and
+  refuses before any write when both names exist. A file that records another
+  file's name or hash is rewritten with it.
 - A step that deletes files selects them by explicit file family, never as
   "everything not excluded", and its tests cover every family it keeps (such
   as plans and retained execution output), each with a control that fails when

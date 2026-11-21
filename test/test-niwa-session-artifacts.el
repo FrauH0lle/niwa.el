@@ -902,8 +902,8 @@ ENTRIES is an alist of logical names and their content strings."
                 (with-current-buffer buf
                   (org-mode)
                   (niwa-session-artifacts-ensure-files session buf))
-                (dolist (file '("hook-log.el" "repair-log.el"
-                                "permission-log.el" "telemetry-log.el"))
+                (dolist (file '("hook-log.eld" "repair-log.eld"
+                                "permission-log.eld" "telemetry-log.eld"))
                   (should
                    (file-readable-p
                     (file-name-concat
@@ -1263,7 +1263,7 @@ ENTRIES is an alist of logical names and their content strings."
             (let ((sidecar
                    (with-temp-buffer
                      (insert (niwa-session-artifacts-read-artifact
-                              session "session.meta.el"))
+                              session "session.meta.eld"))
                      (goto-char (point-min))
                      (read (current-buffer)))))
               (should (equal "First real prompt" (plist-get sidecar :first-user-message)))
@@ -1344,10 +1344,10 @@ ENTRIES is an alist of logical names and their content strings."
                 (should-not (niwa-session-hook-log-pending session))
                 (should-not (niwa-session-repair-log-pending session))
                 (should
-                 (file-readable-p (file-name-concat save-path "hook-log.el")))
+                 (file-readable-p (file-name-concat save-path "hook-log.eld")))
                 (should
                  (file-readable-p
-                  (file-name-concat save-path "repair-log.el"))))
+                  (file-name-concat save-path "repair-log.eld"))))
             (test-niwa-session-persistence--release-and-kill
              buf session)))
       (delete-directory tempdir t)
@@ -1420,7 +1420,7 @@ ENTRIES is an alist of logical names and their content strings."
                    (segment-before
                     (cdr (assoc "segment-0001.chat.org" artifacts-before)))
                    (sidecar-before
-                    (cdr (assoc "session.meta.el" artifacts-before)))
+                    (cdr (assoc "session.meta.eld" artifacts-before)))
                    (committed-segment
                     (niwa-session-artifacts-read-artifact
                      session "segment-0001.chat.org" t))
@@ -1443,7 +1443,7 @@ ENTRIES is an alist of logical names and their content strings."
                                            artifacts-after))))
                 (should-not
                  (equal (plist-get sidecar-before :published)
-                        (plist-get (cdr (assoc "session.meta.el"
+                        (plist-get (cdr (assoc "session.meta.eld"
                                                artifacts-after))
                                    :published))))
               (should (equal committed-segment
@@ -1479,7 +1479,7 @@ ENTRIES is an alist of logical names and their content strings."
             (should-not (niwa-session-artifacts-save-agent-registry
                          session buf))
             (should-not (file-exists-p
-                         (file-name-concat save-path "session.meta.el")))))
+                         (file-name-concat save-path "session.meta.eld")))))
       (test-niwa-session-persistence--release-and-kill buf session)
       (delete-directory root t)
       (niwa-workspace-clear-registry)))
@@ -2567,7 +2567,7 @@ rotation never saves through a rebound temporary visited filename or prompts"
               session buf "Summary that stays committed.")))
           (let ((plist (car (read-from-string
                              (niwa-session-artifacts-read-artifact
-                              session "session.meta.el" t)))))
+                              session "session.meta.eld" t)))))
             (should (= 2 (niwa-session-current-segment session)))
             (should (= 2 (plist-get plist :current-segment)))
             (should (equal (niwa-session-prompt-index session)
@@ -2971,7 +2971,7 @@ rotation never saves through a rebound temporary visited filename or prompts"
              (niwa-session-publication-publish
               session
               (list
-               (list :path (file-name-concat save-path "session.meta.el")
+               (list :path (file-name-concat save-path "session.meta.eld")
                      :content "(:version \"v0.5.2\")"
                      :commit-marker t))))
             (should (niwa-session-publication-read save-path))
@@ -3637,7 +3637,7 @@ rotation never saves through a rebound temporary visited filename or prompts"
                       (with-temp-buffer
                         (insert
                          (niwa-session-artifacts-read-artifact
-                          session "session.meta.el" t))
+                          session "session.meta.eld" t))
                         (goto-char (point-min))
                         (read (current-buffer)))
                       :session-id))))
@@ -3721,7 +3721,7 @@ rotation never saves through a rebound temporary visited filename or prompts"
                        (with-temp-buffer
                          (insert
                           (niwa-session-artifacts-read-artifact
-                           session "session.meta.el" t))
+                           session "session.meta.eld" t))
                          (goto-char (point-min))
                          (read (current-buffer)))
                        :session-name))))
@@ -3765,7 +3765,7 @@ rotation never saves through a rebound temporary visited filename or prompts"
           (((symbol-function
              'niwa-session-artifacts--sidecar-publication-artifact)
             (lambda (_session _root-buffer)
-              '(:path "/target/session.meta.el"
+              '(:path "/target/session.meta.eld"
                 :content "sidecar"
                 :commit-marker t)))
            ((symbol-function 'niwa-session-publication-publish)

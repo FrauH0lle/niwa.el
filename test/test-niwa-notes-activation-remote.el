@@ -22,7 +22,7 @@
   (niwa-test--with-local-shell-tramp '("notes-index")
     (let* ((local (file-name-as-directory (make-temp-file "notes-index-" t)))
            (root (format "/niwamock:notes-index:%s" local))
-           (index (file-name-concat (getenv "XDG_STATE_HOME") "niwa/remote-notes.el"))
+           (index (file-name-concat (getenv "XDG_STATE_HOME") "niwa/remote-notes.eld"))
            (workspace (niwa-workspace-get-or-create 'project root root "notes"))
            (source nil))
       (unwind-protect
@@ -140,7 +140,7 @@
   (let (delivered)
     (should-not
      (niwa-session-control-fs-run-program-async
-      '((:op read :path "/ssh:niwa-invalid-host:/project/.niwa/instructions.el"
+      '((:op read :path "/ssh:niwa-invalid-host:/project/.niwa/instructions.eld"
               :optional t))
       (lambda (results failure) (setq delivered (list results failure)))
       'global nil t))
@@ -154,7 +154,7 @@
                (lambda (&rest _) (ert-fail "Connected-only used synchronous fallback"))))
       (should-not
        (niwa-session-control-fs-run-program-async
-        '((:op read :path "/ssh:niwa-invalid-host:/project/.niwa/instructions.el"
+        '((:op read :path "/ssh:niwa-invalid-host:/project/.niwa/instructions.eld"
                 :optional t))
         (lambda (results failure)
           (cl-incf calls)

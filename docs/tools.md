@@ -584,7 +584,7 @@ and persistent repair logs omit unchanged valid inputs, even during profiling.
 The in-memory `niwa-session-repair-log` is bounded by
 `niwa-tool-repair-log-limit` (default 200). When
 `niwa-tool-repair-persist-log` is non-nil, materialized sessions also append
-events to `<session>/repair-log.el` in UTF-8 without rereading prior entries or
+events to `<session>/repair-log.eld` in UTF-8 without rereading prior entries or
 checking an already-existing parent directory; bounded events recorded before first
 materialization are backfilled when the session directory is created.
 Remote callback entries wait for session settlement and append only their
@@ -1793,7 +1793,7 @@ one is refused. `cancel` with a workspace schedule's `id` deletes it and its
 run history without a card, since it removes authority.
 
 The workspace state holds the schedules
-(`.niwa/schedules/ID/schedule.el`) and one record per run
+(`.niwa/schedules/ID/schedule.eld`) and one record per run
 (`runs/SECONDS.el`, keyed by schedule and scheduled time). Every change is
 one target program under a lock on `.niwa/schedules/` that proves the bytes
 it read before writing, so Emacs instances sharing the workspace never lose

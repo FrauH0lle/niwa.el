@@ -1786,7 +1786,7 @@ Return the artifact's directory."
            (bookkeeping (niwa-artifact-store-bookkeeping-directory workspace "landing"))
            (links (niwa-collaboration-artifact-room-share root "landing"))
            (consumer (niwa-artifact-room-test--joined state port links 'edit))
-           (meta (niwa-artifact-room-test--file bookkeeping "meta.el"))
+           (meta (niwa-artifact-room-test--file bookkeeping "meta.eld"))
            (req-id 0))
       ;; With the store's real limit, the budget is the 30 MiB it always was.
       (should (= (* 30 1024 1024)
@@ -1794,18 +1794,18 @@ Return the artifact's directory."
                             :editing-max-bytes)))
       (unwind-protect
           (progn
-            (dolist (body `(((action . "read") (file . "../.state/landing/meta.el"))
-                            ((action . "write-file") (file . "../.state/landing/meta.el")
+            (dolist (body `(((action . "read") (file . "../.state/landing/meta.eld"))
+                            ((action . "write-file") (file . "../.state/landing/meta.eld")
                              (text . "x"))
-                            ((action . "delete-file") (file . "../.state/landing/meta.el")
+                            ((action . "delete-file") (file . "../.state/landing/meta.eld")
                              (hash . ,niwa-artifact-room-test--page-hash))
                             ((action . "write-files")
-                             (changes . [((file . "../.state/landing/meta.el") (text . "x"))]))))
+                             (changes . [((file . "../.state/landing/meta.eld") (text . "x"))]))))
               (let ((reply (niwa-artifact-room-test--request
                             consumer (cl-incf req-id) body)))
                 (should (string-prefix-p "Refused path" (or (alist-get 'error reply) "")))
                 (should-not (assq 'result reply))))
-            (should (equal meta (niwa-artifact-room-test--file bookkeeping "meta.el"))))
+            (should (equal meta (niwa-artifact-room-test--file bookkeeping "meta.eld"))))
         (niwa-artifact-room-test--close consumer))))
 
   :doc "carries a file of the store's largest size as base64 data, both ways"

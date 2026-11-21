@@ -138,7 +138,7 @@ The fixtures write segments directly instead of publishing generations."
               (setq sent nil)
               (niwa-collaboration--handle-history-get room 999 '(:reqId 2 :segment 1))
               (should-not sent)
-              (dolist (number '(0 -1 2 1.5 "../session.meta.el"))
+              (dolist (number '(0 -1 2 1.5 "../session.meta.eld"))
                 (setq sent nil)
                 (niwa-collaboration--handle-history-get room 1 (list :reqId 2 :segment number))
                 (should (plist-get (car sent) :error)))

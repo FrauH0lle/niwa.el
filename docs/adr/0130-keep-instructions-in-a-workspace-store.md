@@ -12,7 +12,7 @@ its original directive-activity scope is historical.
 **The workspace owns its current notes in one store.** Notes, their text,
 anchors, authorship, lifecycle, conversation links, waiting prepared changes,
 recently-closed records and display-id state live in
-`<workspace>/.niwa/instructions.el` on the
+`<workspace>/.niwa/instructions.eld` on the
 execution target. Sessions write no instruction snapshots. Ordinary resume loads
 the store; it no longer loads or clears the workspace set from a session.
 Conversations live in their sessions, not the store. There is no directive record

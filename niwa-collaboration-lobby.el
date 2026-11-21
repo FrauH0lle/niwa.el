@@ -322,7 +322,7 @@ If its damaged file cannot be quarantined privately, nil disables mutations."
 
 (defun niwa-collaboration-lobby--intent-path ()
   "Return the file listing the roots whose lobbies run until stopped."
-  (file-name-concat niwa-user-dir "lobbies.el"))
+  (file-name-concat niwa-user-dir "lobbies.eld"))
 
 (defun niwa-collaboration-lobby--intended ()
   "Return the workspace roots whose lobbies should be running.

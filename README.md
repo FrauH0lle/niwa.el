@@ -418,8 +418,8 @@ keybindings set in your `niwa` configuration (such as a `use-package`
 `:config` block) already apply. Restored taken notes remain paused; restoring
 notes does not start Buddy.
 The file-visit hook discovers local stores and restores remembered notes without
-remote I/O. A small local index (`$XDG_STATE_HOME/niwa/remote-notes.el`, or
-`~/.local/state/niwa/remote-notes.el`) remembers only remote workspace roots
+remote I/O. A small local index (`$XDG_STATE_HOME/niwa/remote-notes.eld`, or
+`~/.local/state/niwa/remote-notes.eld`) remembers only remote workspace roots
 with notes, never note content. After a restart, the first file visit in an
 indexed root queues one background store read for that Emacs run. For direct
 SSH/SCP roots it uses only the visit's existing SSH master and restores notes
@@ -647,7 +647,7 @@ it read-only instead of corrupting the writer's transcript.
 
 The chat view provides comint-style input history: `M-p` / `M-n` cycle previous
 and next inputs, `M-r` searches, `C-c C-l` browses the ring. History persists
-per workspace as `.niwa/input-history.el`.
+per workspace as `.niwa/input-history.eld`.
 
 ### Chat View
 
@@ -1210,7 +1210,7 @@ and `niwa-permission-review-timeout` (20 seconds) fall back to the user.
 Full Access bypasses review. See [the reviewer contract](docs/guardian-prompts.md).
 
 Persistent rules accepted via the prompt's "always" choices are saved to
-`.niwa/permissions.el` per workspace.
+`.niwa/permissions.eld` per workspace.
 
 Add `:network t` to a Bash or fresh-Eval rule to authorize network access
 together with the matching operation. An unqualified operation rule leaves
@@ -1391,7 +1391,7 @@ Hook context injected by `UserPromptSubmit` is shown in the chat view as a
 collapsed `◇ hook context added` disclosure. Tool calls blocked by
 `PreToolUse` or `PermissionRequest` show the blocking event and reason on the
 tool summary line. Hook run details are kept in the session hook log and, once a
-session is materialized on disk, appended to `<session>/hook-log.el`.
+session is materialized on disk, appended to `<session>/hook-log.eld`.
 
 Useful commands:
 
@@ -1609,13 +1609,19 @@ or external setup encrypts them.
 | Path | Purpose |
 |------|---------|
 | `.niwa/sessions/` | Persisted chat sessions, segments, sidecars, snapshots, permission logs, hook logs, and agent transcripts. |
-| `.niwa/input-history.el` | Workspace chat input history. |
+| `.niwa/input-history.eld` | Workspace chat input history. |
 | `.niwa/memory/`, `.agents/memory/` | Memory index and topic files. |
-| `.niwa/permissions.el` | Persistent permission decisions. |
+| `.niwa/permissions.eld` | Persistent permission decisions. |
 | `<session>/tool-results/` | Oversized tool outputs saved outside the transcript. |
 | `.niwa/hooks.el`, `.niwa/hooks.json` | Project hook configuration. |
-| `<session>/session.meta.el` | Session sidecar, including the current durable Goal record. |
+| `<session>/session.meta.eld` | Session sidecar, including the current durable Goal record. |
 | `<session>/local/plans/` | Session-owned plan proposals and immutable accepted Plan artifacts. |
+
+Persisted Lisp data uses the `.eld` extension; `.el` is reserved for code such as
+`hooks.el`. Version 0.7.0 renamed the data files that earlier versions wrote as
+`.el`. Before opening an existing project with 0.7.0 or later, close niwa and run
+the [migration script](docs/sessions.md#explicit-session-migration) once with
+`--user` and once for each project.
 
 ## Documentation
 

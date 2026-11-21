@@ -544,7 +544,7 @@ Return the new workspace struct."
             (let ((hash (niwa-instruction-store--write workspace nil record)))
               (should hash)
               (should (file-exists-p (file-name-concat local ".niwa"
-                                                       "instructions.el")))
+                                                       "instructions.eld")))
               (let ((observation (niwa-instruction-store--read workspace)))
                 (should (eq 'ok (plist-get observation :status)))
                 (should (equal hash (plist-get observation :hash))))
@@ -578,7 +578,7 @@ Return the new workspace struct."
                (list (list :path stale :content "stale")
                      (list :path (niwa-session-artifacts-sidecar-path
                                   (niwa-session-save-path session))
-                           :content (niwa-session-artifacts-read-artifact session "session.meta.el" t)
+                           :content (niwa-session-artifacts-read-artifact session "session.meta.eld" t)
                            :commit-marker t)))
               (should (equal "stale" (niwa-session-artifacts-read-artifact session logical t)))
               (should-not (file-exists-p (niwa-instruction-store-path workspace)))

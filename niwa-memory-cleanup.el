@@ -75,9 +75,9 @@ when supplied, samples time for rejecting recent public entries only."
                      (mapcar (lambda (name)
                                (niwa-memory-cleanup--file
                                 workspace (format "passes/%s/%s" id name)
-                                (if (equal name "prepared.el") (plist-get prepared :hash)
+                                (if (equal name "prepared.eld") (plist-get prepared :hash)
                                   (plist-get accepted :hash))))
-                             '("prepared.el" "accepted.el"))
+                             '("prepared.eld" "accepted.eld"))
                      (plist-get history :private))))))
         (error nil)))))
 

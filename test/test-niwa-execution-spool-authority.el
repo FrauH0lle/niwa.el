@@ -48,7 +48,7 @@
                     (niwa-session-authority-mode session) 'portable
                     (niwa-session-sandbox-mode session) 'off
                     (niwa-session-publication session)
-                    (list :head ".publications/generation/manifest.el"
+                    (list :head ".publications/generation/manifest.eld"
                           :sidecar nil :artifacts nil))
               (dolist (storage '(raw-and-gzip gzip-only))
                 (ert-info ((format "Unpublished ordinary artifact with %s storage" storage))
@@ -150,7 +150,7 @@
                     (niwa-session-authority-mode session) 'portable
                     (niwa-session-sandbox-mode session) 'off
                     (niwa-session-publication session)
-                    (list :head ".publications/generation/manifest.el"
+                    (list :head ".publications/generation/manifest.eld"
                           :sidecar published
                           :artifacts
                           (list (list logical :published published

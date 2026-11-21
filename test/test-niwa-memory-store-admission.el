@@ -113,7 +113,7 @@
     (should-error (accept (reply) invalid))
     (should-not (niwa-journal-claim-outcome claim))
     (should-not (file-exists-p (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id))
-                                               "accepted.el")))))
+                                               "accepted.eld")))))
 
 (niwa-deftest niwa-memory-store-accept-proposals/admission
     (:vars* ((root (make-temp-file "memory-structured-admission-" t))
@@ -147,7 +147,7 @@
       (should-error (niwa-memory-store-accept-proposals workspace prepared parsed nil "test:model" nil notes))
       (should-not (niwa-journal-claim-outcome claim))
       (should-not (file-exists-p (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id))
-                                                 "accepted.el"))))))
+                                                 "accepted.eld"))))))
 
 (niwa-deftest niwa-memory-store-accepted/admission ()
   ,test
@@ -172,7 +172,7 @@
                                      :proposals nil :no-action "- none")
                                (unless (eq admission 'missing) (list :admitted-notes admission))))
                  (text (niwa-memory-store--print data))
-                 (path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.el")))
+                 (path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.eld")))
             ;; Create each private fixture once and fence its real byte hash;
             ;; no existing bundle or old format is rewritten or adapted.
             (should (niwa-session-control-fs-create-file path text))

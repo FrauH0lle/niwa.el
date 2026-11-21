@@ -298,7 +298,7 @@
     (start)
     (make-directory (file-name-concat
                      (niwa-memory-store--directory workspace (plist-get (plist-get state :claim) :owner))
-                     "accepted.el"))
+                     "accepted.eld"))
     (setf (plist-get (gptel-fsm-info request) :tokens) '(:input 19 :cached 0 :output 6)
           (plist-get (gptel-fsm-info request) :stream) nil)
     (funcall provider '(reasoning . "SECRET reasoning") (gptel-fsm-info request))

@@ -4,8 +4,8 @@
 
 ;; The workspace artifact store at `<workspace>/.niwa/artifacts/'.  Each
 ;; artifact has a directory named by its stable id for authored files.
-;; Protected `.state/ID/' directories hold host bookkeeping: `meta.el',
-;; numbered versions with `index.el', `discussions.json' and shared editor
+;; Protected `.state/ID/' directories hold host bookkeeping: `meta.eld',
+;; numbered versions with `index.eld', `discussions.json' and shared editor
 ;; `state.json'.  Sessions attach to artifacts by id.  An artifact may have
 ;; one dedicated session, created on demand for conversations outside any chat.
 ;; The two name each other; while they agree the session is hidden from session
@@ -327,7 +327,7 @@ share one target lock, including shared item lease changes."
   (let* ((directory (niwa-artifact-store-artifact-directory workspace id))
          (bytes (niwa-artifact-store--read-bytes
                  (niwa-artifact-store--path
-                  (niwa-artifact-store-bookkeeping-directory workspace id) "meta.el"))))
+                  (niwa-artifact-store-bookkeeping-directory workspace id) "meta.eld"))))
     (when bytes
       (niwa-artifact-store--validate-meta
        (read (decode-coding-string bytes 'utf-8-unix)) directory))))
@@ -354,7 +354,7 @@ TITLE to ID, which names what the artifact shows where its file is often
 just index.html."
   (let* ((directory (niwa-artifact-store-artifact-directory workspace id))
          (path (niwa-artifact-store--path
-                (niwa-artifact-store-bookkeeping-directory workspace id) "meta.el"))
+                (niwa-artifact-store-bookkeeping-directory workspace id) "meta.eld"))
          (meta (niwa-artifact-store--validate-meta
                 (list :kind (or kind (niwa-artifact-store--kind file))
                       :title (or title id)
@@ -397,7 +397,7 @@ just index.html."
   (let ((directory (niwa-artifact-store--versions-dir workspace id)))
     (niwa-artifact-store--version-index
      (niwa-artifact-store--read-bytes
-      (niwa-artifact-store--path directory "index.el")))))
+      (niwa-artifact-store--path directory "index.eld")))))
 
 (defun niwa-artifact-store-version-path (workspace id n)
   "Return the file holding version N of artifact ID."
@@ -426,7 +426,7 @@ write CONTENT to the primary file in the same program.  Return its number."
                    (error "Artifact %s has no metadata" id)))
          (source (niwa-artifact-store-primary-path workspace id meta))
          (directory (niwa-artifact-store--versions-dir workspace id))
-         (index (niwa-artifact-store--path directory "index.el"))
+         (index (niwa-artifact-store--path directory "index.eld"))
          (content (or content (niwa-session-control-fs-read-file source 'no-conversion)))
          (content (if (multibyte-string-p content)
                       (encode-coding-string content 'utf-8-unix) content))
@@ -448,7 +448,7 @@ write CONTENT to the primary file in the same program.  Return its number."
                (append
                 (list (list :op 'path-exists-p
                             :path (niwa-artifact-store--path
-                                   (niwa-artifact-store-bookkeeping-directory workspace id) "meta.el"))
+                                   (niwa-artifact-store-bookkeeping-directory workspace id) "meta.eld"))
                       (list :op 'write :path (niwa-artifact-store--path directory name) :content content))
                 ;; Authored destinations need the pinned inline writer;
                 ;; staging a payload there would follow mutable parent names.
@@ -634,7 +634,7 @@ A dedicated session open in this Emacs is closed first, and its room
 ended, unless a turn is still running there.  One that cannot be deleted
 yet -- held by another client, or pinned by pending journal capture --
 stays as an ordinary session and expires like one.  A session that does
-not record ID as its own, such as one a copied `meta.el' names, is kept."
+not record ID as its own, such as one a copied `meta.eld' names, is kept."
   (when-let* ((session-id (plist-get (niwa-artifact-store-meta workspace id)
                                      :dedicated-session))
               ((niwa-artifact-store--conversation-agrees-p workspace session-id id)))
@@ -692,9 +692,9 @@ paths signal an error, including symbolic links."
                    append
                    (let ((directory (file-name-concat store ".state" id)))
                      (list (list :op 'read :optional t :coding 'no-conversion
-                                 :path (file-name-concat directory "meta.el"))
+                                 :path (file-name-concat directory "meta.eld"))
                            (list :op 'read :optional t :coding 'no-conversion
-                                 :path (file-name-concat directory "versions" "index.el"))))))
+                                 :path (file-name-concat directory "versions" "index.eld"))))))
          batches results rows)
     ;; The target proves each opened parent.  Repeating model-side symlink
     ;; walks before these same proofs costs hundreds of remote round trips.
@@ -786,7 +786,7 @@ otherwise the next session save carries the attachment."
   "Set PROPERTIES in artifact ID's metadata, retaining concurrent updates.
 Return the new metadata."
   (let ((file (niwa-artifact-store--path
-               (niwa-artifact-store-bookkeeping-directory workspace id) "meta.el"))
+               (niwa-artifact-store-bookkeeping-directory workspace id) "meta.eld"))
         (attempts 0)
         updated)
     (while (and (null updated) (< (cl-incf attempts) 9))
@@ -809,7 +809,7 @@ Return the new metadata."
 (defun niwa-artifact-store-dedicated-p (workspace session-id id)
   "Return non-nil when SESSION-ID is the conversation of WORKSPACE's artifact ID.
 ID is what the session records as its artifact; the artifact must name the
-session back, so a copied `meta.el' or a deleted artifact does not make
+session back, so a copied `meta.eld' or a deleted artifact does not make
 another session its conversation."
   (and (niwa-artifact-store-id-p id)
        (equal session-id
@@ -818,7 +818,7 @@ another session its conversation."
 
 (defun niwa-artifact-store--conversation-agrees-p (workspace session-id id)
   "Return non-nil when session SESSION-ID records WORKSPACE's artifact ID.
-A session that does not, such as one a copied `meta.el' names, is never
+A session that does not, such as one a copied `meta.eld' names, is never
 deleted with ID."
   (if-let* ((buffer (niwa-artifact-store--live-buffer workspace session-id)))
       (equal id (niwa-session-dedicated-artifact
@@ -847,7 +847,7 @@ Return nil when the session no longer exists."
   "Claim ID's conversation for CANDIDATE if it still names PREVIOUS.
 Return the winning session id, preserving concurrent metadata updates."
   (let ((file (niwa-artifact-store--path
-               (niwa-artifact-store-bookkeeping-directory workspace id) "meta.el"))
+               (niwa-artifact-store-bookkeeping-directory workspace id) "meta.eld"))
         (attempts 0)
         winner)
     (while (and (not winner) (< (cl-incf attempts) 9))

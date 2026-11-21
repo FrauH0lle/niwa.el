@@ -42,7 +42,7 @@ Return the committed schedule.  Repeating the same operation is harmless."
   "Commit RUN's terminal OUTCOME in WORKSPACE, notifying SESSION with ERROR-TEXT."
   (let* ((id (plist-get run :schedule-id))
          (at (plist-get run :scheduled-at))
-         (job-path (niwa-workspace-schedule--path workspace id "schedule.el"))
+         (job-path (niwa-workspace-schedule--path workspace id "schedule.eld"))
          (run-path (niwa-workspace-schedule--run-path workspace id at))
          (failed (eq outcome 'failed)))
     (cl-loop repeat 5 do

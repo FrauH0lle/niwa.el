@@ -170,7 +170,7 @@
 			     (capture (car (niwa-journal-capture-list workspace)))
 			     (directory (niwa-session-save-path session))
 			     (old-head (plist-get (niwa-session-publication session) :head))
-			     (old-sidecar (niwa-session-artifacts-read-artifact session "session.meta.el"))
+			     (old-sidecar (niwa-session-artifacts-read-artifact session "session.meta.eld"))
 			     (seam (pcase phase
 				     ('before-commit 'niwa-session-durability-commit-publication-head)
 				     ('after-commit 'niwa-session-publication--commit-marker-publication)
@@ -201,7 +201,7 @@
 				  (should (= 1 (niwa-session-current-segment session)))
 				  (should (eq 'attempted (niwa-session-naming-state session)))
 				  (should (equal old-head (plist-get (niwa-session-publication session) :head)))
-				  (should (equal old-sidecar (niwa-session-artifacts-read-artifact session "session.meta.el")))
+				  (should (equal old-sidecar (niwa-session-artifacts-read-artifact session "session.meta.eld")))
 				  (should-not (niwa-session-pending-publication session))
 				  (should-not (niwa-session-publication-queue session))
 				  (should-not (niwa-journal-capture-trigger workspace capture)))
@@ -211,7 +211,7 @@
 			      (should-not (equal old-head (plist-get (niwa-session-publication session) :head)))
 			      (let ((sidecar (car (read-from-string
 						   (niwa-session-artifacts-read-artifact
-						    session "session.meta.el" t)))))
+						    session "session.meta.eld" t)))))
 				(should (= 2 (plist-get sidecar :current-segment)))
 				(should (eq 'pending (plist-get sidecar :naming-state))))
 			      (ert-info ((format "Phase: %s; pending batch: %S; diagnostics: %s"
@@ -322,7 +322,7 @@
 		      (niwa-test-journal-capture--turn session buffer "Request" "Completed result")
 		      (let* ((directory (niwa-session-save-path session))
 			     (marker (list :path (niwa-session-artifacts-sidecar-path directory)
-					   :content (niwa-session-artifacts-read-artifact session "session.meta.el" t)
+					   :content (niwa-session-artifacts-read-artifact session "session.meta.eld" t)
 					   :commit-marker t))
 			     (original (symbol-function 'niwa-session-publication--commit-marker-publication))
 			     (commits 0)

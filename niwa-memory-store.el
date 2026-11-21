@@ -101,7 +101,7 @@ bodies; inspection must use the original authority checks on the returned scope.
 OBSERVATION may supply the :prepared and :claim reads and the earlier
 :retired probe from the same batched operation."
   (let* ((root (niwa-workspace-root workspace))
-         (path (file-name-concat (niwa-memory-store--directory workspace id) "prepared.el"))
+         (path (file-name-concat (niwa-memory-store--directory workspace id) "prepared.eld"))
          ;; One program probes retirement, then reads the record.  It is no
          ;; atomic snapshot; retirement is still decided before the record.
          (observed (unless observation
@@ -173,7 +173,7 @@ No coverage is consumed."
                           :created (niwa-journal-store-timestamp (- (plist-get claim :expires-at) 180))))
               (text (niwa-memory-store--print data))
               (hash (secure-hash 'sha256 text))
-              (path (file-name-concat directory "prepared.el")))
+              (path (file-name-concat directory "prepared.eld")))
          (niwa-memory-store--assert-owned claim)
          (niwa-memory-store--assert-owned mutation)
          (niwa-session-control-fs-make-directory directory t)
@@ -260,13 +260,13 @@ BATCH requests bounded pinned reads for this pass alone."
                          (mapcar (lambda (name)
                                    (list :op 'read :path (file-name-concat directory name)
                                          :optional t :coding 'utf-8-unix :max-bytes (1+ niwa-memory-store--max-bytes)))
-                                 '("prepared.el" "accepted.el"))))))
+                                 '("prepared.eld" "accepted.eld"))))))
          (retired (car reads))
          (reads (cdr reads))
          (claim (when batch
                   (append (list :directory (niwa-memory-store--claim-directory workspace))
                           (plist-get (car (niwa-memory-store--read-lisp
-                                           (file-name-concat directory "prepared.el") (car reads))) :claim))))
+                                           (file-name-concat directory "prepared.eld") (car reads))) :claim))))
          (evidence (when batch
                      (niwa-session-control-fs-run-program
                       (list (list :op 'read :path (niwa-journal-claim--path claim nil))
@@ -277,7 +277,7 @@ BATCH requests bounded pinned reads for this pass alone."
          (outcome (niwa-journal-claim-outcome (plist-get prepared :claim) (cadr evidence))))
     (when (eq (plist-get outcome :status) 'completed)
       (let* ((record (niwa-memory-store--read-lisp
-                      (file-name-concat directory "accepted.el") (cadr reads)))
+                      (file-name-concat directory "accepted.eld") (cadr reads)))
              (text (cdr record)))
         (unless (equal (secure-hash 'sha256 text) (plist-get outcome :payload))
           (error "Accepted memory bundle changed"))
@@ -403,7 +403,7 @@ for remaining citations before deleting a note."
                        :proposals proposals :no-action (plist-get parsed :no-action)
                        :admitted-notes admitted-notes))
            (text (niwa-memory-store--print data))
-           (path (file-name-concat (niwa-memory-store--directory workspace id) "accepted.el")))
+           (path (file-name-concat (niwa-memory-store--directory workspace id) "accepted.eld")))
       (niwa-memory-store--assert-owned claim)
       (unless (niwa-session-control-fs-create-file path text)
         (error "Memory result bundle already exists"))
@@ -481,7 +481,7 @@ expiry, published, or released evidence pins."
       ;; evidence pins: the immutable prepared file always precedes pin writes.
       (when (and (not (niwa-journal-cleanup-pass-retired-p
                        (niwa-workspace-root workspace) (file-name-nondirectory (directory-file-name directory))))
-                 (niwa-session-control-fs-path-exists-p (file-name-concat directory "prepared.el")))
+                 (niwa-session-control-fs-path-exists-p (file-name-concat directory "prepared.eld")))
         (let* ((id (file-name-nondirectory (directory-file-name directory)))
                (prepared (niwa-memory-store-read workspace id))
                (outcome (niwa-journal-claim-outcome (plist-get prepared :claim))))

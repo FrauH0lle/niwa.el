@@ -1816,7 +1816,7 @@ description: Review changed code
   (let ((skill (niwa-skills-test--stateful-skill
                 :name "one" :workspace workspace)))
     (niwa-skills-set-enabled skill nil)
-    (should (equal '("skills-state.el")
+    (should (equal '("skills-state.eld")
                    (directory-files (niwa-workspace-state-dir workspace) nil
                                     directory-files-no-dot-files-regexp))))
 
@@ -1834,7 +1834,7 @@ description: Review changed code
            :type 'user-error)
           (should-not
            (file-exists-p
-            (file-name-concat root ".niwa" "skills-state.el"))))
+            (file-name-concat root ".niwa" "skills-state.eld"))))
       (delete-directory root t)))
 
   :doc "remote skill state discloses, leases, and publishes on the target"
@@ -1950,10 +1950,10 @@ description: Review changed code
             (should (niwa-skills-skill-enabled-p second))
             (should (file-exists-p
                      (file-name-concat first-root ".niwa"
-                                       "skills-state.el")))
+                                       "skills-state.eld")))
             (should-not (file-exists-p
                          (file-name-concat second-root ".niwa"
-                                           "skills-state.el")))))
+                                           "skills-state.eld")))))
       (delete-directory shared-root t)
       (delete-directory first-root t)
       (delete-directory second-root t)))
@@ -2604,7 +2604,7 @@ paths:
                       (remhash dir niwa-skills--watchers)
                       (remhash dir niwa-skills--dir-buffers)
                       (gethash buf niwa-skills--dirty-buffers)))
-            (should-not (event state (file-name-concat state "input-history.el")))
+            (should-not (event state (file-name-concat state "input-history.eld")))
             (should-not (event root (file-name-concat root "niwa-publication-x")))
             (should (event state (file-name-concat state "skills")))
             (should (event root (file-name-concat root ".agents")))

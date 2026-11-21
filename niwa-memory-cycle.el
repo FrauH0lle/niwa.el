@@ -27,7 +27,7 @@
 (defun niwa-memory-cycle--path (workspace)
   "Return WORKSPACE's private cycle record path."
   (file-name-concat (niwa-workspace-root workspace)
-                    ".niwa" "state" "shared-notes" "cycle.el"))
+                    ".niwa" "state" "shared-notes" "cycle.eld"))
 
 (defun niwa-memory-cycle--shape-p (value keys)
   "Return non-nil when VALUE is a proper plist with exactly KEYS."

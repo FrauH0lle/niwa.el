@@ -111,7 +111,7 @@ Either kind resolves a retained naming-failure notice."
         (when (and (niwa-session-save-path session)
                    (niwa-session-codec-portable-authority-p session)
                    (niwa-session-artifacts-artifact-present-p
-                    session "session.meta.el" t))
+                    session "session.meta.eld" t))
           (niwa-session-artifacts-publish-sidecar-state session buffer))
       (error
        (if (equal head (plist-get (niwa-session-publication session) :head))

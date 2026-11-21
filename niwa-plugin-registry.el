@@ -124,7 +124,7 @@ plugin.  The cockpit's \"Check for updates\" action ignores this setting."
   "Return the persistent plugin state file for WORKSPACE.
 Return nil when WORKSPACE is nil."
   (when workspace
-    (file-name-concat (niwa-workspace-state-dir workspace) "plugins.el")))
+    (file-name-concat (niwa-workspace-state-dir workspace) "plugins.eld")))
 
 (defun niwa-plugins--workspace-plugins-dir (workspace resource-dir)
   "Return WORKSPACE plugin directory under RESOURCE-DIR."
@@ -856,7 +856,7 @@ Relative identities are requalified through the live WORKSPACE root."
 ;; The check itself runs in `niwa-plugin-lifecycle'; this section owns the
 ;; setting, the idle scheduling and the cached results.  The state is global
 ;; (managed plugins are global), so it lives beside the other user-level
-;; files rather than in a workspace's `plugins.el'.
+;; files rather than in a workspace's `plugins.eld'.
 
 (declare-function niwa-plugins-check-updates
                   "niwa-plugin-lifecycle" (&optional on-demand done))
@@ -878,7 +878,7 @@ root to a plist of `:local', `:remote', `:error' and `:notified'.")
 
 (defun niwa-plugins--update-state-file ()
   "Return the global update-check state file."
-  (file-name-concat niwa-user-dir "plugin-update-check.el"))
+  (file-name-concat niwa-user-dir "plugin-update-check.eld"))
 
 (defun niwa-plugins--update-state ()
   "Return the update-check state, reading it once per session."

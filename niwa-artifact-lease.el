@@ -145,7 +145,7 @@ NOW, the target clock when already observed, dates the new record."
             (when head
               (list (list :op 'verify :path previous
                           :content (niwa-session-durability--record-bytes head))
-                    (list :op 'verify-latest :path previous :content ".el")))
+                    (list :op 'verify-latest :path previous :content ".eld")))
             (list (list :op 'create
                         :path (niwa-session-durability--generation-path directory generation)
                         :content (niwa-session-durability--record-bytes record)))
@@ -254,7 +254,7 @@ so a takeover cannot interleave with the operations.  Return their results."
                 (niwa-session-control-fs-run-program
                  (append
                   (list (list :op 'verify :path path :content (plist-get held :bytes))
-                        (list :op 'verify-latest :path path :content ".el")
+                        (list :op 'verify-latest :path path :content ".eld")
                         (list :op 'before-time :path directory
                               :content (number-to-string (plist-get record :expires-at))))
                   operations)
@@ -293,7 +293,7 @@ TO, a client id, reserves the item for that client for one lease period."
                       directory (plist-get record :generation)))
                (results (niwa-session-control-fs-run-program
                          (list (list :op 'verify :path path :content (plist-get held :bytes))
-                               (list :op 'verify-latest :path path :content ".el")
+                               (list :op 'verify-latest :path path :content ".eld")
                                (list :op 'write :path path
                                      :content (niwa-session-durability--record-bytes record)))
                          (file-name-directory directory))))
@@ -351,7 +351,7 @@ TO, a client id, reserves the item for that client for one lease period."
                              (results
                               (niwa-session-control-fs-run-program
                                (list (list :op 'verify :path path :content (plist-get held :bytes))
-                                     (list :op 'verify-latest :path path :content ".el")
+                                     (list :op 'verify-latest :path path :content ".eld")
                                      (list :op 'write :path path
                                            :content (niwa-session-durability--record-bytes record)))
                                (file-name-directory directory))))

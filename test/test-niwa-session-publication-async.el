@@ -673,7 +673,7 @@ a missing directory chain, and the sidecar commit marker carrying CHECKPOINT."
              (should (cl-every (lambda (index)
                                  (eq 'write (plist-get (nth index operations) :op)))
                                (cdr plan)))
-             (should (equal ".el" (plist-get (car operations) :content)))
+             (should (equal ".eld" (plist-get (car operations) :content)))
              (should (cl-every (lambda (operation) (plist-get operation :optional))
                                (seq-filter (lambda (operation)
                                              (eq 'make-directory (plist-get operation :op)))

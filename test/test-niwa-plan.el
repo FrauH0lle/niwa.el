@@ -30,7 +30,7 @@ The current temporary buffer owns its lease cleanup."
                 (niwa-workspace-clear-registry)) nil t)
     (niwa-session-artifacts-assert-mutation-authority session (current-buffer))
     (niwa-session-publication-publish
-     session (list (list :path "session.meta.el" :commit-marker t
+     session (list (list :path "session.meta.eld" :commit-marker t
                          :content (niwa-session-artifacts-printed-value
                                    (niwa-session-artifacts--live-sidecar session (current-buffer))))) t)
     session))
@@ -150,7 +150,7 @@ The current temporary buffer owns its lease cleanup."
   (dolist (path '(nil "" "/tmp/accepted.md" "../accepted.md"
                       "plans/../accepted.md" "plans//accepted.md"
                       "plans/accepted.md/" "~/accepted.md" ".lease"
-                      ".publications/manifest.el"
+                      ".publications/manifest.eld"
                       "/ssh:other:/accepted.md"))
     (should-not (niwa-plan-artifact-path-p path))))
 

@@ -555,7 +555,7 @@ Portable transcripts live in the publication, not at PATH itself."
 
 (defconst niwa-session-persistence--segment-backup-max-bytes
   (* 64 1024 1024)
-  "Rotation size of `segment-repair-backups.el'; at most twice this is kept.")
+  "Rotation size of `segment-repair-backups.eld'; at most twice this is kept.")
 
 (defun niwa-session-persistence--back-up-segment (path text)
   "Append transcript PATH's TEXT to its session's repair backups.
@@ -566,7 +566,7 @@ rollback.  A failed backup is reported and does not block the repair."
       (let ((print-escape-newlines t) (print-length nil) (print-level nil))
         (niwa-session-control-fs-append-rotating
          (niwa-session-control-fs-physical-path
-          (file-name-concat (file-name-directory path) "segment-repair-backups.el"))
+          (file-name-concat (file-name-directory path) "segment-repair-backups.eld"))
          (concat (prin1-to-string
                   (list :time (format-time-string "%FT%T%z")
                         :segment (file-name-nondirectory path)
@@ -794,7 +794,7 @@ The argument UPDATES is the change plist."
   "Best-effort sidecar rewrite for SESSION and BUFFER.
 
 Only writes when the sidecar file already exists on disk -- i.e.
-a full root snapshot has written `session.meta.el'.  Before that, the session
+a full root snapshot has written `session.meta.eld'.  Before that, the session
 may be shallowly materialized (directory + lock + agents/ but no sidecar), so
 this observational rewrite remains deferred to the next critical agent commit
 or root autosave.  PREPARED admits the owning checkpoint's final sidecar.
@@ -806,7 +806,7 @@ TOKEN is the caller's gate token."
   (when (and session (niwa-session-save-path session)
              (niwa-session-codec-portable-authority-p session)
              (niwa-session-artifacts-artifact-present-p
-              session "session.meta.el"))
+              session "session.meta.eld"))
     (condition-case err
         (progn
           ;; Drain async work before the sidecar is captured.
@@ -834,7 +834,7 @@ TOKEN is the caller's gate token."
     (let ((niwa-session-artifacts-require-agent-commit-p t))
       (when (if (and (niwa-session-save-path session)
                      (niwa-session-artifacts-artifact-present-p
-                      session "session.meta.el" t))
+                      session "session.meta.eld" t))
                 (niwa-session-artifacts-publish-sidecar-state
                  session buffer token)
               (niwa-session-artifacts-save session buffer nil t token))
@@ -1161,7 +1161,7 @@ deferred save runs with its own."
                                (niwa-agent-invocation-sidecar-dirty agent)))
                   (let ((root (niwa-session-root-buffer niwa--session)))
                     (if (niwa-session-artifacts-artifact-present-p
-                         niwa--session "session.meta.el" t)
+                         niwa--session "session.meta.eld" t)
                         (niwa-session-artifacts-publish-sidecar-state
                          niwa--session root token)
                       (unless (with-current-buffer root
@@ -1936,7 +1936,7 @@ A candidate proved free of a PID lock is recorded through
 publication read repeats per entry reuse this program's proof instead of
 paying for their own.  Directories that do carry one are left alone: their
 own assertion reports the authority violation at its canonical call site."
-  (let* ((names '(".lock" ".lease" "session.meta.el"))
+  (let* ((names '(".lock" ".lease" "session.meta.eld"))
          (results
           (niwa-session-control-fs-run-program
            (cl-loop for entry in entries

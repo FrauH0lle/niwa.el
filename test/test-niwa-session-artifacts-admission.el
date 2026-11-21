@@ -60,7 +60,7 @@
                 ((or 'recovery 'fresh-recovery)
                  (make-directory (file-name-concat session-dir ".recovery/undo") t)
                  (with-temp-file (file-name-concat session-dir
-                                                  ".recovery/recovery-ab.el")
+                                                  ".recovery/recovery-ab.eld")
                    (prin1 '(:version 1 :kind rewind :directory ".recovery/undo"
                             :reason "incomplete rewind") (current-buffer))))
                 ((or 'mixed 'fresh-mixed)

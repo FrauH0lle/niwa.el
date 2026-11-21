@@ -134,7 +134,7 @@ recovery does not discover session buffers by scanning Emacs global state."
 
 (defun niwa-session-recovery--marker-name-p (path)
   "Return non-nil when PATH is shaped like a recovery marker file name."
-  (string-match-p "\\`recovery-[0-9a-f]+\\.el\\'"
+  (string-match-p "\\`recovery-[0-9a-f]+\\.eld\\'"
                   (file-name-nondirectory path)))
 
 (defun niwa-session-recovery--read-marker
@@ -215,7 +215,7 @@ from the caller's admission program, which already carries that preamble."
           (niwa-session-recovery--read-marker
            session-dir path))
         (niwa-session-control-fs-list-directory
-         root "\\`recovery-[0-9a-f]+\\.el\\'")))
+         root "\\`recovery-[0-9a-f]+\\.eld\\'")))
       (_ (error "Invalid specialized recovery root: %s" root)))))
 
 (defun niwa-session-recovery-read (session-dir &optional root-observation)
@@ -300,7 +300,7 @@ after this function returns."
          (relative (and id (file-name-concat ".recovery" id)))
          (directory (and root (file-name-concat root id)))
          (marker (and root
-                      (file-name-concat root (concat "recovery-" id ".el"))))
+                      (file-name-concat root (concat "recovery-" id ".eld"))))
          (created-at (format-time-string "%FT%T%z")))
     (unless (and session-dir
                  (niwa-session-recovery--local-temporary-p recovery-path))

@@ -249,7 +249,7 @@
                        workspace (list :prepared prepared :reply reply :model "test:model")))
            (accepted (niwa-memory-store-accepted workspace (plist-get prepared :id)))
            (text (with-temp-buffer
-                   (insert-file-contents (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id)) "accepted.el"))
+                   (insert-file-contents (file-name-concat (niwa-memory-store--directory workspace (plist-get prepared :id)) "accepted.eld"))
                    (buffer-string))))
       (should (plist-get published :ok))
       (should (= 1 (length (plist-get (plist-get result :investigation) :calls))))
@@ -338,7 +338,7 @@
              ;; Read the actual append after both publication and sanitation.
              ;; Dropping --finish forwarding or any nested allowlisted field
              ;; fails these assertions, even when publication succeeds.
-             (let ((path (file-name-concat directory ".niwa" "state" "diagnostics" "telemetry-log.el")))
+             (let ((path (file-name-concat directory ".niwa" "state" "diagnostics" "telemetry-log.eld")))
                (if (not niwa-telemetry-enabled)
                    (should-not (file-exists-p path))
                  (let* ((events (with-temp-buffer

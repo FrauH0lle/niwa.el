@@ -495,7 +495,7 @@
           (niwa-session-publication-publish
            session
            (list (list :path plan-file :content "accepted")
-                 (list :path (file-name-concat root "session.meta.el")
+                 (list :path (file-name-concat root "session.meta.eld")
                        :content (niwa-session-artifacts-printed-value
                                  (niwa-session-codec-serialize session))
                        :commit-marker t)))

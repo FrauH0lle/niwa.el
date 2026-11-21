@@ -169,7 +169,7 @@
 ;;
 ;;; Constants
 
-(defconst niwa-session-codec-format-version "v0.6.0"
+(defconst niwa-session-codec-format-version "v0.7.0"
   "Current on-disk session sidecar format.
 
 The authority profile is part of this format.  Readers accept exactly this
@@ -243,7 +243,7 @@ an error rather than an implicit PID-lock fallback."
                 (if (niwa-session-control-fs-path-exists-p lease)
                     'portable
                   (let ((sidecar
-                         (file-name-concat session-dir "session.meta.el")))
+                         (file-name-concat session-dir "session.meta.eld")))
                     (unless (niwa-session-control-fs-path-exists-p sidecar)
                       (error "Session authority profile is unavailable: %s"
                              session-dir))

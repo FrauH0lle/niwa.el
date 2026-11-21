@@ -188,7 +188,7 @@ PREVIOUS is a display snapshot.  Fault instrumentation runs in the real child."
   :doc "invalid local bundles remain unavailable in the actual child reader"
   (let* ((bundles (niwa-test-memory-history-create workspace 2 1 64))
          (pass (plist-get (plist-get (car bundles) :prepared) :id)))
-    (write-region "invalid" nil (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.el") nil 'silent)
+    (write-region "invalid" nil (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.eld") nil 'silent)
     (let* ((result (car (niwa-test-memory-list-child-scan workspace))) (rows (plist-get result :rows)))
       (should-not (plist-get result :native))
       (should-not (plist-get result :error))
@@ -317,7 +317,7 @@ PREVIOUS is a display snapshot.  Fault instrumentation runs in the real child."
       (should (plist-get (car first) :fingerprint))
       (pcase kind
         ('retirement (setq path (file-name-concat root ".niwa/state/journal/retired-passes" pass)))
-        ('expiry (setq path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.el")))
+        ('expiry (setq path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.eld")))
         ('slot (setq path (car (niwa-session-control-fs-list-directory
                                (niwa-memory-decision--directory workspace) niwa-memory-decision--file-regexp)))))
       (let ((before (when (file-exists-p path) (niwa-session-control-fs-read-file path))))
@@ -377,7 +377,7 @@ PREVIOUS is a display snapshot.  Fault instrumentation runs in the real child."
   :doc "same-size rewrites with restored mtime still invalidate the history observation"
   (let* ((first (scan)) (warm (scan (car first)))
          (pass (plist-get (car (plist-get (car first) :rows)) :pass))
-         (path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.el"))
+         (path (file-name-concat (niwa-memory-store--directory workspace pass) "accepted.eld"))
          (stamp (file-attribute-modification-time (file-attributes path)))
          (text (niwa-session-control-fs-read-file path)))
     (sleep-for .02)

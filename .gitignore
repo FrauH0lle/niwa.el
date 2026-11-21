@@ -38,7 +38,7 @@ dist/
 #   - memory
 !.niwa/memory
 #   - permissions
-!.niwa/permissions.el
+!.niwa/permissions.eld
 #   - skills
 !.niwa/skills
 

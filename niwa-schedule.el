@@ -585,7 +585,7 @@ there was something to hand over."
 (defun niwa-schedule--index-file (directory)
   "Return the index file naming session DIRECTORY."
   (file-name-concat niwa-user-dir "wake-ups"
-                    (concat (md5 (niwa-schedule--directory-key directory)) ".el")))
+                    (concat (md5 (niwa-schedule--directory-key directory)) ".eld")))
 
 (defun niwa-schedule-workspace-index-directory ()
   "Return the index directory naming workspaces with active schedules.
@@ -696,7 +696,7 @@ Indexed workspaces' schedules are restored by the same rule."
   (let ((inhibit-interaction t)
         (index (file-name-concat niwa-user-dir "wake-ups")))
     (dolist (file (and (file-directory-p index)
-                       (directory-files index t "\\.el\\'")))
+                       (directory-files index t "\\.eld\\'")))
       (let (directory)
         (condition-case err
             (progn

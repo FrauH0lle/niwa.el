@@ -45,7 +45,7 @@
 
 (defun niwa-view-history-test--path (workspace-dir)
   "Return the workspace input history path for WORKSPACE-DIR."
-  (file-name-concat workspace-dir ".niwa/input-history.el"))
+  (file-name-concat workspace-dir ".niwa/input-history.eld"))
 
 (defun niwa-view-history-test--raw-bytes (&rest bytes)
   "Return BYTES as an Emacs string of raw byte characters."
@@ -305,7 +305,7 @@ Binds `data-buf' and `view-buf'."
       (let* ((session (niwa-view-history-test--session
                        workspace-dir session-dir))
              (path (niwa-view-history-test--path workspace-dir))
-             (session-path (file-name-concat session-dir "input-history.el"))
+             (session-path (file-name-concat session-dir "input-history.eld"))
              (skill-dir (file-name-concat workspace-dir
                                           ".agents/skills/alpha"))
              (skill-file (file-name-concat skill-dir "SKILL.md"))
@@ -667,12 +667,12 @@ Binds `data-buf' and `view-buf'."
         (niwa-view-history-add "first")
         (niwa-view-history-save (current-buffer)))
       (should-not (file-exists-p
-                   (file-name-concat dir ".niwa/input-history.el")))
+                   (file-name-concat dir ".niwa/input-history.eld")))
       (should-not (file-exists-p
-                   (file-name-concat dir "input-history.el"))))))
+                   (file-name-concat dir "input-history.eld"))))))
 
 (niwa-deftest niwa-view-history--read-only-attach
-  (:doc "does not write input-history.el when attached data buffer is read-only")
+  (:doc "does not write input-history.eld when attached data buffer is read-only")
   (niwa-view-history-test--with-temp-dir dir
     (let ((session (niwa-view-history-test--session dir))
           (data-buf (generate-new-buffer " *test-data*"))

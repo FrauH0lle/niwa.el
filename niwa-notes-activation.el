@@ -36,7 +36,7 @@
 (defun niwa-notes-activation--remote-roots ()
   "Return the locally remembered remote roots, reading the index once."
   (let ((file (expand-file-name
-               "niwa/remote-notes.el"
+               "niwa/remote-notes.eld"
                (or (getenv "XDG_STATE_HOME") "~/.local/state/"))))
     (unless (equal file (car niwa-notes-activation--remote-index))
       (setq niwa-notes-activation--remote-index
@@ -132,7 +132,7 @@ Indexed remote roots are read once in the background, never in this hook."
        ((file-remote-p file nil 'never) (niwa-notes-activation--remote-visit file))
        (t
         (when-let* ((located (locate-dominating-file
-                             (file-name-directory file) ".niwa/instructions.el"))
+                             (file-name-directory file) ".niwa/instructions.eld"))
                     ;; `locate-dominating-file' may abbreviate a HOME root.
                     (root (expand-file-name located)))
           (unless (niwa-notes-activation--cached-key file root)
@@ -141,7 +141,7 @@ Indexed remote roots are read once in the background, never in this hook."
                          (condition-case nil
                              (with-temp-buffer
                                (insert-file-contents
-                                (file-name-concat root ".niwa/instructions.el"))
+                                (file-name-concat root ".niwa/instructions.eld"))
                                (read (current-buffer)))
                            (error nil)))
                         ((plist-get data :files)))

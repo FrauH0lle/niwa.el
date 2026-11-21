@@ -101,7 +101,7 @@
         (should (string-match-p (regexp-quote (niwa-goal-reason goal)) diagnostics))
         (let* ((saved (read (decode-coding-string
                             (niwa-session-artifacts-read-artifact
-                             session "session.meta.el" t)
+                             session "session.meta.eld" t)
                             'utf-8-unix)))
                (saved-goal (plist-get saved :goal)))
           (should (eq 'paused (plist-get saved-goal :status)))
@@ -133,7 +133,7 @@
       (should (equal "Implementation login expired" (niwa-goal-reason goal)))
       (let ((saved (read (decode-coding-string
                          (niwa-session-artifacts-read-artifact
-                          session "session.meta.el" t)
+                          session "session.meta.eld" t)
                          'utf-8-unix))))
         (should (equal "Implementation login expired"
                        (plist-get (plist-get saved :goal) :reason))))))
@@ -184,7 +184,7 @@
     (should (equal "Implementation startup refused" (niwa-goal-reason goal)))
     (let ((saved (read (decode-coding-string
                        (niwa-session-artifacts-read-artifact
-                        session "session.meta.el" t)
+                        session "session.meta.eld" t)
                        'utf-8-unix))))
       (should (eq 'paused (plist-get (plist-get saved :goal) :status)))
       (should (equal policy (plist-get (plist-get saved :goal) :implementation-policy)))))

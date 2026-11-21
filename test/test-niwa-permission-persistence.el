@@ -30,9 +30,9 @@
   :doc "selects local global and workspace stores without conflating their scopes"
   (let ((niwa-user-dir "/tmp/niwa-global/")
         (ws (niwa-workspace--create :type 'project :root "/tmp/project/")))
-    (should (equal "/tmp/niwa-global/permissions.el"
+    (should (equal "/tmp/niwa-global/permissions.eld"
                    (niwa-permission-persistence-file ws 'global)))
-    (should (equal "/tmp/project/.niwa/permissions.el"
+    (should (equal "/tmp/project/.niwa/permissions.eld"
                    (niwa-permission-persistence-file ws 'workspace)))
     (should-error (niwa-permission-persistence-file ws 'other)))
   :doc "remote global discovery requires target home and never falls back locally"
@@ -47,7 +47,7 @@
                     :type 'niwa-execution-target-error)
       (setf (niwa-execution-target-environment target)
             '(("HOME" . "/home/dev")))
-      (should (equal "/ssh:dev@target:/home/dev/.niwa/permissions.el"
+      (should (equal "/ssh:dev@target:/home/dev/.niwa/permissions.eld"
                      (niwa-permission-persistence-file ws 'global))))))
 
 (niwa-deftest niwa-permission-serialize-authority ()
@@ -262,7 +262,7 @@
         (progn
           ;; Write global rules
           (make-directory global-dir t)
-          (with-temp-file (file-name-concat global-dir "permissions.el")
+          (with-temp-file (file-name-concat global-dir "permissions.eld")
             (pp '(:rules (("Read" :action allow)
                           ("*" :path "/tmp/*" :action allow))
                   :resource-grants nil)
@@ -288,17 +288,17 @@
           (make-directory (file-name-concat project-dir ".niwa") t)
           (make-directory global-dir t)
           (make-directory (file-name-concat target-home ".niwa") t)
-          (with-temp-file (file-name-concat target-home ".niwa/permissions.el")
+          (with-temp-file (file-name-concat target-home ".niwa/permissions.eld")
             (pp '(:rules (("Read" :path "~/private/**" :action allow))
                   :resource-grants ((:path "~/.npm" :access write :recursive t)))
                 (current-buffer)))
-          (with-temp-file (file-name-concat global-dir "permissions.el")
+          (with-temp-file (file-name-concat global-dir "permissions.eld")
             (pp '(:rules (("Read" :path "/home/client/private/**"
                            :action allow))
                   :resource-grants nil)
                 (current-buffer)))
           (with-temp-file
-              (file-name-concat project-dir ".niwa/permissions.el")
+              (file-name-concat project-dir ".niwa/permissions.eld")
             (pp '(:rules (("Read" :path "/srv/shared/**" :action allow))
                   :resource-grants nil)
                 (current-buffer)))
@@ -418,7 +418,7 @@
          (outside-dir (make-temp-file "niwa-permissions-outside-" t))
          (niwa-user-dir (file-name-concat tmp-dir "global/"))
          (state-dir (file-name-concat tmp-dir ".niwa"))
-         (outside-file (file-name-concat outside-dir "permissions.el"))
+         (outside-file (file-name-concat outside-dir "permissions.eld"))
          (ws (niwa-workspace--create
               :type 'project :id "test" :root tmp-dir
               :name "test" :file-cache nil)))
@@ -662,7 +662,7 @@
           (setf (niwa-execution-target-environment target) `(("HOME" . ,home)))
           (make-directory (file-name-concat home ".niwa") t)
           (write-region "(:rules ((\"Read\" :action deny)) :resource-grants nil)"
-                        nil (file-name-concat home ".niwa/permissions.el") nil 'silent)
+                        nil (file-name-concat home ".niwa/permissions.eld") nil 'silent)
           (cl-letf (((symbol-function 'niwa-transport-busy-p) (lambda (&optional _) t))
                     ((symbol-function 'niwa-transport-run-when-idle)
                      (lambda (_key _path thunk &optional _on-cancel)
@@ -794,7 +794,7 @@
          (niwa-session-durability--client-id (make-string 64 ?a))
          (qualified "/niwamock:alias-a:/srv/shared/key")
          (local-file (file-name-concat project-dir
-                                      ".niwa/permissions.el"))
+                                      ".niwa/permissions.eld"))
          target session)
     (unwind-protect
         ;; The target records its support tier at construction, so it must be
@@ -845,7 +845,7 @@
   ;; TRAMP's wait loop re-runs; a read there lands on a connection that
   ;; already has a command in flight.
   (let* ((dir (make-temp-file "niwa-store-cache-" t))
-         (file (file-name-concat dir "permissions.el"))
+         (file (file-name-concat dir "permissions.eld"))
          (reads 0))
     (unwind-protect
         (progn
@@ -870,7 +870,7 @@
 
   :doc "validation reads the file itself, so a hand edit is still caught"
   (let* ((dir (make-temp-file "niwa-store-fresh-" t))
-         (file (file-name-concat dir "permissions.el")))
+         (file (file-name-concat dir "permissions.eld")))
     (unwind-protect
         (progn
           (clrhash niwa-permission--store-cache)
@@ -938,7 +938,7 @@
             ((symbol-function 'niwa-permission--read-store-file-uncached)
              (lambda (&rest _) (ert-fail "Read a busy target"))))
     (should-error (niwa-permission-persistence-editable-store
-                   "/ssh:dev@target:/home/dev/.niwa/permissions.el")
+                   "/ssh:dev@target:/home/dev/.niwa/permissions.eld")
                   :type 'user-error)))
 
 (niwa-deftest niwa-permission-persistence-load-safe-env-vars ()
@@ -1029,7 +1029,7 @@
                  (lambda (&rest _) (ert-fail "Queued a permission change"))))
         (should-error
          (niwa-permission-persistence-write-store
-          "/ssh:dev@target:/home/dev/.niwa/permissions.el"
+          "/ssh:dev@target:/home/dev/.niwa/permissions.eld"
           '(:rules nil :resource-grants nil))
          :type 'user-error)))))
 

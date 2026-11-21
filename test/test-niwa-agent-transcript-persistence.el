@@ -72,7 +72,7 @@
               (should-not (file-exists-p
                            (file-name-concat save-path ".lock")))
               (should-not (file-exists-p
-                           (file-name-concat save-path "session.meta.el")))
+                           (file-name-concat save-path "session.meta.eld")))
               (should
                (equal save-path
                       (niwa-session-persistence-shallow-ensure-files

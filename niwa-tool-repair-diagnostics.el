@@ -228,7 +228,7 @@ Report formatting failures in the originating SCOPE."
 (defun niwa-tool-repair-log-path (session)
   "Return SESSION's persistent repair telemetry path, or nil."
   (when-let* ((save-path (and session (niwa-session-save-path session))))
-    (file-name-concat save-path "repair-log.el")))
+    (file-name-concat save-path "repair-log.eld")))
 
 (defun niwa-tool-repair--event-text (event)
   "Return redacted telemetry EVENT in its durable line format."

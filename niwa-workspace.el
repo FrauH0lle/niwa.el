@@ -324,7 +324,7 @@ registry, creating one lazily if needed."
 (defconst niwa-workspace--generated-state-excludes
   '("/.niwa/sessions/"
     "/.niwa/tool-results/"
-    "/.niwa/input-history.el"
+    "/.niwa/input-history.eld"
     "/.niwa/leases/"
     "/.niwa/state/")
   "Root-anchored generated state entries for `.git/info/exclude'.")

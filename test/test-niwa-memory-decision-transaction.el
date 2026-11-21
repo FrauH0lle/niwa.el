@@ -145,7 +145,7 @@
   (niwa-test-decision-transaction
     (let* ((proposal (car proposals)) (id (plist-get proposal :id))
            (note (plist-get (cdar (plist-get proposal :before)) :path))
-           (slot (file-name-concat (niwa-memory-decision--directory workspace) (concat id ".el")))
+           (slot (file-name-concat (niwa-memory-decision--directory workspace) (concat id ".eld")))
            (elect (symbol-function 'niwa-memory-decision--elect)) injected)
       ;; Only the elector may create the slot. Even a foreign file arriving
       ;; after the target acknowledged deletion must never be overwritten.

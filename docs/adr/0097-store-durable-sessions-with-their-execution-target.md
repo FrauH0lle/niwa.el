@@ -23,7 +23,7 @@ nonnegative number carries no authority, because an infinity never expires
 and a NaN fails every comparison it is put to.  Complete lease decisions bypass
 remote file caches so external generations cannot remain invisible.  Each
 generation preserves either nil or a validated
-`.publications/.../manifest.el` head.  Only the exact current publishing
+`.publications/.../manifest.eld` head.  Only the exact current publishing
 generation, with the expected previous head, may replace it, and the
 exclusive creation of the next generation -- not the record replacement --
 is the atomic step that elects a winner.

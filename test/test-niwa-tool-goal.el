@@ -94,9 +94,9 @@ and `verify-callback' delivers the verifier outcome."
                         (mapcar (lambda (entry) (cons (plist-get entry :type) entry)) entries)))
           (should (cl-find 'context-goal-policy entries
                            :key (lambda (entry) (plist-get entry :type)))))
-        (should (file-exists-p (file-name-concat root "session.meta.el")))
+        (should (file-exists-p (file-name-concat root "session.meta.eld")))
         (let* ((saved (niwa-session-codec-read
-                       (file-name-concat root "session.meta.el")))
+                       (file-name-concat root "session.meta.eld")))
                (restored (niwa-session-codec-deserialize
                           saved (niwa-session-workspace session)))
                (restored-goal (niwa-session-goal (plist-get restored :session))))

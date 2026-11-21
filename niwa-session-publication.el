@@ -315,7 +315,7 @@ Cold materialization and remote targets stay synchronous."
        (not (file-remote-p (niwa-session-save-path session)))
        (niwa-session-codec-portable-authority-p session)
        (niwa-session-publication session)
-       (assoc "session.meta.el"
+       (assoc "session.meta.eld"
               (plist-get (niwa-session-publication session) :artifacts))
        (buffer-live-p (niwa-session-root-buffer session))))
 
@@ -324,7 +324,7 @@ Cold materialization and remote targets stay synchronous."
   "Accept an acknowledged local SESSION publication.
 PREPARE runs with the mutation gate held, after asynchronous admission, and
 returns fresh artifacts as `niwa-session-publication-publish' takes them,
-ending in one `session.meta.el' commit marker, which may carry a `:checkpoint'
+ending in one `session.meta.eld' commit marker, which may carry a `:checkpoint'
 candidate.  A nil result is a clean no-op success.  A replacing marker is
 refused.  ACKNOWLEDGE receives (SUCCESS ERROR) exactly once after head
 adoption or definitive rollback.  The checkpoint candidate is installed only
@@ -858,14 +858,14 @@ stays the job's for cleanup either way."
                   (niwa-session-publication--prepare-generation
                    (file-name-concat session-dir ".publications") artifacts session-dir entries
                    (make-hash-table :test #'equal)))
-                 (head (file-relative-name (file-name-concat directory "manifest.el") session-dir))
+                 (head (file-relative-name (file-name-concat directory "manifest.eld") session-dir))
                  (niwa-session-durability--commit-riders
                   (list :before operations :after nil :consumed nil
                         :before-results nil :after-results nil))
                  (niwa-session-durability--final-commit t))
       (setf (niwa-session-publication--job-candidate job)
             (niwa-session-publication--capture-publication
-             session-dir (list :head head :sidecar "session.meta.el" :artifacts overlaid))
+             session-dir (list :head head :sidecar "session.meta.eld" :artifacts overlaid))
             (niwa-session-publication--job-phase job) 'head)
       (setf (niwa-session-publication--job-waiting-p job) t)
       (niwa-session-durability-commit-publication-head-async
@@ -912,7 +912,7 @@ generation to compare against."
                           :path (niwa-session-durability--generation-path
                                  (niwa-session-durability--lease-path session-dir)
                                  generation)
-                          :content ".el")))
+                          :content ".eld")))
         (dolist (artifact (plist-get batch :artifacts))
           (when (and (niwa-session-publication--fixed-artifact-p artifact)
                      (plist-get artifact :source))
@@ -961,7 +961,7 @@ generation to compare against."
   "Return non-nil when HEAD names an immutable publication manifest."
   (and (niwa-session-durability--valid-relative-path-p head)
        (string-prefix-p ".publications/" head)
-       (equal (file-name-nondirectory head) "manifest.el")))
+       (equal (file-name-nondirectory head) "manifest.eld")))
 
 
 ;;;; Publication recovery state
@@ -1165,8 +1165,8 @@ elsewhere on the same execution target receive nil."
         (error "Publication deletion cannot be a commit marker"))
       (when (and delete (null logical))
         (error "Publication deletion must name session-local storage"))
-      (when (and marker (not (equal logical "session.meta.el")))
-        (error "Publication commit marker must be session.meta.el"))
+      (when (and marker (not (equal logical "session.meta.eld")))
+        (error "Publication commit marker must be session.meta.eld"))
       (let ((normalized (copy-sequence artifact)))
         (setq normalized (plist-put normalized :path path)
               normalized (plist-put normalized :logical logical))
@@ -1303,7 +1303,7 @@ a payload."
         valid)
     (setq valid
           (and (proper-list-p manifest)
-               (equal sidecar "session.meta.el")
+               (equal sidecar "session.meta.eld")
                (plist-member manifest :artifacts)
                (proper-list-p artifacts)))
     (dolist (entry artifacts)
@@ -1373,7 +1373,7 @@ prove the physical spelling on the target."
                        (file-name-concat session-root relative))
                  copy))
              (plist-get publication :artifacts)))
-           (sidecar (cdr (assoc "session.meta.el" artifacts))))
+           (sidecar (cdr (assoc "session.meta.eld" artifacts))))
       (list :head (plist-get publication :head)
             :sidecar (plist-get sidecar :published)
             :artifacts artifacts))))
@@ -1409,12 +1409,12 @@ this bound are summarized from their file facts alone."
             (lambda (path)
               (let* ((name (file-name-nondirectory
                             (directory-file-name path)))
-                     (manifest (file-name-concat path "manifest.el"))
+                     (manifest (file-name-concat path "manifest.eld"))
                      (attributes (file-attributes manifest)))
                 (when attributes
                   (list :name name
                         :head (file-name-concat
-                               ".publications" name "manifest.el")
+                               ".publications" name "manifest.eld")
                         :time (file-attribute-modification-time attributes)))))
             paths))
      (lambda (left right)
@@ -1476,7 +1476,7 @@ The returned plist carries `:turn-count', `:segment', `:turn',
                   session-dir head))))
     (niwa-session-publication--sidecar-facts
      session-dir
-     (plist-get (cdr (assoc "session.meta.el" (plist-get manifest :artifacts)))
+     (plist-get (cdr (assoc "session.meta.eld" (plist-get manifest :artifacts)))
                 :published))))
 
 (defvar niwa-session-publication--facts-cache
@@ -1519,7 +1519,7 @@ the sidecar locator and first-transcript size.  Failed reads are not cached."
             (list :references
                   (niwa-session-publication--manifest-references manifest)
                   :sidecar
-                  (plist-get (cdr (assoc "session.meta.el"
+                  (plist-get (cdr (assoc "session.meta.eld"
                                          (plist-get manifest :artifacts)))
                              :published)
                   :transcript-bytes
@@ -1747,9 +1747,9 @@ failure signals here."
         (dolist (operation operations)
           (let ((path (plist-get operation :path)))
             (when (or (eq (plist-get operation :op) 'delete-directory)
-                      (equal (file-name-nondirectory path) "manifest.el"))
+                      (equal (file-name-nondirectory path) "manifest.eld"))
               (let ((key (if (eq (plist-get operation :op) 'delete-directory)
-                             (file-name-concat path "manifest.el") path)))
+                             (file-name-concat path "manifest.eld") path)))
                 (remhash key niwa-session-publication--generation-cache)
                 (remhash key niwa-session-publication--facts-cache)))))
         (let ((proofs (cons (list :op 'before-time :path (directory-file-name root)
@@ -1903,7 +1903,7 @@ LISTINGS must be observations from this discovery, never a retained cache."
         (let ((result (pop results)))
           (condition-case err
               (let* ((bytes (niwa-session-control-fs-program-value result))
-                     (artifact (cdr (assoc "session.meta.el"
+                     (artifact (cdr (assoc "session.meta.eld"
                                            (plist-get (plist-get row :publication) :artifacts)))))
                 (unless (equal (secure-hash 'sha256 bytes) (plist-get artifact :sha256))
                   (error "Invalid session publication sidecar"))
@@ -1941,7 +1941,7 @@ when they read those artifacts."
            session-dir publication)))
     (when captured
       (let* ((sidecar (plist-get captured :sidecar))
-             (entry (cdr (assoc "session.meta.el"
+             (entry (cdr (assoc "session.meta.eld"
                                 (plist-get captured :artifacts))))
              (expected (plist-get entry :sha256)))
         (unless (and (file-regular-p sidecar)
@@ -2146,8 +2146,8 @@ another name."
           (append
            (cl-remove-if (lambda (entry) (gethash (car entry) changed)) entries)
            (mapcar (lambda (payload) (plist-get payload :entry)) payloads))
-          manifest (list :sidecar "session.meta.el" :artifacts overlaid)
-          manifest-path (file-name-concat directory "manifest.el"))
+          manifest (list :sidecar "session.meta.eld" :artifacts overlaid)
+          manifest-path (file-name-concat directory "manifest.eld"))
     (niwa-session-publication--validate-manifest manifest manifest-path)
     (list directory overlaid
           (append
@@ -2187,7 +2187,7 @@ another name."
                   (mapcar
                    (lambda (batch) (plist-get batch :artifacts))
                    batches))))
-         (sidecar (cl-find "session.meta.el" artifacts
+         (sidecar (cl-find "session.meta.eld" artifacts
                            :key (lambda (artifact) (plist-get artifact :logical))
                            :test #'equal))
          (checkpoint (plist-get sidecar :checkpoint))
@@ -2224,12 +2224,12 @@ another name."
           (pcase-let* ((`(,directory ,overlaid ,operations)
                         (niwa-session-publication--prepare-generation
                          root artifacts session-dir entries digests))
-                       (manifest-path (file-name-concat directory "manifest.el"))
+                       (manifest-path (file-name-concat directory "manifest.eld"))
                        (head (file-relative-name manifest-path session-dir))
                        (captured
                         (niwa-session-publication--capture-publication
                          session-dir (list :head head
-                                           :sidecar "session.meta.el"
+                                           :sidecar "session.meta.eld"
                                            :artifacts overlaid)))
                        (committed nil))
             (when (and checkpoint
@@ -2343,7 +2343,7 @@ nil when SESSION has no bound generation to compare against."
                     :path (niwa-session-durability--generation-path
                            (niwa-session-durability--lease-path session-dir)
                            generation)
-                    :content ".el")
+                    :content ".eld")
               (list :op 'make-directory
                     :path (directory-file-name directory)
                     :optional t)
@@ -2605,7 +2605,7 @@ as the reservation that opens a publication does."
 
 Each artifact is `(:path TARGET-PATH :content STRING [:coding CODING])' or a
 session-local `(:path TARGET-PATH :delete t)' tombstone.  One in-session
-`session.meta.el' may carry `:commit-marker t' and optional `:replace t' to
+`session.meta.eld' may carry `:commit-marker t' and optional `:replace t' to
 commit an immutable logical snapshot.  The complete batch is staged locally
 before target I/O.  Pre-commit failure retains the staged batch
 in SESSION and blocks later mutation.  When REQUIRE-COMMIT is non-nil, reject

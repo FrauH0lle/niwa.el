@@ -154,7 +154,7 @@ Rewind neither copy nor roll them back. See
 operation retries, and native exports.
 
 Notes likewise live in the workspace's instruction store,
-`<workspace>/.niwa/instructions.el`
+`<workspace>/.niwa/instructions.eld`
 ([ADR 0130](adr/0130-keep-instructions-in-a-workspace-store.md)). A session
 writes no instruction snapshots; the `instructions/` files of sessions saved by
 older versions are ignored.
@@ -294,7 +294,7 @@ Transport and publication scheduling defer metadata work until it can run safely
 It updates the persisted name and buffer/view presentation, without moving files.
 Save As creates a new identity with the explicitly supplied display name.
 
-The closed sidecar schema is `v0.6.0`, including recovery issues, retained input
+The closed sidecar schema is `v0.7.0`, including recovery issues, retained input
 and pause state, naming input, closed chats (`:chapters`),
 the ids of attached [store artifacts](view.md#artifact-store) (`:attached-artifacts`),
 for an artifact's own conversation, that artifact's id (`:dedicated-artifact`),
@@ -561,24 +561,24 @@ Layout:
 ```
 .niwa/workspace-id                 ; project-owned portable workspace identity
 .niwa/sessions/2026-04-23T14-30-a9f23d74c019/
-  session.meta.el                    ; non-authoritative current sidecar cache
+  session.meta.eld                    ; non-authoritative current sidecar cache
   .lease/                            ; project-session portable lease generations
-    00000000000000000001.el         ; current renewable ownership record
+    00000000000000000001.eld        ; current renewable ownership record
   .publications/
     generation-a1b2c3/
       000001.data                   ; immutable artifact bytes
-      manifest.el                  ; logical path -> bytes + SHA-256
+      manifest.eld                  ; logical path -> bytes + SHA-256
   .recovery/                       ; target-side project recovery only
-    recovery-a1b2c3...el            ; marker, written after recovery bytes
+    recovery-a1b2c3...eld           ; marker, written after recovery bytes
     a1b2c3.../                      ; manual repair material
   segment-0001.chat.org              ; logical name: finalized at compact #1
   segment-0002.chat.org              ; logical name: finalized at compact #2
   segment-0003.chat.org              ; logical name: current/live
-  hook-log.el                        ; one hook execution plist per line
-  permission-log.el                  ; permission/request diagnostic plists
-  repair-log.el                      ; redacted tool-input validation telemetry
-  segment-repair-backups.el          ; closed-segment text before a resume repair
-  telemetry-log.el                   ; correlated lifecycle events, one plist/line
+  hook-log.eld                        ; one hook execution plist per line
+  permission-log.eld                  ; permission/request diagnostic plists
+  repair-log.eld                      ; redacted tool-input validation telemetry
+  segment-repair-backups.eld          ; closed-segment text before a resume repair
+  telemetry-log.eld                   ; correlated lifecycle events, one plist/line
   diagnostics/run-*/                 ; resource reports; local sessions only
   file-history/                      ; optional materialized backup cache
     <sha256-of-raw-file-contents>
@@ -610,7 +610,7 @@ transcript properties when the text contains neither an execution ID field nor a
 live-execution field. A field match is only a reason to parse, not evidence that
 an execution belongs to the segment. Publication cleanup keeps only the newest
 generations, so the replaced text would disappear within a few saves; resume
-first appends it to `segment-repair-backups.el` as one plist per line with
+first appends it to `segment-repair-backups.eld` as one plist per line with
 `:time`, `:segment` and `:content`, rotating into one `.1` archive above 64 MiB.
 A failed backup is reported and does not block the repair.
 
@@ -1081,8 +1081,8 @@ to the opened workspace and discards copied session permission rules, resource
 grants, and additional roots.  The next save records the opened workspace's
 identity. Resume rejects superseded sidecar shapes.
 
-The package release is `0.5.0`; its persisted session format is independently
-`v0.6.0`.  The top-level `:authority-mode`, `:ptc-checkpoints`, and
+The package release is `0.7.0` and the persisted session format is `v0.7.0`:
+the format is named after the package release that last changed it.  The top-level `:authority-mode`, `:ptc-checkpoints`, and
 execution-target incarnation are
 required by that session format:
 project and file-workspace sessions persist `portable`.  Portable sessions
@@ -1096,7 +1096,7 @@ grants.  A replacement probe stages the observation without changing that
 durable baseline.  The fence then runs as one transaction: it first revokes
 exact session grants, then commits a sidecar marker containing
 the new incarnation and no exact session grants; only that successful commit
-acknowledges the replacement. The workspace store in `.niwa/permissions.el`
+acknowledges the replacement. The workspace store in `.niwa/permissions.eld`
 is outside this contract: it is deliberate configuration shared through
 version control between machines, so a reboot or a different host leaves it
 untouched, and a grant there that does not apply on the current target
@@ -1334,7 +1334,7 @@ fixed files use nearby target temporary files plus atomic rename; these caches
 are not the durable snapshot boundary. Numbered compaction archives retain their
 physical recovery copy.
 A successful session-local batch without a sidecar marker retains its staged
-source locally.  A later batch with exactly one `session.meta.el` artifact
+source locally.  A later batch with exactly one `session.meta.eld` artifact
 marked `:commit-marker t` merges those retained artifacts with the current
 batch in order; duplicate logical paths use the last write.  Artifacts outside
 the session directory remain ordinary fenced writes and never enter the
@@ -1388,7 +1388,7 @@ leaves the captured publication as the read source.
 The marker transaction copies the merged logical artifacts into a unique,
 never-overwritten directory below `.publications/`, records each target-native
 session-relative logical and published path plus its SHA-256, and creates the
-immutable `manifest.el` last.  That directory, its artifacts and its manifest
+immutable `manifest.eld` last.  That directory, its artifacts and its manifest
 are one target program, so the whole generation costs one round trip and the
 manifest is still the last byte written inside it.  Updating the exact current
 lease generation's `:publication-head` to that manifest is the only commit
@@ -2537,12 +2537,12 @@ properties from its canonical structural ranges; persistence does not parse
 transcript control forms itself.
 
 Hook execution logs are append-only diagnostics.  The in-memory
-`hook-log` slot is transient and capped, while `hook-log.el` keeps the
+`hook-log` slot is transient and capped, while `hook-log.eld` keeps the
 session's persisted hook entries as sanitized plists.  It is not read back
 into live session state on resume.  Entries recorded before first
 materialization are backfilled when the session directory is created.
 
-Permission diagnostics are also append-only. `permission-log.el` records
+Permission diagnostics are also append-only. `permission-log.eld` records
 permission queue lifecycle events so transient overlays can be diagnosed after
 a turn or agent is aborted. It is not read
 back into live session state on resume.  Pre-materialization entries wait in
@@ -2656,32 +2656,66 @@ unreadable-store warning is shown only once while the failure lasts.
 
 The standalone [migration script](https://github.com/FrauH0lle/niwa.el/blob/master/scripts/migrate-sessions.el)
 accepts a session directory, a project root, or its `.niwa/sessions`
-directory. The migration chain is empty: the command checks closed sessions,
-accepts `v0.6.0` without rewriting or backing up the originals, and rejects
-other versions. It does not import per-session artifacts. Close every selected
-session and keep it closed throughout the check. From the repository root:
+directory, and with `--user` the user-level state. The chain has one step,
+session format `v0.6.0` to `v0.7.0`. Package 0.7.0 introduced session format
+`v0.7.0`, which stores every persisted Lisp data file as `.eld` instead of
+`.el`. The step renames each session file family (`session.meta`, lease and
+transfer records, publication `manifest`s, the per-session logs and
+`tool-results/media` records) and rewrites the names a manifest or lease
+records. Published `.data` files keep their names; only the published
+sidecar's bytes change, because its `:version` does, and its checksum is
+recomputed. It rejects other versions and does not import per-session
+artifacts. Run it before first opening existing state with package 0.7.0 or
+later, with niwa closed:
 
 ```bash
-# Check every session in a project:
+# Rename the user-level state (~/.niwa and the XDG state directory).
+# A batch run does not read your init file: for a customized
+# niwa-user-dir, add --eval '(setq niwa-user-dir "...")' before -f; to try
+# it on a copy first, run it with HOME and XDG_STATE_HOME pointing at the copy.
+npx @emacs-eask/cli emacs --batch -L . -l scripts/migrate-sessions.el \
+  -f niwa-migrate-session-main -- --user
+
+# Migrate every session of a project and its workspace state:
 npx @emacs-eask/cli emacs --batch -L . -l scripts/migrate-sessions.el \
   -f niwa-migrate-session-main -- /path/to/project
 
-# Or check one session:
+# Or migrate one session:
 npx @emacs-eask/cli emacs --batch -L . -l scripts/migrate-sessions.el \
   -f niwa-migrate-session-main -- /path/to/project/.niwa/sessions/SESSION-ID
 ```
 
-`--help` prints usage. The command reports each session's outcome and exits
-nonzero on failure. A project run continues past individual validation
-failures, but a live session or pending recovery aborts the whole run before
-staging. An expired active lease counts as closed. A released lease with no
-publication is reported as empty.
+`--help` prints usage. The command reports each outcome and exits nonzero on
+failure. A project run continues past individual validation failures, but a
+live session or pending recovery aborts the whole run before staging. An
+expired active lease counts as closed. A released lease with no publication
+is renamed like any other v0.6.0 session and reported as empty on later runs;
+a stale fixed sidecar in it is converted, or dropped when it cannot be.
+
+A project root also renames its workspace state under `.niwa`, after
+checking that every session is closed: the
+`permissions`, `input-history`, `instructions`, `plugins` and `skills-state`
+files, artifact `meta` and version `index` files, schedules and their runs,
+the artifact and instruction lease records under `leases/`,
+the diagnostics log, the shared-notes records, and the memory-review state
+(passes, decision slots and write records). Memory-review expiry records name
+those files and bind their own hash, so the pass rewrites each record, its
+claim outcome and its completion receipt together. The pass refuses while a
+journal capture is pending, because a capture records the v0.6.0 publication
+head in a hashed descriptor and a session pin names it too; let a memory review
+settle them first. It also refuses when both spellings of a file exist or a record is unreadable,
+checking both before it writes anything, and does nothing for files already
+renamed, so repeating a run is safe. Only the files it
+names change: hooks, shared notes, artifact content and plugin Lisp keep `.el`.
 
 Validation uses a private staging copy and checks metadata and publication
-checksums. It refuses PID locks, symlinks and special files. A `.migration-lock`
-serializes runs in the same sessions directory; temporary staging parents are
-named `.migration-stage-*`. Remove a lock left behind by an interrupted run
-only after checking that the process has stopped.
+checksums. A v0.6.0 session is copied and renamed first, so the validation reads
+the current layout; the original stays in a hidden sibling backup. It refuses
+PID locks, symlinks and special files. A `.migration-lock` serializes runs in the
+same sessions directory (and in `.niwa` or the user directory for the other
+passes); temporary staging parents are named `.migration-stage-*`. Remove a lock
+left behind by an interrupted run only after checking that the process has
+stopped.
 
 ### Incompatible session inspection
 
@@ -3121,7 +3155,7 @@ blocks that already carry a tool `gptel` property or overlapping non-empty
 ### Input history
 
 The view input ring is persisted at
-`<workspace-root>/.niwa/input-history.el` when the session is
+`<workspace-root>/.niwa/input-history.eld` when the session is
 writable. Missing files are normal. Corrupt
 files are warned about once, renamed aside, and replaced with an empty
 in-memory ring. Accepting same-turn steering or a queued follow-up records its
@@ -3136,7 +3170,7 @@ repository's common exclude file. The generated entries are:
 
 - `/.niwa/sessions/`
 - `/.niwa/tool-results/`
-- `/.niwa/input-history.el`
+- `/.niwa/input-history.eld`
 - `/.niwa/leases/`
 - `/.niwa/state/`
 
@@ -3177,7 +3211,7 @@ won.  A successful claim prunes older generations
 best-effort; aborted candidates are ignored and removed best-effort.
 
 Each generation also carries `:publication-head`, initially nil and otherwise
-a validated `.publications/.../manifest.el` session-relative path.  A new
+a validated `.publications/.../manifest.eld` session-relative path.  A new
 generation inherits its predecessor's head; renewal, status changes, and
 release preserve it.  The publisher may replace it only through an exact-head
 generation check, so a stale client can update only its older record and

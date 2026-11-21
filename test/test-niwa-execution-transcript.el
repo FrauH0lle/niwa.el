@@ -443,7 +443,7 @@ only through a publication, never a plain file under the save path."
                             'utf-8-unix))
                 (sidecar (car (read-from-string
                                (decode-coding-string
-                                (niwa-session-artifacts-read-artifact session "session.meta.el" t)
+                                (niwa-session-artifacts-read-artifact session "session.meta.eld" t)
                                 'utf-8-unix)))))
             (should-not (string-search "pending delivery" published))
             (should-not (string-search "Unsent draft" published))
@@ -1299,7 +1299,7 @@ only through a publication, never a plain file under the save path."
            (session-dir (concat remote-root "session/"))
            (root-segment (concat session-dir "segment-0001.chat.org"))
            (transcript (concat session-dir "agents/remote-call.chat.org"))
-           (sidecar (concat session-dir "session.meta.el"))
+           (sidecar (concat session-dir "session.meta.eld"))
            (archive
             (niwa-execution-transcript-test--persisted-audit-transcript
              (niwa-execution-transcript-archive-text
