@@ -57,7 +57,7 @@
   (niwa-session-set-root-buffer editing-test-session editing-test-buffer)
   (niwa-session-set-pending-input-paused editing-test-session t)
   (let ((view (niwa-view--ensure editing-test-buffer)))
-    (with-current-buffer view
+    (with-current-buffer (niwa-view-composer-buffer view)
       (goto-char (point-max))
       (insert "> Host draft\nsecond line")))
   (niwa-tool-editing--register)

@@ -19,6 +19,7 @@
 (require 'niwa-overlays)
 
 ;; `gptel'
+(declare-function gptel-context--collect-media "ext:gptel-context" (&optional contexts))
 (declare-function gptel--inject-media "ext:gptel-request" (backend prompts))
 (declare-function gptel--model-capable-p "ext:gptel-request" (cap &optional model))
 (declare-function gptel--model-mime-capable-p "ext:gptel-request" (mime &optional model))
@@ -558,6 +559,21 @@ teardown instead of letting gptel read PATH."
   (unless gptel-use-context
     (setq-local gptel-use-context 'system)))
 
+(defun niwa-mentions--add-media-contexts (contexts)
+  "Stage CONTEXTS so gptel collects the new attachments in source order."
+  (let ((added (cl-loop for context in contexts
+                        for head = (car gptel-context)
+                        do (apply #'niwa-mentions--add-media-context context)
+                        unless (eq head (car gptel-context))
+                        collect (car gptel-context))))
+    ;; Entries are pushed.  Some gptel collectors also reverse them.
+    ;; Check the first pair before changing the order of our entries only.
+    (when (and (cdr added)
+               (equal (caar added)
+                      (cadar (gptel-context--collect-media
+                              (list (car added) (cadr added))))))
+      (setq gptel-context (nconc added (nthcdr (length added) gptel-context))))))
+
 (defun niwa-mentions-wrap-prompt-media
     (prompt contexts backend model request)
   "Return provider PROMPT with media CONTEXTS prepended for BACKEND.
@@ -570,9 +586,7 @@ media encoding.  Staged bytes expire with REQUEST.  No chat buffer's
           (gptel-backend backend)
           (gptel-model model)
           (prompts (list prompt)))
-      ;; Context insertion prepends; retain mention and PDF page order.
-      (dolist (context (reverse contexts))
-        (apply #'niwa-mentions--add-media-context context))
+      (niwa-mentions--add-media-contexts contexts)
       (gptel--inject-media backend prompts)
       ;; Ollama's `:images' setter replaces the list cell, not PROMPT.
       (car prompts))))
@@ -999,9 +1013,7 @@ when omitted, use the current buffer's `gptel-model'."
                         (buffer-local-value
                          'niwa--current-request chat-buffer))))
       (let ((niwa--current-request request))
-        ;; Context insertion prepends; retain mention and PDF page order.
-        (dolist (context (reverse (plist-get expansion :media-contexts)))
-          (apply #'niwa-mentions--add-media-context context)))
+        (niwa-mentions--add-media-contexts (plist-get expansion :media-contexts)))
       (when fsm
         (dolist (item (plist-get expansion :reminder-items))
           (niwa-reminders-stage-entry

@@ -483,7 +483,7 @@ CHECK_BASE=BASE NIWA_AFFECTED_BASE=BASE eask run script check -- --affected
   names, and deleted test files, add nothing beyond the smoke set.
 - Node and browser tests (`test/*.js`, `test/*.mjs`) that no ERT file names
   also add nothing: they run under their own runners (see
-  [relay/AGENTS.md](../relay/AGENTS.md#checks)), not ERT.
+  [relay/AGENTS.md](https://github.com/FrauH0lle/niwa.el/blob/master/relay/AGENTS.md#checks)), not ERT.
 - Changed `test/test_*.py` files run directly with Python and add no ERT files;
   deleted Python tests are ignored. The terminal check and `benchmark/*.el`
   select matching ERT tests, or only the smoke set if none match.
