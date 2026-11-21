@@ -438,7 +438,9 @@ test('editor interaction regressions', async (t) => {
     await t.test('room session navigation sits beside wide conversations, above narrow composers and over a phone', async () => {
       const page = await browser.newPage();
       await page.goto(`${url}/menu`);
+      await page.addScriptTag({url: `${url}/viewer-header.js`});
       await page.evaluate(() => {
+        window.niwaHeader.create();
         const menu = document.getElementById('session-box');
         menu.hidden = false; menu.open = true;
         document.getElementById('editing-box').hidden = false;
@@ -582,11 +584,11 @@ test('editor interaction regressions', async (t) => {
       await page.mouse.move(offset.x + x1, offset.y + y1, {steps: 4});
       await page.mouse.up();
       await frame.locator('#discuss-selection').click();
-      assert.match(await box(frame).getAttribute('placeholder'), /leave empty to send the selected area/);
+      assert.match(await box(frame).getAttribute('placeholder'), /leave empty to send the selected area/i);
       assert.equal(await box(frame).inputValue(), '');
       // Without the assistant, a selection alone says nothing.
       await askBox(frame).uncheck();
-      assert.doesNotMatch(await box(frame).getAttribute('placeholder'), /leave empty/);
+      assert.doesNotMatch(await box(frame).getAttribute('placeholder'), /leave empty/i);
       await send(frame);
       assert.match(await notice(frame).innerText(), /choose Ask assistant to send the selection alone/);
       assert.equal((await sent(page, 'post')).length, 0);
@@ -740,6 +742,8 @@ test('editor interaction regressions', async (t) => {
       const {page, frame} = await open({viewport:{width:1280,height:640}});
       await frame.locator('#scene [data-shape="ellipse"]').click({position:{x:150,y:80}});
       await frame.locator('#discuss-selection').click();
+      // A wider fallback font also keeps the empty box to two lines.
+      await box(frame).evaluate(input => input.style.setProperty('--font-ui', 'monospace'));
       assert.ok((await box(frame).boundingBox()).height <= 50);
       await box(frame).fill('Is this the database?');
       await send(frame);

@@ -2560,6 +2560,26 @@ injector would once the payload exists."
             (should-not (file-exists-p (car staged)))))
       (niwa-request-drain-cancellers request))))
 
+(niwa-deftest niwa-mentions--add-media-contexts ()
+  ,test
+  (test)
+  :doc "collects distinct new attachments in order and retains existing context"
+  (let* ((first (make-temp-file "niwa-first-" nil ".png"))
+         (second (make-temp-file "niwa-second-" nil ".png"))
+         (existing (list (current-buffer))))
+    (unwind-protect
+        (with-temp-buffer
+          (setq-local gptel-context (list existing))
+          (setq-local gptel-use-context nil)
+          (niwa-mentions--add-media-contexts
+           (mapcar (lambda (path) (list path "image/png"))
+                   (list first second first)))
+          (should (equal (list first second)
+                         (mapcar #'cadr (gptel-context--collect-media))))
+          (should (eq existing (car (last gptel-context)))))
+      (delete-file first)
+      (delete-file second))))
+
 (niwa-deftest niwa-mentions--add-media-context ()
   ,test
   (test)

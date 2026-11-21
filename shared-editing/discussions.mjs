@@ -209,7 +209,7 @@ export class DiscussionPanel {
   fresh() {
     const a = this.drafts.start.attachment, part = a?.region ? 'area' : anchorTerms().part;
     return a ? {label:`Selected ${part}`, quote:a.quote || '',
-      placeholder:`Start a discussion, or leave empty to send the selected ${part} as your request…`} : null;
+      placeholder:`Leave empty to send the selected ${part} as your request.`} : null;
   }
   /* Open a new discussion about the current selection. */
   begin() {
