@@ -26,6 +26,19 @@
   (cl-letf (((symbol-function 'niwa-workspace) #'ignore))
     (should-error (niwa-workspace-current) :type 'user-error)))
 
+(niwa-deftest niwa-workspace ()
+  ,test
+  (test)
+  :doc "a composer reaches the session workspace through its data buffer"
+  (let ((ws (niwa-workspace--create :root "/tmp/session-ws/"))
+        (niwa-workspace-functions nil))
+    (with-temp-buffer
+      (setq-local niwa--session (niwa-session--create :workspace ws))
+      (let ((data (current-buffer)))
+        (with-temp-buffer
+          (setq-local niwa--data-buffer data)
+          (should (eq ws (niwa-workspace))))))))
+
 
 ;;
 ;;; Workspace detection helpers

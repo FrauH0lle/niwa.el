@@ -113,7 +113,9 @@
 ;; `niwa-workspace'
 (declare-function niwa-workspace-state-dir
                   "niwa-workspace" (workspace))
+(declare-function niwa-workspace-current "niwa-workspace" ())
 (autoload 'niwa-workspace-state-dir "niwa-workspace")
+(autoload 'niwa-workspace-current "niwa-workspace")
 
 (defvar gptel-model)
 (defvar read-eval)
@@ -878,18 +880,12 @@ memo."
 (defun niwa-hooks-trust-project (&optional workspace)
   "Trust WORKSPACE's hook config files and skill manifests.
 
-Interactively, uses `niwa--session' or `niwa--workspace' in the
-current buffer.  Trust is keyed by workspace id, path, and file hash."
+Interactively, uses the current buffer's workspace, including one
+detected from an ordinary project file.  Trust is keyed by workspace id,
+path, and file hash."
   (interactive)
-  (let* ((workspace
-          (or workspace
-              (and (boundp 'niwa--session)
-                   niwa--session
-                   (niwa-session-workspace niwa--session))
-              (and (boundp 'niwa--workspace) niwa--workspace)))
+  (let* ((workspace (or workspace (niwa-workspace-current)))
          (workspace-id (niwa-hooks--workspace-id workspace)))
-    (unless workspace
-      (niwa-diagnostic-user-error 'unavailable "No niwa workspace in current buffer"))
     (require 'niwa-skills-core)
     (let ((db (cl-remove-if
                (lambda (old)

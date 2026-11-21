@@ -292,6 +292,12 @@ registry, creating one lazily if needed."
      ;; Chat buffer with session: canonical path
      ((and (boundp 'niwa--session) niwa--session)
       (niwa-session-workspace niwa--session))
+     ;; Composer and other satellite buffers reach the session via their data buffer
+     ((and (boundp 'niwa--data-buffer)
+           (buffer-live-p niwa--data-buffer)
+           (buffer-local-value 'niwa--session niwa--data-buffer))
+      (niwa-session-workspace
+       (buffer-local-value 'niwa--session niwa--data-buffer)))
      ;; Cached workspace (during buffer setup, before session exists)
      ((and (boundp 'niwa--workspace) niwa--workspace)
       niwa--workspace)
