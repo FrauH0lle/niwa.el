@@ -55,6 +55,10 @@
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 
+(declare-function niwa-schedule-pending-summary "niwa-schedule" (workspace session))
+(declare-function niwa-schedule-now "niwa-schedule" ())
+(autoload 'niwa-schedules-list-open "niwa-schedules-list" nil t)
+
 ;; `niwa-telemetry'
 (declare-function niwa-telemetry-current-session
                   "niwa-telemetry" (&optional buffer))
@@ -434,6 +438,29 @@ the view has already inserted the in-flight markers."
                   (buffer-live-p buf)
                   (buffer-local-value 'niwa--current-request buf))))))
 
+(defun niwa-view--schedule-hint ()
+  "Return the local due time and remaining count for this view, if any."
+  (when-let* ((niwa--session) ((featurep 'niwa-schedule))
+              (workspace (niwa-session-workspace niwa--session))
+              (summary (niwa-schedule-pending-summary workspace niwa--session)))
+    (let* ((due (car summary))
+           (today (= (time-to-days due) (time-to-days (niwa-schedule-now)))))
+      (concat "◷ " (format-time-string (if today "%H:%M" "%-d %b %H:%M") due)
+              (when (> (cdr summary) 1) (format " +%d" (1- (cdr summary))))))))
+
+(defun niwa-view--schedule-changed (root session-id)
+  "Refresh existing composers in ROOT affected by SESSION-ID or workspace jobs."
+  (dolist (buffer (buffer-list))
+    (when (buffer-local-value 'niwa-view--composer-buffer buffer)
+      (with-current-buffer buffer
+        (when-let* ((niwa--session) (workspace (niwa-session-workspace niwa--session))
+                    ((equal root (directory-file-name (niwa-workspace-root workspace))))
+                    ((or (null session-id)
+                         (equal session-id (niwa-session-session-id niwa--session)))))
+          (niwa-view--render-request-progress))))))
+
+(add-hook 'niwa-schedule-pending-changed-functions #'niwa-view--schedule-changed)
+
 (defun niwa-view--render-request-progress ()
   "Update the composer's first line without changing text or undo positions."
   (when-let* ((composer (niwa-view-composer-buffer)))
@@ -445,22 +472,39 @@ the view has already inserted the in-flight markers."
            (width (max 1 (1- (if windows
                                  (apply #'min (mapcar #'window-body-width windows))
                                (frame-width)))))
-           (state (list display-status badge attention width)))
+           (hint (niwa-view--schedule-hint))
+           (state (list display-status badge attention width hint)))
       (unless (equal-including-properties state niwa-view--spinner-rendered-state)
         (let* ((frame (niwa-view--animation-buffer-frame composer))
                (line (niwa-view--format-composer-rail
                       badge attention width status display-status frame)))
-          (niwa-view--write-request-rail composer line attention)
+          (niwa-view--write-request-rail composer line attention hint width)
           (setq niwa-view--spinner-sample-frame frame
                 niwa-view--spinner-rendered-state state))))))
 
-(defun niwa-view--write-request-rail (composer line attention)
-  "Paint LINE on COMPOSER's fixed cells and cache its ATTENTION label."
+(defun niwa-view--click-schedule-hint (event)
+  "Open Standing jobs for the composer clicked in EVENT."
+  (interactive "e")
+  (select-window (posn-window (event-start event)))
+  (niwa-schedules-list-open))
+
+(defvar-keymap niwa-view--schedule-hint-map
+  "RET" #'niwa-schedules-list-open
+  "<down-mouse-1>" #'ignore
+  "<mouse-1>" #'niwa-view--click-schedule-hint)
+
+(defun niwa-view--write-request-rail (composer line attention hint width)
+  "Paint LINE and ATTENTION on COMPOSER, adding HINT only if WIDTH permits."
   (let* ((end (1- (length line)))
          (label (text-property-any 0 end 'niwa-view-spinner-frame t line))
          (suffix (and label (next-single-property-change
                              label 'niwa-view-spinner-frame line end)))
          (metadata (and suffix (< suffix end) (substring line suffix end)))
+         (show (and hint (or (null niwa-view--spinner-status) label)
+                    (<= (+ (string-width (substring line 0 (or label end)))
+                           (if label (string-width (get-text-property label 'display line)) 0)
+                           (if metadata (string-width metadata) 0) 2 (string-width hint))
+                        width)))
          (new-targets (and label (not niwa-view--spinner-label-target)))
          label-target metadata-target)
     (with-current-buffer composer
@@ -472,6 +516,14 @@ the view has already inserted the in-flight markers."
             (setq label-target (cons (copy-marker (+ start 1)) (copy-marker (+ start 2)))
                   metadata-target (cons (copy-marker (+ start 2)) (copy-marker (+ start 3)))))
           (with-silent-modifications
+            (put-text-property (+ start 3) (+ start 4) 'display
+                               (if show `(space :align-to (- right ,(1+ (string-width hint)))) ""))
+            (add-text-properties
+             (+ start 4) (+ start 5)
+             (list 'cursor-intangible (not show) 'keymap (and show niwa-view--schedule-hint-map)
+                   'display (if show (propertize hint 'face 'shadow 'mouse-face 'highlight
+                                                 'help-echo "Open Standing jobs"
+                                                 'keymap niwa-view--schedule-hint-map) "")))
             (put-text-property start (+ start 1) 'display (substring line 0 (or label end)))
             (add-text-properties (+ start 1) (+ start 2)
                                  (list 'display (if label (get-text-property label 'display line) "")

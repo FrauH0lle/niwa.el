@@ -972,7 +972,7 @@ releasing this draft."
                     niwa-view--side-conversation-p side
                     default-directory directory)
         ;; Display cells keep draft undo positions stable when the rail changes.
-        (insert (propertize "   " 'display "") "\n")
+        (insert (propertize "     " 'display "") "\n")
         (add-text-properties (point-min) (point)
                              '(read-only t cursor-intangible t
                                front-sticky (read-only cursor-intangible)

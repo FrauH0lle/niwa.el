@@ -169,7 +169,7 @@
 ;;
 ;;; Constants
 
-(defconst niwa-session-codec-format-version "v0.7.0"
+(defconst niwa-session-codec-format-version "v0.8.0"
   "Current on-disk session sidecar format.
 
 The authority profile is part of this format.  Readers accept exactly this
@@ -646,6 +646,15 @@ The resulting plist is round-trippable via
    :dedicated-artifact     (niwa-session-dedicated-artifact session)
    :note-conversation      (niwa-session-note-conversation session)
    :schedules              (copy-tree (niwa-session-schedules session))
+   ;; Only the preparation holding the gate has uncommitted arrivals.  Freeze
+   ;; its newest late receipt with the mail, not when the scheduler queues it.
+   :latest-late-delivery
+   (copy-sequence
+    (or (cl-loop for record in (niwa-session-messages session)
+                 while (plist-get record :uncommitted)
+                 thereis (and (eq (plist-get record :type) 'WAKE_UP)
+                              (plist-get (plist-get record :meta) :late-delivery)))
+        (niwa-session-latest-late-delivery session)))
    ;; Root's reverse-order unread queue.  Child queues live on their explicit
    ;; registry records and all queues become FIFO only at delivery time.
    :messages
@@ -872,6 +881,10 @@ it had then, or nil, and when it closed."
     (unless (and (proper-list-p schedules)
                  (cl-every #'niwa-schedule-entry-p schedules))
       (error "Invalid session schedules: %S" schedules)))
+  (when-let* ((receipt (plist-get plist :latest-late-delivery)))
+    (unless (pcase receipt
+              (`(:delivered-at ,(pred integerp) :late-seconds ,(pred natnump)) t))
+      (error "Invalid late wake-up receipt")))
   plist)
 
 (defun niwa-session-codec-deserialize (plist workspace)
@@ -1067,6 +1080,7 @@ their hygiene filters."
                      :agent-turn-capacity
                      (plist-get plist :agent-turn-capacity)
                      :schedules (copy-tree (plist-get plist :schedules))
+                     :latest-late-delivery (copy-sequence (plist-get plist :latest-late-delivery))
                      :messages
                      (niwa-agent-persistence-sanitize-mailbox
                       (plist-get plist :messages) "/root"))))

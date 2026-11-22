@@ -2132,6 +2132,8 @@ the file plan already confirmed before native preparation."
                 (niwa-session-working-directory session)
                 (niwa-session-schedules candidate)
                 (niwa-session-schedules session)
+                (niwa-session-latest-late-delivery candidate)
+                (niwa-session-latest-late-delivery session)
                 (niwa-session-publication candidate) publication)
           (niwa-session-set-execution-target
            candidate (niwa-session-execution-target session))

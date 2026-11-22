@@ -82,6 +82,10 @@
 (autoload 'niwa-collaboration-share-dismiss "niwa-collaboration-share")
 (autoload 'niwa-collaboration-share-present "niwa-collaboration-share")
 
+;; `niwa-collaboration-wake-ups'
+(declare-function niwa-collaboration--schedule-time-fields "niwa-collaboration-wake-ups" (due now))
+(autoload 'niwa-collaboration--schedule-time-fields "niwa-collaboration-wake-ups")
+
 ;; `niwa-collaboration-transport'
 (declare-function niwa-collaboration--transport-open
                   "niwa-collaboration-transport" (url key &rest callbacks))
@@ -106,8 +110,17 @@
 
 ;; `niwa-schedule'
 (declare-function niwa-schedule-format-time "niwa-schedule" (seconds))
+(declare-function niwa-schedule-latest-late-delivery "niwa-schedule" (session))
+(declare-function niwa-schedule-now "niwa-schedule" ())
+(declare-function niwa-schedule-overview-late-delivery "niwa-schedule" (receipt))
+(declare-function niwa-schedule-pending-snapshot "niwa-schedule" (workspace &optional session-id))
 (declare-function niwa-schedule-timing-label "niwa-schedule" (timing))
+(defvar niwa-schedule-late-delivery-hook)
+(defvar niwa-schedule-pending-changed-functions)
 (autoload 'niwa-schedule-format-time "niwa-schedule")
+(autoload 'niwa-schedule-latest-late-delivery "niwa-schedule")
+(autoload 'niwa-schedule-overview-late-delivery "niwa-schedule")
+(autoload 'niwa-schedule-pending-snapshot "niwa-schedule")
 (autoload 'niwa-schedule-timing-label "niwa-schedule")
 
 ;; `niwa-session-naming'
@@ -412,11 +425,12 @@ Dedicated artifact conversations are reached only through their artifact."
         (push (cons id (cons name buffer)) live)))
     (nreverse live)))
 
-(defun niwa-collaboration-lobby--rows (workspace)
+(defun niwa-collaboration-lobby--rows (workspace &optional late-deliveries)
   "Return WORKSPACE's session rows for the lobby, newest first.
 Live sessions that were never saved lead; saved ones follow in their
 own order, marked live or shared when they are open here.  A row's
-`:updated' is in seconds since the epoch."
+`:updated' is in seconds since the epoch.
+Fill optional LATE-DELIVERIES with confirmed receipts by session ID."
   (let* ((live (niwa-collaboration-lobby--live-sessions workspace))
          (saved (niwa-session-persistence-without-dedicated
                  workspace (niwa-session-persistence-list-sessions workspace)))
@@ -433,12 +447,20 @@ own order, marked live or shared when they are open here.  A row's
                                      buffer)
                                     t :json-false))))))
     (append
-     (cl-loop for (id name . _buffer) in live
+     (cl-loop for (id name . buffer) in live
               unless (member id saved-ids)
-              collect (funcall row id name nil nil))
+              collect (progn
+                        (when-let* ((late-deliveries)
+                                    (receipt (niwa-schedule-latest-late-delivery
+                                              (buffer-local-value 'niwa--session buffer))))
+                          (puthash id receipt late-deliveries))
+                        (funcall row id name nil nil)))
      (cl-loop for entry in saved
               for summary = (plist-get entry :summary)
               for id = (plist-get summary :session-id)
+              for receipt = (and late-deliveries (plist-get summary :latest-late-delivery))
+              when (and (stringp id) receipt)
+              do (puthash id receipt late-deliveries)
               when (stringp id)
               collect (funcall row id
                                (or (cadr (assoc id live))
@@ -447,24 +469,46 @@ own order, marked live or shared when they are open here.  A row's
                                (niwa-collaboration-lobby--preview
                                 summary))))))
 
-(defun niwa-collaboration-lobby--frame (lobby)
-  "Return LOBBY's session listing frame."
-  (let ((rows (niwa-collaboration-lobby--rows
-               (plist-get lobby :workspace))))
-    (list :t "lobby"
-          :project (plist-get lobby :project)
-          :workspace (niwa-collaboration--workspace-key lobby)
-          :sessions (vconcat (seq-take
-                              rows niwa-collaboration-lobby--max-sessions))
-          :omitted (max 0 (- (length rows)
-                             niwa-collaboration-lobby--max-sessions)))))
+(defun niwa-collaboration-lobby--frame (lobby rows)
+  "Return LOBBY's session listing frame from ROWS."
+  (list :t "lobby"
+        :project (plist-get lobby :project)
+        :workspace (niwa-collaboration--workspace-key lobby)
+        :sessions (vconcat (seq-take rows niwa-collaboration-lobby--max-sessions))
+        :omitted (max 0 (- (length rows) niwa-collaboration-lobby--max-sessions))))
+
+(defun niwa-collaboration-lobby--wake-up (workspace id)
+  "Return the public pending wake-up summary for session ID of WORKSPACE."
+  (when-let* ((entries (niwa-schedule-pending-snapshot workspace id))
+              (due (plist-get (car entries) :due)))
+    (list :due (niwa-schedule-format-time due)
+          :label (format-time-string
+                  (if (= (time-to-days due) (time-to-days (niwa-schedule-now)))
+                      "%H:%M" "%-d %b %H:%M") due)
+          :count (length entries))))
 
 (defun niwa-collaboration-lobby--listings (lobby)
   "Return LOBBY's (VIEW . WRITABLE) listings from one store snapshot."
-  (let ((frame (niwa-collaboration-lobby--frame lobby)) view writable)
+  (let* ((workspace (plist-get lobby :workspace))
+         (late-deliveries (make-hash-table :test #'equal))
+         (frame (niwa-collaboration-lobby--frame
+                 lobby (niwa-collaboration-lobby--rows workspace late-deliveries)))
+         (writable-frame
+          (plist-put (copy-sequence frame) :sessions
+                     (vconcat
+                      (cl-loop for row across (plist-get frame :sessions)
+                               for id = (plist-get row :id)
+                               for wake-up = (niwa-collaboration-lobby--wake-up workspace id)
+                               for receipt = (gethash id late-deliveries)
+                               for late-delivery = (and receipt (niwa-schedule-overview-late-delivery receipt))
+                               collect (append row (when wake-up (list :wakeUp wake-up))
+                                               (list :lateDelivery late-delivery))))))
+         view writable)
+    ;; A row patch needs the last receipt, not another scan of saved sessions.
+    (plist-put lobby :late-deliveries late-deliveries)
     (condition-case err
         (progn
-          (dolist (job (niwa-workspace-schedule-list (plist-get lobby :workspace)))
+          (dolist (job (niwa-workspace-schedule-list workspace))
             (let* ((outcome (plist-get job :last-outcome))
                    (due (plist-get job :due))
                    (row (append (list :id (plist-get job :id)
@@ -476,11 +520,36 @@ own order, marked live or shared when they are open here.  A row's
               (push row view)
               (push (append row (list :name (plist-get job :name))) writable)))
           (cons (append frame (list :schedules (vconcat (nreverse view))))
-                (append frame (list :schedules (vconcat (nreverse writable))))))
+                (append writable-frame (list :schedules (vconcat (nreverse writable))))))
       (error
        (niwa--warn-once (plist-get lobby :directory) 'lobby-schedule-listing
                            "Could not list lobby schedules: %s" (error-message-string err))
-       (cons frame frame)))))
+       (cons frame writable-frame)))))
+
+(defun niwa-collaboration-lobby--publish-schedules (lobby &optional peer)
+  "Send just LOBBY's active schedule times to subscribed PEER or all subscribers."
+  (when-let* ((subscribers (plist-get lobby :schedule-guests))
+              ((> (hash-table-count subscribers) 0)))
+    (let* ((workspace (plist-get lobby :workspace))
+           (key (niwa-collaboration--workspace-key lobby))
+           (now (niwa-schedule-now)) view writable)
+      (condition-case err
+          ;; Admission can precede scheduler restore.  Changes already have a fresh snapshot.
+          (dolist (job (if peer (seq-filter (lambda (j) (eq 'active (plist-get j :status)))
+                                           (niwa-workspace-schedule-list workspace))
+                         (niwa-schedule-pending-snapshot workspace)))
+            (let ((row (niwa-collaboration--schedule-time-fields (plist-get job :due) now)))
+              (push row view)
+              (push (append row (list :name (plist-get job :name))) writable)))
+        (error (setq view nil writable nil)
+               (niwa--warn-once (plist-get lobby :directory) 'lobby-schedule-listing
+                                "Could not list lobby schedules: %s" (error-message-string err))))
+      (setq view (vconcat (nreverse view)) writable (vconcat (nreverse writable)))
+      (cl-flet ((send (id guest)
+                  (niwa-collaboration--send-guarded
+                   lobby id (list :t "workspace-schedules" :workspace key
+                                  :records (if (plist-get guest :writable) writable view)))))
+        (if peer (send peer (gethash peer subscribers)) (maphash #'send subscribers))))))
 
 (defun niwa-collaboration-lobby--schedule-action (lobby peer frame)
   "Apply FRAME's pause or resume request for an admitted owner PEER of LOBBY."
@@ -515,13 +584,53 @@ own order, marked live or shared when they are open here.  A row's
 (defun niwa-collaboration-lobby--send-listing (lobby peer &optional listings)
   "Send LOBBY's listing to PEER, reusing LISTINGS when broadcasting.
 An owner also receives the models it may create a session on."
-  (let ((guest (niwa-collaboration--guest lobby peer))
-        (listings (or listings (niwa-collaboration-lobby--listings lobby))))
+  (let* ((guest (niwa-collaboration--guest lobby peer))
+         (listings (or listings (niwa-collaboration-lobby--listings lobby)))
+         (writable (plist-get guest :writable))
+         (frame (if writable (cdr listings) (car listings))))
+    (when writable
+      (puthash peer (plist-put guest :lobby-session-ids
+                              (mapcar (lambda (row) (plist-get row :id)) (plist-get frame :sessions)))
+               (plist-get lobby :guests)))
     (niwa-collaboration--transport-send
      (plist-get lobby :transport) peer
-     (append (if (plist-get guest :writable) (cdr listings) (car listings))
+     (append frame
              (when (plist-get guest :owner)
                (list :models (niwa-collaboration--model-labels)))))))
+
+(defun niwa-collaboration-lobby--broadcast-row-patch (lobby id &rest fields)
+  "Send changed public FIELDS of session ID to writable guests listing it in LOBBY."
+  (let ((frame (append (list :t "lobby-session-patch" :id id) fields)))
+    (maphash (lambda (peer guest)
+               (when (and (plist-get guest :writable)
+                          (member id (plist-get guest :lobby-session-ids)))
+                 (niwa-collaboration--transport-send (plist-get lobby :transport) peer frame)))
+             (plist-get lobby :guests))))
+
+(defun niwa-collaboration-lobby--wake-up-changed (root id)
+  "Patch the lobby row for a committed wake-up change in session ID of ROOT."
+  (when-let* ((id) (lobby (gethash (file-name-as-directory root)
+                                  niwa-collaboration-lobby--lobbies)))
+    (let* ((receipts (plist-get lobby :late-deliveries))
+           (receipt (and receipts (gethash id receipts))))
+      (apply #'niwa-collaboration-lobby--broadcast-row-patch
+             lobby id :wakeUp (niwa-collaboration-lobby--wake-up (plist-get lobby :workspace) id)
+             (when (and receipt (not (niwa-schedule-overview-late-delivery receipt)))
+               (list :lateDelivery nil))))))
+
+(add-hook 'niwa-schedule-pending-changed-functions #'niwa-collaboration-lobby--wake-up-changed)
+
+(defun niwa-collaboration-lobby--late-delivery (session)
+  "Patch the lobby row for SESSION's committed late delivery."
+  (when-let* ((workspace (niwa-session-workspace session))
+              (lobby (niwa-collaboration-lobby--find workspace))
+              (id (niwa-session-session-id session))
+              (receipt (niwa-schedule-latest-late-delivery session)))
+    (when-let* ((receipts (plist-get lobby :late-deliveries))) (puthash id receipt receipts))
+    (niwa-collaboration-lobby--broadcast-row-patch
+     lobby id :lateDelivery (niwa-schedule-overview-late-delivery receipt))))
+
+(add-hook 'niwa-schedule-late-delivery-hook #'niwa-collaboration-lobby--late-delivery)
 
 
 ;;
@@ -609,9 +718,10 @@ already; PEER receives the room at its own tier."
                          (error (funcall report err)))) guests))
         (error (funcall report err))))))
 
-(defun niwa-collaboration-lobby--workspace-changed (workspace)
-  "Refresh the lobby for WORKSPACE after a committed change."
+(defun niwa-collaboration-lobby--workspace-changed (workspace &optional schedules)
+  "Refresh WORKSPACE's lobby, including chat subscribers when SCHEDULES changed."
   (when-let* ((workspace) (lobby (niwa-collaboration-lobby--find workspace)))
+    (when schedules (niwa-collaboration-lobby--publish-schedules lobby))
     (niwa-collaboration-lobby--broadcast-listing lobby)))
 
 (defun niwa-collaboration-lobby--session-renamed (session)
@@ -621,7 +731,7 @@ already; PEER receives the room at its own tier."
 (add-hook 'niwa-session-naming-renamed-hook
           #'niwa-collaboration-lobby--session-renamed)
 (add-hook 'niwa-workspace-schedule-changed-functions
-          #'niwa-collaboration-lobby--workspace-changed)
+          (lambda (workspace) (niwa-collaboration-lobby--workspace-changed workspace t)))
 
 (defun niwa-collaboration-lobby--handle-rename (lobby peer frame)
   "Rename the listed session FRAME names for owner PEER in LOBBY."
@@ -722,8 +832,12 @@ returns; for the lobby's own types the value is unspecified."
   (pcase (plist-get frame :t)
     ("hello"
      (when (niwa-collaboration--admit-hello lobby peer frame)
-       (niwa-collaboration-lobby--send-listing lobby peer)
-       (niwa-collaboration-presence-publish lobby)))
+       (if (plist-member frame :scheduleWorkspace)
+           (niwa-collaboration-lobby--publish-schedules lobby peer)
+         (niwa-collaboration-lobby--send-listing lobby peer)
+         (niwa-collaboration-presence-publish lobby))))
+    ((guard (when-let* ((subscribers (plist-get lobby :schedule-guests)))
+              (gethash peer subscribers))) nil)
     ("lobby-refresh"
      (when (niwa-collaboration--guest lobby peer)
        (niwa-collaboration-lobby--send-listing lobby peer)))
@@ -756,10 +870,11 @@ returns; for the lobby's own types the value is unspecified."
   "Forget PEER in ROOT's lobby when relay control EVENT says it left."
   (when-let* ((lobby (gethash root niwa-collaboration-lobby--lobbies))
               ((eq event 'peer-left)))
+    (when-let* ((subscribers (plist-get lobby :schedule-guests))) (remhash peer subscribers))
     (when (gethash peer (plist-get lobby :guests))
-      (plist-put lobby :last-guest-departure (float-time)))
-    (remhash peer (plist-get lobby :guests))
-    (niwa-collaboration-presence-publish lobby)))
+      (plist-put lobby :last-guest-departure (float-time))
+      (remhash peer (plist-get lobby :guests))
+      (niwa-collaboration-presence-publish lobby))))
 
 (defun niwa-collaboration-lobby--on-state (root state)
   "Track relay transport STATE for ROOT's lobby.
@@ -769,6 +884,7 @@ rejoins with a fresh hello after a drop."
     (pcase state
       ('open (niwa-collaboration--restore-push-subscriptions lobby))
       ('down
+       (when-let* ((subscribers (plist-get lobby :schedule-guests))) (clrhash subscribers))
        (when (> (hash-table-count (plist-get lobby :guests)) 0)
          (plist-put lobby :last-guest-departure (float-time)))
        (clrhash (plist-get lobby :guests))
@@ -838,6 +954,8 @@ until it is stopped."
                        :write-token write-token
                        :owner-token owner-token
                        :push-guests (niwa-collaboration-lobby--restore-push workspace room-id)
+                       :late-deliveries nil
+                       :schedule-guests (make-hash-table :test #'eql)
                        :guests (make-hash-table :test #'eql))
                  (niwa-collaboration--links
                   (cdr origins) room-id key write-token owner-token))))
@@ -884,7 +1002,9 @@ Only an exit leaves it recorded as running, to restart with Emacs."
   (when-let* ((transport (plist-get lobby :transport)))
     (unless (eq reason 'emacs-exit)
       (ignore-errors
-        (when (> (hash-table-count (plist-get lobby :guests)) 0)
+        (when (or (> (hash-table-count (plist-get lobby :guests)) 0)
+                  (when-let* ((subscribers (plist-get lobby :schedule-guests)))
+                    (> (hash-table-count subscribers) 0)))
           (niwa-collaboration--transport-send
            transport 0 (list :t "bye" :reason (format "%s" reason))))))
     (ignore-errors (niwa-collaboration--transport-stop transport)))

@@ -659,6 +659,27 @@
        (should (equal id (plist-get (niwa-journal-capture--read workspace id) :id)))
        (should-not (niwa-migrate-workspace--capture-writes journal))))))
 
+(niwa-deftest niwa-journal-capture/v0.7.0-migration ()
+  (niwa-test-journal-capture--with-portable-session
+   (lambda (session buffer)
+     (let* ((workspace (niwa-session-workspace session))
+            (root (niwa-workspace-root workspace))
+            (capture (let ((niwa-session-codec-format-version "v0.7.0"))
+                       (niwa-test-journal-capture--turn session buffer "Routine" "Completed")
+                       (car (niwa-journal-capture-seal session buffer 'compaction))))
+            (directory (niwa-session-save-path session)))
+       (should capture)
+       (niwa-session-persistence-lock-release directory session)
+       (should (eq 'migrated (plist-get (cdar (niwa-migrate-project root)) :status)))
+       (cl-letf (((symbol-function 'gptel-request)
+                  (lambda (_prompt &rest args)
+                    (funcall (plist-get args :callback)
+                             "## Done\n- none\n\n## Learned\n- none\n## Surprised\n- none\n## Unfinished\n- none" nil))))
+         (should (plist-get (niwa-journal-process-next workspace) :entry)))
+       (should (equal (append (plist-get (plist-get capture :metadata) :turn-ids) nil)
+                      (niwa-journal-store-covered-turns root)))
+       (should-not (niwa-journal-pins-present-p directory))))))
+
 (niwa-deftest niwa-journal-capture-seal-and-schedule ()
   ,test
   (test)

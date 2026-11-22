@@ -33,10 +33,8 @@ async function freePort() {
   return port;
 }
 
-test(
-  'real room: concurrent browsers, deterministic agent, isolation, laser, and host recovery',
-  { timeout: 180000 },
-  async () => {
+function withRoom(scenario) {
+  return async () => {
     const directory = await mkdtemp(join(tmpdir(), 'niwa-editing-browser-')),
       port = await freePort();
     const logs = [],
@@ -106,6 +104,138 @@ test(
         return reply;
       }
       browser = await chromium.launch({ headless: true });
+      await scenario({browser, links, agent, errors, logs});
+    } catch (error) {
+      for (const context of browser?.contexts() || [])
+        for (const page of context.pages())
+          for (const frame of page.frames()) {
+            logs.push(await frame.locator('body').innerText().catch(() => ''));
+          }
+      throw new Error(`${error.stack}\n${errors.join('\n')}\n${logs.join('\n').slice(-10000)}`);
+    } finally {
+      await browser?.close();
+      if (host && host.exitCode === null) {
+        await writeFile(join(directory, 'stop'), '');
+        await until(() => host.exitCode !== null, 10000).catch(() => host.kill());
+      }
+      relay?.kill();
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
+}
+
+test('real room: schedules require live lobby admission', {timeout: 120000},
+  withRoom(async ({browser, links, agent}) => {
+    const control = op => agent('ScheduleLobby', {op});
+    const lobby = await control('seed');
+    const newPage = async () => {
+      const page = await browser.newPage();
+      page.setDefaultTimeout(5000);
+      return page;
+    };
+    const hint = page => page.locator('#pending-schedules-button');
+    const jobs = page => page.locator('#pending-workspace-list');
+    const done = page => page.locator('#pending-schedules').getByRole('button', {name: 'Done'});
+    async function chat(page, link = links.full) {
+      if (page.url() === link) await page.reload(); else await page.goto(link);
+      await hint(page).click();
+      const wakes = page.locator('#pending-wake-ups-list');
+      await wakes.locator('li').filter({hasText: 'UTC'}).waitFor();
+      assert.equal(await wakes.getByText('Room wake-up', {exact: true}).count(), Number(link !== links.view));
+      await done(page).focus();
+    }
+    async function roomOnly(page) {
+      await page.locator('#pending-workspace').waitFor({state: 'hidden'});
+      assert.equal(await jobs(page).textContent(), '', 'no hidden workspace times or names');
+      assert.equal(await hint(page).textContent(), `◷ ${lobby.wakeShort}`);
+      assert.equal(await done(page).evaluate(node => node === document.activeElement), true);
+      assert.equal(await page.locator('#pending-wake-ups-list').getByText('Room wake-up').isVisible(), true);
+    }
+    async function admitted(page, named = true) {
+      await jobs(page).locator('li').waitFor();
+      assert.deepEqual((await jobs(page).innerText()).split(/\n+/), named ? [lobby.time, 'Workspace drill'] : [lobby.time]);
+      assert.equal(await hint(page).textContent(), `◷ ${lobby.short} +1`);
+      assert.equal(await page.locator('#pending-schedules button').count(), 1, 'sheet has no job controls');
+      assert.equal(page.context().pages().length, 1, 'no lobby tab opened');
+    }
+
+    const clean = await newPage();
+    await chat(clean);
+    await roomOnly(clean);
+    const other = await control('other');
+    await clean.goto(other.full);
+    await clean.getByText('Other job', {exact: true}).waitFor();
+    await chat(clean);
+    await roomOnly(clean);
+    // Even a misfiled real link must prove workspace membership at admission.
+    await clean.evaluate(() => {
+      const rooms = JSON.parse(localStorage.getItem('niwa-rooms'));
+      const foreign = rooms.find(r => r.lobby);
+      const room = rooms.find(r => !r.lobby);
+      if (!foreign || !room || foreign.workspace === room.workspace) throw new Error('Expected distinct workspace keys');
+      foreign.workspace = room.workspace;
+      localStorage.setItem('niwa-rooms', JSON.stringify(rooms));
+    });
+    const roomId = link => new URL(link).hash.slice(1).split('.')[0];
+    const attempted = clean.waitForEvent('websocket', {predicate: ws => new URL(ws.url()).pathname === `/r/${roomId(other.full)}`});
+    await chat(clean);
+    await attempted;
+    assert.equal(await until(async () => (await control('foreign-result')).result), 'refused');
+    await roomOnly(clean);
+    await clean.close();
+
+    // The weaker lobby link still admits timing, never the job's name.
+    const reader = await newPage();
+    await reader.goto(lobby.view);
+    await reader.locator('#lobby-schedules li').waitFor();
+    await chat(reader);
+    await admitted(reader, false);
+    await reader.goto(lobby.full);
+    await reader.getByText('Workspace drill', {exact: true}).waitFor();
+    await chat(reader, links.view);
+    await admitted(reader, false);
+    await reader.close();
+
+    const page = await newPage();
+    await page.goto(lobby.full);
+    await page.getByText('Workspace drill', {exact: true}).waitFor();
+    let connection, disconnected = false;
+    await page.routeWebSocket(`**/r/${roomId(lobby.full)}?*`, socket => {
+      if (!disconnected) { connection = socket; socket.connectToServer(); }
+      else socket.close();
+    });
+    await chat(page);
+    await admitted(page);
+    disconnected = true;
+    await connection.close();
+    await roomOnly(page);
+    await page.close();
+
+    const full = await newPage();
+    await full.goto(lobby.full);
+    await full.getByText('Workspace drill', {exact: true}).waitFor();
+    await chat(full);
+    await admitted(full);
+    await control('stop');
+    await roomOnly(full);
+    assert.equal((await control('start')).full, lobby.full, 'stop preserves credentials');
+    await admitted(full);
+    await control('rotate');
+    await roomOnly(full);
+    assert.notEqual((await control('start')).full, lobby.full, 'old credentials no longer address the live lobby');
+    await chat(full);
+    await roomOnly(full);
+    await full.close();
+
+    const owner = await newPage();
+    await chat(owner, links.owner);
+    await admitted(owner);
+  }));
+
+test(
+  'real room: concurrent browsers, deterministic agent, isolation, laser, and host recovery',
+  { timeout: 180000 },
+  withRoom(async ({browser, links, agent, errors, logs}) => {
       const contexts = await Promise.all([
         browser.newContext(),
         browser.newContext({
@@ -1239,26 +1369,5 @@ test(
         beforeEnd.title,
       );
       assert.deepEqual(errors, []);
-    } catch (error) {
-      for (const context of browser?.contexts() || [])
-        for (const page of context.pages())
-          for (const frame of page.frames()) {
-            logs.push(
-              await frame
-                .locator('body')
-                .innerText()
-                .catch(() => ''),
-            );
-          }
-      throw new Error(`${error.stack}\n${errors.join('\n')}\n${logs.join('\n').slice(-10000)}`);
-    } finally {
-      await browser?.close();
-      if (host && host.exitCode === null) {
-        await writeFile(join(directory, 'stop'), '');
-        await until(() => host.exitCode !== null, 10000).catch(() => host.kill());
-      }
-      relay?.kill();
-      await rm(directory, { recursive: true, force: true });
-    }
-  },
+  }),
 );

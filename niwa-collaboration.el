@@ -665,9 +665,12 @@ frame costs only itself."
   "Broadcast FRAME to every guest in ROOM when the transport is live."
   (when-let* ((transport (plist-get room :transport))
              (guests (plist-get room :guests)))
-    (when (> (hash-table-count guests) 0)
-      (niwa-collaboration--skip-oversize
-       room (lambda () (niwa-collaboration--transport-send transport 0 frame))))))
+    (if (plist-get room :schedule-guests)
+        ;; Lobby content must not reach pending or schedules-only connections.
+        (maphash (lambda (peer _guest) (niwa-collaboration--send-guarded room peer frame)) guests)
+      (when (> (hash-table-count guests) 0)
+        (niwa-collaboration--skip-oversize
+         room (lambda () (niwa-collaboration--transport-send transport 0 frame)))))))
 
 (defun niwa-collaboration--publish (room)
   "Publish changed records from ROOM to its connected guests.

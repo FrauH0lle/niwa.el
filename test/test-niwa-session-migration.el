@@ -390,6 +390,34 @@ independent of the converter: plain text substitution, no shared helpers."
   (when (file-exists-p file)
     (with-temp-buffer (insert-file-contents file) (buffer-string))))
 
+(niwa-deftest niwa-migrate-session-v0.7.0 (:quiet t)
+  (dolist (receipt '(nil (:delivered-at 1800 :late-seconds 90)))
+    (niwa-migration-test--with-source "v0.7.0"
+      (let* ((manifest-file (file-name-concat source head))
+             (manifest (niwa-migrate-session--read manifest-file))
+             (entry (cdar (plist-get manifest :artifacts)))
+             (published (plist-get entry :published))
+             (file (file-name-concat source published)))
+        ;; The release had no receipt key; development sessions can have one
+        ;; even after the delivery mail has been consumed.
+        (if receipt (setf (plist-get old :latest-late-delivery) receipt)
+          (cl-remf old :latest-late-delivery))
+        (niwa-migrate-session--write file old)
+        (let ((digest (niwa-migrate-session--hash file)))
+          (setf (plist-get entry :sha256) digest)
+          (niwa-migrate-session--write manifest-file manifest)
+          (let* ((row (cdar (niwa-migrate-sessions source)))
+                 (backup (plist-get row :backup)))
+            (should (eq 'migrated (plist-get row :status)))
+            (should (equal digest (niwa-migrate-session--hash
+                                   (file-name-concat backup published))))
+            (let ((saved (niwa-migrate-session--read
+                          (plist-get (niwa-session-publication-read source head) :sidecar))))
+              (should (equal "v0.8.0" (plist-get saved :version)))
+              (should (plist-member saved :latest-late-delivery))
+              (should (equal receipt (plist-get saved :latest-late-delivery)))
+              (should-not (plist-get saved :messages)))))))))
+
 (niwa-deftest niwa-migrate-session-v0.6.0 (:quiet t)
   ,test
   (test)

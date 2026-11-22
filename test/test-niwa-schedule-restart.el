@@ -15,10 +15,12 @@
 (require 'niwa-agent-control)
 (require 'niwa-chat)
 (require 'niwa-schedule)
+(require 'niwa-schedules-list)
 (require 'niwa-session-artifacts)
 (require 'niwa-session-codec)
 (require 'niwa-session-durability)
 (require 'niwa-session-fork)
+(require 'niwa-session-naming)
 (require 'niwa-session-persistence)
 (require 'niwa-session-save-as)
 (require 'niwa-structs)
@@ -114,6 +116,70 @@ would; `live' returns the session's live root buffer, or nil."
   "Return the types of SESSION's committed mailbox records."
   (mapcar (lambda (record) (plist-get record :type))
           (plist-get (niwa-schedule-restart-test--stored session) :messages)))
+
+(niwa-deftest niwa-schedule-pending-snapshot ()
+  ,test
+  (test)
+  :doc "committed wake-ups update only their session; display copies cannot edit the note"
+  (niwa-schedule-restart-test--with-saved
+    (let* ((id (niwa-session-session-id session))
+           (other (niwa-session-create "other" workspace))
+           events
+           (niwa-schedule-pending-changed-functions
+            (list (lambda (root sid) (push (list root sid) events))))
+           (wake (niwa-schedule-create session buffer "20m" "Check CI")))
+      (should (equal (list (directory-file-name (niwa-workspace-root workspace)) id)
+                     (car events)))
+      (should (equal (cons (+ now 1200) 1) (niwa-schedule-pending-summary workspace session)))
+      (should-not (niwa-schedule-pending-summary workspace other))
+      (let ((entry (car (niwa-schedule-pending-snapshot workspace id))))
+        (should (equal "Check CI" (plist-get entry :note)))
+        (aset (plist-get entry :note) 0 ?X)
+        (should (equal "Check CI" (plist-get wake :note))))
+      (niwa-schedule-cancel session buffer (plist-get wake :id))
+      (should-not (niwa-schedule-pending-snapshot workspace id))
+      (should-not (niwa-schedule-pending-summary workspace session))
+      (should (= 2 (length events))))))
+
+(niwa-deftest niwa-schedules-list-closed-wake-ups ()
+  ,test
+  (test)
+  :doc "Standing jobs groups a closed session's pending notes before idle restore"
+  (niwa-schedule-restart-test--with-saved
+    (let ((niwa-schedule--snapshots (make-hash-table :test #'equal)))
+      (niwa-schedule-create session buffer "20m" "Check CI")
+      (niwa-schedule-create session buffer "5m" "Read build log")
+      (restart)
+      (clrhash niwa-schedule--snapshots)
+      (should (niwa-session-persistence-list-sessions workspace))
+      (should-not (niwa-schedule-pending-sessions workspace))
+      (save-window-excursion
+        (niwa-schedules-list-open (niwa-cockpit-workspace-context workspace (current-buffer)))
+        (goto-char (point-min))
+        (search-forward "Workspace schedules")
+        (search-forward "Session wake-ups")
+        (search-forward "main")
+        (search-forward "Read build log")
+        (search-forward "Check CI")
+        (should-error (call-interactively #'niwa-schedules-list-pause) :type 'user-error)
+        (call-interactively (key-binding (kbd "q"))))
+      (should-not (live))
+      (should (niwa-session-durability-delete-abandoned (niwa-session-save-path session) 0))
+      (should-not (niwa-schedule-pending-sessions workspace)))))
+
+(niwa-deftest niwa-schedule-pending-sessions ()
+  ,test
+  (test)
+  :doc "a published rename follows the session, and a proven deletion clears it"
+  (niwa-schedule-restart-test--with-saved
+    (niwa-schedule-create session buffer "20m" "Check CI")
+    (niwa-session-naming-rename session buffer "Release prep")
+    (should (equal "Release prep" (plist-get (car (niwa-schedule-pending-sessions workspace))
+                                             :session-name)))
+    (restart)
+    (delete-directory (niwa-session-save-path session) t)
+    (niwa-schedule-restore)
+    (should-not (niwa-schedule-pending-sessions workspace))))
 
 (niwa-deftest niwa-schedule-hand-over ()
   ,test
@@ -277,6 +343,7 @@ would; `live' returns the session's live root buffer, or nil."
     (niwa-schedule-restore)
     (niwa-test--with-captured-messages nil
       (niwa-schedule-run-due))
+    (niwa-session-publication-barrier (buffer-local-value 'niwa--session (live)))
     (let ((stored (plist-get (niwa-schedule-restart-test--stored session) :schedules)))
       (should (equal '(expired) (mapcar (lambda (entry) (plist-get entry :status)) stored))))
     (should-not (niwa-schedule-restart-test--stored-mail session))
@@ -448,6 +515,178 @@ would; `live' returns the session's live root buffer, or nil."
       (should added)
       (should (string-search "were not restored" warning)))
     (should (= 1 (length (niwa-schedule-restart-test--index-files))))))
+
+(ert-deftest niwa-schedule-late-delivery-after-restart ()
+  (niwa-schedule-restart-test--with-saved
+    (let* (notices pushes
+           (niwa-notify-function (lambda (&rest args) (push args pushes)))
+           (niwa-schedule-late-delivery-hook
+            (list (lambda (s)
+                    (push (niwa-schedule-latest-late-delivery s) notices)))))
+      (niwa-schedule-create session buffer "20m" "private note")
+      (restart)
+      (niwa-schedule-restore)
+      (niwa-schedule-run-due)
+      (should-not (live))
+      (should-not notices)
+      (setq now (+ now 1200 7200))
+      (niwa-test--with-captured-messages nil (niwa-schedule-run-due))
+      (should (equal '(WAKE_UP) (niwa-schedule-restart-test--mail (live))))
+      (niwa-test--await 5 "Late delivery was not announced" notices)
+      (should (equal notices '((:delivered-at 1795184400 :late-seconds 7200))))
+      (should-not pushes)
+      (should-not (niwa-schedule-restart-test--index-files))
+      (let ((directory (niwa-session-save-path session)))
+        (test-niwa-session-persistence--release-and-kill
+         (live) (buffer-local-value 'niwa--session (live)))
+        (should-not (live))
+        (should (equal (car notices) (niwa-schedule-stored-late-delivery directory)))
+        (let ((restored (niwa-session-persistence-restore directory)))
+          (should (equal (car notices) (niwa-schedule-latest-late-delivery
+                                        (buffer-local-value 'niwa--session restored))))
+          (should (= 1 (length notices))))))))
+
+(ert-deftest niwa-schedules-list-late-delivery-window ()
+  (niwa-schedule-restart-test--with-saved
+    (let ((context (niwa-cockpit-workspace-context workspace (current-buffer)))
+          (niwa-schedule--snapshots (make-hash-table :test #'equal))
+          (directory (niwa-session-save-path session)))
+      (save-window-excursion
+        (unwind-protect
+            (progn
+              (niwa-schedule-create session buffer "1m" "private first")
+              (niwa-schedule-create session buffer "5m" "pending second")
+              (niwa-schedules-list-open context)
+              (goto-char (point-min))
+              (search-forward "main (")
+              (set-window-start (selected-window) (line-beginning-position))
+              (setq now (+ now 180))
+              (niwa-schedule-run-due)
+              (niwa-test--await 5 "First delivery not shown alongside pending wake-up"
+                (and (string-search "Wake-up delivered 2m 00s late" (buffer-string))
+                     (string-search "pending second" (buffer-string))))
+              (should-not (string-search "private first" (buffer-string)))
+              (should (looking-back "main (" (line-beginning-position)))
+              (should (= (window-start) (line-beginning-position)))
+              (setq now (+ now 300))
+              (niwa-schedule-run-due)
+              (niwa-test--await 5 "Second delivery not shown without a pending wake-up"
+                (and (string-search "Wake-up delivered 3m 00s late" (buffer-string))
+                     (not (string-search "pending second" (buffer-string)))))
+              (should-not (string-search "2m 00s late" (buffer-string)))
+              (kill-buffer (current-buffer))
+              (restart)
+              (clrhash niwa-schedule--snapshots)
+              (niwa-schedule-restore)
+              (setq now (+ now 86399))
+              (niwa-schedules-list-open context)
+              (should (string-search "main" (buffer-string)))
+              (should (string-search "3m 00s late" (buffer-string)))
+              (should (string-search (format-time-string "%Y-%m-%d %H:%M" 1795176480)
+                                     (buffer-string)))
+              (setq now (1+ now))
+              (call-interactively (key-binding (kbd "g")))
+              (should-not (string-search "late" (buffer-string)))
+              (should-not (live))
+              (should (equal '(:delivered-at 1795176480 :late-seconds 180)
+                             (niwa-schedule-stored-late-delivery directory))))
+          (when-let* ((list-buffer (get-buffer "*niwa standing jobs*")))
+            (kill-buffer list-buffer)))))))
+
+(ert-deftest niwa-schedule-second-refused-head-remains-pending-on-restart ()
+  (niwa-schedule-restart-test--with-saved
+    (let* ((niwa-schedule--snapshots (make-hash-table :test #'equal))
+           (id (niwa-session-session-id session))
+           (commit (symbol-function 'niwa-session-durability-commit-publication-head-async))
+           (attempts 0) before)
+      (niwa-schedule-create session buffer "1m" "First")
+      (niwa-schedule-create session buffer "1m" "Second")
+      (setq now (+ now 60))
+      (cl-letf (((symbol-function 'niwa-session-durability-commit-publication-head-async)
+                 (lambda (&rest args)
+                   (if (= 2 (cl-incf attempts))
+                       (funcall (car (last args)) nil '(error "Injected second refusal"))
+                     (apply commit args)))))
+        (niwa-test--with-captured-diagnostics nil
+          (niwa-schedule-run-due)
+          (niwa-test--await 5 "Second delivery did not fail"
+            (and (= attempts 2) (not (niwa-session-publication-busy-p session))))))
+      (should (equal '("First") (mapcar (lambda (mail) (plist-get mail :payload))
+                                        (niwa-agent-control-context-mailbox session))))
+      (setq before (niwa-schedule-pending-snapshot workspace id))
+      (restart)
+      (clrhash niwa-schedule--snapshots)
+      (niwa-schedule-restore)
+      (should-not (live))
+      (should (equal '("Second") (mapcar (lambda (wake) (plist-get wake :note))
+                                         (niwa-schedule-pending-snapshot workspace id))))
+      (should (equal '("Second") (mapcar (lambda (wake) (plist-get wake :note)) before))))))
+
+(ert-deftest niwa-schedule-late-delivery-refused-head ()
+  (niwa-schedule-restart-test--with-saved
+    (let* (announced at-head
+           (niwa-schedule-late-delivery-hook
+            (list (lambda (_session) (setq announced t)))))
+      (niwa-schedule-create session buffer "1m" "Check CI")
+      (setq now (+ now 120))
+      (cl-letf (((symbol-function 'niwa-session-durability-commit-publication-head-async)
+                 (lambda (&rest args)
+                   ;; The mailbox bytes have been staged, but are not authoritative.
+                   (push (niwa-schedule-latest-late-delivery session) at-head)
+                   (funcall (car (last args)) nil '(error "Injected head refusal")))))
+        (niwa-test--with-captured-diagnostics nil
+          (niwa-schedule-run-due)
+          (niwa-test--await 5 "Wake-up was not rolled back"
+            (and at-head (not (niwa-session-publication-busy-p session))))))
+      (should (equal at-head '(nil)))
+      (should-not announced)
+      (should-not (niwa-schedule-latest-late-delivery session))
+      (should-not (niwa-agent-control-context-mailbox session))
+      (should-not (niwa-schedule-stored-late-delivery (niwa-session-save-path session)))
+      (setq now (+ now 60))
+      (niwa-schedule-run-due)
+      (niwa-test--await 5 "Retry was not acknowledged" announced)
+      (should (equal '(:delivered-at 1795176180 :late-seconds 120)
+                     (niwa-schedule-latest-late-delivery session))))))
+
+(ert-deftest niwa-schedule-lateness-uses-mailbox-preparation-time ()
+  (niwa-schedule-restart-test--with-saved
+    (niwa-schedule-create session buffer "1m" "First")
+    (setq now (+ now 60))
+    (niwa-schedule-run-due)
+    ;; The sweep was on time; the asynchronous publication has not prepared yet.
+    (setq now (+ now 300))
+    (niwa-session-publication-barrier session)
+    (should (equal '(:delivered-at 1795176360 :late-seconds 300)
+                   (niwa-schedule-stored-late-delivery (niwa-session-save-path session))))
+    (should (equal "5m 00s" (plist-get (plist-get (car (niwa-agent-control-context-mailbox session))
+                                                  :meta) :overdue-by)))))
+
+(ert-deftest niwa-schedule-new-wake-does-not-enter-an-earlier-head ()
+  (niwa-schedule-restart-test--with-saved
+    (niwa-schedule-create session buffer "1m" "First")
+    (setq now (+ now 60))
+    (let* (pending-at-commit
+           (niwa-schedule-pending-changed-functions
+            (list (lambda (_root id)
+                    (push (mapcar (lambda (wake) (plist-get wake :note))
+                                  (niwa-schedule-pending-snapshot workspace id))
+                          pending-at-commit)))))
+      (niwa-schedule-run-due)
+      ;; A synchronous edit arrives before the accepted delivery prepares.
+      (niwa-schedule-create session buffer "1h" "Second")
+      (should (equal '(nil ("Second")) (nreverse pending-at-commit))))))
+
+(ert-deftest niwa-schedule-receipt-is-optional-and-closed ()
+  (niwa-schedule-restart-test--with-saved
+    (let ((sidecar (niwa-schedule-restart-test--stored session)))
+      (cl-remf sidecar :latest-late-delivery)
+      (should-not (niwa-schedule-latest-late-delivery
+                   (plist-get (niwa-session-codec-deserialize sidecar workspace) :session)))
+      (should-error (niwa-session-codec-deserialize
+                     (plist-put sidecar :latest-late-delivery
+                                '(:delivered-at 1795176180 :late-seconds 120 :note "secret"))
+                     workspace)))))
 
 (provide 'test-niwa-schedule-restart)
 ;;; test-niwa-schedule-restart.el ends here

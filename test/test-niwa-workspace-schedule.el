@@ -26,6 +26,7 @@
 (require 'niwa-tool-notify)
 (require 'niwa-turn)
 (require 'niwa-workspace-schedule)
+(require 'niwa-workspace-schedule-runs)
 (require 'niwa-session-test-support
          (file-name-concat (file-name-directory (or load-file-name buffer-file-name))
                            "niwa-session-test-support"))
@@ -81,6 +82,22 @@ sessions, as an Emacs restart would."
        (set-time-zone-rule zone)
        (delete-directory root t)
        (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-schedule-pending-summary ()
+  ,test
+  (test)
+  :doc "only active workspace jobs contribute; their prompts never enter the snapshot"
+  (niwa-workspace-schedule-test--with-workspace
+    (let* ((session (niwa-session-create "Planning" workspace))
+           (a (niwa-workspace-schedule-test--create workspace :when "20m"))
+           (b (niwa-workspace-schedule-test--create workspace :when "10m")))
+      (should (equal (cons (+ now 600) 2) (niwa-schedule-pending-summary workspace session)))
+      (should (equal (list :id (plist-get b :id) :due (+ now 600) :name "Triage")
+                     (car (niwa-schedule-pending-snapshot workspace))))
+      (niwa-workspace-schedule-set-paused workspace (plist-get b :id) t)
+      (should (equal (cons (+ now 1200) 1) (niwa-schedule-pending-summary workspace session)))
+      (niwa-workspace-schedule-delete workspace (plist-get a :id))
+      (should-not (niwa-schedule-pending-summary workspace session)))))
 
 (defun niwa-workspace-schedule-test--kill-runs (before)
   "Kill the session buffers created since buffer list BEFORE."
@@ -299,6 +316,7 @@ sessions, as an Emacs restart would."
           ;; The timer is not re-armed at the past due time.
           (should (equal (list (+ now niwa-schedule-retry-delay))
                          (mapcar #'cdr niwa-schedule--workspaces)))
+          (should (= now (plist-get (car (niwa-schedule-pending-snapshot workspace)) :due)))
           (setq now (+ now niwa-schedule-retry-delay))
           (niwa-schedule-run-due)
           (should-not submitted)
@@ -576,7 +594,11 @@ sessions, as an Emacs restart would."
                     (niwa-schedule-restore))
                 (set-file-modes parent modes))
               (should (string-search "not restored" warnings))
-              (should (directory-files index nil "\\.eld\\'"))))
+              (should (directory-files index nil "\\.eld\\'"))
+              (should (niwa-schedule-pending-snapshot workspace))
+              (delete-directory (niwa-workspace-root workspace) t)
+              (niwa-schedule-restore)
+              (should-not (niwa-schedule-pending-snapshot workspace))))
         (delete-directory niwa-user-dir t)))))
 
 (defun niwa-workspace-schedule-runs-test--settle (submitted outcome &optional reason)

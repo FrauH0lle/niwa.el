@@ -1844,9 +1844,10 @@ mentions-shown reset to empty hash tables on load."
   "Classified session summaries keyed by sidecar path and file fingerprint.")
 
 (defun niwa-session-persistence--sidecar-summary (sidecar)
-  "Return picker-relevant fields extracted from current SIDECAR."
+  "Return roster fields extracted from current SIDECAR."
   (list :session-id (plist-get sidecar :session-id)
         :session-name (plist-get sidecar :session-name)
+        :latest-late-delivery (plist-get sidecar :latest-late-delivery)
         :preset-name (plist-get sidecar :preset-name)
         :note-conversation (plist-get sidecar :note-conversation)
         :workspace (plist-get sidecar :workspace)
@@ -2093,14 +2094,15 @@ controls signal, so the caller keeps an undiscoverable, uninspectable row."
          entry authority-mode status publication sidecar)))))
 
 (defun niwa-session-persistence--enumerate-sessions
-    (workspace &optional cached scan)
+    (workspace &optional cached scan observe-sidecar)
   "Return compatible and incompatible persisted sessions for WORKSPACE.
 
 The result is `(:sessions LIST :incompatible LIST)'.  When CACHED is non-nil,
 reuse the last live enumeration when one exists.  SCAN is an optional fresh
-observation from this picker invocation, with any deleted directories removed."
+observation from this picker invocation, with any deleted directories removed.
+OBSERVE-SIDECAR receives each compatible directory and its verified sidecar."
   (let ((root (niwa-workspace-root workspace)))
-    (or (and cached
+    (or (and cached (not observe-sidecar)
              (cdr (gethash
                    root
                    niwa-session-persistence--list-sessions-cache)))
@@ -2116,22 +2118,24 @@ observation from this picker invocation, with any deleted directories removed."
                         (or scan (niwa-session-persistence--scan
                                   workspace "\\`\\(?:[^.]\\|\\.niwa-save-as-\\)"))))
              (pcase-dolist (`(,entry . ,_) entries)
-               (let ((record
-                      (condition-case err
-                          (niwa-session-persistence--discover-entry
+               (let* ((observation (cdr (assoc entry observations)))
+                      (record
+                       (condition-case err
+                           (niwa-session-persistence--discover-entry
+                            entry authority-mode
+                            (cdr (assoc entry controls))
+                            (cdr (assoc entry listings)) observation)
+                         ;; Discovery itself failed, so not even the
+                         ;; transcript can be trusted for inspection.
+                         (error
+                          (niwa-session-persistence--incompatible-entry
                            entry authority-mode
-                           (cdr (assoc entry controls))
-                           (cdr (assoc entry listings))
-                           (cdr (assoc entry observations)))
-                        ;; Discovery itself failed, so not even the
-                        ;; transcript can be trusted for inspection.
-                        (error
-                         (niwa-session-persistence--incompatible-entry
-                          entry authority-mode
-                          (list :status 'undiscoverable
-                                :diagnostic (error-message-string err)))))))
+                           (list :status 'undiscoverable
+                                 :diagnostic (error-message-string err)))))))
                  (if (eq (plist-get record :kind) 'incompatible)
                      (push record incompatible)
+                   (when observe-sidecar
+                     (funcall observe-sidecar entry (plist-get observation :sidecar-data)))
                    (push record sessions))))))
           (setq sessions
                 (sort sessions
@@ -2150,7 +2154,7 @@ observation from this picker invocation, with any deleted directories removed."
                      niwa-session-persistence--list-sessions-cache)
             result)))))
 
-(defun niwa-session-persistence-list-sessions (workspace &optional cached)
+(defun niwa-session-persistence-list-sessions (workspace &optional cached observe-sidecar)
   "Return a list of `(:save-path :summary)' plists for WORKSPACE's sessions.
 
 Sorted by `:updated-at' descending.  Incompatible sessions remain absent from
@@ -2160,8 +2164,10 @@ lease names a valid immutable publication; fixed portable sidecars are ignored.
 When CACHED is non-nil, reuse this process's last live enumeration for
 WORKSPACE when one exists.  Only decorations tolerant of a listing as
 old as the last picker, resume, or fork should pass it; anything that
-decides authority or names sessions to the user enumerates live."
-  (plist-get (niwa-session-persistence--enumerate-sessions workspace cached)
+decides authority or names sessions to the user enumerates live.
+OBSERVE-SIDECAR forces a live read; it receives each compatible
+directory and its sidecar."
+  (plist-get (niwa-session-persistence--enumerate-sessions workspace cached nil observe-sidecar)
              :sessions))
 
 (defun niwa-session-persistence-conversation-variants

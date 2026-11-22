@@ -173,6 +173,16 @@ cannot lose the wake-up or deliver it twice in this Emacs. A failed commit keeps
 the wake-up pending and retries that session after a minute rather than
 spinning on an immediately due timer.
 
+Late delivery can precede turn start indefinitely, for example while the
+composer holds a draft. The affected session therefore shows the lateness
+after the mailbox commit, not at reopen or turn start. The selected sidecar
+stores the latest late delivery alongside its mail in that same commit:
+`:latest-late-delivery` holds `:delivered-at` (scheduler clock seconds) and
+`:late-seconds`, never the note. An absent receipt means no recorded late
+delivery. A restart recovers it without replaying the notice or requiring a
+pending wake-up. Consuming the mail does not clear the receipt or change the
+delivery block in conversation history. No new push or timer is involved.
+
 The index exists because a closed session's store is only findable by
 scanning every workspace, and Emacs does not know at startup which
 workspaces exist. It holds nothing the stores do not: reconciling against

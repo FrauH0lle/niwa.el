@@ -42,7 +42,8 @@
         (when (file-directory-p directory) (set-file-modes directory mode))))))
 (defvar editing-test-session
   (niwa-session-create
-   "editing" (niwa-workspace--create :type 'project :root editing-test-workspace-root)
+   "editing" (let ((default-directory (file-name-as-directory editing-test-workspace-root)))
+               (niwa-workspace))
    editing-test-workspace-root))
 (unless (niwa-session-codec-portable-authority-p editing-test-session)
   (error "Browser acceptance requires the normal project lease"))
@@ -67,6 +68,49 @@
                          :owner (plist-get room :link-owner)))
                   nil (file-name-concat editing-test-root "links.json") nil 'silent)))
 
+(defvar editing-test-foreign-admission nil)
+(defun editing-test-observe-foreign-hello (lobby peer frame _root)
+  "Record whether LOBBY admitted PEER after handling a mismatched FRAME."
+  (when-let* ((key (plist-get frame :scheduleWorkspace))
+              ((not (equal key (niwa-collaboration--workspace-key lobby)))))
+    (setq editing-test-foreign-admission
+          (if (gethash peer (plist-get lobby :schedule-guests)) "admitted" "refused"))))
+
+(defun editing-test-schedule-lobby (op)
+  "Perform host operation OP and return fixture links or local time labels."
+  (require 'niwa-collaboration-lobby)
+  (require 'niwa-workspace-schedule)
+  (pcase op
+    ("stop" (niwa-collaboration-lobby-stop) '(:ok t))
+    ("rotate" (niwa-collaboration-lobby-rotate) '(:ok t))
+    ("foreign-result" (list :result editing-test-foreign-admission))
+    (_
+     (let* ((other (equal op "other"))
+            (root (if other (file-name-concat editing-test-root "other-project")
+                    editing-test-workspace-root)))
+       (when other
+         (unless (zerop (call-process "git" nil nil nil "init" "-q" root))
+           (error "Cannot create second workspace"))
+         (advice-add 'niwa-collaboration-lobby--dispatch-frame :after #'editing-test-observe-foreign-hello))
+       (let* ((lobby (niwa-collaboration-lobby-start root))
+              (workspace (plist-get lobby :workspace))
+              (result (list :full (plist-get lobby :link-full) :view (plist-get lobby :link-view))))
+         (unless (eq (not other) (eq workspace (niwa-session-workspace editing-test-session)))
+           (error "Unexpected room/lobby workspace identity"))
+         (when (member op '("seed" "other"))
+           (let* ((job (niwa-workspace-schedule-create
+                        workspace (niwa-workspace-schedule-propose
+                                   `(:name ,(if other "Other job" "Workspace drill") :when "2h"
+                                     :prompt "Private job prompt" :policy
+                                     (:model-provider "test:fixture" :permission-mode full-auto :reasoning-effort nil)))))
+                  (now (niwa-schedule-now)))
+             (setq result (append result (niwa-collaboration--schedule-time-fields (plist-get job :due) now)))
+             (unless other
+               (let* ((wake (niwa-schedule-create editing-test-session editing-test-buffer "4h" "Room wake-up"))
+                      (fields (niwa-collaboration--schedule-time-fields (plist-get wake :due) now)))
+                 (setq result (plist-put result :wakeShort (plist-get fields :short)))))))
+         result)))))
+
 ;; The test process supplies deterministic model calls through real tools.
 ;; This file is not packaged or loaded by the product.
 (while (not (file-exists-p (file-name-concat editing-test-root "stop")))
@@ -79,6 +123,10 @@
         (with-current-buffer editing-test-buffer
           (condition-case err
               (pcase (plist-get command :tool)
+                ("ScheduleLobby"
+                 (write-region (niwa-shared-editing--json
+                                (editing-test-schedule-lobby (plist-get (plist-get command :args) :op)))
+                               nil (file-name-concat editing-test-root "reply.json") nil 'silent))
                 ("RequestState"
                  (if (eq (plist-get (plist-get command :args) :busy) t)
                      (niwa-request-begin editing-test-session)

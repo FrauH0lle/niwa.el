@@ -477,7 +477,7 @@ immediately."
                      (process-environment (or (plist-get launch :environment) process-environment))
                      (initialize (acp-make-initialize-request
                                   :protocol-version 1
-                                  :client-info '((name . "niwa") (version . "0.7.0")))))
+                                  :client-info '((name . "niwa") (version . "0.8.0")))))
                  (when (plist-get launch :compaction)
                    (setf (alist-get 'session (alist-get 'clientCapabilities (alist-get :params initialize)))
                          `((compaction . ,(make-hash-table :test #'equal)))))

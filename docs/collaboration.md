@@ -76,6 +76,20 @@ An owner link appends a further 16-byte owner token. Authority follows
 possession of the link, and each tier is a prefix of the next, so the
 secret's length alone tells the viewer which one it holds.
 
+A chat's status strip shows the earliest pending time in the host's time zone,
+with a calendar date outside today and `+N` for any others. Click it or press
+Enter to open **Pending schedules** for the full dates, times and time zones.
+The **Session wake-ups** section comes from the room. Full and owner room
+links also receive the wake-up notes; view links receive only times.
+
+If this browser holds a link to the running lobby of the same workspace,
+the chat connects to it in the background, with no extra tab or login. The
+**Workspace schedules** section shows active job times and, with full or owner
+access to both room and lobby, job names. It has no controls or job prompts.
+A remembered link alone shows nothing: until both connections are current,
+or after the lobby disconnects, stops or rotates its links, only the room's
+own wake-ups count. No other session's wake-ups appear in chat.
+
 The relay cannot read or forge frames, but it sees every sealed one, so a
 relay that records and replays them is in scope. The host binds each guest
 connection: when the relay reports a joined peer, the host sends it a sealed
@@ -774,6 +788,20 @@ Only an owner can pause or resume a schedule from the lobby. These controls
 change the same schedule as the controls in Emacs; they cannot restart a
 finished or expired schedule. Connected guests see changes without refreshing.
 
+Full and owner links see a clock badge on each listed session with a pending
+wake-up, even when the session is closed. It shows the earliest host-local due
+time (with the date if not today) and `+N` for additional pending wake-ups.
+The badge is informational; **Open** still opens the session. The host includes
+only the time and count, never wake-up notes. It patches the affected row on
+committed changes without reopening the session or rebuilding either list.
+On these same rows a separate notice shows the latest late delivery and its
+host-local date and time, even with no pending wake-up. It survives a restart
+and disappears on the first listing refresh or wake-up change for that row at
+or after 24 hours. View links
+receive neither field, and delivery sends no push notification. In a sealed
+`lobby-session-patch`, `lateDelivery` and `wakeUp` change independently: an
+absent field leaves that part of the row alone; `null` clears it.
+
 Deleting removes a saved session's directory for good, under the safety rules
 of expired-session cleanup without its age cap. A session live in this Emacs
 is closed first, since its buffer would save it back; its room ends, so guests
@@ -1386,6 +1414,12 @@ models at `shared://ID/discussions`. Every room and the lobby see the same
 discussions, deleting the item deletes them, and exports leave them out.
 
 ## Transcript, agent, and task projection
+
+When a session wake-up reaches its mailbox late, every connected guest of that
+room sees the actual lateness in the status strip, even if a draft still holds
+the turn or no wake-ups remain pending. The host sends only the delivery text,
+not the wake-up note. A joining guest receives the latest confirmed delivery in
+its welcome snapshot. This does not generate a push notification.
 
 Compaction and clearing model context retain earlier conversation segments.
 The browser groups expandable **Earlier conversation** segment rows under the

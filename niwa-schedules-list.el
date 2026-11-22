@@ -13,6 +13,12 @@
 (require 'niwa-workspace)
 
 (autoload 'niwa-schedule-timing-label "niwa-schedule")
+(autoload 'niwa-schedule-pending-sessions "niwa-schedule")
+(autoload 'niwa-schedule-observe-sidecar "niwa-schedule")
+(autoload 'niwa-schedule-overview-late-delivery "niwa-schedule")
+(autoload 'niwa-schedule-latest-late-delivery "niwa-schedule")
+(autoload 'niwa--workspace-sessions "niwa-chat")
+(autoload 'niwa-session-persistence-list-sessions "niwa-session-persistence")
 (autoload 'niwa--display-chat-buffer "niwa-chat")
 (autoload 'niwa-session-persistence-resume-id "niwa-session-persistence")
 
@@ -32,6 +38,65 @@
         (vector (plist-get job :name) (symbol-name (plist-get job :status))
                 (niwa-schedules-list--time (plist-get job :due))
                 (niwa-schedule-timing-label (plist-get job :timing)))))
+
+(defvar-local niwa-schedules-list--receipts nil
+  "Confirmed deliveries by session ID in this cockpit's workspace.")
+
+(defvar-local niwa-schedules-list--discovering nil
+  "Non-nil while a listing is collecting committed snapshots before printing.")
+
+(defun niwa-schedules-list--remember (session)
+  "Remember SESSION's live receipt for this cockpit."
+  (when-let* ((receipt (niwa-schedule-latest-late-delivery session)))
+    (puthash (niwa-session-session-id session) (cons (niwa-session-name session) receipt)
+             niwa-schedules-list--receipts)))
+
+(defun niwa-schedules-list--discover (context)
+  "Discover saved wake-ups and confirmed delivery receipts for CONTEXT."
+  (let ((ws (niwa-cockpit-context-workspace context)) (niwa-schedules-list--discovering t))
+    (setq niwa-schedules-list--receipts (make-hash-table :test #'equal))
+    (dolist (entry (niwa-session-persistence-list-sessions ws nil #'niwa-schedule-observe-sidecar))
+      (let* ((summary (plist-get entry :summary)) (receipt (plist-get summary :latest-late-delivery)))
+        (when receipt
+          (puthash (plist-get summary :session-id) (cons (plist-get summary :session-name) receipt)
+                   niwa-schedules-list--receipts))))
+    (dolist (entry (niwa--workspace-sessions ws))
+      (niwa-schedules-list--remember (buffer-local-value 'niwa--session (cdr entry))))))
+
+(defun niwa-schedules-list-refresh ()
+  "Read the workspace's saved sessions and standing jobs again."
+  (interactive)
+  (niwa-schedules-list--discover (niwa-cockpit-surface-context))
+  (niwa-cockpit-surface-refresh))
+
+(defun niwa-schedules-list--session-groups ()
+  "Join pending wake-ups and unexpired delivery notices by session ID."
+  (let ((groups (make-hash-table :test #'equal)))
+    (dolist (group (niwa-schedule-pending-sessions (niwa-cockpit-context-workspace)))
+      (puthash (plist-get group :session-id) group groups))
+    (maphash (lambda (id entry)
+               (when-let* ((notice (niwa-schedule-overview-late-delivery (cdr entry))))
+                 (puthash id (plist-put (or (gethash id groups)
+                                            (list :session-id id :session-name (car entry)))
+                                        :notice notice) groups)))
+             niwa-schedules-list--receipts)
+    (sort (hash-table-values groups) :key (lambda (group) (plist-get group :session-id)))))
+
+(defun niwa-schedules-list--groups ()
+  "Keep workspace job rows and controls separate from read-only wake-ups."
+  (when-let* ((groups (niwa-schedules-list--session-groups)))
+    (append
+     (list (cons "Workspace schedules" tabulated-list-entries) '("Session wake-ups"))
+     (cl-loop for group in groups for id = (plist-get group :session-id)
+              collect (cons (propertize
+                             (concat (format "%s (%s)" (plist-get group :session-name) id)
+                                     (when-let* ((notice (plist-get group :notice))) (concat "  " notice)))
+                             'tabulated-list-id (cons id 'heading))
+                            (cl-loop for wake in (plist-get group :entries) collect
+                                     (list (cons id (plist-get wake :id))
+                                           (vector (plist-get wake :id) "pending"
+                                                   (niwa-schedules-list--time (plist-get wake :due))
+                                                   (string-join (split-string (plist-get wake :note)) " ")))))))))
 
 (defun niwa-schedules-list--run-line (workspace run)
   "Describe RUN, linking to its saved session in WORKSPACE when present."
@@ -100,11 +165,11 @@
     :keys (("p" "Pause job" niwa-schedules-list-pause)
            ("r" "Resume job" niwa-schedules-list-resume)
            ("d" "Delete job" niwa-schedules-list-delete))
-    :format [("Job" 20 t) ("Status" 8 t) ("Next run" 16 t) ("Timing" 16 t)]
+    :format [("Job" 20 t) ("Status" 8 t) ("Next run" 16 t) ("Timing / Note" 16 t)]
     :entry niwa-schedules-list--entry
     :details niwa-schedules-list--details
-    :collect (lambda (context)
-               (niwa-workspace-schedule-list (niwa-cockpit-context-workspace context)))
+    :setup niwa-schedules-list--discover
+    :collect (lambda (context) (niwa-workspace-schedule-list (niwa-cockpit-context-workspace context)))
     :header (lambda (jobs context)
               (niwa-cockpit-format-header
                "standing jobs" (niwa-workspace-name (niwa-cockpit-context-workspace context))
@@ -113,7 +178,48 @@
 
 (define-derived-mode niwa-schedules-list-mode tabulated-list-mode "Standing Jobs"
   "Browse the workspace's standing jobs."
-  (niwa-cockpit-setup-tabulated-surface niwa-schedules-list--surface))
+  (niwa-cockpit-setup-tabulated-surface niwa-schedules-list--surface)
+  (keymap-local-set "g" #'niwa-schedules-list-refresh)
+  (setq-local tabulated-list-groups #'niwa-schedules-list--groups))
+
+(defun niwa-schedules-list--anchor (position)
+  "Return a function locating POSITION's row and column after a reprint."
+  (save-excursion
+    (goto-char position)
+    (let ((id (tabulated-list-get-id)) (line (line-number-at-pos)) (column (current-column)))
+      (lambda ()
+        (save-excursion
+          (goto-char (point-min))
+          (if-let* ((id) (match (text-property-search-forward 'tabulated-list-id id #'equal)))
+              (goto-char (prop-match-beginning match))
+            (forward-line (1- line)))
+          (move-to-column column)
+          (point))))))
+
+(defun niwa-schedules-list--refresh-wake-ups (root id &optional delivered)
+  "Reprint wake-up groups for session ID under ROOT without reading stores.
+DELIVERED is the live session with a newly confirmed receipt."
+  (when-let* ((id) (buffer (get-buffer (plist-get niwa-schedules-list--surface :buffer-name))))
+    (with-current-buffer buffer
+      (when (and (derived-mode-p 'niwa-schedules-list-mode)
+                 (equal root (directory-file-name (niwa-workspace-root (niwa-cockpit-context-workspace)))))
+        (when delivered (niwa-schedules-list--remember delivered))
+        (unless niwa-schedules-list--discovering
+          (let ((cursor (niwa-schedules-list--anchor (point)))
+                (windows (cl-loop for w in (get-buffer-window-list nil nil t)
+                                  collect (list w (niwa-schedules-list--anchor (window-point w))
+                                                (niwa-schedules-list--anchor (window-start w))))))
+            (tabulated-list-print)
+            (goto-char (funcall cursor))
+            (pcase-dolist (`(,window ,cursor ,start) windows)
+              (set-window-point window (funcall cursor))
+              (set-window-start window (funcall start) t))))))))
+
+(defun niwa-schedules-list--late-delivery (session)
+  "Update the overview for SESSION's confirmed delivery."
+  (when-let* ((workspace (niwa-session-workspace session)))
+    (niwa-schedules-list--refresh-wake-ups
+     (directory-file-name (niwa-workspace-root workspace)) (niwa-session-session-id session) session)))
 
 (defun niwa-schedules-list--refresh-workspace (workspace)
   "Refresh the standing jobs cockpit if it shows WORKSPACE's store."
@@ -125,6 +231,8 @@
         (niwa-cockpit-surface-refresh)))))
 
 (add-hook 'niwa-workspace-schedule-changed-functions #'niwa-schedules-list--refresh-workspace)
+(add-hook 'niwa-schedule-pending-changed-functions #'niwa-schedules-list--refresh-wake-ups)
+(add-hook 'niwa-schedule-late-delivery-hook #'niwa-schedules-list--late-delivery)
 
 ;;;###autoload
 (defun niwa-schedules-list-open (&optional context)

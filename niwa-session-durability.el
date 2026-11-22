@@ -1648,6 +1648,9 @@ an explicit takeover."
                     (or (<= (plist-get head :expires-at) now)
                         (niwa-session-durability--holder-dead-p head)))))))
 
+(defvar niwa-session-durability-deleted-functions nil
+  "Hook called with the session directory after a confirmed deletion.")
+
 (defun niwa-session-durability--delete-owned-session (session-dir lease)
   "Delete SESSION-DIR only under LEASE's exact, newest, unexpired authority.
 Reobserve all blockers, then prove their absence under the election lock."
@@ -1684,6 +1687,8 @@ Reobserve all blockers, then prove their absence under the election lock."
         (unless (eq 'ok (plist-get result :status))
           (error "Session deletion refused: authority or retained data changed (%s)"
                  (plist-get result :status))))
+      (with-demoted-errors "niwa: session deletion observer: %S"
+        (run-hook-with-args 'niwa-session-durability-deleted-functions session-dir))
       t)))
 
 (defun niwa-session-durability-discard-session (session prepare-function)

@@ -32,6 +32,7 @@
 (require 'niwa-view-stream)
 (require 'niwa-menu)
 (require 'niwa-transport)
+(require 'niwa-schedule)
 (require 'niwa-structs)
 (require 'niwa-skills-core)
 (require 'niwa-workspace)
@@ -99,6 +100,51 @@
         (should (equal "> first line\nsecond line" (niwa-view-composer-draft-text))))
       (should (eq 'errored (niwa-agent-record-settled-outcome record)))
       (should (equal "Provider failed" (niwa-agent-record-settled-result record))))))
+
+(ert-deftest niwa-view-shows-late-delivery-while-draft-holds-turn ()
+  "A committed one-shot appears before the turn, without disturbing the reader."
+  (niwa-view-test--with-buffers
+    (save-window-excursion
+      (let* ((workspace (test-niwa-session-persistence--make-file-workspace
+                         niwa-user-dir))
+             (session (niwa-session-create "main" workspace))
+             (now 1795176000)
+             (niwa-schedule-clock (lambda () now))
+             (draft "> unfinished\nsecond line")
+             (notice "Wake-up delivered 2h 00m late"))
+        (unwind-protect
+            (progn
+              (setf (niwa-session-root-buffer session) data-buf)
+              (with-current-buffer data-buf
+                (setq-local niwa--session session niwa--workspace workspace)
+                (insert "*** Earlier question\n")
+                (niwa-session-artifacts-save session data-buf))
+              (switch-to-buffer view-buf)
+              (setq-local niwa--session session)
+              (niwa-view--full-rerender)
+              (niwa-view-test--insert-composer-draft draft 4)
+              (goto-char (point-min))
+              (search-forward "Earlier question")
+              (let ((position (point)) (start (window-start))
+                    (window (selected-window)) (windows (window-list)))
+                (niwa-schedule-create session data-buf "20m" "Private wake-up note")
+                (should-not (string-search notice (buffer-string)))
+                (setq now (+ now 1200 7200))
+                (niwa-schedule-run-due)
+                (niwa-test--await 5 "No late delivery in session view"
+                  (string-search notice (buffer-string)))
+                (should (niwa-agent-control-wake-pending-p session))
+                (should-not (niwa-schedule-pending session))
+                (should-not (string-search "Private wake-up note" (buffer-string)))
+                (should (equal draft (niwa-view-composer-draft-text)))
+                (should (= 4 (niwa-view-test--composer-point-offset)))
+                (should (eq window (selected-window)))
+                (should (equal windows (window-list)))
+                (should (eq view-buf (window-buffer window)))
+                (should (= position (point)))
+                (should (= start (window-start)))))
+          (test-niwa-session-persistence--release-and-kill data-buf session)
+          (niwa-workspace-clear-registry))))))
 
 (niwa-deftest niwa-view-activate-at-point
   (:doc "keyboard activation keeps current buffer; mouse uses clicked window")

@@ -17,12 +17,14 @@
 (require 'niwa-tool-ui)
 (require 'niwa-hooks)
 (require 'niwa-pending-inputs)
+(require 'niwa-schedule)
 (require 'niwa-skills-core)
 (require 'niwa-view)
 (require 'niwa-view-composer)
 (require 'niwa-view-interaction)
 (require 'niwa-view-native)
 (require 'niwa-view-render)
+(require 'niwa-workspace-schedule)
 
 (declare-function niwa-view-native--stats "ext:niwa-view-native" ())
 (require 'niwa-view-composer-test-helpers
@@ -35,6 +37,72 @@
   "Return the rendered header format for WINDOW."
   (format-mode-line (buffer-local-value 'header-line-format (window-buffer window))
                     'header-line window))
+
+(ert-deftest niwa-view-composer-graphical/standing-jobs-hint ()
+  "A committed job appears without disturbing the draft or viewport."
+  :tags '(niwa-docked-composer)
+  (let* ((niwa-view-composer-graphical--allow-batch t)
+         (now (float-time (encode-time 0 0 10 22 11 2026)))
+         (niwa-schedule-clock (lambda () now))
+         (niwa-schedule--workspaces nil) (niwa-schedule--timer nil)
+         (system-time-locale "C")
+         (niwa-preset--registry '((niwa-implement))))
+    (niwa-view-composer-graphical--with-chat
+      (let* ((dock (selected-window)) (transcript (niwa-view-transcript-window dock))
+             (draft "> first\nsecond line")
+             (start (window-start transcript)))
+        (goto-char (point-max))
+        (insert draft)
+        (backward-char 4)
+        (let ((caret (point))
+              (id (plist-get
+                   (niwa-workspace-schedule-create
+                    workspace (niwa-workspace-schedule-propose
+                               '(:name "Triage" :when "in 15m" :prompt "Review"
+                                 :policy (:model-provider "test:model" :reasoning-effort nil
+                                          :permission-mode full-auto))))
+                   :id)))
+          (unwind-protect
+              (progn
+                (should (string-search "◷ 10:15" (niwa-view-test--rail-text view-buf)))
+                (should (eq dock (selected-window)))
+                (should (= start (window-start transcript)))
+                (should (= caret (point)))
+                (should (equal draft (niwa-view-composer-draft-text view-buf t)))
+                (goto-char (point-min))
+                (let ((hit (text-property-search-forward 'display "◷ 10:15" t)))
+                  (goto-char (prop-match-beginning (should hit)))
+                  (if noninteractive (call-interactively (key-binding (kbd "RET")))
+                    (niwa-view-composer-graphical--keys "M-<" 'beginning-of-buffer)
+                    (niwa-view-composer-graphical--keys "RET" 'niwa-schedules-list-open))
+                  (should (derived-mode-p 'niwa-schedules-list-mode))
+                  (should (eq workspace (niwa-cockpit-context-workspace)))
+                  (call-interactively (key-binding (kbd "q"))))
+                (let ((wake (niwa-schedule-create session data-buf "0 7 * * *" "Follow up")))
+                  (should (string-search "◷ 10:15 +1" (niwa-view-test--rail-text view-buf)))
+                  (niwa-workspace-schedule-set-paused workspace id t)
+                  (should (string-search "◷ 23 Nov 07:00" (niwa-view-test--rail-text view-buf)))
+                  (when (display-graphic-p)
+                    (goto-char (point-min))
+                    (let* ((hit (text-property-search-forward 'display "◷ 23 Nov 07:00" t))
+                           (pos (posn-at-point (prop-match-beginning (should hit)) dock)))
+                      (goto-char caret)
+                      (niwa-view-composer-graphical--events
+                       (list (list 'mouse-1 pos)) 'niwa-view--click-schedule-hint)
+                      (should (derived-mode-p 'niwa-schedules-list-mode))
+                      (should (eq workspace (niwa-cockpit-context-workspace)))
+                      (call-interactively (key-binding (kbd "q"))))
+                    (niwa-view-stream-show-progress view-buf "Checking the patch")
+                    (niwa-schedule-change session data-buf (plist-get wake :id) "in 5m")
+                    (save-window-excursion
+                      (niwa-view-composer-graphical--keys "C-u 2 0 C-x 3" 'split-window-right)
+                      (should-not (string-search "◷" (niwa-view-test--rail-text view-buf))))
+                    (niwa-view-composer-graphical--keys "C-u 3 2 C-x 3" 'split-window-right)
+                    (should (string-search "Checking the patch" (niwa-view-test--rail-text view-buf)))
+                    (should-not (string-search "◷" (niwa-view-test--rail-text view-buf))))
+                  (niwa-schedule-cancel session data-buf (plist-get wake :id))
+                  (should-not (string-search "◷" (niwa-view-test--rail-text view-buf)))))
+            (niwa-workspace-schedule-delete workspace id)))))))
 
 (ert-deftest niwa-view-composer-graphical/pair-navigation ()
   "Pair keys leave the draft caret alone and page the paired transcript."

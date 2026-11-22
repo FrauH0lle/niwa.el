@@ -983,6 +983,7 @@ them are set, so the committing save keeps them."
             (should niwa-schedule--timer)
             (setq now (+ now 1200))
             (niwa-schedule-run-due)
+            (niwa-session-publication-barrier session)
             (should-not (niwa-schedule-pending session)))
         (test-niwa-session-persistence--release-and-kill buffer session)
         (should-not niwa-schedule--timer)

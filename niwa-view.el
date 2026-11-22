@@ -105,6 +105,11 @@
 (declare-function niwa-recovery-dismiss "niwa-recovery" (session issue))
 (autoload 'niwa-recovery-dismiss "niwa-recovery")
 
+;; `niwa-schedule'
+(declare-function niwa-schedule-latest-late-delivery "niwa-schedule" (session))
+(declare-function niwa-schedule-late-delivery-text "niwa-schedule" (record))
+(autoload 'niwa-schedule-latest-late-delivery "niwa-schedule")
+
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts--segment-tail-prompt-count
                   "niwa-session-artifacts" ())
@@ -2049,6 +2054,11 @@ issue, so a stale control cannot dismiss a later failure with the same id."
   "Return status fragments for MODEL."
   (let (fragments)
     (when-let* ((session (plist-get model :session))
+                (record (niwa-schedule-latest-late-delivery session)))
+      (push (list :namespace 'status :id 'late-wake-up :priority 110
+                  :body (niwa-schedule-late-delivery-text record))
+            fragments))
+    (when-let* ((session (plist-get model :session))
                 (issues (niwa-session-recovery-issues session)))
       (push (list :namespace 'status :id 'recovery :priority 120
                   :body (mapconcat
@@ -2108,6 +2118,16 @@ idle status redraws remain immediate."
         (niwa-view-execution-capture-elapsed)
         (when (or had-elapsed niwa-view-execution--elapsed-targets)
           (niwa-view--start-spinner-timer))))))
+
+(defun niwa-view--late-delivery (session)
+  "Refresh SESSION's status if its root already has a view."
+  (when-let* ((root (niwa-session-root-buffer session))
+              ((buffer-live-p root))
+              (view (buffer-local-value 'niwa--view-buffer root))
+              ((buffer-live-p view)))
+    (with-current-buffer view (niwa-view--render-status root))))
+
+(add-hook 'niwa-schedule-late-delivery-hook #'niwa-view--late-delivery)
 
 (defun niwa-view--zone-separator (label)
   "Return a propertized zone separator line for LABEL.

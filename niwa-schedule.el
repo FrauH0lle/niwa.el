@@ -42,7 +42,7 @@
 (declare-function niwa-agent-control-context-mailbox
                   "niwa-agent-control" (context))
 (declare-function niwa-agent-control-enqueue-wake-up
-                  "niwa-agent-control" (session note meta acknowledge))
+                  "niwa-agent-control" (session note meta acknowledge &optional prepare))
 (declare-function niwa-agent-control-notify
                   "niwa-agent-control" (session key function))
 (autoload 'niwa-agent-control-commit-session "niwa-agent-control")
@@ -79,8 +79,11 @@
 (autoload 'niwa-session-persistence-restore "niwa-session-persistence")
 
 ;; `niwa-session-publication'
+(declare-function niwa-session-publication-barrier
+                  "niwa-session-publication" (session &optional token))
 (declare-function niwa-session-publication-read
                   "niwa-session-publication" (session-dir &optional head names))
+(autoload 'niwa-session-publication-barrier "niwa-session-publication")
 (autoload 'niwa-session-publication-read "niwa-session-publication")
 
 ;; `niwa-utilities'
@@ -145,6 +148,74 @@ DUE is the clock second their earliest schedule needs attention.")
 
 (defvar-local niwa-schedule--retry-at nil
   "Clock seconds before which this root buffer's wake-ups are not retried.")
+
+(defvar-local niwa-schedule--delivering nil
+  "Non-nil while this root buffer awaits a mailbox acknowledgement.")
+
+(defvar niwa-schedule--snapshots (make-hash-table :test #'equal)
+  "Pending display data by (ROOT . SESSION-ID); nil ID means workspace jobs.
+Values are (SUMMARY SESSION-NAME ENTRIES DIRECTORY), never retry times.")
+
+(defvar niwa-schedule-pending-changed-functions nil
+  "Hook called with workspace ROOT and SESSION-ID after a snapshot changes.
+ROOT is absolute without a trailing slash.  Nil SESSION-ID means workspace
+schedules.  Consumers read the new snapshot, including an empty one.")
+
+(defun niwa-schedule--display-entries (entries id)
+  "Copy ENTRIES' display fields; session ID selects notes instead of job names."
+  (let ((label (if id :note :name)))
+    (cl-loop for entry in entries collect
+             (list :id (substring-no-properties (plist-get entry :id)) :due (plist-get entry :due)
+                   label (substring-no-properties (plist-get entry label))))))
+
+(defun niwa-schedule--publish-pending (root id name pending &optional directory)
+  "Project committed PENDING entries for ROOT, session ID, NAME and DIRECTORY."
+  (let* ((key (cons root id))
+         (entries (sort (niwa-schedule--display-entries pending id)
+                        :key (lambda (entry) (plist-get entry :due))))
+         (snapshot (and entries (list (cons (plist-get (car entries) :due) (length entries))
+                                      (and name (substring-no-properties name)) entries
+                                      (and directory (directory-file-name directory))))))
+    (unless (equal snapshot (gethash key niwa-schedule--snapshots))
+      (if snapshot (puthash key snapshot niwa-schedule--snapshots)
+        (remhash key niwa-schedule--snapshots))
+      ;; An observer must not interrupt delivery after the mailbox has committed.
+      (run-hook-wrapped 'niwa-schedule-pending-changed-functions
+                        (lambda (fn)
+                          (condition-case err
+                              (funcall fn (copy-sequence root) (and id (copy-sequence id)))
+                            (error (niwa-diagnostic-warning root 'niwa (error-message-string err))))
+                          nil)))))
+
+(defun niwa-schedule-pending-snapshot (workspace &optional session-id)
+  "Return WORKSPACE's active jobs, or SESSION-ID's pending wake-ups, by due time.
+Each detached plist has :id, :due (host epoch seconds) and :name for a job
+or :note for a wake-up.  This host-local API does not confer guest access."
+  (niwa-schedule--display-entries
+   (nth 2 (gethash (cons (directory-file-name (niwa-workspace-root workspace)) session-id)
+                   niwa-schedule--snapshots)) session-id))
+
+(defun niwa-schedule-pending-sessions (workspace)
+  "Return WORKSPACE's open and closed pending wake-up groups, by session ID.
+Each group is (:session-id ID :session-name NAME :entries SNAPSHOT)."
+  (let ((root (directory-file-name (niwa-workspace-root workspace))) groups)
+    (maphash (lambda (key snapshot)
+               (when (and (cdr key) (equal (car key) root))
+                 (push (list :session-id (copy-sequence (cdr key))
+                             :session-name (copy-sequence (nth 1 snapshot))
+                             :entries (niwa-schedule--display-entries (nth 2 snapshot) (cdr key)))
+                       groups)))
+             niwa-schedule--snapshots)
+    (sort groups :key (lambda (group) (plist-get group :session-id)))))
+
+(defun niwa-schedule-pending-summary (workspace session)
+  "Return (EARLIEST-DUE . COUNT) for WORKSPACE's jobs and SESSION's wake-ups.
+Return nil when neither has pending work.  Does not consult either store."
+  (let* ((root (directory-file-name (niwa-workspace-root workspace)))
+         (jobs (car (gethash (cons root nil) niwa-schedule--snapshots)))
+         (wakes (car (gethash (cons root (niwa-session-session-id session)) niwa-schedule--snapshots))))
+    (cond ((and jobs wakes) (cons (min (car jobs) (car wakes)) (+ (cdr jobs) (cdr wakes))))
+          ((or jobs wakes) (cons (car (or jobs wakes)) (cdr (or jobs wakes)))))))
 
 
 ;;
@@ -358,6 +429,30 @@ Return nil for a one-shot timing."
 ;;
 ;;; Store
 
+(defvar niwa-schedule-late-delivery-hook nil
+  "Functions called with the affected session after a late mailbox delivery.")
+
+(defun niwa-schedule-latest-late-delivery (session)
+  "Return SESSION's last confirmed late receipt, or nil, without reading storage."
+  (and session (copy-sequence (niwa-session-latest-late-delivery session))))
+
+(defun niwa-schedule-stored-late-delivery (directory)
+  "Read session DIRECTORY's latest late receipt from its selected head.
+Return nil when no receipt is recorded; signal if the read fails."
+  (plist-get (niwa-schedule--stored-sidecar directory) :latest-late-delivery))
+
+(defun niwa-schedule-late-delivery-text (receipt)
+  "Describe confirmed late-delivery RECEIPT without including the wake-up note."
+  (format "Wake-up delivered %s late"
+          (niwa--duration-label (plist-get receipt :late-seconds))))
+
+(defun niwa-schedule-overview-late-delivery (receipt)
+  "Describe confirmed RECEIPT for overviews until 24 hours after delivery."
+  (when-let* ((at (plist-get receipt :delivered-at))
+              ((< (- (niwa-schedule-now) at) 86400)))
+    (format "%s · %s" (niwa-schedule-late-delivery-text receipt)
+            (format-time-string "%Y-%m-%d %H:%M %Z" at))))
+
 (defun niwa-schedule-entry-p (entry)
   "Return non-nil when ENTRY is a well-formed persisted wake-up."
   (and (proper-list-p entry)
@@ -501,6 +596,7 @@ committed with the session before this returns it.
 MODEL (a tier or BACKEND:MODEL) and EFFORT run the woken turn on another
 model or effort; both are checked now, in the current buffer, so an
 unavailable model or unsupported effort is an error here, not at fire time."
+  (niwa-session-publication-barrier session)
   (niwa-schedule--assert-capacity session)
   (let ((previous (niwa-session-schedules session))
         (entry (niwa-schedule--propose session when note expires model effort)))
@@ -515,6 +611,7 @@ WHEN, NOTE, EXPIRES, MODEL and EFFORT are as for `niwa-schedule-create'
 and checked the same way; omitted ones keep the wake-up's values, and a new
 WHEN is timed from now.  The recurring expiry cap still counts from the
 wake-up's creation.  Return the committed entry."
+  (niwa-session-publication-barrier session)
   (let* ((previous (niwa-session-schedules session))
          (entry (niwa-schedule--find id previous)))
     (unless (eq 'pending (plist-get entry :status))
@@ -528,6 +625,7 @@ wake-up's creation.  Return the committed entry."
 (defun niwa-schedule-cancel (session buffer id)
   "Remove wake-up ID from SESSION, whose root data buffer is BUFFER.
 Return the removed entry.  Expired wake-ups are removed the same way."
+  (niwa-session-publication-barrier session)
   (let* ((previous (niwa-session-schedules session))
          (entry (niwa-schedule--find id previous)))
     (unless entry
@@ -539,6 +637,7 @@ Return the removed entry.  Expired wake-ups are removed the same way."
 
 (defun niwa-schedule-resume (session buffer id)
   "Resume paused wake-up ID for SESSION in BUFFER, resetting its failures."
+  (niwa-session-publication-barrier session)
   (let* ((previous (niwa-session-schedules session))
          (entry (niwa-schedule--find id previous))
          (now (niwa-schedule-now)))
@@ -560,6 +659,7 @@ Save As calls this before its copy is written, so a wake-up is durable in
 at most one session.  SESSION keeps its wake-ups in memory; a commit
 failure signals and leaves the store as it was.  Return non-nil when
 there was something to hand over."
+  (niwa-session-publication-barrier session)
   (when-let* ((schedules (niwa-session-schedules session)))
     (setf (niwa-session-schedules session) nil)
     (unwind-protect
@@ -610,11 +710,37 @@ It is not under the wake-up index, whose restore drops entries it cannot read."
                 directory (error-message-string err))
         :warning)))))
 
+(defun niwa-schedule--publish-session (session pending)
+  "Publish SESSION's display NAME and committed PENDING wake-ups."
+  (when-let* ((workspace (niwa-session-workspace session))
+              (root (niwa-workspace-root workspace)) (id (niwa-session-session-id session)))
+    (niwa-schedule--publish-pending (directory-file-name root) id (niwa-session-name session)
+                                    pending (niwa-session-save-path session))))
+
+(defun niwa-schedule--renamed (session)
+  "Update the label on SESSION's committed snapshot without reading its store."
+  (when-let* ((ws (niwa-session-workspace session))
+              (entries (niwa-schedule-pending-snapshot ws (niwa-session-session-id session))))
+    (niwa-schedule--publish-session session entries)))
+
+(add-hook 'niwa-session-naming-renamed-hook #'niwa-schedule--renamed)
+
+(defun niwa-schedule--deleted (directory)
+  "Forget any display snapshot belonging to proven absent DIRECTORY."
+  (let ((dir (directory-file-name directory)))
+    (maphash (lambda (key snapshot)
+               (when (equal dir (nth 3 snapshot))
+                 (niwa-schedule--publish-pending (car key) (cdr key) nil nil)))
+             niwa-schedule--snapshots)))
+
+(add-hook 'niwa-session-durability-deleted-functions #'niwa-schedule--deleted)
+
 (defun niwa-schedule--index (session)
   "Record in the index whether saved SESSION holds pending wake-ups."
-  (when-let* ((directory (niwa-session-save-path session)))
-    (niwa-schedule--index-directory
-     directory (niwa-schedule-pending session))))
+  (let ((pending (niwa-schedule-pending session)))
+    (when-let* ((directory (niwa-session-save-path session)))
+      (niwa-schedule--index-directory directory pending))
+    (niwa-schedule--publish-session session pending)))
 
 (defun niwa-schedule--absent-p (directory)
   "Return non-nil when DIRECTORY provably does not exist.
@@ -630,21 +756,34 @@ proof; a permission or transport failure is not."
     (and (not (equal path key))
          (file-accessible-directory-p path))))
 
+(defun niwa-schedule--stored-sidecar (directory)
+  "Read session DIRECTORY's verified sidecar, or signal on failure."
+  (let ((publication (or (niwa-session-publication-read directory)
+                         (error "No readable session publication"))))
+    (or (niwa-session-persistence-load-sidecar (plist-get publication :sidecar) 'global)
+        (error "Session sidecar is unreadable"))))
+
+(defun niwa-schedule-observe-sidecar (directory sidecar)
+  "Project DIRECTORY's verified SIDECAR and return its earliest pending due time."
+  (let* ((pending (cl-loop for entry in (plist-get sidecar :schedules)
+                           when (and (niwa-schedule-entry-p entry)
+                                     (eq 'pending (plist-get entry :status))) collect entry))
+         (root (plist-get (plist-get sidecar :workspace) :target-native-root))
+         (id (plist-get sidecar :session-id)) (name (plist-get sidecar :session-name)))
+    ;; The target-native root needs the directory's transport on this host.
+    (when (and (stringp root) (file-name-absolute-p root) (not (file-remote-p root))
+               (stringp id) (stringp name) (not (niwa-schedule--open-p directory)))
+      (niwa-schedule--publish-pending (directory-file-name (concat (file-remote-p directory) root))
+                                      id name pending directory))
+    (and pending (cl-loop for entry in pending minimize (plist-get entry :due)))))
+
 (defun niwa-schedule--stored-due (directory)
   "Return when session DIRECTORY's committed store next needs the scheduler.
 Return nil only when the session is provably gone or its readable store
 holds no pending wake-up; signal when the store cannot be read."
-  (unless (niwa-schedule--absent-p directory)
-    (let* ((publication (or (niwa-session-publication-read directory)
-                            (error "No readable session publication")))
-           (sidecar (or (niwa-session-persistence-load-sidecar
-                         (plist-get publication :sidecar) 'global)
-                        (error "Session sidecar is unreadable")))
-           (dues (cl-loop for entry in (plist-get sidecar :schedules)
-                          when (and (niwa-schedule-entry-p entry)
-                                    (eq 'pending (plist-get entry :status)))
-                          collect (plist-get entry :due))))
-      (and dues (apply #'min dues)))))
+  (if (niwa-schedule--absent-p directory)
+      (progn (niwa-schedule--deleted directory) nil)
+    (niwa-schedule-observe-sidecar directory (niwa-schedule--stored-sidecar directory))))
 
 (defun niwa-schedule--open-p (directory)
   "Return non-nil when a scheduled buffer holds session DIRECTORY."
@@ -784,6 +923,9 @@ The session is reopened without a window when the earliest one is due."
     (push (cons (niwa-schedule--directory-key directory) due)
           niwa-schedule--closed))
   (setq niwa-schedule--buffers (delq (current-buffer) niwa-schedule--buffers))
+  (when-let* ((session (niwa-schedule--session (current-buffer)))
+              ((not (niwa-session-save-path session))))
+    (niwa-schedule--publish-session session nil))
   (niwa-schedule--rearm))
 
 (defun niwa-schedule--session (buffer)
@@ -813,11 +955,16 @@ A buffer following a session whose lease another client holds never fires."
     (cancel-timer niwa-schedule--timer))
   (setq niwa-schedule--timer nil
         niwa-schedule--buffers
-        (cl-remove-if-not #'niwa-schedule--earliest niwa-schedule--buffers))
+        (cl-remove-if-not (lambda (buffer)
+                            (and (niwa-schedule--session buffer)
+                                 (or (buffer-local-value 'niwa-schedule--delivering buffer)
+                                     (niwa-schedule--earliest buffer))))
+                          niwa-schedule--buffers))
   (when-let* ((dues (append (mapcar #'cdr niwa-schedule--closed)
                             (mapcar #'cdr niwa-schedule--workspaces)
-                            (mapcar #'niwa-schedule--earliest
-                                    niwa-schedule--buffers))))
+                            (cl-loop for buffer in niwa-schedule--buffers
+                                     unless (buffer-local-value 'niwa-schedule--delivering buffer)
+                                     collect (niwa-schedule--earliest buffer)))))
     (let ((due (apply #'min dues)))
       (setq niwa-schedule--timer
             (run-at-time (max 0 (- due (funcall niwa-schedule-clock)))
@@ -841,10 +988,9 @@ Then re-arm."
                   ((<= (or (buffer-local-value 'niwa-schedule--retry-at buffer) 0)
                        now)))
         (dolist (entry (niwa-schedule-pending session))
-          (when (<= (plist-get entry :due) now)
-            (niwa-schedule--fire session buffer entry now)))
-        (when (fboundp 'niwa-background-list-refresh-session)
-          (niwa-background-list-refresh-session session buffer)))))
+          (when (and (<= (plist-get entry :due) now)
+                     (not (buffer-local-value 'niwa-schedule--delivering buffer)))
+            (niwa-schedule--fire session buffer entry))))))
   (niwa-schedule--rearm))
 
 (defun niwa-schedule--record-meta (entry now)
@@ -856,7 +1002,8 @@ Then re-arm."
             (and (plist-get entry :model) (list :model (plist-get entry :model)))
             (and (plist-get entry :effort) (list :effort (plist-get entry :effort)))
             (when (>= late niwa-schedule-overdue-threshold)
-              (list :overdue-by (niwa--duration-label late))))))
+              (list :overdue-by (niwa--duration-label late)
+                    :late-delivery (list :delivered-at now :late-seconds late))))))
 
 (defun niwa-schedule-wake-request-context (session)
   "Return the request context for SESSION's woken turn, or nil.
@@ -887,6 +1034,7 @@ by the same turn keeps the session's selection.  The result is for
 (defun niwa-schedule-settle-wake (session buffer context outcome reason)
   "Record OUTCOME and REASON for the wake records in BUFFER's request CONTEXT.
 An ordinary user turn owns no wake runs, even if it consumed SESSION's mail."
+  (niwa-session-publication-barrier session)
   (let ((previous (niwa-session-schedules session))
         (mail (niwa-session-messages session)) retired notices)
     (dolist (record (plist-get context :wake-runs))
@@ -952,13 +1100,8 @@ An ordinary user turn owns no wake runs, even if it consumed SESSION's mail."
                             :expired-at now)))))
 
 (defun niwa-schedule--retry-later (session buffer entry err)
-  "Restore ENTRY in SESSION after its delivery failed with ERR.
+  "Report SESSION's failed delivery of ENTRY with ERR.
 BUFFER waits `niwa-schedule-retry-delay' before the next attempt."
-  (setf (niwa-session-schedules session)
-        (append (remq (niwa-schedule--find (plist-get entry :id)
-                                              (niwa-session-schedules session))
-                      (niwa-session-schedules session))
-                (list entry)))
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (setq niwa-schedule--retry-at
@@ -970,51 +1113,64 @@ BUFFER waits `niwa-schedule-retry-delay' before the next attempt."
            niwa-schedule-retry-delay)
    :warning))
 
-(defun niwa-schedule--fire (session buffer entry now)
-  "Deliver or expire due ENTRY of SESSION at clock seconds NOW.
-BUFFER is the root data buffer offered the background-event turn."
-  (let ((previous (niwa-session-schedules session))
-        (expires (plist-get entry :expires-at)))
-    (condition-case err
-        (if (and expires (> now expires))
-            (progn
-              (setf (niwa-session-schedules session)
-                    (niwa-schedule--expire session entry now))
-              (niwa-schedule--commit session previous)
-              (niwa-schedule--index session))
-          ;; Removal and the record share the mailbox commit, so a firing is
-          ;; never both delivered and still pending in the persisted store.
-          (setf (niwa-session-schedules session)
-                (let* ((timing (plist-get entry :timing))
-                       (due (plist-get entry :due))
-                       (next (niwa-schedule-next-run timing now))
-                       (missed (and next (< due now) (niwa-schedule-next-run timing due)))
-                       (updated (if (and missed (<= missed now))
-                                    (niwa-schedule--with-run
-                                     entry (list :time missed :outcome 'skipped
-                                                 :reason "Missed cadence before overdue firing"))
-                                  (copy-sequence entry))))
-                  (cond ((null next) (remq entry previous))
-                        ;; A run past expiry would only be dropped; free the slot now.
-                        ((and expires (> next expires))
-                         (niwa-schedule--expire session entry now updated))
-                        (t (cl-substitute (plist-put updated :due next)
-                                          entry previous)))))
+(defun niwa-schedule--after-delivery (session entry now)
+  "Return SESSION's schedules after delivering ENTRY at NOW."
+  (let* ((entries (niwa-session-schedules session))
+         (timing (plist-get entry :timing)) (due (plist-get entry :due))
+         (next (niwa-schedule-next-run timing now)) (expires (plist-get entry :expires-at))
+         (missed (and next (< due now) (niwa-schedule-next-run timing due)))
+         (updated (if (and missed (<= missed now))
+                      (niwa-schedule--with-run
+                       entry (list :time missed :outcome 'skipped
+                                   :reason "Missed cadence before overdue firing"))
+                    (copy-sequence entry))))
+    (cond ((null next) (remq entry entries))
+          ((and expires (> next expires)) (niwa-schedule--expire session entry now updated))
+          (t (cl-substitute (plist-put updated :due next) entry entries)))))
+
+(defun niwa-schedule--fire (session buffer entry)
+  "Prepare due ENTRY of SESSION with its mail; rearm BUFFER after adoption."
+  (with-current-buffer buffer (setq niwa-schedule--delivering t))
+  (let (previous meta)
+    (cl-labels
+        ((finish (success failure)
+           (when (buffer-live-p buffer)
+             (with-current-buffer buffer (setq niwa-schedule--delivering nil)))
+           (cond
+            ((not success)
+             (when previous (setf (niwa-session-schedules session) previous))
+             (niwa-schedule--retry-later session buffer entry failure))
+            (previous
+             (when-let* ((receipt (plist-get meta :late-delivery)))
+               (setf (niwa-session-latest-late-delivery session) receipt)
+               (niwa-agent-control-notify
+                session 'late-delivery
+                (lambda () (run-hook-with-args 'niwa-schedule-late-delivery-hook session))))
+             (niwa-schedule--index session)
+             (when (fboundp 'niwa-background-list-refresh-session)
+               (niwa-background-list-refresh-session session buffer))
+             (when meta
+               (niwa-agent-control-notify
+                session (list 'root-wake buffer)
+                (lambda ()
+                  (unless (niwa-session-publication-stopping-p session)
+                    (niwa-pending-inputs-offer-root-event session buffer)))))))
+           (niwa-schedule--rearm)))
+      (condition-case err
           (niwa-agent-control-enqueue-wake-up
-           session (plist-get entry :note) (niwa-schedule--record-meta entry now)
-           (lambda (success failure)
-             (if success
-                 (progn
-                   (niwa-schedule--index session)
-                   (niwa-agent-control-notify
-                    session (list 'root-wake buffer)
-                    (lambda ()
-                      (unless (niwa-session-publication-stopping-p session)
-                        (niwa-pending-inputs-offer-root-event session buffer)))))
-               (niwa-schedule--retry-later session buffer entry failure)
-               (niwa-schedule--rearm)))))
-      ((error quit)
-       (niwa-schedule--retry-later session buffer entry err)))))
+           session (plist-get entry :note) nil #'finish
+           (lambda (record)
+             (let ((now (niwa-schedule-now)) (expires (plist-get entry :expires-at)))
+               (when (and (memq entry (niwa-session-schedules session))
+                          (<= (plist-get entry :due) now))
+                 (setq previous (niwa-session-schedules session))
+                 (if (and expires (> now expires))
+                     (progn (setf (niwa-session-schedules session)
+                                  (niwa-schedule--expire session entry now)) nil)
+                   (setf (niwa-session-schedules session) (niwa-schedule--after-delivery session entry now)
+                         (plist-get record :meta) (setq meta (niwa-schedule--record-meta entry now)))
+                   t)))))
+        ((error quit) (finish nil err))))))
 
 (provide 'niwa-schedule)
 ;;; niwa-schedule.el ends here

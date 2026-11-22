@@ -86,6 +86,12 @@ Draft lines wrap in narrow windows and have no line numbers by default.
 The caret stays in the draft: `C-p`, `M-<` and `C-x h` stop at its start,
 with the rail in view, and clicking a rail count visits its card without
 moving the caret.
+When work is scheduled, the right edge shows the earliest due time among this
+session's pending wake-ups and the workspace's active jobs, for example
+`◷ 10:15 +1` for two items. A different local day includes the date. Click
+the hint or press `RET` on it to open [Standing jobs](tools.md#schedule).
+It disappears before other rail status when space is tight. Redraw uses a
+committed in-memory summary, not a store read or a countdown timer.
 The composer grows from one draft line plus its rail and chrome up to a third
 of the pair. When the whole draft fits, scrolling keeps its rail in view.
 At the cap it scrolls with the caret and shows `↑ N more` when draft lines are
@@ -1099,6 +1105,10 @@ Terminology:
   aggregate-agent rows appear here. The agent roster lists every active agent,
   even when its launch handle also appears earlier in the transcript. Opening
   an agent transcript or folding history does not change roster membership.
+  The latest late [wake-up](tools.md#schedule) appears here as a separate
+  notice, for example `Wake-up delivered 2h 00m late`. It reports confirmed
+  mailbox delivery even if a draft or decision holds the turn. Restoring a
+  pending wake-up does not show a notice, and the notice omits the wake-up note.
 - **Interaction zone**: user-action chrome between
   `niwa-view--interaction-marker` and the transcript tail; it is for
   pending input and controls that require user response.

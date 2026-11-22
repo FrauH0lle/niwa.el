@@ -75,8 +75,13 @@
 (define-error 'niwa-migrate-session-unconvertible
   "Session has nothing this converter reads")
 
+(defun niwa-migrate-session--v0.7.0-sidecar (data)
+  "Add an empty late-delivery receipt to DATA unless one is already recorded."
+  (plist-put data :latest-late-delivery (plist-get data :latest-late-delivery)))
+
 (defconst niwa-migrate-session--steps
-  '(("v0.6.0" "v0.7.0" identity niwa-migrate-session--v0.6.0-layout))
+  '(("v0.6.0" "v0.7.0" identity niwa-migrate-session--v0.6.0-layout)
+    ("v0.7.0" "v0.8.0" niwa-migrate-session--v0.7.0-sidecar))
   "Ordered (SOURCE TARGET FUNCTION [LAYOUT]) format steps.
 Each FUNCTION takes one sidecar plist.  An optional LAYOUT converts a
 session's file names: called with a directory it returns the planned renames,

@@ -1619,9 +1619,11 @@ or external setup encrypts them.
 
 Persisted Lisp data uses the `.eld` extension; `.el` is reserved for code such as
 `hooks.el`. Version 0.7.0 renamed the data files that earlier versions wrote as
-`.el`. Before opening an existing project with 0.7.0 or later, close niwa and run
-the [migration script](docs/sessions.md#explicit-session-migration) once with
-`--user` and once for each project.
+`.el`. Version 0.8.0 adds the latest late wake-up delivery to session metadata.
+Before opening an existing project with 0.8.0, close niwa and run the
+[migration script](docs/sessions.md#explicit-session-migration) for each project,
+even if it was already migrated to 0.7.0. When upgrading from before 0.7.0, also
+run it with `--user` to rename user-level data files.
 
 ## Documentation
 

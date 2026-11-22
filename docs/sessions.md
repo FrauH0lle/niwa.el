@@ -294,13 +294,14 @@ Transport and publication scheduling defer metadata work until it can run safely
 It updates the persisted name and buffer/view presentation, without moving files.
 Save As creates a new identity with the explicitly supplied display name.
 
-The closed sidecar schema is `v0.7.0`, including recovery issues, retained input
+The closed sidecar schema is `v0.8.0`, including recovery issues, retained input
 and pause state, naming input, closed chats (`:chapters`),
 the ids of attached [store artifacts](view.md#artifact-store) (`:attached-artifacts`),
 for an artifact's own conversation, that artifact's id (`:dedicated-artifact`),
-and its [wake-ups and their recent outcomes](tools.md#schedule) (`:schedules`).
-Other schemas are rejected by both the runtime loader and the
-[standalone migration command](#explicit-session-migration). Recovery records
+its [wake-ups and their recent outcomes](tools.md#schedule) (`:schedules`),
+and its latest late wake-up receipt (`:latest-late-delivery`), independent of
+unread mail. The runtime rejects other versions; use the
+[standalone migration command](#explicit-session-migration) to upgrade. Recovery records
 contain issue messages, never credentials.
 Every retained-agent registry entry includes `:working-directory`: `nil` means
 no override, while an absolute target-native directory string retains that
@@ -1081,7 +1082,7 @@ to the opened workspace and discards copied session permission rules, resource
 grants, and additional roots.  The next save records the opened workspace's
 identity. Resume rejects superseded sidecar shapes.
 
-The package release is `0.7.0` and the persisted session format is `v0.7.0`:
+The package release is `0.8.0` and the persisted session format is `v0.8.0`:
 the format is named after the package release that last changed it.  The top-level `:authority-mode`, `:ptc-checkpoints`, and
 execution-target incarnation are
 required by that session format:
@@ -2656,17 +2657,20 @@ unreadable-store warning is shown only once while the failure lasts.
 
 The standalone [migration script](https://github.com/FrauH0lle/niwa.el/blob/master/scripts/migrate-sessions.el)
 accepts a session directory, a project root, or its `.niwa/sessions`
-directory, and with `--user` the user-level state. The chain has one step,
-session format `v0.6.0` to `v0.7.0`. Package 0.7.0 introduced session format
-`v0.7.0`, which stores every persisted Lisp data file as `.eld` instead of
-`.el`. The step renames each session file family (`session.meta`, lease and
+directory, and with `--user` the user-level state. The session chain is
+`v0.6.0` → `v0.7.0` → `v0.8.0`. The `v0.8.0` step adds
+`:latest-late-delivery`. It preserves an already recorded receipt, otherwise
+sets it to `nil`; it neither infers delivery from mail nor replays a wake-up.
+Publication head names and journal pins stay unchanged in this step.
+
+The `v0.7.0` step stores persisted Lisp data as `.eld` instead of
+`.el`. It renames each session file family (`session.meta`, lease and
 transfer records, publication `manifest`s, the per-session logs and
 `tool-results/media` records) and rewrites the names a manifest or lease
 records. Published `.data` files keep their names; only the published
-sidecar's bytes change, because its `:version` does, and its checksum is
-recomputed. It rejects other versions and does not import per-session
-artifacts. Run it before first opening existing state with package 0.7.0 or
-later, with niwa closed:
+sidecar's bytes change, and its checksum is recomputed. The migrator rejects
+versions outside the chain and does not import per-session artifacts. Before
+opening an older session with the current package, close niwa and run:
 
 ```bash
 # Rename the user-level state (~/.niwa and the XDG state directory).
@@ -2711,7 +2715,8 @@ names change: hooks, shared notes, artifact content and plugin Lisp keep `.el`.
 
 Validation uses a private staging copy and checks metadata and publication
 checksums. A v0.6.0 session is copied and renamed first, so the validation reads
-the current layout; the original stays in a hidden sibling backup. It refuses
+the current layout. Each upgraded session's original stays in a hidden sibling
+backup; project migration skips those backups. The migrator refuses
 PID locks, symlinks and special files. A `.migration-lock` serializes runs in the
 same sessions directory (and in `.niwa` or the user directory for the other
 passes); temporary staging parents are named `.migration-stage-*`. Remove a lock

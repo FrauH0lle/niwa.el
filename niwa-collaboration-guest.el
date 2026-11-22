@@ -20,6 +20,7 @@
   (require 'cl-lib))
 
 (require 'json)
+(require 'niwa-collaboration-wake-ups)
 (require 'niwa-utilities)
 
 ;; `niwa-collaboration'
@@ -29,6 +30,7 @@
 
 (declare-function niwa-collaboration--base64url-decode
                   "niwa-collaboration" (string))
+(declare-function niwa-collaboration--observer-failure "niwa-collaboration" (room &optional err))
 (declare-function niwa-collaboration--guest
                   "niwa-collaboration" (room peer))
 (declare-function niwa-collaboration--guest-text
@@ -201,6 +203,12 @@
                   (data-buffer text &rest keys))
 (autoload 'niwa-view--refused-question "niwa-pending-inputs")
 (autoload 'niwa-view-enqueue-external-follow-up "niwa-pending-inputs")
+
+;; `niwa-schedule'
+(declare-function niwa-schedule-late-delivery-text "niwa-schedule" (receipt))
+(declare-function niwa-schedule-latest-late-delivery "niwa-schedule" (session))
+(autoload 'niwa-schedule-late-delivery-text "niwa-schedule")
+(autoload 'niwa-schedule-latest-late-delivery "niwa-schedule")
 
 ;; `niwa-skills-core'
 (declare-function niwa-skill-argument-hint
@@ -484,6 +492,25 @@ One guest's failed send does not keep the others from hearing it."
                                     room guest)))))
                  (plist-get room :guests))))))
 
+(defun niwa-collaboration--late-delivery-text (session)
+  "Return public text for SESSION's latest confirmed late delivery, if any."
+  (when-let* ((receipt (niwa-schedule-latest-late-delivery session)))
+    (niwa-schedule-late-delivery-text receipt)))
+
+(defun niwa-collaboration--on-late-delivery (session)
+  "Show SESSION's confirmed delivery to guests of its room."
+  (when-let* ((room (niwa-collaboration--room-for-session session)))
+    (condition-case err
+        (when-let* ((text (niwa-collaboration--late-delivery-text session)))
+          (let ((frame (list :t "late-delivery" :text text)))
+            (maphash (lambda (peer guest)
+                       (when (plist-get guest :ready)
+                         (niwa-collaboration--send-guarded room peer frame)))
+                     (plist-get room :guests))))
+      (error (niwa-collaboration--observer-failure room err)))))
+
+(add-hook 'niwa-schedule-late-delivery-hook #'niwa-collaboration--on-late-delivery)
+
 (defun niwa-collaboration--send-snapshot (room peer)
   "Send ROOM's welcome and chunked snapshot to guest PEER."
   (let* ((transport (plist-get room :transport))
@@ -512,6 +539,8 @@ One guest's failed send does not keep the others from hearing it."
             :recordCount (apply #'+ (mapcar #'length chunks)))
       (when workspace
         (list :project (niwa-collaboration--project-name workspace)))
+      (when-let* ((text (niwa-collaboration--late-delivery-text (plist-get room :session))))
+        (list :lateDelivery text))
       ;; The host-curated roster is the guest's whole discovery
       ;; surface; a view link gets none, having no way to use it.
       (when-let* (((plist-get guest :writable))
@@ -836,14 +865,25 @@ answer can execute the same path the host key binding would."
 
 (defun niwa-collaboration--admit-hello (room peer frame)
   "Register PEER in ROOM from its hello FRAME and return its guest plist.
+A schedules-only hello belongs only to its matching lobby subscriber list.
 A protocol mismatch is answered with an error frame and returns nil.
 Authority comes only from the tokens FRAME proves it holds."
-  (let ((proto (plist-get frame :proto)))
-    (if (not (equal proto niwa-collaboration--protocol-version))
-        (progn
-          (niwa-collaboration--transport-send
-           (plist-get room :transport) peer (niwa-collaboration--protocol-error))
-          nil)
+  (let* ((subscribers (plist-get room :schedule-guests))
+         (registry
+          (if (plist-member frame :scheduleWorkspace)
+              (and subscribers (not (niwa-collaboration--guest room peer))
+                   (stringp (plist-get frame :scheduleWorkspace))
+                   (equal (plist-get frame :scheduleWorkspace)
+                          (niwa-collaboration--workspace-key room))
+                   subscribers)
+            (unless (and subscribers (gethash peer subscribers)) (plist-get room :guests)))))
+    (cond
+     ((not registry) nil)
+     ((not (equal (plist-get frame :proto) niwa-collaboration--protocol-version))
+      (niwa-collaboration--transport-send
+       (plist-get room :transport) peer (niwa-collaboration--protocol-error))
+      nil)
+     (t
       (let* ((name (niwa-collaboration--sanitize-guest-name
                     (plist-get frame :name)))
              (claimed (niwa-collaboration--base64url-decode
@@ -865,9 +905,9 @@ Authority comes only from the tokens FRAME proves it holds."
                      (condition-case nil
                          (niwa-collaboration-presence-state frame)
                        (error nil)))))
-        (puthash peer guest (plist-get room :guests))
+        (puthash peer guest registry)
         (niwa-sleep-update)
-        guest))))
+        guest)))))
 
 (defun niwa-collaboration--handle-hello (room peer frame)
   "Register guest PEER from its hello FRAME and send the snapshot.
@@ -878,6 +918,7 @@ that step."
       (dolist (step
                (list
                 (lambda () (niwa-collaboration--send-snapshot room peer))
+                (lambda () (niwa-collaboration--send-wake-ups room peer guest))
                 (lambda () (niwa-collaboration--publish-history room peer))
                 ;; Queue and busy state travel only on change, so a joining
                 ;; guest is told the current ones directly.

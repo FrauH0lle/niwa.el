@@ -379,6 +379,22 @@
           </menu>
         </form>
       </dialog>
+      <dialog id="pending-schedules" class="sheet" aria-labelledby="pending-schedules-title">
+        <form method="dialog" class="sheet-form">
+          <h2 id="pending-schedules-title" class="sheet-title">Pending schedules</h2>
+          <section aria-labelledby="pending-wake-ups-title">
+            <h3 id="pending-wake-ups-title" class="sheet-label">Session wake-ups</h3>
+            <ul id="pending-wake-ups-list" class="pending-wake-ups-list"></ul>
+          </section>
+          <section id="pending-workspace" aria-labelledby="pending-workspace-title" hidden>
+            <h3 id="pending-workspace-title" class="sheet-label">Workspace schedules</h3>
+            <ul id="pending-workspace-list" class="pending-wake-ups-list"></ul>
+          </section>
+          <menu class="sheet-actions">
+            <button class="btn quiet" type="submit">Done</button>
+          </menu>
+        </form>
+      </dialog>
       <dialog id="settings" class="sheet settings" aria-labelledby="settings-title">
         <form method="dialog" class="sheet-form">
           <h2 id="settings-title" class="sheet-title">Session settings</h2>
@@ -438,9 +454,13 @@
         </form>
       </dialog>
       <section id="recovery-issues" aria-live="polite" hidden></section>
-      <p id="modeline" class="modeline" role="status">
-        <span id="connection" class="conn">Connecting…</span>
-      </p>
+      <div class="modeline" role="status">
+        <p id="modeline">
+          <span id="connection" class="conn">Connecting…</span>
+        </p>
+        <button id="pending-schedules-button" class="ml ml-link" type="button" hidden
+                aria-haspopup="dialog" aria-controls="pending-schedules"></button>
+      </div>
 
     </div>
     <script src="/transport.js" defer></script>

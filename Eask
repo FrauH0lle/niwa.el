@@ -1,7 +1,7 @@
 ;; -*- mode: eask; lexical-binding: t -*-
 
 (package "niwa"
-         "0.7.0"
+         "0.8.0"
          "Instructed LLM programmer/assistant")
 
 (website-url "https://github.com/FrauH0lle/niwa.el")

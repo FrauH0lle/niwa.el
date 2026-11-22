@@ -28,6 +28,8 @@
   const skillSearch = document.getElementById('skill-search');
   const skillsButton = document.getElementById('skills-button');
   const modeline = document.getElementById('modeline');
+  const lateDelivery = el('span', 'ml tail');
+  lateDelivery.hidden = true;
   const sessionBox = document.getElementById('session-box');
   const sessionSummary = document.getElementById('session-summary');
   const roomButton = document.getElementById('room-button');
@@ -144,6 +146,8 @@
     connection.className = `conn ${className || ''}`;
     history.connection(className === 'connected');
     if (className !== 'connected') {
+      roomWorkspace = null;
+      watchLobbySchedules(null);
       sessions.disconnected();
       lobby.disconnected();
       state.connected = false;
@@ -774,6 +778,66 @@
 
 
   /* -- Status strip -------------------------------------------------- */
+  const pendingSchedulesButton = document.getElementById('pending-schedules-button');
+  const pendingSchedules = document.getElementById('pending-schedules');
+  const pendingWakeUpsList = document.getElementById('pending-wake-ups-list');
+  const workspaceList = document.getElementById('pending-workspace-list');
+  let wakeUps = [], workspaceJobs = [];
+  let pendingWakeUpChunks = [];
+  let roomWorkspace = null, scheduleFeed = null;
+  pendingSchedulesButton.addEventListener('click', () => pendingSchedules.showModal());
+
+  function renderScheduleHint() {
+    const rows = [...wakeUps, ...workspaceJobs];
+    const next = rows.reduce((a, b) => !a || b.due < a.due ? b : a, null);
+    const more = rows.length - 1;
+    const label = workspaceJobs.length ? 'Pending schedules' : 'Pending wake-ups';
+    pendingSchedulesButton.hidden = !next;
+    pendingSchedulesButton.textContent = next ? `◷ ${next.short}${more ? ` +${more}` : ''}` : '';
+    pendingSchedulesButton.setAttribute('aria-label', next
+      ? `${label}: ${next.short}${more ? ` and ${more} more` : ''}` : label);
+  }
+
+  function renderPendingWakeUps(rows = []) {
+    wakeUps = rows;
+    renderScheduleHint();
+    pendingWakeUpsList.replaceChildren();
+    if (!rows.length) {
+      pendingWakeUpsList.append(el('li', '', 'No pending wake-ups.'));
+      return;
+    }
+    for (const row of rows) {
+      const item = el('li', '', row.time);
+      if (typeof row.note === 'string') item.append(el('p', 'pending-wake-up-note', row.note));
+      pendingWakeUpsList.append(item);
+    }
+  }
+
+  function renderWorkspaceJobs(rows = []) {
+    workspaceJobs = rows;
+    workspaceList.replaceChildren();
+    for (const row of rows) {
+      const item = el('li', '', row.time);
+      if (typeof row.name === 'string') item.append(el('p', 'pending-wake-up-note', row.name));
+      workspaceList.append(item);
+    }
+    document.getElementById('pending-workspace').hidden = rows.length === 0;
+    renderScheduleHint();
+  }
+
+  function scheduleRow(row) {
+    return Number.isFinite(row?.due) && typeof row.short === 'string' && typeof row.time === 'string';
+  }
+
+  function receivePendingWakeUps(frame) {
+    if (!Array.isArray(frame.records)) return;
+    pendingWakeUpChunks.push(...frame.records.filter(scheduleRow));
+    if (frame.final === true) {
+      renderPendingWakeUps(pendingWakeUpChunks);
+      pendingWakeUpChunks = [];
+    }
+  }
+
   // One home for session state, the way the Emacs mode line reports it,
   // instead of the same facts scattered across three corners.
   function renderModeline() {
@@ -815,7 +879,7 @@
       settings.addEventListener('click', openSettings);
       modeline.append(settings);
     }
-    modeline.append(tail);
+    modeline.append(tail, lateDelivery);
     renderModeChoices();
   }
 
@@ -1271,13 +1335,22 @@
 
   /* -- Frame handling ------------------------------------------------ */
 
+  function showLateDelivery(text) {
+    lateDelivery.textContent = typeof text === 'string' ? text : '';
+    lateDelivery.hidden = !lateDelivery.textContent;
+  }
+
   // Request ids already notified about, so a re-sent card stays silent.
   const notifiedRequests = new Set();
 
   function showTerminal(connectionText, noticeText, {label, href, keepShare = false} = {}) {
     followingLive = false;
+    pendingWakeUpChunks = [];
+    if (pendingSchedules.open) pendingSchedules.close();
+    renderPendingWakeUps();
     if (transport) transport.end();
     state.connected = false;
+    showLateDelivery('');
     if (!keepShare) {
       notifications.forget();
       try { sessionStorage.removeItem('niwa-tab-share'); }
@@ -1323,7 +1396,53 @@
     } else if (value === true || value === false) {
       state.lobby = value;
     }
+    syncScheduleFeed();
     nav.render();
+  }
+
+  function syncScheduleFeed() {
+    const link = roomWorkspace && state.lobby && (typeof state.lobby === 'string' && state.owner
+      ? state.lobby : sessions.lobbyLink());
+    watchLobbySchedules(link || null);
+  }
+
+  window.addEventListener('storage', event => {
+    if (!event.key || event.key === 'niwa-rooms') syncScheduleFeed();
+  });
+
+  async function watchLobbySchedules(link) {
+    if (scheduleFeed?.link === link && scheduleFeed.workspace === roomWorkspace) return;
+    if (scheduleFeed) {
+      scheduleFeed.transport?.end();
+      scheduleFeed = null;
+      renderWorkspaceJobs();
+    }
+    if (!link) return;
+    const held = parseFragment(link.split('#')[1]);
+    if (!held) return;
+    const feed = scheduleFeed = {link, workspace: roomWorkspace};
+    try {
+      const key = await importKey(held.keyBytes);
+      if (scheduleFeed !== feed) return;
+      feed.transport = transportApi.create({
+        roomId: held.roomId, key, giveUpMs: GIVE_UP_MS, joinGraceMs: JOIN_GRACE_MS,
+        // A name needs write access to both rooms; reads never need an owner token.
+        hello: () => helloFrame({writeToken: !state.readOnly && held.writeToken},
+                                {scheduleWorkspace: feed.workspace}),
+        onOpen() {}, onConnection: () => renderWorkspaceJobs(),
+        onGiveUp: () => watchLobbySchedules(null),
+        onFrame(frame) {
+          if (frame.t === 'bye') watchLobbySchedules(null);
+          if (frame.t !== 'workspace-schedules' || !frame.nonce) return;
+          // Transport checked this socket's nonce; a stored workspace label is not proof.
+          if (frame.workspace !== feed.workspace) { watchLobbySchedules(null); return; }
+          renderWorkspaceJobs(Array.isArray(frame.records) ? frame.records.filter(scheduleRow) : []);
+        },
+      });
+      feed.transport.connect();
+    } catch (_error) {
+      if (scheduleFeed === feed) watchLobbySchedules(null);
+    }
   }
 
   function handleFrame(frame) {
@@ -1335,8 +1454,10 @@
       // this viewer can show; say where it belongs and leave the room.
       showTerminal('Artifact link', 'Paste this link into niwa or an MCP client.');
     } else if (frame.t === 'welcome') {
+      showLateDelivery(frame.lateDelivery);
       state.readOnly = frame.readOnly !== false;
       state.staging = {records: [], live: []};
+      pendingWakeUpChunks = [];
       state.connected = true;
       state.busy = null;
       notifications.render();
@@ -1345,6 +1466,7 @@
       showSkillChips(state.readOnly ? [] : frame.commands);
       state.models = Array.isArray(frame.models) ? frame.models : [];
       sessions.setWorkspace(frame.workspace);
+      roomWorkspace = frame.nonce && typeof frame.workspace === 'string' ? frame.workspace : null;
       if (typeof frame.project === 'string' && frame.project) state.project = frame.project;
       showLobbyState(frame.lobby);
       // Active ui-requests are re-sent after the snapshot on every hello.
@@ -1385,6 +1507,8 @@
     } else if (frame.t === 'remove') {
       if (state.staging) state.staging.live.push({t: 'remove', ids: frame.ids});
       else removeRecords(frame.ids);
+    } else if (frame.t === 'late-delivery') {
+      showLateDelivery(frame.text);
     } else if (frame.t === 'queued') {
       flashNotice(typeof frame.position === 'number'
                   ? `Queued — #${frame.position} in line.`
@@ -1402,6 +1526,8 @@
       tasks.show(frame);
     } else if (frame.t === 'goal') {
       goal.show(frame);
+    } else if (frame.t === 'pending-wake-ups') {
+      receivePendingWakeUps(frame);
     } else if (frame.t === 'agent') {
       agents.handle(frame);
     } else if (frame.t === 'execution-result') {
@@ -1480,6 +1606,8 @@
       setConnection('Connected', 'connected');
       nav.render();
       restoreDestination();
+    } else if (frame.t === 'lobby-session-patch') {
+      lobby.patchSession(frame);
     } else if (frame.t === 'lobby-state') {
       showLobbyState(frame.lobby);
     } else if (frame.t === 'presence') {
@@ -1684,6 +1812,13 @@
   [document.body, transcript, dock].forEach(node => liveLayout.observe(node));
   window.addEventListener('resize', scheduleLiveScroll);
   window.visualViewport?.addEventListener('resize', scheduleLiveScroll);
+  function helloFrame(held, fields) {
+    const hello = {t: 'hello', proto: PROTO, ...fields};
+    if (held.writeToken) hello.writeToken = base64urlEncode(held.writeToken);
+    if (held.ownerToken) hello.ownerToken = base64urlEncode(held.ownerToken);
+    return hello;
+  }
+
   const linkFragment = notificationsApi.resolveShare(parseFragment,
                                                      window.niwaNav.historyShare());
   const rawFragment = linkFragment.split('?')[0];
@@ -1718,17 +1853,7 @@
         key,
         giveUpMs: GIVE_UP_MS,
         joinGraceMs: JOIN_GRACE_MS,
-        hello: () => {
-          const hello = {t: 'hello', proto: PROTO, name: names.current(),
-                         guestId: guestId(), ...presence.hello()};
-          if (credentials.writeToken) {
-            hello.writeToken = base64urlEncode(credentials.writeToken);
-          }
-          if (credentials.ownerToken) {
-            hello.ownerToken = base64urlEncode(credentials.ownerToken);
-          }
-          return hello;
-        },
+        hello: () => helloFrame(credentials, {name: names.current(), guestId: guestId(), ...presence.hello()}),
         onConnection: setConnection,
         onFrame: handleFrame,
         onGiveUp: () => {

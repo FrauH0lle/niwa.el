@@ -90,6 +90,18 @@ republished after rename; `currentSegment` remains frame metadata.
   frames broadcast to every guest when the prefix is 0 and target guest N
   otherwise; guest frames get the prefix overwritten with the sender's
   peerId before forwarding to the host.
+- The host sends each admitted room peer `pending-wake-ups` on join and on
+  committed changes. The `records` array holds `{due, short, time}` in due
+  order: host epoch seconds, a compact host-local label, and the full host-local
+  date, time and zone. Only writable peers receive `note`. A `final: true`
+  chunk completes the replacement, including an empty snapshot after removal.
+- A chat with a lobby link opens a separate guest socket to that lobby. Its
+  `hello.scheduleWorkspace` names the workspace from the bound room welcome.
+  After matching its own workspace and checking the lobby credentials, the
+  host sends only a targeted `workspace-schedules` snapshot, not a listing.
+  Its `workspace` must match the welcome; `records` contains `{due, short,
+  time}` for active jobs, plus `name` for writable links. A reply must carry
+  the current socket nonce. Loss of either connection discards that snapshot.
 - Yielded root/child completions and forwarded child completions are projected
   as output-free `execution` records with `status` and
   `execution: {owner, ownPath, id, command, description, kind, eventCount, exitCode}`.

@@ -25,6 +25,7 @@
 (require 'niwa-collaboration-projection)
 (require 'niwa-collaboration-share)
 (require 'niwa-collaboration-transport)
+(require 'niwa-schedule)
 (require 'niwa-session-persistence)
 (require 'niwa-session-durability)
 (require 'niwa-structs)
@@ -436,12 +437,10 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
 (niwa-deftest niwa-collaboration-lobby--frame
   (:doc "caps the listing and reports how many rows it left out")
   (let ((niwa-collaboration-lobby--max-sessions 2))
-    (cl-letf (((symbol-function 'niwa-collaboration-lobby--rows)
-               (lambda (_workspace) '((:id "a") (:id "b") (:id "c"))))
-              ((symbol-function 'niwa-collaboration--workspace-key)
+    (cl-letf (((symbol-function 'niwa-collaboration--workspace-key)
                (lambda (lobby) (format "key-%s" (plist-get lobby :workspace)))))
       (let ((frame (niwa-collaboration-lobby--frame
-                    '(:workspace w :project "proj"))))
+                    '(:workspace w :project "proj") '((:id "a") (:id "b") (:id "c")))))
         (should (equal "lobby" (plist-get frame :t)))
         (should (equal "proj" (plist-get frame :project)))
         (should (equal "key-w" (plist-get frame :workspace)))
@@ -1330,15 +1329,162 @@ The list of stopped transports is bound to `stopped'."
                  ((symbol-function 'niwa-collaboration--transport-stop) #'ignore))
          (setq lobby (niwa-collaboration-lobby-start root))
          (cl-flet* ((send (peer frame) (funcall (plist-get callbacks :on-frame) peer frame))
-                    (hello (peer id tier)
-                      (send peer (list :t "hello" :proto niwa-collaboration--protocol-version
+                    (hello (peer id tier &rest fields)
+                      (send peer (cl-list* :t "hello" :proto niwa-collaboration--protocol-version
                                        :guestId id :writeToken (unless (eq tier 'view)
                                                                  (niwa-collaboration--base64url
                                                                   (plist-get lobby :write-token)))
                                        :ownerToken (when (eq tier 'owner)
                                                      (niwa-collaboration--base64url
-                                                      (plist-get lobby :owner-token)))))))
+                                                      (plist-get lobby :owner-token))) fields))))
            ,@body)))))
+
+(niwa-deftest niwa-collaboration-lobby/pending-wake-ups
+  (:doc "admission and row patches show only timing and count for listed closed sessions")
+  (niwa-collaboration-lobby-test--with-relay
+    (let* ((session (niwa-session-create "Release prep" workspace))
+           (id (niwa-session-session-id session))
+           (buffer (generate-new-buffer " *lobby wake-ups*"))
+           (niwa-schedule-clock (lambda () 1795176000))
+           (niwa-schedule--snapshots (make-hash-table :test #'equal))
+           (niwa-schedule--buffers nil) (niwa-schedule--closed nil) (niwa-schedule--timer nil)
+           (process-environment (copy-sequence process-environment)))
+      (setenv "TZ" "EET-2")
+      (unwind-protect
+          (progn
+            (with-current-buffer buffer
+              (org-mode)
+              (insert "Saved transcript\n")
+              (setq-local niwa--session session)
+              (niwa-session-artifacts-save session buffer))
+            (setf (niwa-session-root-buffer session) buffer)
+            (niwa-schedule-create session buffer "1d" "Secret later note")
+            (niwa-schedule-create session buffer "5m" "Secret next note")
+            (test-niwa-session-persistence--release-and-kill buffer session)
+            (cl-loop for tier in '(view full owner) for peer from 1 do
+                     (setq replies nil)
+                     (hello peer (format "browser-%d" peer) tier)
+                     (let* ((frame (seq-find (lambda (f) (equal (plist-get f :t) "lobby")) replies))
+                            (row (aref (plist-get frame :sessions) 0)))
+                       (should (equal id (plist-get row :id)))
+                       (should (eq :json-false (plist-get row :live)))
+                       (if (eq tier 'view)
+                           (should-not (plist-member row :wakeUp))
+                         (should (equal '(:due "2026-11-20T14:05:00+02:00" :label "14:05" :count 2)
+                                        (plist-get row :wakeUp))))
+                       (should-not (string-search "Secret" (json-encode frame)))))
+            (setq recipients nil replies nil)
+            (should (niwa-session-durability-delete-abandoned (niwa-session-save-path session) 0))
+            (should (equal '(2 3) (sort recipients #'<)))
+            (dolist (frame replies)
+              (should (equal (list :t "lobby-session-patch" :id id :wakeUp nil) frame)))
+            (should-not (niwa-collaboration-lobby-test--session-live-p id)))
+        (test-niwa-session-persistence--release-and-kill buffer session)
+        (when niwa-schedule--timer (cancel-timer niwa-schedule--timer))))))
+
+(niwa-deftest niwa-collaboration-lobby/late-delivery
+  (:doc "only writable links get the listed session's late delivery, which expires on refresh")
+  (niwa-collaboration-lobby-test--with-relay
+    (let* ((session (niwa-session-create "Release prep" workspace))
+           (id (niwa-session-session-id session))
+           (buffer (generate-new-buffer " *lobby late delivery*"))
+           (now 1795176000)
+           (niwa-schedule-clock (lambda () now)))
+      (unwind-protect
+          (progn
+            (hello 4 "not-listing-session" 'full)
+            (with-current-buffer buffer
+              (org-mode)
+              (insert "Saved transcript\n")
+              (setq-local niwa--session session)
+              (niwa-session-artifacts-save session buffer))
+            (hello 1 "view" 'view)
+            (hello 2 "full" 'full)
+            (hello 3 "owner" 'owner)
+            (setf (niwa-session-latest-late-delivery session)
+                  (list :delivered-at now :late-seconds 7200))
+            (niwa-session-artifacts-save session buffer)
+            (setq replies nil recipients nil controls nil)
+            (run-hook-with-args 'niwa-schedule-late-delivery-hook session)
+            (should (equal '(2 3) (sort recipients #'<)))
+            (should-not controls)
+            (let ((notice (plist-get (car replies) :lateDelivery)))
+              (should (string-prefix-p "Wake-up delivered" notice))
+              (dolist (frame replies)
+                (should (equal (list :t "lobby-session-patch" :id id :lateDelivery notice) frame)))
+              (test-niwa-session-persistence--release-and-kill buffer session)
+              (dolist (expected (list notice nil))
+                (dolist (peer '(1 2 3))
+                  (setq replies nil)
+                  (send peer '(:t "lobby-refresh"))
+                  (let* ((frame (car replies))
+                         (row (aref (plist-get frame :sessions) 0)))
+                    (should (equal id (plist-get row :id)))
+                    (should (eq :json-false (plist-get row :live)))
+                    (if (= peer 1)
+                        (should-not (plist-member row :lateDelivery))
+                      (should (plist-member row :lateDelivery))
+                      (should (equal expected (plist-get row :lateDelivery))))))
+                (setq now (+ now 86400))))
+            (should-not (niwa-collaboration-lobby-test--session-live-p id)))
+        (test-niwa-session-persistence--release-and-kill buffer session)))))
+
+(niwa-deftest niwa-collaboration-lobby/late-delivery-unsaved
+  (:doc "refresh lists a confirmed receipt from a live session never saved")
+  (niwa-collaboration-lobby-test--with-relay
+    (let* ((session (niwa-session-create "Unsaved" workspace))
+           (id (niwa-session-session-id session))
+           (niwa-schedule-clock (lambda () 1795176000))
+           (receipt '(:delivered-at 1795176000 :late-seconds 7200)))
+      (hello 1 "full" 'full)
+      (with-temp-buffer
+        (setq-local niwa--session session)
+        (setf (niwa-session-latest-late-delivery session) receipt)
+        (should-not (niwa-session-save-path session))
+        (setq replies nil)
+        (send 1 '(:t "lobby-refresh"))
+        (let ((row (aref (plist-get (car replies) :sessions) 0)))
+          (should (equal id (plist-get row :id)))
+          (should (eq t (plist-get row :live)))
+          (should (equal (niwa-schedule-overview-late-delivery receipt)
+                         (plist-get row :lateDelivery))))))))
+
+(niwa-deftest niwa-collaboration-lobby/late-delivery-row-cutoff
+  (:doc "the next wake-up patch clears a displayed notice at the absolute host cutoff")
+  (niwa-collaboration-lobby-test--with-relay
+    (let* ((session (niwa-session-create "Release prep" workspace))
+           (buffer (generate-new-buffer " *row cutoff*"))
+           (now 1795176000)
+           (niwa-schedule-clock (lambda () now))
+           (niwa-schedule--snapshots (make-hash-table :test #'equal))
+           (niwa-schedule--buffers nil) (niwa-schedule--closed nil) (niwa-schedule--timer nil))
+      (unwind-protect
+          (with-current-buffer buffer
+            (org-mode)
+            (setq-local niwa--session session)
+            (setf (niwa-session-root-buffer session) buffer
+                  (niwa-session-latest-late-delivery session) (list :delivered-at now :late-seconds 300))
+            (niwa-session-artifacts-save session buffer)
+            (hello 1 "reader" 'full)
+            (let* ((listing (seq-find (lambda (f) (equal (plist-get f :t) "lobby")) replies))
+                   (notice (plist-get (aref (plist-get listing :sessions) 0) :lateDelivery)))
+              (should (stringp notice))
+              (cl-incf now 86399)
+              (setq replies nil)
+              (let* ((entry (niwa-schedule-create session buffer "5m" "Private wake-up"))
+                     (patch (car replies)))
+                (should (plist-get patch :wakeUp))
+                (when (plist-member patch :lateDelivery)
+                  (should (equal notice (plist-get patch :lateDelivery))))
+                (cl-incf now)
+                (setq replies nil)
+                (niwa-schedule-cancel session buffer (plist-get entry :id))
+                (let ((frame (car replies)))
+                  (should (equal "lobby-session-patch" (plist-get frame :t)))
+                  (should (plist-member frame :lateDelivery))
+                  (should-not (plist-get frame :lateDelivery))))))
+        (test-niwa-session-persistence--release-and-kill buffer session)
+        (when niwa-schedule--timer (cancel-timer niwa-schedule--timer))))))
 
 (niwa-deftest niwa-collaboration-lobby/push-tiers
   (:doc "only authenticated full and owner guests change their browser subscription")
@@ -1506,6 +1652,73 @@ The list of stopped transports is bound to `stopped'."
                                          (unless (eq tier 'view) '(:name "Private job"))))))
           (setq replies nil))))))
 
+(niwa-deftest niwa-collaboration-lobby/chat-schedule-admission
+  (:doc "only a matching schedules hello gets active host times, and only writers get names")
+  (niwa-collaboration-lobby-test--with-relay
+    (let ((key (niwa-collaboration--workspace-key lobby))
+          (niwa-schedule-clock (lambda () 1795176000))
+          (process-environment (copy-sequence process-environment)))
+      (setenv "TZ" "EET-2")
+      (cl-letf (((symbol-function 'niwa-workspace-schedule-list)
+                 (lambda (_) '((:status active :due 1795176300 :name "Triage" :prompt "private")
+                               (:status paused :due 1795176400 :name "Paused")))))
+        (niwa-collaboration--guard-guest-frame
+         (list :session (niwa-session-create "Room, not lobby" workspace)
+               :guests (make-hash-table) :transport 'relay)
+         4 (list :t "hello" :proto niwa-collaboration--protocol-version :scheduleWorkspace key)
+         #'niwa-collaboration--dispatch-frame)
+        (should-not replies)
+        (hello 4 "wrong" 'owner :scheduleWorkspace "other")
+        (should-not replies)
+        (should-not (niwa-collaboration--guest lobby 4))
+        (should-not (gethash 4 (plist-get lobby :schedule-guests)))
+        (cl-loop for tier in '(view full owner) for peer from 1 do
+                 (hello peer "chat" tier :scheduleWorkspace key)
+                 (should-not (niwa-collaboration--guest lobby peer))
+                 (should (gethash peer (plist-get lobby :schedule-guests)))
+                 (should (equal (list peer) recipients))
+                 (should (equal replies
+                                (list (list :t "workspace-schedules" :workspace key :records
+                                            (vector (append '(:due 1795176300 :short "14:05"
+                                                              :time "2026-11-20 14:05 EET (UTC+0200)")
+                                                            (unless (eq tier 'view) '(:name "Triage"))))))))
+                 (setq replies nil recipients nil))))))
+
+(niwa-deftest niwa-collaboration-lobby/chat-schedule-isolation
+  (:doc "chat subscribers stay outside lobby membership, controls and content broadcasts")
+  (niwa-collaboration-lobby-test--with-relay
+    (let ((key (niwa-collaboration--workspace-key lobby)))
+      (hello 1 "ordinary" 'full)
+      (hello 2 "background" 'owner :scheduleWorkspace key)
+      (setq replies nil recipients nil)
+      (send 2 '(:t "lobby-refresh"))
+      (send 2 '(:t "schedule-action" :reqId 1 :action "pause" :id "s-ab1234"))
+      (hello 2 "background" 'owner)
+      (should-not replies)
+      (niwa-collaboration--broadcast lobby '(:t "discussions" :item "private"))
+      (should (equal '(1) recipients))
+      (setq replies nil recipients nil)
+      (hello 3 "foreground" 'view)
+      (should-not (memq 2 recipients))
+      (should-not (string-search "background" (json-encode (vconcat replies))))
+      (setq replies nil recipients nil)
+      (run-hook-with-args 'niwa-workspace-schedule-changed-functions workspace)
+      (should (equal (list (list :t "workspace-schedules" :workspace key :records []))
+                     (cl-loop for peer in recipients for frame in replies when (= peer 2) collect frame)))
+      (funcall (plist-get callbacks :on-control) 'peer-left 2)
+      (setq replies nil recipients nil)
+      (run-hook-with-args 'niwa-workspace-schedule-changed-functions workspace)
+      (should-not (memq 2 recipients))
+      (hello 2 "background" 'view :scheduleWorkspace key)
+      (funcall (plist-get callbacks :on-state) 'down)
+      (setq replies nil recipients nil)
+      (run-hook-with-args 'niwa-workspace-schedule-changed-functions workspace)
+      (should-not replies)
+      (hello 2 "background" 'view :scheduleWorkspace key)
+      (setq replies nil)
+      (niwa-collaboration-lobby--stop lobby 'rotated)
+      (should (equal replies '((:t "bye" :reason "rotated")))))))
+
 (niwa-deftest niwa-collaboration-lobby/inaccessible-schedule-store
   (:doc "An inaccessible schedule store does not hide sessions or presence from a guest.")
   (niwa-collaboration-lobby-test--with-relay
@@ -1568,6 +1781,13 @@ The list of stopped transports is bound to `stopped'."
              (car replies))
            (rows (status &optional outcome)
              (let (seen)
+               (let* ((chat (cl-loop for peer in recipients for f in replies when (= peer 4) collect f))
+                      (records (plist-get (car chat) :records)))
+                 (should (= 1 (length chat)))
+                 (should (equal "workspace-schedules" (plist-get (car chat) :t)))
+                 (if (equal status "active")
+                     (should (equal '("Private") (mapcar (lambda (r) (plist-get r :name)) records)))
+                   (should (equal [] records))))
                (cl-loop for peer in recipients for frame in replies when (equal "lobby" (plist-get frame :t))
                         do (let ((row (aref (plist-get frame :schedules) 0)))
                              (should (equal id (plist-get row :id)))
@@ -1576,17 +1796,19 @@ The list of stopped transports is bound to `stopped'."
                (should (equal '(1 2 3) (sort seen #'<))))))
         (unwind-protect
             (progn
-              (dolist (peer '(1 2 3))
+              (dolist (peer '(1 2 3 4))
                 (niwa-collaboration--transport-receive
                  wire (make-websocket-frame :opcode 'text :completep t :payload
                        (json-encode (list :t "peer-joined" :peer peer))))
                 (push (cons peer (plist-get (car replies) :challenge)) challenges)
                 (should-not (action peer id "pause"))
-                (sealed peer (list :t "hello" :proto niwa-collaboration--protocol-version
+                (sealed peer (cl-list* :t "hello" :proto niwa-collaboration--protocol-version
                                    :writeToken (when (> peer 1) (niwa-collaboration--base64url
                                                                  (plist-get lobby :write-token)))
                                    :ownerToken (when (= peer 3) (niwa-collaboration--base64url
-                                                                 (plist-get lobby :owner-token))))))
+                                                                 (plist-get lobby :owner-token)))
+                                       (when (= peer 4) (list :scheduleWorkspace
+                                                              (niwa-collaboration--workspace-key lobby))))))
               (setq recipients nil replies nil)
               (niwa-workspace-schedule-create workspace job)
               (rows "active")

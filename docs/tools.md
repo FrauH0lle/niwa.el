@@ -1826,6 +1826,15 @@ created. `notified` means the run issued a failure notice or a non-duplicate
 `Notify` alone leaves the run `quiet`. `p` pauses, `r` resumes, and `d` asks
 before deleting the schedule and its history.
 
+Standing jobs also lists **Session wake-ups**, grouped by session, including
+closed sessions in this workspace. These read-only rows show the note and
+its actual due time. Unlike a workspace job, each wake-up continues its own
+conversation. Restoring the pending index doesn't open the session to list it.
+The session heading shows its latest confirmed late delivery and the host-local
+date and time, even if nothing else is pending. This notice survives restart
+and drops off on the first open or refresh 24 hours after delivery. The session
+history is unchanged.
+
 A failed launch or first request records `failed` with the error and issues
 one failure notice. After a restart, an unfinished run is marked failed only
 if its holder is known to be dead (including after a reboot of the same

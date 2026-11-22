@@ -118,6 +118,21 @@
       }
     }
 
+    function renderWakeUp(slot, wakeUp) {
+      slot.replaceChildren();
+      if (typeof wakeUp?.due !== 'string' || typeof wakeUp.label !== 'string') return;
+      const more = wakeUp.count > 1 ? ` +${wakeUp.count - 1}` : '';
+      const badge = el('time', '', `◷ ${wakeUp.label}${more}`);
+      badge.dateTime = wakeUp.due;
+      badge.title = `Next wake-up: ${wakeUp.due.replace('T', ' ')}`;
+      slot.append(badge);
+    }
+
+    function renderLateDelivery(slot, notice) {
+      slot.textContent = typeof notice === 'string' ? notice : '';
+      slot.title = slot.textContent;
+    }
+
     function renderRow(row) {
       const item = el('li', 'lobby-row');
       const main = el('div', 'lobby-main');
@@ -127,6 +142,13 @@
       else if (row.live === true) meta.push('open in Emacs');
       if (here.get(row.id)) meta.push(`${here.get(row.id)} here`);
       main.append(el('span', 'lobby-meta', meta.filter(Boolean).join(' · ')));
+      if (state.writable) {
+        const wakeUp = el('span', 'lobby-meta lobby-wake-up');
+        const lateDelivery = el('span', 'lobby-meta lobby-late-delivery');
+        renderWakeUp(wakeUp, row.wakeUp);
+        renderLateDelivery(lateDelivery, row.lateDelivery);
+        main.append(wakeUp, lateDelivery);
+      }
       if (row.preview) main.append(el('p', 'lobby-preview', row.preview));
       item.append(main);
       if (state.writable) {
@@ -248,6 +270,21 @@
       scheduleEmpty.hidden = jobs.length > 0;
     }
 
+    function patchSession(frame) {
+      if (!active || !state.writable) return;
+      const index = shown.findIndex(row => row.id === frame.id);
+      if (index < 0) return;
+      const item = list.children[index];
+      if (Object.hasOwn(frame, 'wakeUp')) {
+        shown[index].wakeUp = frame.wakeUp;
+        renderWakeUp(item.querySelector('.lobby-wake-up'), frame.wakeUp);
+      }
+      if (Object.hasOwn(frame, 'lateDelivery')) {
+        shown[index].lateDelivery = frame.lateDelivery;
+        renderLateDelivery(item.querySelector('.lobby-late-delivery'), frame.lateDelivery);
+      }
+    }
+
     function opened(frame) {
       const button = opening.get(frame.reqId)?.button;
       if (!button) return;
@@ -309,7 +346,7 @@
       if (active) showRows(list, shown, renderRow);
     }
 
-    return Object.freeze({show, opened, deleted, renamed, created, counts, select, scheduleResult,
+    return Object.freeze({show, patchSession, opened, deleted, renamed, created, counts, select, scheduleResult,
                           disconnected: () => {
                             for (const requests of [opening, deleting, renaming, scheduleActions]) requests.clear();
                           },

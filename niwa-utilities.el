@@ -261,7 +261,7 @@ A symlink whose target begins with `//' otherwise yields that spelling."
 Interactively, or when MESSAGE is non-nil, show it in echo area.  With
 prefix argument, or when HERE is non-nil, insert it at point."
   (interactive (list (or current-prefix-arg 'interactive)))
-  (let ((version "v0.7.0"))
+  (let ((version "v0.8.0"))
     (cond
      ((or message (called-interactively-p 'any))
       (message "niwa %s" version))

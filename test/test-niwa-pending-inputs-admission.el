@@ -155,9 +155,9 @@
                                  (niwa-schedule-create session buffer "20m" "Check CI")
                                  (cl-incf now 1200)
                                  (niwa-schedule-run-due)
-                                 (should-not (niwa-session-schedules session))
                                  (niwa-test--await 5 "Wake did not commit"
                                    (niwa-agent-control-wake-pending-p session))
+                                 (should-not (niwa-session-schedules session))
                                  (should-not admitted)
                                  (setf (niwa-goal-status (niwa-session-goal session)) 'active)
                                  (niwa-view-composer-replace "" view)))

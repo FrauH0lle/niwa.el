@@ -872,7 +872,9 @@ FAILURE declines a queued batch locally without attempting a commit."
       (condition-case err
           (progn
             (dolist (entry batch)
-              (pcase-let ((`(,recipient ,records ,_wake ,_ack) entry))
+              (pcase-let ((`(,recipient ,records ,_wake ,_ack ,prepare) entry))
+                (when prepare
+                  (setf (nth 1 entry) (setq records (cl-remove-if-not prepare records))))
                 (let ((present (mapcar (lambda (record) (plist-get record :id))
                                       (niwa-agent-control--mailbox-queue session recipient))))
                   (dolist (record records)
@@ -896,7 +898,7 @@ FAILURE declines a queued batch locally without attempting a commit."
     ;; One failed callback must not strand another producer's acknowledgement.
     ;; Notifications stay outside the preparation token through the normal FIFO.
     (dolist (entry batch)
-      (pcase-let ((`(,recipient ,records ,wake ,ack) entry))
+      (pcase-let ((`(,recipient ,records ,wake ,ack ,_prepare) entry))
         (condition-case err
             (funcall ack (not failure) failure)
           ((error quit)
@@ -907,12 +909,12 @@ FAILURE declines a queued batch locally without attempting a commit."
           (niwa-agent-control--deliver-mail
            session recipient (car (last records)) wake))))))
 
-(defun niwa-agent-control--batch-mail (session recipient records wake acknowledge)
+(defun niwa-agent-control--batch-mail (session recipient records wake acknowledge &optional prepare)
   "Queue RECORDS for RECIPIENT in SESSION's next shared background commit.
-WAKE and ACKNOWLEDGE retain each producer's delivery and acknowledgement."
+WAKE, ACKNOWLEDGE and PREPARE retain each producer's delivery contract."
   (dolist (record records) (niwa-agent-control--identify-record record))
   (let ((first (null (niwa-session-mail-batch session))))
-    (push (list recipient records wake acknowledge) (niwa-session-mail-batch session))
+    (push (list recipient records wake acknowledge prepare) (niwa-session-mail-batch session))
     (when first
       (niwa-session-publication-enqueue
        session (apply-partially #'niwa-agent-control--commit-mail-batch session)
@@ -920,11 +922,13 @@ WAKE and ACKNOWLEDGE retain each producer's delivery and acknowledgement."
   'pending)
 
 (defun niwa-agent-control--enqueue-records
-    (session recipient records &optional wake-reason acknowledge)
+    (session recipient records &optional wake-reason acknowledge prepare)
   "Durably queue RECORDS (FIFO) for RECIPIENT with one commit, then wake.
 All records are secured or none: a failed commit restores the queue.
 ACKNOWLEDGE, when supplied, receives (SUCCESS ERROR) after authoritative
-adoption or rollback.  Background arrivals may acknowledge asynchronously."
+adoption or rollback.  Background arrivals may acknowledge asynchronously.
+PREPARE, if supplied, stages related changes under the same gate for each
+record; nil omits that record (for example, a wake-up that just expired)."
   (when (niwa-session-publication-stopping-p session)
     (user-error "Session publication is stopping"))
   ;; All producers enter here, including recovery RESULTs and batched monitor
@@ -936,7 +940,7 @@ adoption or rollback.  Background arrivals may acknowledge asynchronously."
          (niwa-session-save-path session)
          (buffer-live-p (niwa-session-root-buffer session))
          (not (niwa-session-publication-async-eligible-p session)))
-    (niwa-agent-control--batch-mail session recipient records wake-reason acknowledge))
+    (niwa-agent-control--batch-mail session recipient records wake-reason acknowledge prepare))
    ((and acknowledge
          (not niwa-agent-control-suppress-persistence)
          (niwa-session-publication-async-eligible-p session))
@@ -955,6 +959,7 @@ adoption or rollback.  Background arrivals may acknowledge asynchronously."
                             (or (member (plist-get record :id) present)
                                 (niwa-session-checkpoint-pending-message-p
                                  session recipient (plist-get record :id)))) records)))
+         (when prepare (setq records (cl-remove-if-not prepare records)))
          (dolist (record records) (plist-put record :uncommitted t))
          (setq ids (mapcar (lambda (record) (plist-get record :id)) records))
          (niwa-agent-control--set-mailbox-queue
@@ -978,6 +983,7 @@ adoption or rollback.  Background arrivals may acknowledge asynchronously."
       'pending))
    (t
     (niwa-session-publication-barrier session)
+    (when prepare (setq records (cl-remove-if-not prepare records)))
     (dolist (record records)
       (niwa-agent-control--identify-record record)
       (plist-put record :uncommitted t))
@@ -989,7 +995,7 @@ adoption or rollback.  Background arrivals may acknowledge asynchronously."
        session recipient (append (reverse records) previous))
       (condition-case err
           (niwa-agent-control-commit-session session)
-        (error
+        ((error quit)
          (niwa-agent-control--set-mailbox-queue
           session recipient
           (cl-remove-if
@@ -1155,18 +1161,19 @@ together or not at all, so a retry cannot duplicate a partial batch."
     (when acknowledge (funcall acknowledge t nil))
     t))
 
-(defun niwa-agent-control-enqueue-wake-up (session note meta acknowledge)
+(defun niwa-agent-control-enqueue-wake-up (session note meta acknowledge &optional prepare)
   "Queue a due wake-up's NOTE for SESSION's root as one waking WAKE_UP record.
 META is a plist of structural facts carried as opening-tag attributes.
 ACKNOWLEDGE receives (SUCCESS ERROR) once after adoption or rollback; the
-record commits together with the caller's other pending session changes."
+record commits together with the session changes staged by PREPARE (see
+`niwa-agent-control--enqueue-records')."
   (unless (stringp note)
     (error "Invalid wake-up note"))
   (niwa-agent-control--enqueue-records
    session "/root"
    (list (list :type 'WAKE_UP :sender "/root" :recipient "/root"
                :payload note :timestamp (current-time) :meta meta :wake t))
-   nil acknowledge))
+   nil acknowledge prepare))
 
 (defun niwa-agent-control-restore-lost-monitors (session monitors)
   "Add non-waking terminal mail for lost MONITORS to restored SESSION.

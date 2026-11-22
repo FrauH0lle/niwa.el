@@ -203,6 +203,9 @@
       });
       nextSocket.addEventListener('close', event => {
         if (socket !== nextSocket || ended) return;
+        // Do not deliver an in-flight decrypt after reporting this socket down.
+        socket = null;
+        binding = null;
         // An initial 4004 that outlasts the short join window identifies a
         // stale stored link.  Within it, a link handed out with a new room
         // may simply have beaten the host's own dial to the relay.  During

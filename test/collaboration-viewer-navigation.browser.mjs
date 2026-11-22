@@ -134,7 +134,10 @@ function host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecor
   }
   return {
     [lobbyRoom.id]: (frame, reply, guest) => {
-      if (frame.t === 'hello' || frame.t === 'lobby-refresh') {
+      if (frame.t === 'hello' && frame.scheduleWorkspace === 'ws') {
+        reply({t: 'workspace-schedules', workspace: 'ws', records: [
+          {due: 10, short: '10:15', time: '10:15 UTC', name: 'Workspace job'}]});
+      } else if (frame.t === 'hello' || frame.t === 'lobby-refresh') {
         reply({t: 'lobby', project: 'proj', workspace: 'ws', omitted: 0, sessions: [
           {id: 's1', name: 'Feature work', updated: 1, preview: 'Hello',
            live: true, shared: true}]});
@@ -216,12 +219,12 @@ async function open(browser, {lobbyRunning = true, records = [], sharedItem = nu
     socket.onMessage(message => {
       if (typeof message === 'string') return;
       inbound = inbound.then(async () => {
-        const {challenge, seq, nonce: _nonce, ...frame} = await unseal(keys[id], message);
+        const {challenge, seq, nonce, ...frame} = await unseal(keys[id], message);
         if (challenge !== 'c' || !(seq > last)) return;
         last = seq;
         page.received.push({room: id, connection, frame});
         page.emit('host-frame', frame);
-        answers[id]?.(frame, reply, guest);
+        answers[id]?.(frame, response => reply({...response, nonce}), guest);
       });
     });
   });
@@ -275,6 +278,82 @@ test('standing schedules show only public metadata at phone width on every lobby
       assert.ok(await list.evaluate(node => node.scrollWidth <= node.clientWidth));
       await page.context().close();
     }
+  } finally { await browser.close(); }
+});
+
+const LATE_DELIVERY = 'Wake-up delivered 7h 46m late · 2026-11-23 15:00 CET';
+
+test('closed-session wake-ups and late deliveries are informational at phone width', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await open(browser, {viewport: {width: 320, height: 568}, touch: true});
+    await page.goto(tierLink(lobbyRoom, 48));
+    await page.locator('#lobby-list li').waitFor();
+    const push = page.push[lobbyRoom.id];
+    const list = page.locator('#lobby-list');
+    const due = '2026-11-23T07:00:00+01:00';
+    await push({t: 'lobby', sessions: [
+      {id: 's1', name: 'Release prep', live: false, wakeUp: {due, label: '23 Nov 07:00', count: 2},
+       lateDelivery: LATE_DELIVERY},
+      {id: 'quiet', name: 'Quiet session', live: true}]});
+    const badge = list.getByText('◷ 23 Nov 07:00 +1', {exact: true});
+    await badge.waitFor({timeout: 3000});
+    assert.equal(await badge.getAttribute('datetime'), due);
+    assert.equal(await list.locator('time').count(), 1);
+    const late = list.getByText(LATE_DELIVERY, {exact: true});
+    await late.waitFor({timeout: 3000});
+    assert.ok(await late.evaluate(node => node.scrollHeight <= node.clientHeight));
+    assert.ok(await list.evaluate(node => node.scrollWidth <= node.clientWidth));
+    assert.ok(await list.getByRole('button', {name: 'Open Release prep'}).isEnabled());
+  } finally { await browser.close(); }
+});
+
+test('wake-up and late-delivery patches leave the active lobby row and pointer press in place', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await open(browser, {viewport: {width: 320, height: 568}});
+    await page.goto(lobbyRoom.link);
+    await page.locator('#lobby-list li').waitFor();
+    const push = page.push[lobbyRoom.id];
+    const sessions = Array.from({length: 25}, (_, n) => ({id: `room${n}`, name: `Room ${n}`}));
+    await push({t: 'lobby', sessions});
+    const openRoom = page.getByRole('button', {name: 'Open Room 15', exact: true});
+    await openRoom.focus();
+    const button = await openRoom.elementHandle();
+    await button.evaluate(node => node.scrollIntoView({block: 'center'}));
+    await openRoom.hover();
+    const box = await button.boundingBox();
+    const y = await page.evaluate(() => scrollY);
+    assert.ok(y > 0, 'the active row is below the fold');
+    await page.mouse.down();
+    const assertHeld = async () => {
+      assert.ok(await button.evaluate(node => node === document.activeElement));
+      assert.deepEqual(await button.boundingBox(), box);
+      assert.equal(await page.evaluate(() => scrollY), y);
+    };
+    await assertHeld();
+    const patch = fields => push({t: 'lobby-session-patch', id: 'room15', ...fields});
+    const row = page.locator('#lobby-list li').filter({has: openRoom});
+    const wakeUp = {due: '2026-11-23T07:00:00+01:00', label: '23 Nov 07:00', count: 2};
+    await patch({wakeUp});
+    const badge = row.getByText('◷ 23 Nov 07:00 +1', {exact: true});
+    await badge.waitFor({timeout: 3000});
+    await assertHeld();
+    await patch({lateDelivery: LATE_DELIVERY});
+    const late = row.getByText(LATE_DELIVERY, {exact: true});
+    await late.waitFor({timeout: 3000});
+    assert.ok(await badge.isVisible());
+    await assertHeld();
+    await patch({wakeUp: null});
+    await badge.waitFor({state: 'detached', timeout: 3000});
+    assert.ok(await late.isVisible());
+    await assertHeld();
+    await patch({lateDelivery: null});
+    await late.waitFor({state: 'detached', timeout: 3000});
+    await assertHeld();
+    const opened = page.waitForEvent('host-frame', {predicate: f => f.t === 'open-session'});
+    await page.mouse.up();
+    assert.equal((await opened).id, 'room15');
   } finally { await browser.close(); }
 });
 
@@ -374,6 +453,101 @@ async function liveRoom(browser, viewport) {
 }
 
 const atLiveEdge = () => document.documentElement.scrollHeight - scrollY - innerHeight < 2;
+
+test('pending wake-ups are readable by keyboard at phone width without disturbing the draft', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await liveRoom(browser, {width: 320, height: 640});
+    const hint = page.getByRole('button', {name: /Pending wake-ups/});
+    const sheet = page.getByRole('dialog', {name: 'Pending schedules'});
+    const first = {due: 1795408200, short: '10:00', time: '2026-11-23 10:00 IST (UTC+0530)',
+                   note: 'Check <img src=x>\nThen report'};
+    const second = {due: 1795500600, short: '24 Nov 11:40', time: '2026-11-24 11:40 IST (UTC+0530)'};
+    const send = (records, final = true) => page.push[sessionRoom.id]({t: 'pending-wake-ups', records, final});
+    assert.equal(await hint.count(), 0);
+    const input = page.locator('#composer-input');
+    await input.fill('> Keep this\nunsent draft');
+    await input.evaluate(node => node.setSelectionRange(2, 8));
+    await page.evaluate(() => window.scrollTo(0, 300));
+    const before = await page.evaluate(() => scrollY);
+    const selection = (await sourceState(page)).composer;
+    await send([first], false);
+    await send([second]);
+    await hint.waitFor({timeout: 3000});
+    assert.equal(await hint.textContent(), '◷ 10:00 +1');
+    assert.equal(await input.evaluate(node => node === document.activeElement), true);
+    assert.deepEqual((await sourceState(page)).composer, selection);
+    assert.equal(await page.evaluate(() => scrollY), before);
+
+    await hint.focus();
+    await page.push[sessionRoom.id]({t: 'status', mode: 'edits'});
+    await page.locator('#modeline').getByText('edits', {exact: true}).waitFor();
+    assert.equal(await hint.evaluate(node => node === document.activeElement), true);
+    await page.keyboard.press('Enter');
+    await sheet.waitFor();
+    assert.equal(await sheet.getByText(first.time).count(), 1);
+    assert.equal(await sheet.getByText(first.note).count(), 1);
+    assert.equal(await sheet.locator('img, input, textarea').count(), 0);
+    assert.equal(await sheet.getByRole('button').count(), 1);
+    assert.equal(await sheet.evaluate(node => {
+      const box = node.getBoundingClientRect();
+      return box.left >= 0 && box.right <= innerWidth && node.scrollWidth <= node.clientWidth;
+    }), true);
+    const done = sheet.getByRole('button', {name: 'Done'});
+    await done.focus();
+    await send([second]);
+    await sheet.getByText(first.time).waitFor({state: 'detached'});
+    assert.equal(await done.evaluate(node => node === document.activeElement), true);
+    await page.keyboard.press('Escape');
+    await sheet.waitFor({state: 'hidden'});
+    assert.equal(await hint.evaluate(node => node === document.activeElement), true);
+    assert.equal(await hint.textContent(), '◷ 24 Nov 11:40');
+    await hint.click();
+    await sheet.waitFor();
+    await done.click();
+    await send([]);
+    await hint.waitFor({state: 'hidden'});
+    assert.deepEqual((await sourceState(page)).composer, selection);
+
+    const view = await open(browser, {viewport: {width: 320, height: 640}});
+    await view.goto(tierLink(sessionRoom, 32));
+    await view.getByText('Connected', {exact: true}).waitFor({state: 'attached'});
+    await view.push[sessionRoom.id]({t: 'pending-wake-ups', records: [second], final: true});
+    await view.getByRole('button', {name: /Pending wake-ups/}).click();
+    const viewSheet = view.getByRole('dialog', {name: 'Pending schedules'});
+    await viewSheet.getByText(second.time).waitFor();
+    assert.equal(await viewSheet.locator('.pending-wake-up-note').count(), 0);
+  } finally { await browser.close(); }
+});
+
+test('only the bound lobby reply supplies workspace schedules in chat', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await open(browser, {lobbyRunning: lobbyRoom.link});
+    await page.goto(sessionRoom.link);
+    const hint = page.locator('#pending-schedules-button');
+    await page.getByText('Connected', {exact: true}).waitFor({state: 'attached'});
+    await page.push[sessionRoom.id]({t: 'pending-wake-ups', final: true, records: [
+      {due: 20, short: '10:38', time: '10:38 UTC', note: 'Room reminder'}]});
+    await page.waitForFunction(() => document.querySelector('#pending-schedules-button').textContent === '◷ 10:15 +1',
+                               null, {timeout: 3500});
+    await hint.click();
+    const sheet = page.getByRole('dialog', {name: 'Pending schedules'});
+    const done = sheet.getByRole('button', {name: 'Done'});
+    await done.focus();
+    await sheet.getByText('Workspace job').waitFor();
+    // A broadcast has no socket nonce. Even with the right key it isn't admission.
+    const applied = await page.evaluate(() => window.niwaViewerApplied);
+    await page.push[lobbyRoom.id]({t: 'workspace-schedules', workspace: 'ws', records: []});
+    await page.waitForFunction(n => window.niwaViewerApplied > n, applied);
+    assert.equal(await hint.textContent(), '◷ 10:15 +1');
+    await page.push[sessionRoom.id]({t: 'lobby-state', lobby: false});
+    await sheet.getByText('Workspace job').waitFor({state: 'detached'});
+    assert.equal(await hint.textContent(), '◷ 10:38');
+    assert.equal(await sheet.getByText('Room reminder').count(), 1);
+    assert.equal(await done.evaluate(node => node === document.activeElement), true);
+  } finally { await browser.close(); }
+});
 
 test('workspace notification bell belongs to full and owner lobby links only', async () => {
   const browser = await chromium.launch();
@@ -488,6 +662,9 @@ test('hidden viewer without Push only notifies for explicit host notices', async
       await page.waitForFunction(text => document.querySelector('#notice').textContent === text, label);
       return page.evaluate(() => window.shown.splice(0));
     };
+    await send({t: 'late-delivery', text: 'Wake-up delivered 2h 00m late'});
+    assert.deepEqual(await shownAfter('Delivery received'), []);
+    assert.doesNotMatch(await page.title(), /^●/);
     for (const outcome of ['error', 'aborted', 'lost', 'success']) {
       await send({t: 'notice', kind: 'completion', outcome});
     }
@@ -510,6 +687,28 @@ test('hidden viewer without Push only notifies for explicit host notices', async
     await send({t: 'notice', kind: 'completion'});
     await send({t: 'notice', kind: 'notify'});
     assert.deepEqual(await shownAfter('Focused notices received'), []);
+  } finally { await browser.close(); }
+});
+
+test('late delivery is visible in a narrow room without disturbing a draft or reading position', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await liveRoom(browser, {width: 375, height: 667});
+    const input = page.locator('#composer-input');
+    await input.fill('> retained\nmultiline');
+    await page.evaluate(() => window.scrollTo(0, 400));
+    const position = await page.evaluate(() => scrollY);
+    assert.ok(position > 0);
+    const send = page.push[sessionRoom.id];
+    const notice = page.locator('#modeline').getByText('Wake-up delivered 2h 00m late');
+    await send({t: 'late-delivery', text: 'Wake-up delivered 2h 00m late'});
+    await notice.waitFor({timeout: 3000});
+    assert.equal(await input.inputValue(), '> retained\nmultiline');
+    assert.ok(await input.evaluate(node => node === document.activeElement));
+    assert.equal(await page.evaluate(() => scrollY), position);
+    await send({t: 'welcome', readOnly: true, lateDelivery: 'Wake-up delivered 3h 00m late'});
+    await page.locator('#modeline').getByText('Wake-up delivered 3h 00m late').waitFor();
+    assert.equal(await notice.count(), 0);
   } finally { await browser.close(); }
 });
 

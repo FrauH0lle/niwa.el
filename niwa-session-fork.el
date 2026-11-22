@@ -287,7 +287,7 @@ only through PICKED-CUM-TURN.  Entries with non-integer
     agent-transcripts invoked-skills permission-queue permission-absence
     pending-plan-approval
     plan-metadata goal attached-artifacts dedicated-artifact note-conversation
-    schedules)
+    schedules latest-late-delivery)
   "Every `niwa-session' slot decided by the logical clone constructor.")
 
 (defun niwa-session-fork--assert-clone-slot-completeness ()
@@ -505,6 +505,8 @@ The identity and timestamp keywords describe the new materialized child."
            ;; A fork is the user's own chat, never the artifact's conversation.
            :dedicated-artifact nil
            ;; Wake-ups belong to one conversation: a fork would fire them twice.
+           :latest-late-delivery (unless fork-p
+                                   (copy-sequence (niwa-session-latest-late-delivery session)))
            :schedules (unless fork-p
                         (copy-tree (niwa-session-schedules session) t)))))
     (when (and fork-p turn)

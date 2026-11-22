@@ -300,6 +300,17 @@ body[data-lobby] :is(.skip-link, #filter, #history, #transcript, #empty-state,
 .lobby-main { flex: 1; min-width: 0; display: grid; gap: .15rem; }
 .lobby-name { font-weight: 600; overflow-wrap: anywhere; }
 .lobby-meta { color: var(--muted); font-size: .85rem; }
+/* Reserve space for live patches, including a notice wrapping on phones. */
+.lobby-wake-up { min-height: 1lh; }
+.lobby-late-delivery {
+  height: 2lh;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  #lobby-list .lobby-row { flex-wrap: wrap; }
+  #lobby-list .lobby-main { flex-basis: 100%; }
+}
 
 .lobby-preview {
   margin: 0;

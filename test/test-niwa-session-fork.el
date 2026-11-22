@@ -50,7 +50,7 @@
 
   :doc "covers every session slot and isolates both clone policies"
   (progn
-    (should (= 106
+    (should (= 107
                (length
                 (cdr (cl-struct-slot-info 'niwa-session)))))
     (should (niwa-session-fork--assert-clone-slot-completeness))
@@ -153,6 +153,7 @@
            :attached-artifacts (list "board")
            :dedicated-artifact "board"
            :note-conversation t
+           :latest-late-delivery '(:delivered-at 2000 :late-seconds 90)
            :schedules (list (list :id "w-000001" :note "Check CI" :status 'pending))))
          (fork
           (niwa-session-fork-clone-session
@@ -175,6 +176,9 @@
            :forked-from-session-id "source")))
     (should-not (niwa-session-note-conversation fork))
     (should (niwa-session-note-conversation save-as))
+    (should-not (niwa-session-latest-late-delivery fork))
+    (should (equal (niwa-session-latest-late-delivery source)
+                   (niwa-session-latest-late-delivery save-as)))
     ;; One wake-up must never fire in two conversations.
     (should-not (niwa-session-schedules fork))
     (should (equal (niwa-session-schedules source) (niwa-session-schedules save-as)))

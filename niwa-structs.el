@@ -277,7 +277,8 @@ workspace."
   dedicated-artifact
   note-conversation ; non-nil for an isolated note session, independent of preset
   ;; Durable wake-up plists owned by `niwa-schedule', oldest first.
-  schedules)
+  schedules
+  latest-late-delivery) ; Last acknowledged late WAKE_UP, never a pending firing.
 
 (defun niwa-session-authority-mode-for-workspace (workspace)
   "Return the durable authority mode required by WORKSPACE.

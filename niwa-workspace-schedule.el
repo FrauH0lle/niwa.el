@@ -504,10 +504,9 @@ Return its due time, or nil when nothing is active.  Only startup restore
 removes index entries: two Emacs instances sharing `niwa-user-dir' could
 otherwise drop each other's entry."
   (let* ((root (niwa-workspace-schedule--root workspace))
-         (dues (cl-loop for schedule in (niwa-workspace-schedule-list workspace)
-                        when (eq 'active (plist-get schedule :status))
-                        collect (plist-get schedule :due)))
-         (due (and dues (apply #'min dues))))
+         (active (seq-filter (lambda (schedule) (eq 'active (plist-get schedule :status)))
+                             (niwa-workspace-schedule-list workspace)))
+         (due (and active (cl-loop for job in active minimize (plist-get job :due)))))
     (setq niwa-schedule--workspaces
           (cl-remove root niwa-schedule--workspaces :key #'car :test #'equal))
     (when due
@@ -521,6 +520,7 @@ otherwise drop each other's entry."
                 root (error-message-string err))
         :warning)))
     (niwa-schedule--rearm)
+    (niwa-schedule--publish-pending root nil nil active)
     (run-hook-with-args 'niwa-workspace-schedule-changed-functions workspace)
     due))
 
@@ -567,7 +567,9 @@ no active schedule.  An entry that cannot be read now is kept."
                            (ignore-errors (read (current-buffer)))))
               (cond
                ((not (stringp root)) (delete-file file))
-               ((niwa-schedule--absent-p root) (delete-file file))
+               ((niwa-schedule--absent-p root)
+                (delete-file file)
+                (niwa-schedule--publish-pending (directory-file-name root) nil nil nil))
                ((not (file-accessible-directory-p root))
                 (error "%s is not reachable" root))
                (t (let ((workspace (niwa-workspace-schedule-workspace root)))

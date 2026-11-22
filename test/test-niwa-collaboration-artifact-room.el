@@ -524,6 +524,11 @@ An editing transfer appears once, complete, as its `body' shorthand."
                         . ,(niwa-artifact-room-test--write-token consumer)))))
       (unwind-protect
           (progn
+            (let ((room (niwa-collaboration-artifact-room--find root id)))
+              (niwa-collaboration-artifact-room--on-frame
+               root id 9 (list :t "hello" :proto niwa-collaboration--protocol-version
+                               :scheduleWorkspace (niwa-collaboration--workspace-key room)))
+              (should-not (niwa-collaboration--guest room 9)))
             (dolist (frame (niwa-artifact-room-test--fixture "hello" bindings))
               (niwa-artifact-room-test--send consumer (cdr frame)))
             (niwa-artifact-room-test--await consumer 1)

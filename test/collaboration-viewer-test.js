@@ -1175,6 +1175,8 @@ async function main() {
                'artifact-close', 'artifact-body',
                'appearance-menu', 'palette', 'appearance', 'accents', 'skill-search', 'skills-button', 'activity', 'modeline', 'empty-state',
                'session-box', 'session-summary',
+               'pending-schedules-button', 'pending-schedules', 'pending-wake-ups-list',
+               'pending-workspace', 'pending-workspace-list',
                'tasks-list', 'background-work', 'background-summary', 'background-collapse', 'background-list', 'background-more',
                'new-session-button', 'new-session', 'new-session-form', 'rewind-confirm', 'rewind-confirm-note',
                'new-session-result', 'new-session-name',
@@ -2278,6 +2280,24 @@ async function main() {
   assert.match(textOf(nodes.modeline), /Connected/);
   assert.equal(nodes['assistant-working'].hidden, false);
   assert.doesNotMatch(textOf(nodes.modeline), /Assistant working/);
+  const schedulesHint = nodes['pending-schedules-button'];
+  const schedules = nodes['pending-schedules'];
+  await deliver({t: 'pending-wake-ups', records: [], final: true});
+  assert.equal(schedulesHint.hidden, true);
+  await deliver({t: 'pending-wake-ups', final: false, records: [
+    {due: 1795408200, short: '10:00', time: '2026-11-23 10:00 IST (UTC+0530)'},
+  ]});
+  assert.equal(schedulesHint.hidden, true);
+  await deliver({t: 'pending-wake-ups', final: true, records: [
+    {due: 1795500600, short: '24 Nov 11:40', time: '2026-11-24 11:40 IST (UTC+0530)'},
+  ]});
+  assert.equal(schedulesHint.hidden, false);
+  assert.equal(schedulesHint.textContent, '◷ 10:00 +1');
+  schedulesHint.dispatch('click');
+  assert.equal(schedules.open, true);
+  assert.equal(nodes['pending-wake-ups-list'].children.length, 2);
+  for (const row of nodes['pending-wake-ups-list'].children) assert.equal(row.children.length, 0);
+  schedules.close();
   assert.doesNotMatch(textOf(nodes.modeline), /plan/);
   // Plan is enterable from a chip, so the strip has to show it is on.
   await deliver({t: 'status', busy: true, model: 'deepseek-v4-flash',
