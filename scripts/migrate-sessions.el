@@ -23,6 +23,7 @@
 (require 'niwa-structs)
 (require 'niwa-session-codec)
 (require 'niwa-session-publication)
+(require 'niwa-journal-capture)
 
 (defun niwa-migrate-session--read (file)
   "Read one literal plist from FILE, refusing circular or trailing data."
@@ -146,15 +147,18 @@ output and published `.data' files keep their names.")
   "Return the planned v0.6.0 renames of session DIRECTORY.
 With APPLY, perform them in DIRECTORY, a private copy, then rewrite the
 logical names in each publication manifest and the head path in each lease
-record.  Published `.data' files keep their names and bytes.  A session whose
-data already ends `.eld' plans nothing.  Capture pins name v0.6.0 heads and
-are bound to hashed capture descriptors, so a pinned session is refused."
+record, and the heads a pending journal capture pins.  Published `.data'
+files keep their names and bytes.  A session whose data already ends `.eld'
+plans nothing."
   (let ((moves (niwa-migrate--moves (directory-files-recursively directory ".")
                                     directory niwa-migrate-session--v0.6.0-families))
         (pins (file-name-concat directory ".journal-pins")))
-    (when (and moves (file-directory-p pins) (directory-files pins nil "\\.json\\'"))
-      (error "A pending journal capture pins this session; let memory review settle it first"))
     (when (and apply moves)
+      ;; A pin is named by its capture, not its bytes; the workspace pass
+      ;; respells the capture's own head the same way.
+      (dolist (path (and (file-directory-p pins) (directory-files pins t "\\.json\\'")))
+        (niwa-migrate--replace path (string-replace "/manifest.el\"" "/manifest.eld\""
+                                                    (niwa-migrate--read-text path))))
       (niwa-migrate--apply-moves moves)
       (dolist (path (and (file-directory-p (file-name-concat directory ".publications"))
                          (directory-files-recursively
@@ -578,18 +582,33 @@ Do not descend into the top-level directories named in SKIP."
       (insert-file-contents file))
     (buffer-string)))
 
-(defun niwa-migrate-workspace--pending-captures (journal)
-  "Return the ids of ready, unsettled journal captures under state dir JOURNAL.
-A pending capture's descriptor hashes the v0.6.0 publication head, so it cannot
-be renamed; memory review must settle it first."
-  (let ((captures (file-name-concat journal "captures")) pending)
+(defun niwa-migrate-workspace--capture-writes (journal)
+  "Return the (FILE . TEXT) writes respelling v0.6.0 heads in JOURNAL's captures.
+A capture descriptor's source revision hashes its publication head.  An
+unsettled capture has published nothing, so its revision lives only in the
+descriptor and is recomputed with the head; the session pass respells the
+matching pin.  A descriptor whose revision does not match its head is refused."
+  (let ((captures (file-name-concat journal "captures")) writes)
     (when (file-directory-p captures)
-      (dolist (directory (directory-files captures t "\\`[0-9a-f]\\{64\\}\\'"))
-        (when (and (file-exists-p (file-name-concat directory "ready"))
-                   (not (file-exists-p (file-name-concat directory "retired")))
-                   (not (file-exists-p (file-name-concat directory "discard.json"))))
-          (push (file-name-nondirectory directory) pending))))
-    pending))
+      (dolist (path (directory-files-recursively captures "\\`capture\\.json\\'"))
+        (let* ((text (niwa-migrate--read-text path))
+               (record (json-parse-string text :object-type 'plist :array-type 'list
+                                          :null-object nil :false-object nil))
+               (head (plist-get record :head)))
+          (when (and (stringp head) (string-suffix-p "/manifest.el" head))
+            (let* ((sources (plist-get record :sources))
+                   (old (niwa-journal-capture--source-revision head sources))
+                   (new (niwa-journal-capture--source-revision (concat head "d") sources)))
+              (unless (equal old (plist-get (plist-get record :metadata) :source-revision))
+                (error "Capture source revision does not match its head: %s" path))
+              (push (cons path (string-replace
+                                (format "\"source-revision\":\"%s\"" old)
+                                (format "\"source-revision\":\"%s\"" new)
+                                (string-replace (format "\"head\":\"%s\"" head)
+                                                (format "\"head\":\"%sd\"" head)
+                                                text)))
+                    writes))))))
+    (nreverse writes)))
 
 (defun niwa-migrate-workspace--expiry-writes (journal)
   "Return the (FILE . TEXT) writes renaming private paths in JOURNAL's expiry records.
@@ -632,8 +651,8 @@ an interrupted run repeat.  Reads and parses every record before any write."
 (defun niwa-migrate-workspace (root)
   "Rename the persisted workspace state of project ROOT to `.eld'.
 Return (:status migrated :files N :expiry M) or (:status current).  Refuse
-before writing anything while a session is live or a journal capture is
-pending, when both spellings of a file exist, or when a record is unreadable."
+before writing anything while a session is live, when both spellings of a file
+exist, or when a record is unreadable."
   (let* ((state (file-name-concat (directory-file-name (expand-file-name root)) ".niwa"))
          (journal (file-name-concat state "state" "journal")))
     (when (file-symlink-p state)
@@ -642,20 +661,18 @@ pending, when both spellings of a file exist, or when a record is unreadable."
       (error "No project state directory: %s" state))
     (dolist (session (niwa-migrate-session--directories root))
       (niwa-migrate-session--closed session t))
-    (when-let* ((pending (niwa-migrate-workspace--pending-captures journal)))
-      (error "%d journal captures are pending; let memory review settle them first"
-             (length pending)))
     (niwa-migrate--with-lock
      (file-name-concat state ".migration-lock")
      (lambda ()
        (let ((moves (niwa-migrate--moves
                      (niwa-migrate--files state '("sessions" "worktrees" "shared" "memory"))
                      state niwa-migrate-workspace--v0.6.0-families))
-             (writes (niwa-migrate-workspace--expiry-writes journal)))
+             (writes (append (niwa-migrate-workspace--capture-writes journal)
+                             (niwa-migrate-workspace--expiry-writes journal))))
          (dolist (write writes)
            (niwa-migrate--replace (car write) (cdr write)))
          (niwa-migrate--apply-moves moves)
-         (let ((records (cl-count-if (lambda (write) (string-suffix-p ".json" (car write)))
+         (let ((records (cl-count-if (lambda (write) (string-match-p "/expiry/[^/]+\\.json\\'" (car write)))
                                      writes)))
            (if (or moves writes)
                (list :status 'migrated :files (length moves) :expiry records)

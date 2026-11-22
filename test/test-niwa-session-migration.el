@@ -459,15 +459,16 @@ independent of the converter: plain text substitution, no shared helpers."
                                                   (file-name-concat source head))
                                                  :artifacts)))))))
 
-  :doc "refuses a session that a pending journal capture still pins"
+  :doc "respells the heads a pending journal capture pins"
   (niwa-migration-test--with-source "v0.6.0"
     (niwa-migration-test--respell-legacy source)
-    (niwa-migration-test--put source (concat ".journal-pins/" (make-string 64 ?a) ".json") "{}")
-    (let* ((before (niwa-migrate-session--snapshot source))
-           (row (cdar (niwa-migrate-sessions source))))
-      (should (eq 'failed (plist-get row :status)))
-      (should (string-search "pending journal capture" (plist-get row :reason)))
-      (should (equal before (niwa-migrate-session--snapshot source)))))
+    (let ((pin (concat ".journal-pins/" (make-string 64 ?a) ".json"))
+          (text (format "{\"capture-id\":\"%s\",\"heads\":[\"%s\"]}"
+                        (make-string 64 ?a) (string-remove-suffix "d" head))))
+      (niwa-migration-test--put source pin text)
+      (should (eq 'migrated (plist-get (cdar (niwa-migrate-sessions source)) :status)))
+      (should (equal (string-replace "/manifest.el\"" "/manifest.eld\"" text)
+                     (niwa-migration-test--text (file-name-concat source pin))))))
 
   :doc "refuses when a family file exists under both spellings"
   (niwa-migration-test--with-source "v0.6.0"
@@ -612,20 +613,20 @@ independent of the converter: plain text substitution, no shared helpers."
       (should-error (niwa-migrate-workspace root))
       (should (file-exists-p (file-name-concat root ".niwa" "permissions.el")))))
 
-  :doc "a pending journal capture refuses the pass; a settled one does not"
+  :doc "a capture whose source revision does not match its head refuses the pass"
   (let* ((root (make-temp-file "niwa-migration-workspace-" t))
          (state (file-name-concat root ".niwa"))
-         (capture (concat "state/journal/captures/" (make-string 64 ?e) "/")))
+         (capture (concat "state/journal/captures/" (make-string 64 ?e) "/capture.json")))
     (unwind-protect
         (progn
           (niwa-migration-test--put state "permissions.el")
-          (niwa-migration-test--put state (concat capture "ready"))
-          (let ((error (should-error (niwa-migrate-workspace root))))
-            (should (string-search "pending" (error-message-string error))))
-          (should (file-exists-p (file-name-concat state "permissions.el")))
-          (niwa-migration-test--put state (concat capture "retired"))
-          (should (eq 'migrated (plist-get (niwa-migrate-workspace root) :status)))
-          (should (file-exists-p (file-name-concat state "permissions.eld"))))
+          (niwa-migration-test--put
+           state capture
+           (format "{\"metadata\":{\"source-revision\":\"%s\"},\"head\":\"%s\",\"sources\":[]}"
+                   (make-string 64 ?0)
+                   ".publications/generation-bbbbbbbbbbbbbbbbbbbb/manifest.el"))
+          (should-error (niwa-migrate-workspace root))
+          (should (file-exists-p (file-name-concat state "permissions.el"))))
       (delete-directory root t)))
 
   :doc "a linked project state directory is refused"

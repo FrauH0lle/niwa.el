@@ -2700,10 +2700,11 @@ the artifact and instruction lease records under `leases/`,
 the diagnostics log, the shared-notes records, and the memory-review state
 (passes, decision slots and write records). Memory-review expiry records name
 those files and bind their own hash, so the pass rewrites each record, its
-claim outcome and its completion receipt together. The pass refuses while a
-journal capture is pending, because a capture records the v0.6.0 publication
-head in a hashed descriptor and a session pin names it too; let a memory review
-settle them first. It also refuses when both spellings of a file exist or a record is unreadable,
+claim outcome and its completion receipt together. A pending journal capture
+records its session's publication head and a source revision that hashes it;
+nothing is published yet, so the pass respells the head and recomputes that
+revision, and the session step respells the session's pin to match. It refuses
+when both spellings of a file exist or a record is unreadable,
 checking both before it writes anything, and does nothing for files already
 renamed, so repeating a run is safe. Only the files it
 names change: hooks, shared notes, artifact content and plugin Lisp keep `.el`.

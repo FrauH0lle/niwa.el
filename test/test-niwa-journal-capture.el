@@ -15,6 +15,11 @@
 ;; Agent compaction cases name their target directly; production loads this
 ;; lazily inside a run, which an isolated case may not have started yet.
 (require 'niwa-compact-target)
+;; Name the source: stale bytecode beside the script would otherwise shadow it.
+(require 'niwa-migrate-session
+         (file-name-concat (file-name-directory
+                            (or buffer-file-name load-file-name byte-compile-current-file))
+                           ".." "scripts" "migrate-sessions.el"))
 
 (niwa-deftest niwa-journal-capture-checkpoint ()
   ,test
@@ -619,6 +624,40 @@
                (should (niwa-journal-pins-present-p (niwa-session-save-path session)))))
          (write-region original nil path nil 'silent))
        (should (equal id (plist-get (niwa-journal-capture--read workspace id) :id)))))))
+
+(niwa-deftest niwa-journal-capture/v0.6.0-migration ()
+  ,test
+  (test)
+  :doc "a pending v0.6.0 capture migrates to the descriptor the runtime writes"
+  (niwa-test-journal-capture--with-session
+   (lambda (session buffer)
+     (niwa-test-journal-capture--turn session buffer "Request" "Completed result")
+     (let* ((workspace (niwa-session-workspace session))
+            (id (plist-get (car (niwa-journal-capture-list workspace)) :id))
+            (path (niwa-journal-capture--file workspace id "capture.json"))
+            (journal (niwa-journal-store-state-directory
+                      (niwa-journal-store-directory (niwa-workspace-root workspace))))
+            (text (niwa-session-control-fs-read-file path))
+            (record (json-parse-string text :object-type 'plist :array-type 'list
+                                       :null-object nil :false-object nil))
+            (head (plist-get record :head))
+            (old-head (string-remove-suffix "d" head))
+            (sources (plist-get record :sources)))
+       (should (string-suffix-p "/manifest.eld" head))
+       ;; As v0.6.0 wrote it: the old head, and the revision hashing it.
+       (write-region
+        (string-replace
+         (niwa-journal-capture--source-revision head sources)
+         (niwa-journal-capture--source-revision old-head sources)
+         (string-replace (format "\"head\":\"%s\"" head)
+                         (format "\"head\":\"%s\"" old-head) text))
+        nil path nil 'silent)
+       (should-error (niwa-journal-capture--read workspace id))
+       (dolist (write (niwa-migrate-workspace--capture-writes journal))
+         (niwa-migrate--replace (car write) (cdr write)))
+       (should (equal text (niwa-session-control-fs-read-file path)))
+       (should (equal id (plist-get (niwa-journal-capture--read workspace id) :id)))
+       (should-not (niwa-migrate-workspace--capture-writes journal))))))
 
 (niwa-deftest niwa-journal-capture-seal-and-schedule ()
   ,test
