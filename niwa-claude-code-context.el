@@ -38,7 +38,8 @@ CALLBACK receives a plist containing placement, text and media sources."
            (mode gptel-use-context)
            (media (seq-remove
                    (lambda (part) (string-prefix-p "text/" (plist-get part :mime)))
-                   (and sources (gptel-context--collect-media sources))))
+                   ;; Match the backends' call: newer gptel collects (and reorders) inside.
+                   (and sources (gptel-context--collect-media))))
            (done (lambda (text) (funcall callback (list :mode mode :text text :media media)))))
       (if (= (car (func-arity gptel-context-string-function)) 2)
           (funcall gptel-context-string-function done sources)
