@@ -774,12 +774,16 @@ can exceed the cap to keep the dock usable."
 (defvar-local niwa-composer--fit-edits 0
   "Count edits observed by the fit hook, excluding silent rail updates.")
 
-(defun niwa-composer--fit-key (dock transcript)
-  "Identify the current draft and layout of DOCK and TRANSCRIPT."
+(defun niwa-composer--fit-key (dock transcript &optional body)
+  "Identify the current draft and layout of DOCK and TRANSCRIPT.
+The body height, BODY when given, catches chrome changes at a constant
+window height, such as a header line grown by a fallback-font glyph.
+`niwa-composer--fit-displayed' reads it as element 7."
   (list (current-buffer) (buffer-chars-modified-tick) niwa-composer--fit-edits
         (copy-tree face-remapping-alist)
         (frame-char-height (window-frame dock)) (window-body-width dock t)
-        (window-pixel-height dock) (window-pixel-height transcript)
+        (window-pixel-height dock) (or body (window-body-height dock t))
+        (window-pixel-height transcript)
         (window-scroll-bar-height dock) (window-bottom-divider-width dock)))
 
 (defun niwa-composer--rail-clipped-p (dock start)
@@ -820,11 +824,12 @@ Use FRESH chrome geometry when fitting before redisplay."
                 (window-resize dock step nil nil t)))
           (window-preserve-size dock nil t))
         (when follow (niwa-view-transcript-show-end transcript))))
-    (set-window-parameter dock 'niwa-composer--rail-fits
-                          (<= text (- (window-pixel-height dock) frame-chrome)))
-    (niwa-composer--restore-rail dock)
-    (set-window-parameter dock 'niwa-composer--fit-key
-                          (niwa-composer--fit-key dock transcript))))
+    (let ((body (- (window-pixel-height dock) frame-chrome)))
+      (set-window-parameter dock 'niwa-composer--rail-fits (<= text body))
+      (niwa-composer--restore-rail dock)
+      ;; The body redisplay will report: a fresh fit precedes that update.
+      (set-window-parameter dock 'niwa-composer--fit-key
+                            (niwa-composer--fit-key dock transcript body)))))
 
 (defun niwa-composer--fit-displayed (buffer)
   "Fit BUFFER's surviving docks after edit and window hooks finish."
@@ -833,11 +838,19 @@ Use FRESH chrome geometry when fitting before redisplay."
       (setq niwa-composer--fit-timer nil)
       (dolist (dock (get-buffer-window-list buffer nil t))
         (when-let* ((transcript (niwa-view-transcript-window dock)))
-          ;; Our own layout notifies redisplay too, sometimes with stale chrome.
-          (if (equal (window-parameter dock 'niwa-composer--fit-key)
-                     (niwa-composer--fit-key dock transcript))
-              (niwa-composer--restore-rail dock)
-            (niwa-composer--fit dock transcript)))))))
+          (let ((stored (window-parameter dock 'niwa-composer--fit-key)))
+            ;; Our own layout notifies redisplay too, sometimes with stale chrome.
+            (cond
+             ((equal stored (niwa-composer--fit-key dock transcript))
+              (niwa-composer--restore-rail dock))
+             ;; Only the body differs: chrome changed, or a window not yet
+             ;; redisplayed estimates its header.  Measure which, rarely.
+             ((and stored (equal stored (niwa-composer--fit-key
+                                         dock transcript (nth 7 stored))))
+              (if (= (nth 7 stored) (cdr (niwa-view--window-body-geometry dock)))
+                  (niwa-composer--restore-rail dock)
+                (niwa-composer--fit dock transcript t)))
+             (t (niwa-composer--fit dock transcript)))))))))
 
 (defun niwa-composer--queue-fit (&optional _beg end _length)
   "Coalesce edits and size changes into one fit outside redisplay.
@@ -869,9 +882,18 @@ rail's displayed first line besides overwriting the prompt's prefix."
   (when (bound-and-true-p adaptive-wrap-prefix-mode)
     (adaptive-wrap-prefix-mode -1)))
 
+(defun niwa-composer--scroll-for-partial-cursor-p (window)
+  "Return non-nil if WINDOW should scroll to show a clipped cursor line.
+Line-granular layout changes elsewhere in the frame can leave a dock
+that fits its whole draft a pixel short; scrolling then hides the rail
+until the deferred fit, which flickers.  Accept the clip while it fits."
+  (not (window-parameter window 'niwa-composer--rail-fits)))
+
 (define-derived-mode niwa-composer-mode text-mode "Composer"
   "Edit the draft of a niwa conversation."
   (visual-line-mode 1)
+  (setq-local make-cursor-line-fully-visible
+              #'niwa-composer--scroll-for-partial-cursor-p)
   (add-hook 'kill-buffer-query-functions #'niwa-composer--request-close nil t)
   ;; Parent mode hooks run after this body, so refuse from the mode's hook.
   (add-hook 'adaptive-wrap-prefix-mode-hook

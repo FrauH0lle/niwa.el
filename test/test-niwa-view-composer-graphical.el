@@ -267,6 +267,41 @@
         (should (= draft-start (niwa-view-composer-draft-start)))
         (should (= draft-point (point)))))))
 
+(ert-deftest niwa-view-composer-graphical/pixel-short-dock-keeps-rail ()
+  "A dock left a pixel short of its fitted draft keeps the rail in view."
+  :tags '(niwa-docked-composer)
+  (niwa-view-composer-graphical--with-chat
+    (let ((dock (selected-window)))
+      (niwa-view-composer-graphical--type "unsent draft")
+      (niwa-view-composer-graphical--settle)
+      (should (= (window-start dock) (point-min)))
+      ;; Line-granular resizes elsewhere in the frame leave such a remainder.
+      (let ((window-resize-pixelwise t))
+        (window-preserve-size dock nil nil)
+        (window-resize dock -1 nil nil t))
+      (redisplay t)
+      (should (< (window-body-height dock t)
+                 (cdr (window-text-pixel-size dock (point-min) (point-max)))))
+      (should (= (window-start dock) (point-min))))))
+
+(ert-deftest niwa-view-composer-graphical/taller-header-refits-dock ()
+  "A taller header line at the same window height refits the dock."
+  :tags '(niwa-docked-composer)
+  (niwa-view-composer-graphical--with-chat
+    (let ((dock (selected-window)))
+      (niwa-view-composer-graphical--type "unsent draft")
+      (niwa-view-composer-graphical--settle)
+      (let ((text (cdr (window-text-pixel-size dock (point-min) (point-max))))
+            (header (window-header-line-height dock)))
+        ;; Like a header glyph drawn from a taller fallback font.
+        (setq-local header-line-format
+                    (list header-line-format
+                          (propertize " " 'display '(space :width 1 :height 1.5))))
+        (niwa-view-composer-graphical--settle)
+        (should (> (window-header-line-height dock) header))
+        (should (>= (window-body-height dock t) text))
+        (should (= (window-start dock) (point-min)))))))
+
 (defun niwa-view-composer-graphical--header-hit (window text)
   "Return a native position for the header control showing TEXT in WINDOW."
   (cl-loop with y = (1+ (window-tab-line-height window))
