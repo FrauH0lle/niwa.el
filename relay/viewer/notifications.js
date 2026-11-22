@@ -1,4 +1,4 @@
-/* notifications.js -- room-owned browser notifications for MevView */
+/* notifications.js -- room-owned browser notifications for the niwa viewer */
 'use strict';
 
 (() => {
@@ -266,7 +266,7 @@
     }
     if (!installed() || typeof window.prompt !== 'function') return '';
     const pasted = pastedShare(window.prompt(
-      'Paste the full MevView share link from the host. It stays on this device.'));
+      'Paste the full niwa share link from the host. It stays on this device.'));
     return parse(`#${pasted}`) ? pasted : '';
   }
 

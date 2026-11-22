@@ -770,7 +770,7 @@ navigation and activation fallbacks."
   (add-hook 'post-command-hook
             #'niwa-surface--enforce-ephemeral nil t))
 
-(define-derived-mode niwa-view-mode niwa-surface-mode "MevView"
+(define-derived-mode niwa-view-mode niwa-surface-mode "niwa"
   "Major mode for the niwa chat view buffer.
 
 Displays a compact rendering of the gptel data buffer.  Interactive view

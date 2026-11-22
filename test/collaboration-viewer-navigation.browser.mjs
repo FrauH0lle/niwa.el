@@ -501,7 +501,7 @@ test('hidden viewer without Push only notifies for explicit host notices', async
     for (const kind of ['notify', 'goal', 'failure', 'other']) {
       await send({t: 'notice', kind, message: 'Private transcript details'});
     }
-    const generic = {title: 'New niwa activity', body: 'Open MevView to see the encrypted session update.'};
+    const generic = {title: 'New niwa activity', body: 'Open niwa to see the encrypted session update.'};
     assert.deepEqual(await shownAfter('Attention notices received'), [generic, generic, generic]);
     assert.equal(await page.evaluate(() => {
       delete document.hidden;

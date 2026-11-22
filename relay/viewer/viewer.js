@@ -1,4 +1,4 @@
-/* viewer.js -- MevView: dependency-free sealed collaboration guest */
+/* viewer.js -- niwa viewer: dependency-free sealed collaboration guest */
 'use strict';
 
 (() => {
@@ -1557,7 +1557,7 @@
                                     'The niwa session is idle again.');
         }
       } else if (['notify', 'goal', 'failure'].includes(frame.kind)) {
-        notifications.maybeNotify('New niwa activity', 'Open MevView to see the encrypted session update.');
+        notifications.maybeNotify('New niwa activity', 'Open niwa to see the encrypted session update.');
       } else if (typeof frame.message === 'string') showNotice(frame.message);
     } else if (frame.t === 'error') {
       showTerminal(

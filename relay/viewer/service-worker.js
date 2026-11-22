@@ -1,10 +1,10 @@
-/* service-worker.js -- background notification delivery for MevView */
+/* service-worker.js -- background notification delivery for the niwa viewer */
 'use strict';
 
 self.addEventListener('push', event => {
   event.waitUntil(
     self.registration.showNotification('New niwa activity', {
-      body: 'Open MevView to see the encrypted session update.',
+      body: 'Open niwa to see the encrypted session update.',
       icon: '/icon.png',
       badge: '/icon.png',
       tag: 'niwa-activity',

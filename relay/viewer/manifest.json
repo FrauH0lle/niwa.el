@@ -1,6 +1,6 @@
 {
-  "name": "MevView",
-  "short_name": "MevView",
+  "name": "niwa",
+  "short_name": "niwa",
   "description": "niwa live session viewer",
   "start_url": "/",
   "display": "standalone",
