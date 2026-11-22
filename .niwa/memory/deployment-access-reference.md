@@ -2,7 +2,7 @@
 name: "Deployment access and diagnostic references"
 description: "Use the recorded SSH configuration and deployment pointers to locate access details, then recheck current configuration and authority."
 type: reference
-modified: 2026-11-15
+modified: 2026-11-21
 ---
 
 # Deployment access and diagnostic references
@@ -11,28 +11,37 @@ modified: 2026-11-15
 
 The authoritative machine-local connection details are in `~/.ssh/config`.
 
-Deployment references recorded on 2026-10-10 named:
+As of 2026-11-21 (after the niwa cutover, checked by logging in):
 
-- `mevedel-host` for the Emacs containers.
-- `mevedel-relay` for the relay server.
+- `niwa-host` (`192.168.24.43`, root, `~/.ssh/id_ed25519_mevedel_lan`) is
+  the rebuilt Emacs host CT (Ubuntu 26.04, Proxmox CT 102 reused, same IP,
+  new host key).
+- `niwa-relay` (`192.168.24.41`, root, same key) is the YunoHost relay server.
+- The old `mevedel-host` and `mevedel-relay` aliases were removed.
 
-A real SSH/TRAMP test reported in the 2026-11-12 journal found that direct batch SSH attempts as `mevedel`, `roland`, and `root` to `192.168.24.43` failed authentication, while **`mevedel-host` succeeded**. At that observation, the alias specified:
+Use the configured alias rather than a bare user@IP: it pins the key with
+`IdentitiesOnly yes` (an earlier test found bare batch logins failing).
+Inspect the current SSH configuration before use; this dated observation
+does not establish present reachability or credentials.
 
-- HostName `192.168.24.43`
-- User `root`
-- IdentityFile `~/.ssh/id_ed25519_mevedel_lan`
-- IdentitiesOnly `yes`
-
-Use the configured alias rather than assuming a bare user@IP is equivalent. Inspect the current SSH configuration before use; this dated observation does not establish present reachability or credentials. The user's permission to create a test directory under `/home/mevedel/` applied to that test, not arbitrary future mutations.
+Current layout on `niwa-host`: kit in `/home/niwa/niwa-host` (owner `niwa`,
+rootless Podman), containers `niwa-private`/`niwa-public` (daemon
+`emacsclient` socket `niwa`), user units
+`niwa-host.service`, `niwa-host-update.timer` (nightly 4:00),
+`niwa-host-refs.timer`; root reaches them with `systemctl --user -M niwa@`.
+On the relay server: `niwa-relay.service` on `127.0.0.1:7466` behind
+`niwa.skadonk.me`, `relay-update.timer`.
 
 ## Deployment and diagnostic pointers
 
-Recorded on 2026-10-10:
-
-- SSH access was through root; containers ran as the `mevedel` user with rootless Podman.
-- Host checkout/control directory: `/home/mevedel/mevedel-host/`, with `update`, `project`, and `lobby-link` helpers.
-- Container names: `mevedel-public` and `mevedel-private`; daemon `emacsclient` socket name: `mevedel`.
-- Repository diagnostic tooling: `benchmark/collab-latency/`.
+The host kit is maintained in `~/Projekte/niwa-host` (`FrauH0lle/niwa-host`).
+Roll out kit changes with `./deploy niwa-host` from its `master`. The
+desktop source checkout is `~/Projekte/niwa.el` (moved from
+`~/Projekte/mevedel` on 2026-11-21); the running package uses
+`~/.emacs.d/straight/build/niwa`, built from that checkout.
+The desktop relay setting lives in `~/.emacs.d/site-lisp/secrets.el`
+(`wss://niwa.skadonk.me`). Repository diagnostic tooling:
+`benchmark/collab-latency/`.
 
 The relay was recorded on 2026-08-18 as deployed on Roland's YunoHost server and used from iPhones. Browser/phone collaboration is actual usage, not just a demonstration scenario. Current build and viewer contracts belong in `relay/AGENTS.md` and `relay/README.md`, not this deployment snapshot.
 

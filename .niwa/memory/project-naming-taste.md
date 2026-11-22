@@ -2,7 +2,7 @@
 name: "Project naming taste"
 description: "Favor good sound and a genuine functional connection; Japanese aesthetics appeal without needing to dominate."
 type: user
-modified: 2026-11-12
+modified: 2026-11-21
 ---
 
 # Project naming taste
@@ -26,4 +26,4 @@ Additional user statements captured in the naming digest created 2026-11-09, fro
 
 Apply these as starting points for future naming discussions, not universal bans on every name in a category. Good sound need not literally encode architecture, but a meaningful rationale should connect genuinely to the package. The assistant's hypotheses about a calm, hands-on tone or a nature/quiet-growth aesthetic were interpretations, not confirmed user preferences. Presenting sound before rationale was also an assistant approach, not an explicit user instruction.
 
-No name was selected in this evidence. Collision research was reported in the digest created 2026-11-09, but those dated results are not current availability guarantees; repeat relevant checks before recommending adoption.
+The maintainer subsequently chose **niwa.el** (package and feature `niwa`). The rationale connects 庭 (*niwa*, Japanese for garden) to the notes, sessions, memory, and goals that people keep and tend. “Niwa Is a Workbench for Agents” is the chosen recursive expansion. This is the outcome of the later naming conversation, not an inference from the earlier shortlist. Dated collision research is not a current availability guarantee.

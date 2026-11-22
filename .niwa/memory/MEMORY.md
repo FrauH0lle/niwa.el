@@ -1,10 +1,9 @@
 - [Establish test conditions before attributing failures or coverage](controlled-test-attribution.md) - Isolate failures without defaulting to harness blame; establish real fixture conditions, delivered inputs, negative controls, and equivalent baselines.
 - [Verify the loaded runtime and dependency provenance](verify-compiled-runtime-artifacts.md) - Check loaded artifacts, compiled first use, initialization-time isolation, and dependencies without loading modules into the user's running Emacs.
-- [Reproduce remote-hook timing before claiming a fix](remote-hook-readiness-verification.md) - Green timing-dependent replays do not diagnose a stall; impose the suspected interleaving without weakening safeguards.
+- [Exercise the failing order before claiming a timing fix](reentrant-view-render-ordering.md) - Force the suspected interleaving, test both reentry orders where relevant, and distinguish a demonstrated mechanism from the original incident.
 - [Keep selected extraction automatic without making notes permanent](working-note-destinations-feedback.md) - Shared notes are disposable exchange material; selected automatic extraction should not become manual reminders or recurring confirmations.
 - [Reproduce performance with representative state and actual deferred work](replay-real-session-for-performance.md) - Use isolated representative state, preserve the original, and count deferred work only when the real workflow requires it.
 - [Distinguish the composer from the pinned prompt header](sticky-prompt-presentation-feedback.md) - An always-visible composer is not the pinned prompt header; preserve header readability and conversation continuity.
-- [Test both reentry orders and separate mechanism from incident attribution](reentrant-view-render-ordering.md) - Reverse reentrant nesting in regressions; a matching injected failure does not establish the original event sequence.
 - [Completion-time reminders cannot enforce a finished turn](completion-time-hook-reminders.md) - Place guidance where it can affect the intended turn; do not mistake a context-only completion hook for enforcement
 - [Preserve the requested editing surface](preserve-requested-editing-surface.md) - A whiteboard redesign request means editing that whiteboard, not substituting a separate preview.
 - [Investigate history before recommending removal of a boundary](investigate-history-before-removing-boundaries.md) - Read the commits and ADRs that introduced a boundary before proposing to remove it
@@ -48,3 +47,4 @@
 - [Separate applying draft wording from committing it](collaborative-wording-commit-approval.md) - When wording is still under collaborative review, applying edits does not mean the user has approved a commit.
 - [Finalize one coherent design before implementing](finalize-coherent-design-before-implementing.md) - Do not start implementation, prototype edits or backlog additions while design is open; prefer one coherent design over phased versions.
 - [Land branches on master as a linear, squashed history](linear-master-history-preference.md) - Combine related commits and fast-forward; no merge commits on master.
+- [Make Niwa look good in vanilla Emacs and respect the active theme](vanilla-emacs-and-theme-aware-presentation.md) - Check view appearance in graphical emacs -Q, and prefer theme-derived colors for child-frame borders.
