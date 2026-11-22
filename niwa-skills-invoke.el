@@ -112,9 +112,13 @@
 (declare-function niwa-skills-preparation-substitute
                   "niwa-skills-preparation"
                   (text arguments session skill))
+(declare-function niwa-skills-preparation-substitute-rules
+                  "niwa-skills-preparation" (rules skill session))
 (autoload 'niwa-skills-preparation-expand-body
   "niwa-skills-preparation")
 (autoload 'niwa-skills-preparation-substitute
+  "niwa-skills-preparation")
+(autoload 'niwa-skills-preparation-substitute-rules
   "niwa-skills-preparation")
 
 ;; `niwa-skills-syntax'
@@ -924,7 +928,10 @@ sanitized `UserPromptExpansion' hook decision."
          (scope (niwa-diagnostic-scope
                  (or session (niwa-skill-workspace skill))))
          (command-p (eq role 'command))
-         (rules (niwa-skill-allowed-tool-rules skill))
+         ;; The skill text was substituted for this session in preflight;
+         ;; the rules take the same directory, so they match what it prints.
+         (rules (niwa-skills-preparation-substitute-rules
+                 (niwa-skill-allowed-tool-rules skill) skill session))
          (hooks (and command-p (niwa-skill-hooks skill)))
          (metadata
           (list :skill skill :arguments arguments :role role

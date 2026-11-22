@@ -283,6 +283,35 @@ When AUTHOR-ONLY-P is non-nil, skip matches that overlap non-author text."
           (niwa-execution-target-native-path target dir))
       dir)))
 
+(defconst niwa-skills-preparation--skill-dir-variables
+  '("${CLAUDE_SKILL_DIR}" "${NIWA_SKILL_DIR}")
+  "Variables naming a skill's directory in its text and its `allowed-tools'.")
+
+(defun niwa-skills-preparation-substitute-rules (rules skill session)
+  "Return RULES with SKILL's directory expanded in their string values.
+Expand `${CLAUDE_SKILL_DIR}' and its `${NIWA_SKILL_DIR}' alias, as Claude Code
+does in `allowed-tools', to the directory the skill text receives for
+SESSION, so a rule and the command the skill prints name the same path.
+No other variable expands: Claude Code leaves them literal in rules.  A skill
+with no directory leaves RULES unchanged rather than granting an empty path.
+RULES itself is not modified."
+  (if-let* ((dir (niwa-skills-preparation--target-native-source-dir skill session))
+            ((not (string-empty-p dir))))
+      ;; shortcut: the directory goes in as plain text, as in Claude Code, so a
+      ;; skill path containing glob characters would act as a pattern; escape
+      ;; it here if a real skill path ever needs that.
+      (mapcar (lambda (rule)
+                (mapcar (lambda (item)
+                          (if (stringp item)
+                              (seq-reduce
+                               (lambda (value variable)
+                                 (string-replace variable dir value))
+                               niwa-skills-preparation--skill-dir-variables item)
+                            item))
+                        rule))
+              rules)
+    rules))
+
 (defun niwa-skills-preparation-substitute (text arguments session skill)
   "Return TEXT with skill placeholders expanded.
 

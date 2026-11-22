@@ -603,6 +603,53 @@ allowed-tools:
       (setq-local niwa--current-request (niwa-request--create :session session))
       (should-not (funcall live-p))))
 
+  :doc "command preparation expands the skill directory in the rules it grants"
+  (let* ((session (niwa-skills-test--make-session))
+         (root (file-name-as-directory (make-temp-file "niwa-skill-rules" t)))
+         (script (file-name-concat root "skill" "scripts" "probe.py"))
+         (rule (list "Bash" :pattern "python3 ${CLAUDE_SKILL_DIR}/scripts/probe.py"
+                     :action 'allow))
+         (skill (niwa-skill--create
+                 :name "probe" :source 'project
+                 :body "python3 ${CLAUDE_SKILL_DIR}/scripts/probe.py"
+                 :source-dir (file-name-concat root "skill")
+                 :allowed-tool-rules (list rule)))
+         (stored (copy-tree (niwa-skill-allowed-tool-rules skill)))
+         outcome)
+    (unwind-protect
+        (with-temp-buffer
+          (setq-local niwa--session session)
+          (cl-letf (((symbol-function 'niwa-hooks-run-event)
+                     (lambda (_event _event-plist callback &rest _)
+                       (funcall callback nil)))
+                    ((symbol-function 'niwa-model-resolve-workload)
+                     (lambda (&rest _) '(:model inherited :effort high))))
+            (niwa-skills-prepare
+             skill "" (lambda (value) (setq outcome value))
+             :role 'command :origin 'user :policy-owner-p t))
+          (should (eq 'ok (plist-get outcome :status)))
+          (let* ((granted (plist-get (plist-get outcome :request-context)
+                                     :permission-rules))
+                 (context (list :mode 'ask :session session
+                                :buckets (niwa-permission-rules-collect-buckets
+                                          nil granted nil nil)
+                                :execution-directory root
+                                :allowed-roots (list root))))
+            (should (equal (format "python3 %s/scripts/probe.py"
+                                   (file-name-concat root "skill"))
+                           (plist-get (cdar granted) :pattern)))
+            ;; The rule allows exactly the command the skill text prints, and
+            ;; an unrelated command still asks.
+            (should (equal (format "python3 %s" script) (plist-get outcome :body)))
+            (should (eq 'allow (niwa-bash-policy-check-permission
+                                (plist-get outcome :body)
+                                :permission-context context)))
+            (should (eq 'ask (niwa-bash-policy-check-permission
+                              (format "python3 %s" (file-name-concat root "other.py"))
+                              :permission-context context))))
+          (should (equal stored (niwa-skill-allowed-tool-rules skill))))
+      (delete-directory root t)))
+
   :doc "command preparation returns policy context without committing it"
   (let* ((session (niwa-skills-test--make-session))
          (rules '(("Read" :action allow)))
@@ -709,6 +756,9 @@ hooks:
                                                                   :name (symbol-name source)
                                                                   :source source
                                                                   :source-dir remote-skill-dir
+                                                                  :allowed-tool-rules
+                                                                  (list (list "Bash" :pattern "run ${CLAUDE_SKILL_DIR}/x"
+                                                                              :action 'allow))
                                                                   :body (concat
                                                                          "dir=${NIWA_SKILL_DIR}|"
                                                                          "${CLAUDE_SKILL_DIR} shell=!`pwd`")))
@@ -720,7 +770,14 @@ hooks:
                                                       (should
                                                        (equal (format "dir=%s|%s shell=expanded"
                                                                       native-skill-dir native-skill-dir)
-                                                              (plist-get outcome :body))))))))
+                                                              (plist-get outcome :body)))
+                                                      ;; The rule names the target's path, not the TRAMP one.
+                                                      (should
+                                                       (equal (format "run %s/x" native-skill-dir)
+                                                              (plist-get
+                                                               (cdar (plist-get (plist-get outcome :request-context)
+                                                                                :permission-rules))
+                                                               :pattern))))))))
       (delete-directory root t))
     (should (equal '(("Bash" "pwd") ("Bash" "pwd")) calls)))
 
@@ -921,9 +978,9 @@ hooks:
           (let ((child (niwa-session-get-skill session "child"))
                 (first (niwa-session-get-skill session "first"))
                 (second (niwa-session-get-skill session "second")))
-            (setf (niwa-skill-allowed-tool-rules child) '(child-rule)
-                  (niwa-skill-allowed-tool-rules first) '(first-rule)
-                  (niwa-skill-allowed-tool-rules second) '(second-rule))
+            (setf (niwa-skill-allowed-tool-rules child) '(("Read" :action allow))
+                  (niwa-skill-allowed-tool-rules first) '(("Grep" :action allow))
+                  (niwa-skill-allowed-tool-rules second) '(("Glob" :action allow)))
             (with-temp-buffer
               (setq-local niwa--session session)
               (setq-local niwa--agent-invocation
@@ -963,7 +1020,8 @@ hooks:
           (should (equal '("child" "first" "second")
                          (mapcar #'car expanded)))
           (should (equal "Child(VALUE)" (cadar expanded)))
-          (should (equal '((child-rule) (first-rule) (second-rule))
+          (should (equal '((("Read" :action allow)) (("Grep" :action allow))
+                           (("Glob" :action allow)))
                          (mapcar #'caddr expanded)))
           (should-not (cl-some #'cadddr expanded))
           (should (equal '("child" "first" "second")
@@ -978,7 +1036,7 @@ hooks:
                  (context (plist-get first-outcome :request-context))
                  (input (niwa-skills-format-model-input first-outcome))
                  (hook-context (plist-get first-outcome :hook-context)))
-            (should (equal '(first-rule)
+            (should (equal '(("Grep" :action allow))
                            (plist-get context :permission-rules)))
             (should (equal '("child" "first")
                            (mapcar #'niwa-skill-invocation-record-name

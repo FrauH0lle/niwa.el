@@ -792,6 +792,15 @@ ApplyPatch to explicit session-owned `work://` descendants has a bounded write
 exception. NoteWrite may create review notes, not mutate existing ones. Goal execution uses
 ordinary request permissions. See [Plan mode](plan-mode.md).
 
+Like Claude Code (checked against 2.1.330), an entry may name the skill's own
+directory with `${CLAUDE_SKILL_DIR}` or the alias `${NIWA_SKILL_DIR}`, for example
+`Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/report.py)`. Preparation expands it
+in the entry's specifier to the same path the skill text receives, the
+target-native one in a remote session, so the rule matches the command the
+skill prints. No other variable expands in an entry, and the stored entry keeps
+the variable. A skill with no directory leaves it unexpanded, which matches
+nothing.
+
 Preparation's `!` commands run through the tool pipeline under the buffer's
 request. Between turns a temporary preparation request holds that slot with
 the skill's rules and hooks and the caller's Plan limits, and is removed when

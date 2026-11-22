@@ -58,6 +58,51 @@
   (should (null (niwa-skills-preparation-parse-arguments "")))
   (should (null (niwa-skills-preparation-parse-arguments "   "))))
 
+(niwa-deftest niwa-skills-preparation-substitute-rules ()
+  ,test
+  (test)
+  :doc "skill directory variables expand in rule specifiers, as in the skill text"
+  (let* ((session (niwa-skills-test--make-session))
+         (skill (niwa-skill--create :name "x" :source-dir "/tmp/x/"))
+         (rules '(("Bash" :pattern "python3 ${CLAUDE_SKILL_DIR}/scripts/probe.py"
+                   :action allow)
+                  ("Bash" :pattern "python3 ${NIWA_SKILL_DIR}scripts/other.py *"
+                   :action allow)
+                  ("Read" :path "${CLAUDE_SKILL_DIR}/data/**" :action allow))))
+    (should (equal '(("Bash" :pattern "python3 /tmp/x//scripts/probe.py" :action allow)
+                     ("Bash" :pattern "python3 /tmp/x/scripts/other.py *" :action allow)
+                     ("Read" :path "/tmp/x//data/**" :action allow))
+                   (niwa-skills-preparation-substitute-rules rules skill session)))
+    ;; The rule and the model-facing text name the same command.
+    (should (equal "python3 /tmp/x//scripts/probe.py"
+                   (niwa-skills-preparation-substitute
+                    "python3 ${CLAUDE_SKILL_DIR}/scripts/probe.py" "" session skill))))
+
+  :doc "other variables and plain rules stay as written"
+  (let* ((session (niwa-skills-test--make-session))
+         (skill (niwa-skill--create :name "x" :source-dir "/tmp/x/" :effort 'high))
+         (rules '(("Bash" :pattern "echo ${CLAUDE_SESSION_ID} ${CLAUDE_EFFORT} ${NIWA_EFFORT}"
+                   :action allow)
+                  ("Bash" :pattern "git status" :action allow)
+                  ("Read" :action allow))))
+    (should (equal rules (niwa-skills-preparation-substitute-rules rules skill session))))
+
+  :doc "the stored rules are not changed, so each preparation starts from the variable"
+  (let* ((session (niwa-skills-test--make-session))
+         (skill (niwa-skill--create :name "x" :source-dir "/tmp/x/"))
+         (rules (list (list "Bash" :pattern "run ${CLAUDE_SKILL_DIR}/a" :action 'allow)))
+         (before (copy-tree rules)))
+    (niwa-skills-preparation-substitute-rules rules skill session)
+    (should (equal before rules))
+    (should (equal (niwa-skills-preparation-substitute-rules rules skill session)
+                   (niwa-skills-preparation-substitute-rules rules skill session))))
+
+  :doc "a skill without a directory leaves the variable, never an empty path"
+  (let ((rules '(("Bash" :pattern "run ${CLAUDE_SKILL_DIR}/a" :action allow))))
+    (should (equal rules (niwa-skills-preparation-substitute-rules
+                          rules (niwa-skill--create :name "x") nil)))
+    (should (equal rules (niwa-skills-preparation-substitute-rules rules nil nil)))))
+
 (niwa-deftest niwa-skills-preparation-substitute ()
   ,test
   (test)
