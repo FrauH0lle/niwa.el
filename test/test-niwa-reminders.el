@@ -2034,9 +2034,10 @@ this collapses both shapes to the delivered text."
             (should (string-match-p "MODIFIED:" content))
             (should (string-match-p "no diff available" content))
             ;; Neither side of the change was ever read, so no file body
-            ;; can have reached the reminder.
-            (should-not (string-match-p "xxxx" content))
-            (should-not (string-match-p "yyyy" content))))
+            ;; can have reached the reminder.  A long run: a random temporary
+            ;; directory name can hold "xxxx" or "yyyy" by chance.
+            (should-not (string-match-p "x\\{64\\}" content))
+            (should-not (string-match-p "y\\{64\\}" content))))
       (delete-directory tmp-root t)))
 
   :doc "reports without a diff once content passes the diff byte cap"
