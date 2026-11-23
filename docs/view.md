@@ -1317,9 +1317,12 @@ the active theme (the background tinted 65% and 25% toward the foreground) and
 shown frames, including the share panel, repaint on a theme change; a face the
 user or a theme styles is left alone.
 
-Frame height fits its content between `niwa-note-frame-min-height` and
-`niwa-note-frame-height`, refitted on the view's throttled render
-cadence rather than per streamed token. Only height is fitted; width stays as
+The frame opens `niwa-note-frame-min-height` lines tall and grows with its
+content up to `niwa-note-frame-height`, refitted on the view's throttled render
+cadence rather than per streamed token. It never shrinks while shown: a frame
+that jumps smaller as the transcript re-renders moves under its reader.
+Retargeting it to another note starts again at the minimum. Only height is
+fitted; width stays as
 computed from the parent frame at open, because fitting both dimensions sizes
 the frame to the longest unwrapped line in the transcript and readily exceeds
 the parent's width.
@@ -2460,9 +2463,10 @@ Markdown rendering adds small view-only affordances:
   opens the whiteboard or document in the session's room, like `o` in the
   artifacts cockpit; `agent://root/PATH` and `history://root/PATH` open that
   agent's transcript; `work://` and `memory://` files open for editing; and
-  `artifact://`, `niwa://` and `skill://` files open read-only. An address
-  with no backing file, such as a listing, reports that there is nothing to
-  open. `mcp://` addresses stay text.
+  `artifact://`, `niwa://` and `skill://` files open read-only.
+  `notes://UUID.md` links and rendered `@note:N` mentions jump to the note
+  in its source buffer. A listing address with no backing file reports that
+  there is nothing to open. `mcp://` addresses stay text.
 
 Markdown links, local images, paths, and fenced source-panel projection are
 isolated in `niwa-view-markdown.el`, deferred target path verification in

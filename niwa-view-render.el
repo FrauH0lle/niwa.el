@@ -5114,6 +5114,7 @@ Empty string when the turn contains only whitespace or markers."
 (autoload 'niwa-view--last-live-response-boundary
   "niwa-view-markdown")
 (autoload 'niwa-view--linkify-paths-in-range "niwa-view-markdown")
+(autoload 'niwa-view--linkify-note-mentions-in-range "niwa-view-markdown")
 
 (defun niwa-view--inline-skill-prompt-summary-body (text)
   "Return collapsed prompt body for inline-skill TEXT, or nil."
@@ -6033,6 +6034,7 @@ Use SHARED-DISPLAY text when it replaces the original prompt."
       ;; Decorate mailbox blocks that appear inside mixed user text.
       (niwa-view--decorate-agent-result-blocks text-start (point))
       (niwa-view--decorate-agent-message-blocks text-start (point))
+      (niwa-view--linkify-note-mentions-in-range text-start (point))
       (dolist (ctx hook-contexts)
         (niwa-view--insert-hook-context-block
          (plist-get ctx :events)

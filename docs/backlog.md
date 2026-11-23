@@ -8,6 +8,8 @@ Use the inbox for ideas that have not been investigated yet. Promote an
 item to a detailed entry when its scope and current status are understood.
 Remove items when they are implemented, obsolete, or no longer valuable.
 
+## Inbox
+
 ## Defects
 
 ## Hook extensions

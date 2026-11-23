@@ -26,6 +26,10 @@
 (autoload 'niwa-execution-target-prefix "niwa-execution-target")
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
 
+;; `niwa-notes'
+(declare-function niwa-note-resolve "niwa-notes" (identity workspace))
+(autoload 'niwa-note-resolve "niwa-notes")
+
 ;; `niwa-resource'
 (declare-function niwa-resource-parse-address "niwa-resource" (address))
 (declare-function niwa-resource-visit-path "niwa-resource"
@@ -260,7 +264,7 @@ Both sources consulted here are already in memory."
   "Text properties that make rendered text act like a link.")
 
 (defconst niwa-view--resource-address-regexp
-  (concat "\\(?:work\\|artifact\\|skill\\|memory\\|niwa\\|agent\\|history\\|shared\\)"
+  (concat "\\(?:work\\|artifact\\|skill\\|memory\\|niwa\\|agent\\|history\\|shared\\|notes\\)"
           "://[^][ \t\n`'\"()<>{}]*[^][ \t\n`'\"()<>{}.,;:!?]")
   "Regexp matching a resource address the view can open.
 Trailing sentence punctuation is not part of the address.")
@@ -268,8 +272,8 @@ Trailing sentence punctuation is not part of the address.")
 (defun niwa-view--visit-resource (address)
   "Open resource ADDRESS from the transcript.
 A shared item opens in the room, an agent address its transcript, and
-a file-backed address the file.  Resolution runs here, on click, never
-during a redraw."
+a file-backed address the file.  A note address jumps to the note in its
+source buffer.  Resolution runs here, on click, never during a redraw."
   (setq address
         (condition-case err
             (plist-get (niwa-resource-parse-address address) :canonical)
@@ -282,6 +286,8 @@ during a redraw."
      (bound-and-true-p niwa--data-buffer) (match-string 1 address)))
    ((string-match "\\`\\(?:agent\\|history\\)://\\(root/[^#]+\\)" address)
     (niwa-view-open-agent-transcript (concat "/" (match-string 1 address))))
+   ((string-match "\\`notes://\\([^/]+\\)\\.md\\'" address)
+    (niwa-view--visit-note (match-string 1 address) address))
    (t
     (let ((path (condition-case err
                     (niwa-resource-visit-path
@@ -293,6 +299,41 @@ during a redraw."
       (if (string-match-p "\\`\\(?:work\\|memory\\)://" address)
           (find-file-other-window path)
         (find-file-read-only-other-window path))))))
+
+(defun niwa-view--visit-note (identity label)
+  "Jump to the open note with numeric ID or UUID IDENTITY in its file.
+LABEL names the reference in the error when no such note is open."
+  (let* ((session (bound-and-true-p niwa--session))
+         (note (and session
+                    (niwa-note-resolve identity (niwa-session-workspace session)))))
+    (unless note
+      (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "No open note for %s" label))
+    (pop-to-buffer (overlay-buffer note))
+    (goto-char (overlay-start note))))
+
+(defun niwa-view--note-mention-action (button)
+  "Jump to the note BUTTON's `@note:N' mention names."
+  (niwa-view--visit-note (button-get button 'niwa-view-note-id)
+                         (button-label button)))
+
+(defun niwa-view--linkify-note-mentions-in-range (start end)
+  "Make `@note:N' mentions between START and END jump to their note.
+Resolution waits for the click, so a redraw does no note lookup."
+  (let ((src-ranges (niwa-view--src-block-body-ranges start end)))
+    (save-excursion
+      (goto-char start)
+      (while (re-search-forward "@note:\\([0-9]+\\)\\_>" end t)
+        (let ((mb (match-beginning 0))
+              (label (match-string-no-properties 0)))
+          (unless (or (button-at mb)
+                      (memq (char-syntax (or (char-before mb) ?\s)) '(?w ?_))
+                      (niwa-view--decoration-blocked-p mb src-ranges))
+            (make-text-button
+             mb (match-end 0)
+             'action #'niwa-view--note-mention-action
+             'niwa-view-note-id (string-to-number (match-string-no-properties 1))
+             'follow-link t
+             'help-echo (format "Visit %s" label))))))))
 
 (defun niwa-view--open-url-action (button)
   "Open BUTTON's URL with `browse-url', or its resource address."
@@ -852,6 +893,7 @@ waits for the click, so a redraw does no target I/O."
           (niwa-view--render-markdown-url-links-in-range start end-marker)
           (niwa-view--linkify-paths-in-range start end-marker)
           (niwa-view--linkify-resource-addresses-in-range start end-marker)
+          (niwa-view--linkify-note-mentions-in-range start end-marker)
           ;; Run after links and paths so their buttons and faces carry into
           ;; rendered cells.
           (niwa-view-table-decorate

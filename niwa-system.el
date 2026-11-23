@@ -621,6 +621,8 @@ present."
       (push (concat "- `notes://` - read-only marked-code notes in this session's workspace. "
                     "Use Read to list display numbers and UUID addresses; "
                     "Read, Glob and Grep accept returned notes://UUID.md addresses. "
+                    "Write a note's notes://UUID.md address in a reply to link it: "
+                    "the user clicks it to jump to the note in its file. "
                     "These are distinct from working files under work://shared/; "
                     "reading a note does not send it or start a conversation.")
             lines))

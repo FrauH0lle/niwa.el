@@ -76,8 +76,26 @@
                     (should (eq parent (frame-parent frame)))
                     (niwa-note-frame-refresh)
                     (redisplay t)
-                    (when (> height niwa-note-frame-min-height)
-                      (should (< (frame-text-height frame) opening-height))))
+                    ;; Opens at the minimum and grows to fit, never past the maximum.
+                    (let ((fitted (frame-text-height frame))
+                          (limit (* height (frame-char-height frame))))
+                     (should (>= fitted opening-height))
+                     (should (<= fitted limit))
+                     (when (> height niwa-note-frame-min-height)
+                      (niwa-view-test--insert-data
+                       data-buf (apply #'concat (make-list 30 "More reply.\n")) 'response)
+                      (with-current-buffer view-buf (niwa-view--full-rerender))
+                      (redisplay t)
+                      (let ((grown (frame-text-height frame)))
+                        (should (> grown fitted))
+                        (should (<= grown limit))
+                        ;; Less content must not shrink the frame under its reader.
+                        (with-current-buffer data-buf
+                          (let ((inhibit-read-only t)) (erase-buffer)))
+                        (niwa-view-test--insert-data data-buf "Note prompt.\n" nil)
+                        (with-current-buffer view-buf (niwa-view--full-rerender))
+                        (redisplay t)
+                        (should (= grown (frame-text-height frame)))))))
                   (niwa-view-pair-surfaces--assert-dock transcript composer)
                   (select-frame-set-input-focus frame)
                   (select-window composer)

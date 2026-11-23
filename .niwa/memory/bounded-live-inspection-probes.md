@@ -2,7 +2,7 @@
 name: "Keep live inspection non-perturbing and diagnostics representative"
 description: "Bound probe overhead, preserve live-editor restrictions, distinguish navigation and observer effects, and persist intermittent evidence."
 type: feedback
-modified: 2026-11-15
+modified: 2026-11-23
 ---
 
 # Keep live inspection non-perturbing and diagnostics representative
@@ -16,6 +16,10 @@ Observed 2026-09-28: an Eval returning `mevedel--turn-settlements-pending` seria
 - **Keep instrumentation out of the user's live Emacs: no `advice-add` timing wrappers and no `profiler-start`.** Use a batch or test Emacs instead. On 2026-10-24, a live Emacs OOM kill followed extensive advice, profiling, and concurrent agent checks; the exact cause was not established.
 
 Further November 12 journal evidence records live-Emacs OOM kills with roughly 58 GB resident memory. Retained agent conversations were suggested as a cause, but that attribution remains unconfirmed. Neither temporal proximity to a probe nor recurrence establishes a cause, and these observations do not relax the live-editor restrictions.
+
+**Never print function objects from the live Emacs, especially profiler entries.** Observed 2026-11-23 (scroll-lag investigation): twice, a live Eval that printed profiler call-tree entries (`prin1-to-string`, then `(format "%s" entry)`) was followed within seconds by kernel OOM kills at about 59–60 GB. Some entries are compiled closures or advice objects. An analysis that rendered only symbol names and `type-of` for other entries finished normally. Printing the closures is the likely cause; the exact object was not isolated. `print-circle` and `print-level` limits are not a proven safeguard.
+
+**How to apply:** this lesson came from breaking the rule above, which was not read beforehand. When a user-requested live profile is unavoidable, store it in a global variable first (fetching `profiler-cpu-log` resets it), name entries only with `symbol-name`/`type-of`, or let the user read `M-x profiler-report`. Better still, write the profile with `profiler-write-profile` only after checking that it is safe, and analyze it in a separate Emacs.
 
 ## Match observation duration to intermittency
 

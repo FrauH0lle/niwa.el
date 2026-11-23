@@ -13,6 +13,7 @@
 (require 'niwa-execution-target)
 (require 'niwa-mentions)
 (require 'niwa-collaboration)
+(require 'niwa-notes)
 (require 'niwa-resource)
 (require 'niwa-session-persistence)
 (require 'niwa-view)
@@ -285,6 +286,56 @@
               (search-forward "work://code.md")
               (should-not (button-at (match-beginning 0))))))
       (delete-file file))))
+  :doc "a note address jumps to the note in its source buffer"
+  (let* ((source (generate-new-buffer " *note-source*"))
+         (uuid "0b6d2c1e-1111-4222-8333-444455556666")
+         (workspace (niwa-workspace--create
+                     :type 'project :id "note-link"
+                     :root temporary-file-directory :name "note-link"))
+         (session (niwa-session-create "main" workspace)))
+    (unwind-protect
+        (let ((note (with-current-buffer source
+                      (insert "one\ntwo\n")
+                      (make-overlay 5 8)))
+              resolved)
+          (with-temp-buffer
+            (insert (format "See notes://%s.md." uuid))
+            (setq-local niwa--session session)
+            (niwa-view--decorate-markdown-in-range (point-min) (point-max))
+            (goto-char (point-min))
+            (search-forward "notes://")
+            (cl-letf (((symbol-function 'niwa-note-resolve)
+                       (lambda (identity workspace)
+                         (setq resolved (list identity workspace))
+                         note))
+                      ((symbol-function 'pop-to-buffer) #'set-buffer))
+              (button-activate (button-at (match-beginning 0)))
+              (should (equal (list uuid workspace) resolved))
+              (should (eq source (current-buffer)))
+              (should (= 5 (point))))))
+      (kill-buffer source)))
+  :doc "rendered @note:N mentions in prompts and replies jump to the note"
+  (niwa-view-test--with-buffers
+    (niwa-view-test--insert-data data-buf "Explain @note:3 please.\n" nil)
+    (niwa-view-test--insert-data
+     data-buf "Done in @note:3.\n\n```\n@note:3\n```\n" 'response)
+    (with-current-buffer view-buf
+      (niwa-view--full-rerender)
+      (let (buttons)
+        (goto-char (point-min))
+        (while (search-forward "@note:3" nil t)
+          (push (button-at (match-beginning 0)) buttons))
+        (setq buttons (nreverse buttons))
+        (should (= 3 (length buttons)))
+        (should (car buttons))
+        (should (nth 1 buttons))
+        ;; Fenced code stays verbatim.
+        (should-not (nth 2 buttons))
+        (let (visited)
+          (cl-letf (((symbol-function 'niwa-view--visit-note)
+                     (lambda (identity label) (setq visited (list identity label)))))
+            (button-activate (car buttons)))
+          (should (equal '(3 "@note:3") visited))))))
 
 (niwa-deftest niwa-view--decorate-local-images-in-range
   (:doc "`niwa-view--decorate-local-images-in-range' displays local image references")

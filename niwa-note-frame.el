@@ -84,9 +84,9 @@
   :group 'niwa)
 
 (defcustom niwa-note-frame-min-height 8
-  "Smallest height of the note frame in lines.
-The frame fits itself to its content between this and
-`niwa-note-frame-height'."
+  "Height of the note frame in lines when it opens.
+The frame grows with its content up to `niwa-note-frame-height' and
+never shrinks back while it is shown."
   :type 'integer
   :group 'niwa)
 
@@ -505,10 +505,10 @@ WINDOW is supplied by `window-scroll-functions'."
         niwa-note-frame--note nil))
 
 (defun niwa-note-frame--fit-height ()
-  "Fit the note frame's height to its content.
-Bounded by `niwa-note-frame-min-height' and
-`niwa-note-frame-height' so a one-line answer does not collapse
-the frame and a long one does not cover the buffer behind it."
+  "Grow the note frame's height to its content.
+Bounded by `niwa-note-frame-height' so a long answer does not cover the
+buffer behind it.  The frame never shrinks: a frame that jumps smaller
+as the transcript re-renders moves under its reader."
   (when-let* ((frame niwa-note-frame--frame)
               ((frame-live-p frame)))
     (let* ((window (or (niwa-view-transcript-window (frame-first-window frame))
@@ -516,14 +516,14 @@ the frame and a long one does not cover the buffer behind it."
            (composer (niwa-view-composer-window window)))
       (if (not composer)
           (fit-frame-to-buffer frame niwa-note-frame-height
-                               niwa-note-frame-min-height nil nil 'vertically)
+                               (max niwa-note-frame-min-height (frame-height frame))
+                               nil nil 'vertically)
         ;; `fit-frame-to-buffer' only fits a frame with a single window.
         (let* ((row (frame-char-height frame))
                (limit (* row niwa-note-frame-height))
                (content (cdr (window-text-pixel-size window t t nil limit t)))
-               (height (max (* row niwa-note-frame-min-height)
-                            (min limit (+ content (window-pixel-height composer))))))
-          (unless (= height (frame-text-height frame))
+               (height (min limit (+ content (window-pixel-height composer)))))
+          (when (> height (frame-text-height frame))
             (set-frame-height frame height nil t)))))))
 
 
@@ -579,7 +579,10 @@ an ordinary right-hand split when child frames are unavailable."
                    (buffer-live-p (overlay-buffer note)))
           (setq niwa-note-frame--origin
                 (copy-marker (overlay-start note))))
-        (set-frame-size frame (car size) (cdr size) t)
+        ;; Open small: the frame only grows, so it starts at its minimum.
+        (set-frame-size frame (car size)
+                        (* niwa-note-frame-min-height (frame-char-height parent))
+                        t)
         (niwa-view-composer-display (frame-first-window frame))
         (set-frame-position frame
                             (or (car anchor)

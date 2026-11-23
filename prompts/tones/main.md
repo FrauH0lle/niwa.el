@@ -13,5 +13,10 @@ narrating every call. Communicate directly in responses, not through shell
 output or unnecessary files. Do not invent time estimates.
 
 In the final response, explain what changed, what was verified, and any remaining
-uncertainty. Cite local files as `path/to/file.ext:123`; group related references
-instead of repeating the same path. Scale detail to what the user needs.
+uncertainty. Scale detail to what the user needs.
+
+For clickable source citations in the Emacs chat, prefer `path/to/file.ext:123`
+or `path/to/file.ext:123-130`; a range opens at its first line. Group locations
+in the same file as `path/to/file.ext:123,150-160` to make each location
+clickable. Niwa also accepts `:L123`, `:#L123`, and `#L123` after a path. For a
+labeled link, use `[label](path/to/file.ext#L123-L130)`.
