@@ -1,44 +1,28 @@
 ---
-name: "Background-work UI: minimal, unified, and composer-stable"
-description: "Unify running work, keep the composer stable, and preserve time to inspect expanded completed entries"
+name: "Background-work UI: visible, unified, and composer-stable"
+description: "Make scheduled work discoverable without crowding the composer; keep running work unified and completed entries inspectable."
 type: user
-modified: 2026-10-19
+modified: 2026-11-23
 ---
 
 # Execution and background-work UI preferences
 
 ## Minimal presentation and coherent grouping
 
-User statement, 2026-09-27 preview comparison: favors a **work-oriented default**. Liked A's minimal command row much more than B's result card with output preview. Saw potential usefulness in C's completion breadcrumb but did not choose it over A.
+In a 2026-09-27 preview comparison, the user favored a work-oriented default: a minimal command row over a result card with an output preview. A completion breadcrumb looked potentially useful but was not chosen over the minimal row.
 
-User statement, 2026-10-16: the executions/Monitor UI feels awkward. Clicking the row above the composer is not expected to open the cockpit; executions and monitors belong to the same category.
+On 2026-10-16, the user said the executions/Monitor UI felt awkward: clicking the row above the composer was not expected to open the cockpit, and executions and monitors belong to the same category.
 
-User statements, 2026-10-17:
+On 2026-10-17, the user asked to unify background work in one area, **including agents**. The live panel should show what is actually running; finished items should leave it because completion has an event row in the conversation. Do not repeat header counts in the footer. Keep controls out of a busy header: the user accepted `[Manage]` in its own last row, with `[Show all N]` / `[Show fewer]` for overflow, and found the trailing dots in `Manage…` strange.
 
-- Unify background work into one area, **including agents**.
-- The live panel should show what is actually running. Finished items should disappear because completion is represented by the event row in the conversation.
-- Avoid repeating the panel header's counts in the footer: the user called that redundant.
-- Keep headers uncluttered. The user found `Manage…`'s trailing dots strange and wanted the control out of the busy header. They explicitly accepted `[Manage]` in its own last panel row, with `[Show all N]` / `[Show fewer]` for overflow.
+On 2026-10-18, the user qualified the removal rule: leave completed entries visible while expanded. After collapse, start a fresh removal grace period **only once point is outside the background area**. No exact duration was specified.
 
-User clarification, 2026-10-18:
+## Composer stability, interactive rows, and scheduled work
 
-- Completed background-job entries should remain visible while expanded.
-- Collapsing a completed entry should start a **fresh removal grace period only once point is outside the background area**, rather than making the entry disappear immediately.
+On 2026-10-17, the user said the main layout discomfort was status content growing and pushing the composer away. Prefer status content **below the composer**, while allowing the composer itself to grow during typing. Interactive rows must remain real buffer text so point can move to them and invoke their actions; the user rejected `after-string` for those rows.
 
-The clarification preserves time to inspect completed work without consuming its post-collapse visibility period. It qualifies the earlier disappearance preference; no exact grace-period duration was specified.
-
-## Composer stability and interactive rows
-
-User statement, 2026-10-17: the main layout discomfort is status content growing and pushing the composer “away.” Prefer status content **below the composer**, while allowing the composer to grow during typing.
-
-In the same discussion, the user rejected `after-string` designs for interactive rows: rows must remain real buffer text so point can move to them and invoke their actions. Preserve that interaction requirement when exploring layouts.
+Wake-ups and schedules should be discoverable in **both Emacs and the browser** so background work does not start by surprise. Balance this with the user's concern that the background-work panel above the composer was getting full. A small composer hint was the user's suggestion, not an approved widget or interaction design. (User statements, session `2026-11-21T22-17-7c90d5334396`, `segment-0001.chat.org`, turns 14–15.)
 
 ## Scope and unconfirmed proposals
 
-- For the October 17 redesign, the user explicitly requested planning and mockups first, with “Not code changes yet.” This was a constraint on that design phase, not a standing prohibition on UI implementation.
-- “One completion breadcrumb for every command that continues in the background, regardless of delivery mechanism” was an assistant recommendation, not user confirmation. The user said “I don't get that difference” when asked about polling versus independent notification.
-- The October 16 inline-expansion proposal was not confirmed.
-- Exact generic footer wording, removing the `All…` link, and a repeated-Monitor-event collapse policy were not confirmed in the supplied evidence.
-- Fixed reserved panel height and the proposed marker-based composer layout were assistant proposals, not an accepted design.
-
-Do not cite these unconfirmed details as user intent.
+The October 17 request for planning and mockups rather than code changes applied to that design phase, not all UI work. The following were not confirmed: one breadcrumb per background command regardless of delivery mechanism; the October 16 inline-expansion proposal; exact generic footer wording; removing `All…`; a repeated-Monitor-event collapse policy; a fixed panel height; and a marker-based composer layout.

@@ -1,19 +1,16 @@
 ---
 name: "Finalize one coherent design before implementing"
-description: "Do not start implementation, prototype edits or backlog additions while design is open; prefer one coherent design over phased versions."
+description: "Use concrete mockups to settle design questions before editing code or prototypes; prefer one coherent design over phased versions."
 type: feedback
-modified: 2026-11-19
+modified: 2026-11-23
 ---
 
 # Finalize one coherent design before implementing
 
-**User statements:**
-- Floating-composer session, 2026-11-18: "Please don't start an implementation, we need to finalize the design first." The assistant had already edited a `.scratch` prototype before agreement and acknowledged that it should not have.
-- Schedules session, 2026-11-19: the user prefers not adding items to the backlog ("we are trying to clean it up") and is "not a big fan" of v1, v2 and similar phasing at this stage. The user wants "one good, coherent design".
+Settle design questions with the user before editing code or prototypes, delegating edits or runs, or adding backlog entries. Present one coherent design rather than using v1/v2 phases or backlog entries to defer unresolved scope.
 
-**Why:** The user wants design questions settled by discussion. Early edits, which include partner-agent edits and harness runs, and deferred phases both pre-empt that discussion.
+**Make the questions concrete.** Include one or more example mockups with each design-review question so the user can judge the proposed behavior. An inline mockup that shows what the user would see is part of discussion; editing a prototype file is not. Use examples to make real alternatives or tradeoffs visible without presenting them as approved designs.
 
-**How to apply:**
-- While a design is still being discussed, do not edit code or prototypes, and do not delegate edits or runs. Only do so after the user agrees the design is final or explicitly asks for a prototype.
-- Present a single complete design. Do not propose phases, "later" versions or new backlog entries as a way to cut scope.
-- This does not apply once the user has asked for implementation. The same user does ask for a prototype step in some workflows. The user's stated order there is to run the grill first, then either prototype or implement.
+This boundary does not apply once the user has asked for implementation or explicitly asked for a prototype. When the chosen workflow starts with a design grill, finish the grill before prototyping or implementing.
+
+**Sources:** Floating-composer discussion, 2026-11-18: the user said, “Please don't start an implementation, we need to finalize the design first,” after a `.scratch` prototype was edited prematurely. Schedules discussion, 2026-11-19: the user asked for “one good, coherent design” and objected to adding work to a backlog they were trying to clean up. Schedule-visibility design review, session `2026-11-22T13-22-fe5c835dc36a`, `segment-0001.chat.org`, turn 3: the user asked for concrete example mockups with the questions.

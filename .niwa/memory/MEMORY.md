@@ -7,16 +7,15 @@
 - [Completion-time reminders cannot enforce a finished turn](completion-time-hook-reminders.md) - Place guidance where it can affect the intended turn; do not mistake a context-only completion hook for enforcement
 - [Preserve the requested editing surface](preserve-requested-editing-surface.md) - A whiteboard redesign request means editing that whiteboard, not substituting a separate preview.
 - [Investigate history before recommending removal of a boundary](investigate-history-before-removing-boundaries.md) - Read the commits and ADRs that introduced a boundary before proposing to remove it
-- [Verify the real consumer boundary, not intermediate success](rendered-state-verification-feedback.md) - Use the production path and caller identity; distinguish transport, persistence, rendering, and behavioral acceptance.
+- [Verify the real consumer boundary, not intermediate success](rendered-state-verification-feedback.md) - Exercise the production path with the caller's actual identity and inputs, from discovery or delivery to the outcome the consumer uses.
 - [Read-only verification can rest on independently checked artifacts](read-only-verification-artifacts.md) - Inability to rerun a writing check is not absence of verification evidence
-- [Background-work UI: minimal, unified, and composer-stable](execution-ui-presentation-preference.md) - Unify running work, keep the composer stable, and preserve time to inspect expanded completed entries
+- [Background-work UI: visible, unified, and composer-stable](execution-ui-presentation-preference.md) - Make scheduled work discoverable without crowding the composer; keep running work unified and completed entries inspectable.
 - [Keep live inspection non-perturbing and diagnostics representative](bounded-live-inspection-probes.md) - Bound probe overhead, preserve live-editor restrictions, distinguish navigation and observer effects, and persist intermittent evidence.
 - [Judge inline image previews by displayed size](inline-image-size-feedback.md) - Compact previews are a visual requirement, not a preference for pixel or fractional settings
 - [Artifact collaboration across chats, machines, and tools](artifact-collaboration-user-preferences.md) - Preserve viewing-chat context and unified discussions; local Emacs sessions should edit remote artifacts without becoming remote browser-chat participants.
 - [Do not attribute guesses or unchecked behavior to reference systems](reference-system-values-feedback.md) - Check authoritative documentation, source, or observed behavior before using another product to justify a design
 - [Reduce permission prompts' visual weight](permission-prompt-visual-weight.md) - User finds sandbox and permission prompts imposing and prefers collapsing parts of them
 - [View changes must preserve rendering and CPU gains](view-render-performance-constraint.md) - Rendering cost and CPU use are hard constraints; measure graphical-only effects in a graphical environment
-- [Trace unreadable addresses back to discovery](resource-discovery-consumption-verification.md) - Check discovery-to-consumption at root and descendant scopes without weakening valid access refusals
 - [Correctness and simplicity without losing features or performance](development-priorities-user-preference.md) - Reduce implementation and UX complexity without optimizing concept counts or imposing unevidenced restrictions.
 - [Keep named-agent guidance uniform](uniform-agent-role-guidance-feedback.md) - Make general-purpose delegation discoverable without singling out verifier for special contrasting guidance
 - [Show recurring advisories only once](one-time-recurring-advisories.md) - Repeated informational warnings become tedious; avoid repeatedly showing the same advisory
@@ -43,8 +42,8 @@
 - [Project naming taste](project-naming-taste.md) - Favor good sound and a genuine functional connection; Japanese aesthetics appeal without needing to dominate.
 - [User-first, editor-native AI collaboration](user-first-editor-collaboration-preference.md) - Support user-led, context-isolated collaboration, editor-native prototypes, and lightweight note interactions without redundant commands.
 - [Preserve agreed scope, including approved prototype visuals](preserve-agreed-scope-in-specifications.md) - Do not silently drop agreed work or an approved prototype's visual treatment when writing specifications or implementing them.
-- [Keep user-facing customization at the main package boundary](main-package-customization-preference.md) - Keybinding customization should work from the main package configuration without requiring submodule-specific setup.
+- [Keep package-specific configuration at the package boundary](main-package-customization-preference.md) - Expose customization through the main package, and keep local Niwa-specific workarounds out of editor core when possible.
 - [Separate applying draft wording from committing it](collaborative-wording-commit-approval.md) - When wording is still under collaborative review, applying edits does not mean the user has approved a commit.
-- [Finalize one coherent design before implementing](finalize-coherent-design-before-implementing.md) - Do not start implementation, prototype edits or backlog additions while design is open; prefer one coherent design over phased versions.
+- [Finalize one coherent design before implementing](finalize-coherent-design-before-implementing.md) - Use concrete mockups to settle design questions before editing code or prototypes; prefer one coherent design over phased versions.
 - [Land branches on master as a linear, squashed history](linear-master-history-preference.md) - Combine related commits and fast-forward; no merge commits on master.
 - [Make Niwa look good in vanilla Emacs and respect the active theme](vanilla-emacs-and-theme-aware-presentation.md) - Check view appearance in graphical emacs -Q, and prefer theme-derived colors for child-frame borders.
