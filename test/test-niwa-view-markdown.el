@@ -285,7 +285,7 @@
               (goto-char (point-min))
               (search-forward "work://code.md")
               (should-not (button-at (match-beginning 0))))))
-      (delete-file file))))
+      (delete-file file)))
   :doc "a note address jumps to the note in its source buffer"
   (let* ((source (generate-new-buffer " *note-source*"))
          (uuid "0b6d2c1e-1111-4222-8333-444455556666")
@@ -335,7 +335,7 @@
           (cl-letf (((symbol-function 'niwa-view--visit-note)
                      (lambda (identity label) (setq visited (list identity label)))))
             (button-activate (car buttons)))
-          (should (equal '(3 "@note:3") visited))))))
+          (should (equal '(3 "@note:3") visited)))))))
 
 (niwa-deftest niwa-view--decorate-local-images-in-range
   (:doc "`niwa-view--decorate-local-images-in-range' displays local image references")
