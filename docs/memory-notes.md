@@ -13,7 +13,8 @@ text has no lifecycle meaning and needs no migration. Keep actionable work in th
 tracker/backlog, not only in temporary notes. Normal edit permissions and
 review/transaction protections still apply. Read-only agents
 report lessons through their existing results or available SendMessage; they
-gain no mutation tools. `$learn` considers available notes and digests as
+gain no file-writing tools. NoteWrite lets them create new workspace review notes
+only. `$learn` considers available notes and digests as
 additional evidence, verifies relevant claims, and acknowledges omissions.
 
 Shared files (`.niwa/shared/`) are untracked, machine-local and temporary.

@@ -5,7 +5,9 @@ when there is something to hand off or a reusable lesson, and the current
 request permits shared-file writes. Routine tasks need no ceremonial note. Standalone Plan
 permits session-owned plan edits but excludes shared and memory writes. Explorer, verifier, and
 reviewer report observations and hypotheses through existing results or an
-available SendMessage; they receive no extra write authority. Reviewer lessons
+available SendMessage; they receive no file, shared-file or memory write
+authority. Like Plan, they may create workspace review notes with NoteWrite but
+cannot edit, send or close existing notes. Reviewer lessons
 stay within its existing JSON response schema. Only the main prompt receives
 the recent journal map; all roles may use permitted journal reads on demand.
 
