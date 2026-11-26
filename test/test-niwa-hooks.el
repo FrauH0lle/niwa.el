@@ -1052,6 +1052,30 @@
       (delete-directory root t)
       (delete-directory home t))))
 
+(niwa-deftest niwa-hooks--write-trust-db/interrupted-write
+  (:doc "an interrupted rewrite keeps the previous complete trust database")
+  (let* ((user-dir (file-name-as-directory (make-temp-file "niwa-hooks-user" t)))
+         (niwa-user-dir user-dir)
+         (old '((:workspace-id "w" :path "/p/.niwa/hooks.el" :hash "abc")))
+         (write-region-orig (symbol-function 'write-region)))
+    (unwind-protect
+        (progn
+          (niwa-hooks--write-trust-db old)
+          ;; Simulate a full disk: two bytes reach the file, then the write fails.
+          (cl-letf (((symbol-function 'write-region)
+                     (lambda (start _end file &rest args)
+                       (apply write-region-orig (or start (point-min))
+                              (+ 2 (or start (point-min))) file args)
+                       (signal 'file-error '("Writing" "No space left on device")))))
+            (should-error (niwa-hooks--write-trust-db
+                           (cons '(:workspace-id "x" :path "/q" :hash "def") old))
+                          :type 'file-error))
+          (should (equal old (niwa-hooks--read-trust-db)))
+          (should (equal '("trusted-hooks.eld")
+                         (directory-files user-dir nil
+                                          directory-files-no-dot-files-regexp))))
+      (delete-directory user-dir t))))
+
 (niwa-deftest niwa-hooks-effective-rules/malformed-trust-db
   (:quiet t :doc "ignores malformed trusted hook entries")
   (let* ((root (make-temp-file "niwa-hooks-trust" t))

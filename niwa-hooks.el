@@ -611,15 +611,11 @@ Without SCOPE the source is user-wide configuration."
       nil)))
 
 (defun niwa-hooks--write-trust-db (db)
-  "Write trusted hook hash database DB."
-  (let* ((file (niwa-hooks--trust-file))
-         (dir (file-name-directory file)))
-    (make-directory dir t)
-    (with-temp-file file
-      (let ((print-length nil)
-            (print-level nil)
-            (print-quoted t))
-        (prin1 db (current-buffer))))))
+  "Write trusted hook hash database DB atomically."
+  (let ((print-length nil)
+        (print-level nil)
+        (print-quoted t))
+    (niwa--write-file-atomically (niwa-hooks--trust-file) (prin1-to-string db))))
 
 (defun niwa-hooks--config-snapshot (file)
   "Return FILE's path, SHA256 hash, and decoded content from one read."
