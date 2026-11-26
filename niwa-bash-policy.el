@@ -118,15 +118,23 @@
   "Find options that mutate, execute commands, or write files.")
 
 (defun niwa-bash-policy--base64-read-only-p (argv)
-  "Return non-nil when base64 ARGV has no output-file option."
+  "Return non-nil when base64 ARGV has no output-file option.
+BSD base64 bundles short options (-Do FILE) and accepts long-option
+prefixes (--outp), so any single-dash word containing o and any prefix of
+--output are refused."
   (not
    (cl-some
     (lambda (argument)
-      (or (member argument '("-o" "--output"))
-          (string-prefix-p "--output=" argument)
-          (and (string-prefix-p "-o" argument)
-               (not (string-equal argument "-o")))))
+      (or (niwa-bash-policy--bundled-short-option-p argument ?o)
+          (let ((name (car (split-string argument "="))))
+            (and (< 2 (length name)) (string-prefix-p name "--output")))))
     (cdr argv))))
+
+(defun niwa-bash-policy--bundled-short-option-p (argument letter)
+  "Return non-nil when ARGUMENT is a short-option word containing LETTER.
+Fail closed: LETTER may also be the value of an earlier option (-eLETTER)."
+  (and (string-match-p "\\`-[^-]" argument)
+       (string-search (string letter) argument)))
 
 (defun niwa-bash-policy--find-read-only-p (argv)
   "Return non-nil when find ARGV has no effectful primary."
@@ -137,11 +145,13 @@
     (cdr argv))))
 
 (defun niwa-bash-policy--rg-read-only-p (argv)
-  "Return non-nil when ripgrep ARGV cannot launch helper programs."
+  "Return non-nil when ripgrep ARGV cannot launch helper programs.
+Ripgrep bundles short options, so -iz searches compressed files like -z."
   (not
    (cl-some
     (lambda (argument)
-      (or (member argument '("--hostname-bin" "--pre" "--search-zip" "-z"))
+      (or (member argument '("--hostname-bin" "--pre" "--search-zip"))
+          (niwa-bash-policy--bundled-short-option-p argument ?z)
           (string-prefix-p "--hostname-bin=" argument)
           (string-prefix-p "--pre=" argument)))
     (cdr argv))))
@@ -231,7 +241,9 @@ options, missing values and contradictory grouping modes remain unclassified."
 FLAGS are complete long options without operands; VALUES take an operand.
 SHORT is a regexp matching one entire short option (possibly with its value).
 After `--', remaining words are literal operands."
-  (let ((valid t))
+  (let ((valid t)
+        ;; -l is not -L: diff's -l pipes output through pr.
+        (case-fold-search nil))
     (while (and valid args)
       (let ((word (pop args)))
         (cond

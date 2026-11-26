@@ -976,6 +976,8 @@ the assignment and using ordinary authorized launch instead of entering
 read-only preparation with a silently shortened command list.
 Ripgrep receives `--no-config`, so inherited `RIPGREP_CONFIG_PATH` cannot inject
 helper-enabling options absent from the analyzed command.
+Bundled short options are judged like separate ones (`rg -iz` is refused like
+`rg -z`), and option letters match case-sensitively (`diff -l` runs `pr`).
 Bash keeps its specialized permission entry and controls, but an `ask` passes
 through the pipeline's shared `PermissionRequest` boundary before that entry
 is admitted.
