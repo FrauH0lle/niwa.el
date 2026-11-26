@@ -764,6 +764,20 @@ Pass VIEW explicitly to composer bounds used inside BODY."
         (niwa-view-refresh-associated-input-prompt)
         (should (equal "> first editable\nsecond line" (niwa-view-composer-draft-text nil t))))))
 
+  :doc "keeps Plan active while cycling the permission mode"
+  (niwa-view-test--with-buffers
+    (let ((session (niwa-session--create
+                    :authority-mode 'portable :name "main"
+                    :permission-mode 'ask :plan-mode t)))
+      (with-current-buffer data-buf
+        (setq-local niwa--session session niwa--view-buffer view-buf))
+      (with-current-buffer view-buf
+        (setq-local niwa--session session)
+        (should (eq 'edits (niwa-view-cycle-permission-mode)))
+        (should (niwa-session-plan-mode session))
+        (should (eq 'edits (niwa-session-permission-mode session)))
+        (should (string-prefix-p "[Plan · edits]" (niwa-view-test--rail-text))))))
+
   :doc "keeps the committed mode when an incomplete view cannot repaint"
   (let ((data-buffer (generate-new-buffer " *mev-cycle-data*"))
         (view-buffer (generate-new-buffer " *mev-cycle-view*")))

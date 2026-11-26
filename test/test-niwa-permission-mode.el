@@ -49,14 +49,14 @@
 (niwa-deftest niwa-permission-mode-transition ()
   ,test
   (test)
-  :doc "an explicit permission choice exits Plan"
+  :doc "a permission choice keeps Plan active"
   (with-temp-buffer
     (let ((session (niwa-session--create
                     :name "main" :permission-mode 'edits :plan-mode t)))
       (setq-local niwa--session session
                   niwa-permission-mode 'edits)
       (niwa-permission-mode-transition 'ask)
-      (should-not (niwa-session-plan-mode session))
+      (should (niwa-session-plan-mode session))
       (should (eq 'ask (niwa-session-permission-mode session)))))
 
   :doc "keeps a committed transition when an incomplete view cannot repaint"

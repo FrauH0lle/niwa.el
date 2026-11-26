@@ -32,14 +32,6 @@
 (declare-function niwa-permission-review-cancel
                   "niwa-permission-review" (session &optional request-id reason))
 
-;; `niwa-plan-mode'
-(declare-function niwa-plan-mode-active-p
-                  "niwa-plan-mode" (&optional session))
-(declare-function niwa-plan-mode-exit
-                  "niwa-plan-mode" (&optional session))
-(autoload 'niwa-plan-mode-active-p "niwa-plan-mode")
-(autoload 'niwa-plan-mode-exit "niwa-plan-mode" nil t)
-
 ;; `niwa-reminders'
 (declare-function niwa-reminders-make-mode-constraints
                   "niwa-reminders" ())
@@ -209,7 +201,8 @@ Tool contexts use `:buffer'; queue entries use `:data-buffer'."
 
 (defun niwa-permission-mode-transition (mode)
   "Transition the current session to permission MODE.
-Runs mode-specific lifecycle hooks."
+Runs mode-specific lifecycle hooks.  Plan mode is independent and stays
+active."
   (let* ((target (niwa-permission-mode-normalize mode))
          (data-buf (niwa-permission-mode-data-buffer))
          (session (and data-buf
@@ -219,9 +212,6 @@ Runs mode-specific lifecycle hooks."
       (with-current-buffer data-buf
         (niwa-session-artifacts-assert-mutation-authority
          session data-buf)
-        (when (and (fboundp 'niwa-plan-mode-active-p)
-                   (niwa-plan-mode-active-p session))
-          (niwa-plan-mode-exit session))
         (let ((previous (niwa-permission-mode--effective-session-mode
                          session)))
           (niwa-permission-mode-set-raw target)
