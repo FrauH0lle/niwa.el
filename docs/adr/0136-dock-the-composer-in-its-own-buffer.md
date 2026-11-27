@@ -95,6 +95,14 @@ owns the viewport rules and their exceptions.
   window gets no dock: that slot cannot contain an independent pair. The
   transcript remains usable. A too-short window can also stay unpaired until
   it can fit a dock.
+- **A composer-side rail painter** would let the draft buffer hide its fixed
+  rail layout from the view stream. The composer owns the rail cells, fit and
+  attention, but the stream paints that fixed layout. Separately, the native
+  presenter animates the rail label through the same marker-pair spans as
+  animated tool rows: it places pixels, samples the displayed phase and probes
+  fresh spans through them. Hiding the spans behind a composer-side bridge would
+  add a second interface to those mechanisms only to hide five cell offsets,
+  with no demonstrated benefit, so it was not adopted.
 
 The same pair works in GUI and terminal Emacs, in `/btw`, and inside the
 note conversation's child frame. The note frame contains the whole conversation,

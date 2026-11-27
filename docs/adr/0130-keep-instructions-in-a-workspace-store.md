@@ -174,6 +174,15 @@ exclusive creation would avoid some stale merges, but they need a directory
 protocol for deletions and display ids. They are deferred, not forbidden,
 until evidence shows the whole-set record cannot serve the workflows.
 
+Recently-closed retention and display-number retirement stay with the store
+rather than the note lifecycle. Local reads and the cross-installation merge
+must select the same retained set, and only the store sees both. Hiding the
+closed list behind store verbs was also rejected: Rewind changes closed records
+in place, and restore must remove an entry only after its overlay exists, so
+either a general mutation callback or a lost entry on a failed restore would
+follow. Lifecycle commands therefore apply retention before reading or after
+closing.
+
 Reconciliation after Rewind's commit point avoids exposing partially applied
 workspace changes. Writes held back during Rewind are merged afterwards, so
 another session's concurrent note changes survive both commit and rollback.

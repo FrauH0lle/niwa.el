@@ -842,6 +842,8 @@ releasing this draft."
                     niwa-view--side-conversation-p side
                     default-directory directory)
         ;; Display cells keep draft undo positions stable when the rail changes.
+        ;; Keep this fixed layout in sync with `niwa-view--write-request-rail';
+        ;; animation relies on stable spans.
         (insert (propertize "     " 'display "") "\n")
         (add-text-properties (point-min) (point)
                              '(read-only t cursor-intangible t

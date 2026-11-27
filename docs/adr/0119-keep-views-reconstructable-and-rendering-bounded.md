@@ -102,6 +102,12 @@ private and validates it itself: a tail continues only while it follows the
 turn's view start and its source start still sits where its unit was drawn, so
 a new turn, a discarded retry attempt or a killed view cannot reuse it, and a
 terminal request drops it when its writer queue drains.
+Per-kind fold application therefore stays with the renderer; the disclosure
+module keeps fold state and asks the renderer to apply a fold. Moving the
+per-kind toggles into disclosure was considered to remove the two-way
+dependency and rejected: it would make disclosure a second writer of rows the
+live render owns, and the cold-loaded disclosure owner would depend on render
+internals.
 
 Re-rendering the mutable unit reuses work that its unchanged contents already paid for: tool
 parses keyed by source span, archived breadcrumb keys keyed by archive content
