@@ -1529,7 +1529,7 @@ async function newTab(source, link, gesture, {room, length, route, ready}) {
   const before = await sourceState(source);
   const composer = await source.locator('#composer-input').elementHandle();
   const receivedCount = source.received.length;
-  const helloCount = source.received.filter(({frame}) => frame.t === 'hello').length;
+  const connectionsBefore = source.joined.length;
   const clickedAnchor = await link.elementHandle();
   await clickedAnchor.evaluate(node => {
     node.navigationEvents = [];
@@ -1563,7 +1563,13 @@ async function newTab(source, link, gesture, {room, length, route, ready}) {
   const state = await target.evaluate(() => history.state);
   assert.equal(state.room, room.id);
   assert.equal(JSON.stringify(state).includes(base64url(room.secret.slice(0, 32))), false);
-  const hellos = source.received.filter(({frame}) => frame.t === 'hello').slice(helloCount);
+  // The stand-in host unseals frames asynchronously, so frames recorded for
+  // earlier connections can still be pending: count hellos by connection, and
+  // wait until the fresh page's hello has been recorded.
+  const joined = () => source.received.filter(({frame, connection}) =>
+    frame.t === 'hello' && connection >= connectionsBefore);
+  for (let n = 0; n < 500 && !joined().length; n++) await new Promise(done => setTimeout(done, 20));
+  const hellos = joined();
   assert.equal(hellos.length, 1, 'the fresh page joins independently');
   assert.equal(hellos[0].room, room.id);
   assert.equal(hellos[0].frame.writeToken,
