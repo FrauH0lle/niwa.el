@@ -1236,7 +1236,9 @@ and `niwa-permission-review-timeout` (20 seconds) fall back to the user.
 Full Access bypasses review. See [the reviewer contract](docs/guardian-prompts.md).
 
 Persistent rules accepted via the prompt's "always" choices are saved to
-`.niwa/permissions.eld` per workspace.
+`.niwa/permissions.eld` per workspace. A project store you did not write
+yourself applies its deny and ask rules at once, but its allow rules and grants
+only after `M-x niwa-hooks-trust-project`.
 
 Add `:network t` to a Bash or fresh-Eval rule to authorize network access
 together with the matching operation. An unqualified operation rule leaves
@@ -1425,7 +1427,7 @@ Useful commands:
 |-------------------------------|----------------------------------------------------------|
 | `niwa-hooks-list`          | Show effective hooks for the current session.            |
 | `niwa-hooks-run-dry`       | Preview which hooks match an event without running them. |
-| `niwa-hooks-trust-project` | Trust the current project's hook files by hash.          |
+| `niwa-hooks-trust-project` | Trust the project's hook and permission files by hash.   |
 
 ### Examples
 

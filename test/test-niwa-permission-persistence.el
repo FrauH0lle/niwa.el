@@ -7,6 +7,8 @@
 
 ;;; Code:
 
+(require 'niwa-transport)
+(require 'niwa-hooks)
 (require 'niwa-execution-target)
 (require 'niwa-permission-persistence)
 (require 'niwa-permissions)
@@ -199,7 +201,7 @@
        '(("Read" :path "/srv/private/**" :action allow))
        '((:path "/srv/private/key" :access read)) target)))))
 
-(niwa-deftest niwa-permission-persistence-save-rule ()
+(niwa-deftest niwa-permission-persistence-save-rule (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "round-trip save and load"
@@ -477,7 +479,7 @@
       (delete-directory tmp-dir t))))
 
 
-(niwa-deftest niwa-permission-persistence-load-resource-grants ()
+(niwa-deftest niwa-permission-persistence-load-resource-grants (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "merges global grants with workspace grants without widening extent or access"
@@ -920,7 +922,7 @@
                                      ws 'workspace) :rules))))
       (delete-directory dir t))))
 
-(niwa-deftest niwa-permission-persistence-editable-store ()
+(niwa-deftest niwa-permission--editable-status ()
   ,test
   (test)
   :doc "refuses an invalid external edit even when the old cached store was valid"
@@ -930,18 +932,18 @@
           (write-region "(:rules nil :resource-grants nil)" nil file nil 'silent)
           (should (niwa-permission--read-store-file file))
           (write-region "(:rules malformed :resource-grants nil)" nil file nil 'silent)
-          (should-error (niwa-permission-persistence-editable-store file)
+          (should-error (niwa-permission--editable-status file)
                         :type 'user-error))
       (delete-file file)))
   :doc "refuses reentrant reads during a busy target operation"
   (cl-letf (((symbol-function 'niwa-transport-busy-p) (lambda (_) t))
             ((symbol-function 'niwa-permission--read-store-file-uncached)
              (lambda (&rest _) (ert-fail "Read a busy target"))))
-    (should-error (niwa-permission-persistence-editable-store
+    (should-error (niwa-permission--editable-status
                    "/ssh:dev@target:/home/dev/.niwa/permissions.eld")
                   :type 'user-error)))
 
-(niwa-deftest niwa-permission-persistence-load-safe-env-vars ()
+(niwa-deftest niwa-permission-persistence-load-safe-env-vars (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "merges both stores' safe variables and keeps them when rules are saved"
@@ -994,7 +996,7 @@
                               :reason))))
       (delete-directory dir t))))
 
-(niwa-deftest niwa-permission-remove-persistent-safe-env-var ()
+(niwa-deftest niwa-permission-remove-persistent-safe-env-var (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "removes one name from the selected store and keeps its other entries"

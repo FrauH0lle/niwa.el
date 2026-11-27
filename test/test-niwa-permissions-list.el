@@ -4,6 +4,8 @@
 
 ;;; Code:
 
+(require 'niwa-session-control-fs)
+(require 'niwa-hooks)
 (require 'niwa-report-test-support
          (file-name-concat
           (file-name-directory (or buffer-file-name load-file-name))
@@ -76,7 +78,7 @@ Return the row's tabulated id."
       (forward-line 1))
     (error "No %s row in the authority cockpit" kind)))
 
-(niwa-deftest niwa-permissions-list--collect ()
+(niwa-deftest niwa-permissions-list--collect (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "shows a remembered Eval expression with its literal matching extent"
@@ -163,7 +165,7 @@ Return the row's tabulated id."
               (niwa-permissions-list--header
                (niwa-permissions-list--collect context) context))))))
 
-(niwa-deftest niwa-permissions-list-revoke ()
+(niwa-deftest niwa-permissions-list-revoke (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "shows global entries and revokes only their backing store"
@@ -219,7 +221,7 @@ Return the row's tabulated id."
       (niwa-permission-persistence-write-store file store)
       (with-current-buffer (niwa-permissions-list-test--open context)
         (niwa-permissions-list-test--row "operation")
-        (cl-letf (((symbol-function 'niwa-session-control-fs-write-file)
+        (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
                    (lambda (&rest _) (error "Injected replacement failure"))))
           (niwa-test--with-captured-messages captured
             (should-error (niwa-permissions-list-revoke)))))

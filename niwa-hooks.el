@@ -47,6 +47,11 @@
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
 (autoload 'niwa-execution-target-same-path-domain-p "niwa-execution-target")
 
+;; `niwa-permission-persistence'
+(declare-function niwa-permission-persistence-file
+                  "niwa-permission-persistence" (workspace scope))
+(autoload 'niwa-permission-persistence-file "niwa-permission-persistence")
+
 ;; `niwa-plugin-registry'
 (declare-function niwa-plugin-hooks "niwa-plugin-registry" (cl-x) t)
 (declare-function niwa-plugin-hooks-file
@@ -168,7 +173,8 @@ disable the cap."
   "When non-nil, ignore project hook sources until explicitly trusted.
 
 User files under `niwa-user-dir' and `niwa-hook-rules' are always
-trusted.  Project hook configs and skill manifests are trusted by file hash via
+trusted.  Project hook configs, skill manifests and the allow authority of
+the project permission store are trusted by file hash via
 `niwa-hooks-trust-project'."
   :type 'boolean
   :group 'niwa)
@@ -663,6 +669,21 @@ approving record: `:workspace-id', `:path', and `:hash'."
                      (equal (plist-get entry :hash) hash)))
               (niwa-hooks--read-trust-db)))
 
+(defun niwa-hooks-trust-file (workspace path hash)
+  "Trust WORKSPACE's project file PATH with content HASH.
+Replaces PATH's earlier record; niwa calls this after writing a file whose
+previous content the user trusted."
+  (let ((workspace-id (niwa-hooks--workspace-id workspace)))
+    (niwa-hooks--write-trust-db
+     (append (cl-remove-if
+              (lambda (old)
+                (and (listp old)
+                     (keywordp (car-safe old))
+                     (equal (plist-get old :workspace-id) workspace-id)
+                     (equal (plist-get old :path) path)))
+              (niwa-hooks--read-trust-db))
+             (list (list :workspace-id workspace-id :path path :hash hash))))))
+
 (defun niwa-hooks-project-file-snapshot (workspace file)
   "Return FILE's one-read trust snapshot for WORKSPACE.
 The returned plist includes `:path', `:hash', `:content', and
@@ -1078,15 +1099,18 @@ memo."
 
 ;;;###autoload
 (defun niwa-hooks-trust-project (&optional workspace)
-  "Trust WORKSPACE's hook config files and skill manifests.
+  "Trust WORKSPACE's hook config files, skill manifests and permission store.
 
 Interactively, uses the current buffer's workspace, including one
 detected from an ordinary project file.  Trust is keyed by workspace id,
 path, and file hash, and records the hash of each project script the
-file's commands name (see `niwa-hooks--command-script-hashes')."
+file's commands name (see `niwa-hooks--command-script-hashes').  A
+trusted `.niwa/permissions.eld' contributes its allow rules, grants and
+safe variables; its deny and ask rules apply without trust."
   (interactive)
   (let* ((workspace (or workspace (niwa-workspace-current)))
-         (workspace-id (niwa-hooks--workspace-id workspace)))
+         (workspace-id (niwa-hooks--workspace-id workspace))
+         (permissions (niwa-permission-persistence-file workspace 'workspace)))
     (require 'niwa-skills-core)
     (let ((db (cl-remove-if
                (lambda (old)
@@ -1100,13 +1124,15 @@ file's commands name (see `niwa-hooks--command-script-hashes')."
                 (append
                  (niwa-hooks--project-config-candidates workspace)
                  (niwa-skills-project-files
-                  (niwa-workspace-root workspace)))))
+                  (niwa-workspace-root workspace))
+                 (and (file-exists-p permissions) (list permissions)))))
         (let* ((snapshot (niwa-hooks--config-snapshot file))
                (entry (list :workspace-id workspace-id
                             :path (plist-get snapshot :path)
                             :hash (plist-get snapshot :hash)
-                            :scripts (niwa-hooks--snapshot-script-hashes
-                                      workspace snapshot))))
+                            :scripts (unless (equal file permissions)
+                                       (niwa-hooks--snapshot-script-hashes
+                                        workspace snapshot)))))
           (push entry db)
           (cl-incf count)))
       (niwa-hooks--write-trust-db (nreverse db))

@@ -7,6 +7,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'niwa-permission-persistence)
 (require 'niwa-permissions)
 (require 'niwa-session-durability)
@@ -26,7 +27,8 @@
           "niwa-execution-test-helpers"))
 
 (niwa-deftest niwa-permission-relative-real-target
-  (:quiet t :tags (external remote)
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :quiet t :tags (external remote)
           :before-each (niwa-tools-register)
           :after-each ((tramp-cleanup-all-connections)))
   (let* ((base (test-niwa-execution-remote--real-root ,variable ,method))
@@ -100,7 +102,8 @@
   "NIWA_TEST_PODMAN_ROOT" 'podman)
 
 (niwa-deftest niwa-permission-relative-real-alias
-  (:quiet t :tags (external remote aliases)
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :quiet t :tags (external remote aliases)
           :after-each ((tramp-cleanup-all-connections)))
   ,test (test)
   :doc "reopens a project-relative store through another SSH alias of the same target"

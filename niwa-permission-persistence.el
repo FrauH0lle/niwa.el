@@ -4,6 +4,9 @@
 
 ;; Owns permission-store validation, portable path encoding, target-aware
 ;; reads, and atomic replacement of global and workspace authority files.
+;; A project store's allow authority applies only once the user trusts its
+;; content through the project hook trust store; its denies and asks apply
+;; at once.
 
 ;;; Code:
 
@@ -24,6 +27,15 @@
 (autoload 'niwa-execution-target-expand-path "niwa-execution-target")
 (autoload 'niwa-execution-target-native-path "niwa-execution-target")
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
+
+;; `niwa-hooks'
+(declare-function niwa-hooks--config-snapshot "niwa-hooks" (file))
+(declare-function niwa-hooks--project-snapshot-trusted-p
+                  "niwa-hooks" (workspace snapshot))
+(declare-function niwa-hooks-trust-file "niwa-hooks" (workspace path hash))
+(autoload 'niwa-hooks--config-snapshot "niwa-hooks")
+(autoload 'niwa-hooks--project-snapshot-trusted-p "niwa-hooks")
+(autoload 'niwa-hooks-trust-file "niwa-hooks")
 
 ;; `niwa-permission-mode'
 (declare-function niwa-permission-mode-data-buffer
@@ -451,7 +463,8 @@ TARGET restores portable target paths when non-nil.  Reads are cached; see
 (defun niwa-permission--read-store-file-uncached (file &optional target workspace-root)
   "Return FILE's permission store status and normalized contents.
 TARGET restores portable target paths when non-nil.
-WORKSPACE-ROOT enables relative grants in a workspace store only."
+WORKSPACE-ROOT enables relative grants in a workspace store only.  A valid
+status carries `:hash', the content hash project trust is keyed by."
   ;; A missing store is the common case and one existence probe answers it.
   ;; The read reports an unreadable file itself, which saved a remote
   ;; workspace store a readability probe on every refresh.
@@ -459,8 +472,11 @@ WORKSPACE-ROOT enables relative grants in a workspace store only."
       '(:status missing)
     (condition-case err
 	(with-temp-buffer
-          (insert-file-contents file)
-          (let* ((raw (read (current-buffer)))
+          ;; One read yields both the contents and the hash trust compares.
+          (let* ((snapshot (niwa-hooks--config-snapshot file))
+                 (raw (progn (insert (plist-get snapshot :content))
+                             (goto-char (point-min))
+                             (read (current-buffer))))
 		 (store
                   (if (and target
                            (niwa-permission--valid-plist-p
@@ -481,7 +497,8 @@ WORKSPACE-ROOT enables relative grants in a workspace store only."
                       (progn (read (current-buffer)) nil)
                     (end-of-file t))))
             (if (and store single-form-p)
-		(list :status 'valid :store store)
+		(list :status 'valid :store store
+                      :hash (plist-get snapshot :hash))
               (list :status 'invalid :reason
                     (niwa-permission--invalid-store-reason raw target workspace-root)))))
       (file-missing '(:status missing))
@@ -497,8 +514,9 @@ WORKSPACE-ROOT enables relative grants in a workspace store only."
     (and (eq (plist-get result :status) 'valid)
          (plist-get result :store))))
 
-(defun niwa-permission-persistence-editable-store (file &optional target workspace-root)
-  "Return FILE's valid store, a new store, or signal on invalid contents.
+(defun niwa-permission--editable-status (file &optional target workspace-root)
+  "Return FILE's store status for an edit, or signal on invalid contents.
+A missing file yields an empty `:store'; a valid one also carries `:hash'.
 TARGET restores portable target paths when non-nil.
 WORKSPACE-ROOT enables relative grants in a workspace store only."
   (when (niwa-transport-busy-p file)
@@ -507,8 +525,8 @@ WORKSPACE-ROOT enables relative grants in a workspace store only."
      "Execution target is busy; retry the permission change when idle"))
   (let ((result (niwa-permission--read-store-file-uncached file target workspace-root)))
     (pcase (plist-get result :status)
-      ('valid (plist-get result :store))
-      ('missing (list :rules nil :resource-grants nil))
+      ('valid result)
+      ('missing (list :status 'missing :store (list :rules nil :resource-grants nil)))
       (_
        (niwa-diagnostic-user-error
         (niwa-diagnostic-scope workspace-root)
@@ -577,9 +595,19 @@ ON-ERROR receives a refresh error instead of leaving deferred work unsettled."
       (funcall refresh)
       t)))
 
-(defun niwa-permission-persistence-write-store (file store &optional target workspace-root)
+(defun niwa-permission--store-precondition (file expected)
+  "Return the control operation proving FILE still holds EXPECTED.
+EXPECTED is the hash of the bytes read, or `missing' for an absent FILE."
+  (list :op 'verify-hash :path file :snapshot-bytes 0
+        :content (unless (eq expected 'missing) expected)))
+
+(defun niwa-permission-persistence-write-store
+    (file store &optional target workspace-root expected)
   "Write permission STORE plist to FILE for TARGET.
-WORKSPACE-ROOT enables origin encoding for a workspace store only."
+WORKSPACE-ROOT enables origin encoding for a workspace store only.
+EXPECTED, when non-nil, conditions the write on FILE still holding what was
+read: the SHA256 of its bytes, or `missing'.  Return the SHA256 hash of
+the bytes written, or nil when FILE changed and nothing was written."
   (let* ((store (if target
                     (when-let* ((authority
                                  (niwa-permission-serialize-authority
@@ -597,7 +625,8 @@ WORKSPACE-ROOT enables origin encoding for a workspace store only."
            (insert ";; Auto-generated, safe to edit\n\n")
            (pp store (current-buffer))
            (buffer-string))))
-    (if (file-remote-p file)
+    (when
+     (if (file-remote-p file)
         (let* ((data-buf (niwa-permission-mode-data-buffer))
                (session (and data-buf
                              (buffer-local-value 'niwa--session data-buf))))
@@ -609,14 +638,89 @@ WORKSPACE-ROOT enables origin encoding for a workspace store only."
             (niwa-diagnostic-user-error
              (niwa-diagnostic-scope (or workspace-root session))
              "Permission changes cannot be queued during publication"))
-          (niwa-session-artifacts-publish-text
-           session file content 'utf-8-unix))
+          ;; shortcut: publication has no destination precondition, so the
+          ;; proof precedes its synchronous, lease-checked write; give
+          ;; publication artifacts an expected hash to close that window.
+          (when (or (null expected)
+                    (eq 'ok (plist-get
+                             (car (niwa-session-control-fs-run-program
+                                   (list (niwa-permission--store-precondition
+                                          file expected))))
+                             :status)))
+            (niwa-session-artifacts-publish-text
+             session file content 'utf-8-unix)
+            t))
       (niwa-session-control-fs-make-directory
        (directory-file-name (file-name-directory file)) t)
-      (niwa-session-control-fs-write-file file content 'utf-8-unix))
-    ;; Cleared wholesale: a write is rare, and a grant must be visible to
-    ;; the next permission check whichever file it landed in.
-    (clrhash niwa-permission--store-cache)))
+      (pcase expected
+        ('nil (niwa-session-control-fs-write-file file content 'utf-8-unix))
+        ('missing (niwa-session-control-fs-create-file file content 'utf-8-unix))
+        (_
+         ;; One target program stops at a failed proof, and the state
+         ;; directory's lock serializes niwa writers across proof and write.
+         ;; An editor outside niwa takes no lock and can still race.
+         (let ((results (niwa-session-control-fs-run-program
+                         (list (niwa-permission--store-precondition file expected)
+                               (list :op 'write :path file :content content
+                                     :coding 'utf-8-unix))
+                         (niwa-session-control-fs-physical-path
+                          (directory-file-name (file-name-directory file))))))
+           (pcase (plist-get (car results) :status)
+             ((or 'mismatch 'absent) nil)
+             (_ (niwa-session-control-fs-program-value (car results))
+                (niwa-session-control-fs-program-value (cadr results))
+                t))))))
+     ;; Cleared wholesale: a write is rare, and a grant must be visible to
+     ;; the next permission check whichever file it landed in.
+     (clrhash niwa-permission--store-cache)
+     (secure-hash 'sha256 (encode-coding-string content 'utf-8-unix)))))
+
+(defun niwa-permission--store-restrictions (store)
+  "Return STORE's deny and ask rules, the part that applies without trust."
+  (list :rules (cl-remove 'allow (plist-get store :rules)
+                          :key (lambda (rule) (plist-get (cdr rule) :action)))
+        :resource-grants nil))
+
+(defun niwa-permission--store-trusted-p (workspace file status)
+  "Return non-nil when WORKSPACE's project store FILE with STATUS may widen.
+A store without contents, or one that only restricts, needs no trust."
+  (let ((store (plist-get status :store)))
+    (or (not store)
+        (equal store (niwa-permission--store-restrictions store))
+        (niwa-hooks--project-snapshot-trusted-p
+         workspace (list :path (expand-file-name file)
+                         :hash (plist-get status :hash))))))
+
+(defconst niwa-permission--update-attempts 3
+  "Reads an update of a permission store makes before giving up on a race.")
+
+(defun niwa-permission--update-store (workspace scope update)
+  "Replace WORKSPACE's SCOPE store with UPDATE's result, if it differs.
+UPDATE receives a copy of the current store (empty when the file is
+missing).  The write is conditioned on the bytes UPDATE saw; when the
+file changed meanwhile, the store is read and UPDATE applied again.  A
+project store whose read content was trusted, missing or restriction-only
+is trusted with the bytes written: niwa writes only what the user approved."
+  (let* ((file (niwa-permission-persistence-file workspace scope))
+         (target (niwa-permission--workspace-target workspace))
+         (root (and (eq scope 'workspace) (niwa-workspace-root workspace))))
+    (cl-loop
+     repeat niwa-permission--update-attempts
+     do (let* ((status (niwa-permission--editable-status file target root))
+               (store (plist-get status :store))
+               (updated (funcall update (copy-tree store))))
+          (when (equal updated store) (cl-return))
+          (when-let* ((hash (niwa-permission-persistence-write-store
+                             file updated target root
+                             (or (plist-get status :hash) 'missing))))
+            (when (and root (niwa-permission--store-trusted-p
+                             workspace file status))
+              (niwa-hooks-trust-file workspace (expand-file-name file) hash))
+            (cl-return)))
+     finally (niwa-diagnostic-user-error
+              (niwa-diagnostic-scope workspace)
+              "Permission store %s kept changing during the update; retry the permission change"
+              file))))
 
 (defun niwa-permission-persistence-load-rules (workspace)
   "Load persistent permission rules for WORKSPACE.
@@ -647,89 +751,79 @@ Returns a merged list in `niwa-permission-rules' format."
                       :safe-env-vars))))
 
 (defun niwa-permission-persistent-authority (workspace scope)
-  "Return WORKSPACE's rules, grants, and safe variables from SCOPE's store."
-  (or (niwa-permission--read-store-file
-       (niwa-permission-persistence-file workspace scope)
-       (niwa-permission--workspace-target workspace)
-       (and (eq scope 'workspace) (niwa-workspace-root workspace)))
-      '(:rules nil :resource-grants nil)))
+  "Return WORKSPACE's rules, grants, and safe variables from SCOPE's store.
+An untrusted project store contributes only its deny and ask rules, with
+one notice per content version."
+  (let* ((file (niwa-permission-persistence-file workspace scope))
+         (root (and (eq scope 'workspace) (niwa-workspace-root workspace)))
+         (status (niwa-permission--store-file-status
+                  file (niwa-permission--workspace-target workspace) root))
+         (store (and (eq (plist-get status :status) 'valid)
+                     (plist-get status :store))))
+    (cond
+     ((not store) '(:rules nil :resource-grants nil))
+     ((or (not root) (niwa-permission--store-trusted-p workspace file status))
+      store)
+     (t
+      (niwa--warn-once
+       (niwa-diagnostic-scope workspace)
+       (list 'permission-store-untrusted file (plist-get status :hash))
+       "Ignoring allow rules, grants and safe variables in untrusted %s; its deny and ask rules apply.  Review it, then run M-x niwa-hooks-trust-project to trust this content"
+       file)
+      (niwa-permission--store-restrictions store)))))
 
 (defun niwa-permission-persistence-save-rule (workspace rule)
   "Append RULE to WORKSPACE's persistent rules unless already present.
 RULE uses the `niwa-permission-rules' format."
-  (let* ((file (niwa-permission-persistence-file workspace 'workspace))
-         (target (niwa-permission--workspace-target workspace))
-         (root (niwa-workspace-root workspace))
-         (store (niwa-permission-persistence-editable-store file target root))
-         (existing (plist-get store :rules))
-         (updated (if (member rule existing)
-                      existing
-                    (append existing (list rule)))))
-    (niwa-permission-persistence-write-store
-     file (plist-put store :rules updated) target root)))
+  (niwa-permission--update-store
+   workspace 'workspace
+   (lambda (store)
+     (let ((existing (plist-get store :rules)))
+       (if (member rule existing)
+           store
+         (plist-put store :rules (append existing (list rule))))))))
 
 (defun niwa-permission-persistence-save-resource-grant
     (workspace path access &optional recursive origin)
   "Persist PATH ACCESS for WORKSPACE.
 RECURSIVE non-nil covers PATH and all descendants.
 ORIGIN preserves the identity of an existing bounded relative grant."
-  (let* ((file (niwa-permission-persistence-file workspace 'workspace))
-         (target (niwa-permission--workspace-target workspace))
-         (root (niwa-workspace-root workspace))
-         (store (niwa-permission-persistence-editable-store file target root))
-         (grant (niwa-permission-rules-resource-grant path access recursive origin))
-         (grants
-          (niwa-permission-rules-merge-resource-grant
-           (plist-get store :resource-grants) path access recursive origin)))
-    (niwa-permission-persistence-write-store
-     file (plist-put store :resource-grants grants) target root)
-    grant))
+  (niwa-permission--update-store
+   workspace 'workspace
+   (lambda (store)
+     (plist-put store :resource-grants
+                (niwa-permission-rules-merge-resource-grant
+                 (plist-get store :resource-grants)
+                 path access recursive origin))))
+  (niwa-permission-rules-resource-grant path access recursive origin))
 
 (defun niwa-permission-remove-persistent-resource-grant
     (workspace scope path access &optional recursive origin)
   "Revoke PATH ACCESS with RECURSIVE extent from WORKSPACE's SCOPE store.
 ORIGIN identifies a bounded workspace-relative grant separately."
-  (let* ((file (niwa-permission-persistence-file workspace scope))
-         (target (niwa-permission--workspace-target workspace))
-         (root (and (eq scope 'workspace) (niwa-workspace-root workspace)))
-         (store (niwa-permission-persistence-editable-store file target root))
-         (grant (niwa-permission-rules-resource-grant path access recursive origin)))
-    (when (file-exists-p file)
-      (niwa-permission-persistence-write-store
-       file
+  (let ((grant (niwa-permission-rules-resource-grant path access recursive origin)))
+    (niwa-permission--update-store
+     workspace scope
+     (lambda (store)
        (plist-put store :resource-grants
-                  (delete grant
-                          (copy-sequence
-                           (plist-get store :resource-grants))))
-       target root))))
+                  (delete grant (plist-get store :resource-grants)))))))
 
 (defun niwa-permission-remove-persistent-rule (workspace scope rule)
   "Revoke exact permission RULE from WORKSPACE's SCOPE store."
-  (let* ((file (niwa-permission-persistence-file workspace scope))
-         (target (niwa-permission--workspace-target workspace))
-         (root (and (eq scope 'workspace) (niwa-workspace-root workspace)))
-         (store (niwa-permission-persistence-editable-store file target root)))
-    (when (file-exists-p file)
-      (niwa-permission-persistence-write-store
-       file
-       (plist-put store :rules
-                  (delete rule (copy-sequence (plist-get store :rules))))
-       target root))))
+  (niwa-permission--update-store
+   workspace scope
+   (lambda (store)
+     (plist-put store :rules (delete rule (plist-get store :rules))))))
 
 (defun niwa-permission-remove-persistent-safe-env-var (workspace scope name)
   "Remove safe environment variable NAME from WORKSPACE's SCOPE store."
-  (let* ((file (niwa-permission-persistence-file workspace scope))
-         (target (niwa-permission--workspace-target workspace))
-         (root (and (eq scope 'workspace) (niwa-workspace-root workspace)))
-         (store (niwa-permission-persistence-editable-store file target root)))
-    (when (file-exists-p file)
-      (niwa-permission-persistence-write-store
-       file
-       (niwa-permission--with-safe-env-vars
-        (list :rules (plist-get store :rules)
-              :resource-grants (plist-get store :resource-grants))
-        (remove name (plist-get store :safe-env-vars)))
-       target root))))
+  (niwa-permission--update-store
+   workspace scope
+   (lambda (store)
+     (niwa-permission--with-safe-env-vars
+      (list :rules (plist-get store :rules)
+            :resource-grants (plist-get store :resource-grants))
+      (remove name (plist-get store :safe-env-vars))))))
 
 (provide 'niwa-permission-persistence)
 ;;; niwa-permission-persistence.el ends here

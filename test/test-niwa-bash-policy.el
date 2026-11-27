@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'gptel)
 (require 'niwa-bash-policy)
 (require 'cl-lib)
@@ -1109,7 +1110,7 @@ for effects despite reusable authority"
       (should (equal expected
                      (niwa-bash-policy-profile-segments command buckets))))))
 
-(niwa-deftest niwa-bash-policy-safe-env-vars ()
+(niwa-deftest niwa-bash-policy-safe-env-vars (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "adds the context's names to the built-in list"

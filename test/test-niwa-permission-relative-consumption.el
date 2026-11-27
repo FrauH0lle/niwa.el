@@ -5,6 +5,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'helpers
          (file-name-concat
           (file-name-directory
@@ -22,7 +23,8 @@
 (require 'niwa-workspace-identity)
 
 (niwa-deftest niwa-side-conversation-open/relative-authority
-  (:doc "freezes store-root authority, not cwd authority or a symlink replacement")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "freezes store-root authority, not cwd authority or a symlink replacement")
   (let* ((root (make-temp-file "niwa-relative-btw-" t))
          (cwd (file-name-concat root "child"))
          (vault (file-name-concat root "vault"))
@@ -89,7 +91,8 @@
     (should (string-empty-p diagnostics))))
 
 (niwa-deftest niwa-tool-exec-permission-effective-sandbox-request/relative-authority
-  (:doc "carries covering store authority into the launch grant and refuses a replaced ancestor")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "carries covering store authority into the launch grant and refuses a replaced ancestor")
   (let* ((root (make-temp-file "niwa-relative-profile-" t))
          (niwa-user-dir (file-name-concat root "user"))
          (niwa-permission-rules nil)
@@ -169,7 +172,8 @@
     (should (string-empty-p diagnostics))))
 
 (niwa-deftest niwa-session-codec-serialize/relative-authority
-  (:doc "always-allow keeps bounded profiles in the workspace, not durable session authority")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "always-allow keeps bounded profiles in the workspace, not durable session authority")
   (let* ((root (make-temp-file "niwa-relative-codec-" t))
          (niwa-user-dir (file-name-concat root "user"))
          (niwa-permission-rules nil)

@@ -5,6 +5,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'niwa-permission-persistence)
 (require 'niwa-permissions)
 (require 'niwa-execution-grants)
@@ -16,7 +17,8 @@
           "helpers"))
 
 (niwa-deftest niwa-permission-persistent-authority-relative
-  (:doc "loads relative grants in both locations and preserves their authored intent across edits")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "loads relative grants in both locations and preserves their authored intent across edits")
   (let* ((root (make-temp-file "niwa-relative-store-" t))
          (niwa-user-dir (file-name-concat root "user"))
          (workspace (niwa-workspace--create :type 'project :root root))
@@ -80,7 +82,8 @@
       (delete-directory root t))))
 
 (niwa-deftest niwa-permission-remove-persistent-relative
-  (:doc "revokes relative and absolute grants independently even after relative scope becomes unusable")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "revokes relative and absolute grants independently even after relative scope becomes unusable")
   (let* ((root (make-temp-file "niwa-relative-revoke-" t))
          (outside (make-temp-file "niwa-relative-revoke-outside-" t))
          (niwa-user-dir (file-name-concat root "user"))
@@ -110,7 +113,8 @@
       (delete-directory outside t))))
 
 (niwa-deftest niwa-permission-persistent-authority-worktree
-  (:doc "anchors source-store grants despite a linked-worktree cwd and does not follow Git pointers")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "anchors source-store grants despite a linked-worktree cwd and does not follow Git pointers")
   (let* ((root (make-temp-file "niwa-relative-worktree-" t))
          (source (file-name-concat root "source"))
          (tree (file-name-concat root "tree"))

@@ -5,6 +5,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'niwa-interaction-prompt)
 (require 'niwa-permission-persistence)
 (require 'niwa-permission-prompt)
@@ -20,7 +21,8 @@
           "helpers"))
 
 (niwa-deftest niwa-permission-queue/relative-workspace-profile
-  (:quiet t :doc "workspace remembering immediately clears a covered sibling without session authority")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :quiet t :doc "workspace remembering immediately clears a covered sibling without session authority")
   (let* ((root (make-temp-file "niwa-relative-queue-" t))
          (vault (file-name-concat root "vault"))
          (workspace (niwa-workspace-get-or-create 'project root root "relative-queue"))

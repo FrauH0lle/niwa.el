@@ -5,6 +5,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'helpers
          (file-name-concat
           (file-name-directory
@@ -17,7 +18,8 @@
 (require 'niwa-view)
 
 (niwa-deftest niwa-permissions-list-revoke/relative-authority
-  (:doc "promotes only bounded authority and revokes its distinct rendered row")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "promotes only bounded authority and revokes its distinct rendered row")
   (let* ((root (make-temp-file "niwa-relative-cockpit-" t))
          (path (file-name-concat root "vault"))
          (workspace (niwa-workspace--create

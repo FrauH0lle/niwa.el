@@ -588,7 +588,7 @@ additive child permissions are available only to fresh Eval"
      (niwa-tool-exec-permission--direct-resource-grants
       '(:workspace workspace :resource-grants nil)))))
 
-(niwa-deftest niwa-tool-exec-permission--remembered-additional-profile ()
+(niwa-deftest niwa-tool-exec-permission--remembered-additional-profile (:vars ((niwa-hooks-require-project-trust nil)))
   ,test
   (test)
   :doc "resolves matching direct profiles without separate resource grants"

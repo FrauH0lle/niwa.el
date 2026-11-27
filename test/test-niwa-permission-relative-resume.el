@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'niwa-session-test-support
          (file-name-concat
           (file-name-directory
@@ -17,7 +18,8 @@
 (require 'niwa-tool-permission)
 
 (niwa-deftest niwa-session-persistence-resume-id/relative-authority
-  (:quiet t :doc "reopens a leased publication with revocable workspace grants")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :quiet t :doc "reopens a leased publication with revocable workspace grants")
   (let* ((root (make-temp-file "niwa-relative-resume-" t))
          (niwa-user-dir (file-name-concat root "user"))
          (workspace (test-niwa-session-persistence--make-workspace root))

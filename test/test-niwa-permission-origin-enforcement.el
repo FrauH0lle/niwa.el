@@ -5,6 +5,7 @@
 
 ;;; Code:
 
+(require 'niwa-hooks)
 (require 'niwa-execution-grants)
 (require 'niwa-permission-persistence)
 (require 'niwa-sandbox)
@@ -17,7 +18,8 @@
           "helpers"))
 
 (niwa-deftest niwa-execution-grants-covering-relative
-  (:doc "rejects a replaced relative grant while preserving explicit absolute authority")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "rejects a replaced relative grant while preserving explicit absolute authority")
   (let* ((root (make-temp-file "niwa-relative-cover-" t))
          (outside (make-temp-file "niwa-relative-outside-" t))
          (workspace (niwa-workspace--create :type 'project :root root))
@@ -44,7 +46,8 @@
       (delete-directory outside t))))
 
 (niwa-deftest niwa-sandbox-prepare-relative
-  (:doc "refuses a stale relative profile before resolving it into an outside mount")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "refuses a stale relative profile before resolving it into an outside mount")
   (let* ((root (make-temp-file "niwa-relative-launch-" t))
          (outside (make-temp-file "niwa-relative-launch-outside-" t))
          (workspace (niwa-workspace--create :type 'project :root root))
@@ -73,7 +76,8 @@
       (delete-directory outside t))))
 
 (niwa-deftest niwa-sandbox-prepare-relative-during-resolution
-  (:doc "refuses a path swapped after initial origin validation but before canonical capture")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "refuses a path swapped after initial origin validation but before canonical capture")
   (let* ((root (make-temp-file "niwa-relative-capture-" t))
          (outside (make-temp-file "niwa-relative-capture-outside-" t))
          (workspace (niwa-workspace--create :type 'project :root root))
@@ -110,7 +114,8 @@
       (delete-directory outside t))))
 
 (niwa-deftest niwa-tool-permission-step-relative-consumption
-  (:doc "rechecks relative native authority after a tool checker yields filesystem changes")
+  (:vars ((niwa-hooks-require-project-trust nil))
+   :doc "rechecks relative native authority after a tool checker yields filesystem changes")
   (dolist (scenario '(bounded-only bounded-rule absolute-rule unprotected-rule))
     (ert-info ((format "Native bound scenario: %s" scenario))
       (let* ((root (make-temp-file "niwa-relative-native-" t))

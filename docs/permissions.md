@@ -295,8 +295,9 @@ target's `~/.niwa/permissions.eld`. The user-level entries derive from
 tools asks in Edits. The guarantee covers rewriting *existing* stores only. A
 confined child sees an existing store read-only, but an absent one is not a
 mount target, so a confined command can create a missing `permissions.eld` or
-`plugins.eld` in a writable workspace. Closing that gap depends on how project
-permission rules are trusted, which is an open decision for the user.
+`plugins.eld` in a writable workspace. A created `permissions.eld` cannot
+widen authority: until the user trusts it (see
+[Project store trust](#project-store-trust)), only its deny and ask rules apply.
 Before a confined launch, missing
 protected state directories and their parents are created only in the primary
 workspace root, never in writable memory or additional roots; only the protected
@@ -464,6 +465,43 @@ or write access and exact or recursive extent. Paths in either store refer to
 the execution target, including `~` and filesystem requirements in command
 profiles. Durable files use native paths, without client-specific TRAMP prefixes.
 Local `niwa-user-dir` customization does not relocate remote stores.
+
+### Project store trust
+
+A project store can arrive with a clone or a pull, so its deny and ask rules
+apply at once, but anything that widens authority waits until the user trusts
+the file's current content: allow rules (including `:network`,
+`:file-system` and `:sandbox-permissions require-escalated` ones),
+`:resource-grants` and `:safe-env-vars`. While the store is untrusted, niwa
+ignores those entries and shows one notice per content version. The notice
+names the file and `M-x niwa-hooks-trust-project`. That command records the
+file's SHA-256 for the workspace in the project hook trust store
+(`niwa-user-dir/trusted-hooks.eld`), together with the project's hook files
+and skill manifests. After that, niwa applies the file silently until its
+content changes. An edit from outside niwa needs a new trust step.
+
+niwa's own writes keep trust: if the store was missing, only restricted, or
+trusted when the user remembered or revoked a decision, niwa trusts the
+content it writes. A store that was untrusted stays untrusted, so a remembered
+approval cannot make foreign allow rules effective.
+Trust is decided from the same read whose bytes the change edits. The write
+replaces only those bytes: an absent store is created exclusively, and an
+existing one is replaced by a single target program that first proves the
+file's SHA-256 is unchanged. That program holds an exclusive lock on the
+store's `.niwa/` directory across the proof and the write, so concurrent niwa
+writers are serialized. An editor outside niwa takes no lock and can still
+change the file after the proof. If the file changed in between, niwa reads it
+again and reapplies the change. After three lost races it stops and asks the
+user to retry. A remote store is written through the session's lease-checked
+publication, which cannot carry that proof, so niwa checks right before the
+synchronous publication. That narrows the window but does not close it.
+
+The permissions cockpit lists only authority in effect, so open the file to
+review what trust would add. A store with only deny and ask rules needs no
+trust and causes no notice.
+The global store is the user's own and needs no trust.
+`niwa-hooks-require-project-trust` set to nil turns off this check together
+with the hook trust check.
 
 ### Workspace-relative exact grants
 
