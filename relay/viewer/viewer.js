@@ -124,8 +124,9 @@
     if (!followingLive || liveFrame !== null) return;
     liveFrame = window.requestAnimationFrame(() => {
       liveFrame = null;
-      // A user can scroll away between an update and this frame.
-      if (followingLive) scrollToLive();
+      // A user can scroll away between an update and this frame, and a
+      // lobby shown since then is a list read from its top.
+      if (followingLive && !lobby.active()) scrollToLive();
     });
   }
 

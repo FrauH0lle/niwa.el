@@ -289,6 +289,10 @@ test('Ask custom answers expand, preserve multiline drafts on refresh and use th
       });
       const custom = page.getByRole('textbox', {name: 'Custom answer 1'});
       assert.equal(await custom.evaluate(node => node.tagName), 'TEXTAREA');
+      if (viewport.width === 375) {
+        assert.ok(await custom.evaluate(node => parseFloat(getComputedStyle(node).fontSize)) >= 16,
+                  'a phone custom answer does not zoom on focus');
+      }
       await custom.fill('Keep the existing API.');
       await custom.press('Enter');
       await custom.pressSequentially('Add regression coverage.');
@@ -653,4 +657,19 @@ test('store refresh keeps the open artifact menu actionable', async () => {
   } finally {
     await browser.close();
   }
+});
+
+test('phone text fields are at least 16px, so Safari does not zoom on focus', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await room(browser);
+    await page.setViewportSize({width: 375, height: 629});
+    const sizes = await page.evaluate(() => Object.fromEntries(
+      ['editing-title', 'you-name', 'skill-search'].map(id => {
+        const field = document.getElementById(id);
+        field.readOnly = false;
+        return [id, parseFloat(getComputedStyle(field).fontSize)];
+      })));
+    for (const [id, size] of Object.entries(sizes)) assert.ok(size >= 16, `${id} is ${size}px`);
+  } finally { await browser.close(); }
 });

@@ -400,7 +400,7 @@ div.request-summary::after, .request-summary > summary::after {
 /* The compaction row reads as a rule with a label; its body is the summary. */
 .compaction-body { margin: .5rem 0 0; color: var(--ink); font-size: .9375rem; }
 .execution-status.failed { color: var(--failed); }
-.execution-result-link { border: 0; padding: 0; background: none; color: var(--accent); cursor: pointer; text-decoration: underline; font: inherit; }
+.execution-result-link { border: 1px solid var(--line); border-radius: var(--control-radius); padding: 2px 8px; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; font-weight: 500; }
 .execution-result-dialog { width: min(850px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; background: var(--surface); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: 6px; }
 .execution-result-dialog::backdrop { background: #0006; }
 .execution-result-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -659,7 +659,7 @@ div.request-summary::after, .request-summary > summary::after {
 .request-feedback {
   flex: 1;
   min-width: 9rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule-strong);
   border-radius: var(--control-radius);
   background: var(--ground);
   color: inherit;

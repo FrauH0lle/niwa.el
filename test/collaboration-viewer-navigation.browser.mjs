@@ -58,14 +58,15 @@ async function unseal(key, bytes) {
 const lobbyRoom = makeRoom('lobbylobbylobby1', 1);
 const sessionRoom = makeRoom('sessionsession01', 2);
 const forkRoom = makeRoom('forkforkforkfork', 3);
-const PAGE_HTML = '<!doctype html><h1 id="inside">Inside the artifact</h1>';
+// Both color schemes and no background: the frame shows through its canvas.
+const PAGE_HTML = '<!doctype html><meta name="color-scheme" content="light dark"><h1 id="inside">Inside the artifact</h1>';
 const SECONDARY_TEXT = 'Secondary artifact, not the primary page.';
 const AGENT_ARTIFACT_TEXT = 'Artifact resolved through the retained agent transcript.';
 const ARCHIVED_AGENT_ARTIFACT_TEXT = 'Archived agent artifact from segment 3.';
 const FILE_TEXT = 'The project file reached the new tab.';
 
 // What the stand-in host answers in each room.
-function host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecords) {
+function host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecords, lobbySessions) {
   const store = {t: 'store-artifacts', artifacts: [
     {id: 'page', title: 'Page', kind: 'html', artifact: 'page/index.html',
      versions: 1, modified: 1, size: PAGE_HTML.length, attached: true},
@@ -138,7 +139,7 @@ function host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecor
         reply({t: 'workspace-schedules', workspace: 'ws', records: [
           {due: 10, short: '10:15', time: '10:15 UTC', name: 'Workspace job'}]});
       } else if (frame.t === 'hello' || frame.t === 'lobby-refresh') {
-        reply({t: 'lobby', project: 'proj', workspace: 'ws', omitted: 0, sessions: [
+        reply({t: 'lobby', project: 'proj', workspace: 'ws', omitted: 0, sessions: lobbySessions || [
           {id: 's1', name: 'Feature work', updated: 1, preview: 'Hello',
            live: true, shared: true}]});
       } else if (frame.t === 'open-session') {
@@ -177,10 +178,10 @@ function host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecor
 
 async function open(browser, {lobbyRunning = true, records = [], sharedItem = null, coldAgent = false,
                               archives = null, agentRecords = null, viewport = {width: 1200, height: 800},
-                              touch = false} = {}) {
+                              touch = false, lobbySessions = null} = {}) {
   const context = await browser.newContext({viewport, hasTouch: touch});
   const page = await context.newPage();
-  const answers = host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecords);
+  const answers = host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecords, lobbySessions);
   const keys = {};
   for (const room of [lobbyRoom, sessionRoom, forkRoom]) {
     keys[room.id] = await crypto.subtle.importKey(
@@ -2098,4 +2099,58 @@ test('a whiteboard opened from the lobby opens in its editor', async () => {
   } finally {
     await browser.close();
   }
+});
+
+test('a lobby taller than the viewport opens at its top', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await open(browser, {viewport: {width: 375, height: 629}, lobbySessions: Array.from(
+      {length: 25}, (_, n) => ({id: `room${n}`, name: `Room ${n}`, preview: 'Preview'}))});
+    // Hold every animation frame, noting whether the lobby was shown when
+    // it was queued, and resize once the viewer's listeners exist.
+    await page.addInitScript(() => {
+      window.heldFrames = [];
+      window.requestAnimationFrame = callback =>
+        window.heldFrames.push({callback, lobbyShown: document.getElementById('lobby')?.hidden === false});
+      addEventListener('DOMContentLoaded', () => dispatchEvent(new Event('resize')));
+    });
+    await page.goto(lobbyRoom.link);
+    // The first lobby payload is already tall.
+    await page.locator('#lobby-list li').nth(24).waitFor();
+    assert.ok(await page.evaluate(() => window.heldFrames.some(frame => !frame.lobbyShown)),
+              'a frame was queued before the lobby was shown');
+    assert.equal(await page.evaluate(() => scrollY), 0);
+    // Frames queued before the lobby run only now that it is shown.
+    await page.evaluate(() => {
+      while (window.heldFrames.length) window.heldFrames.shift().callback(performance.now());
+    });
+    assert.equal(await page.evaluate(() => scrollY), 0);
+  } finally { await browser.close(); }
+});
+
+test('an artifact that declares both color schemes and no background stays readable', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await open(browser);
+    await page.goto(lobbyRoom.link);
+    await page.locator('#lobby-tab-artifacts').click();
+    await page.locator('#lobby-store-list li', {hasText: 'Page'})
+      .getByRole('link', {name: 'Open', exact: true}).click();
+    const heading = page.frameLocator('#artifact-body iframe').locator('#inside');
+    await heading.waitFor();
+    const luminance = color => {
+      const [r, g, b] = color.match(/[\d.]+/g).slice(0, 3).map(Number).map(v => v / 255)
+        .map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    for (const scheme of ['light', 'dark']) {
+      await page.emulateMedia({colorScheme: scheme});
+      // The page's canvas is transparent, so its text sits on the frame.
+      const frame = luminance(await page.locator('#artifact-body iframe')
+        .evaluate(node => getComputedStyle(node).backgroundColor));
+      const text = luminance(await heading.evaluate(node => getComputedStyle(node).color));
+      const ratio = (Math.max(frame, text) + 0.05) / (Math.min(frame, text) + 0.05);
+      assert.ok(ratio >= 4.5, `${scheme}: artifact text on its frame is ${ratio.toFixed(2)}:1`);
+    }
+  } finally { await browser.close(); }
 });

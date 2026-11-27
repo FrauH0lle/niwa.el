@@ -805,7 +805,7 @@ function testCompletionRendering() {
     const verb = ending.split(' (')[0];
     const turn = render({...record, status, verb, execution: {...execution, exitCode}});
     assert.equal(textOf(findByClass(turn, 'execution-breadcrumb')),
-                 `● Background command "Run checks" ${ending}  [Show result]`);
+                 `● Background command "Run checks" ${ending}  Show result`);
     assert.equal(!!findByClass(turn, 'failed'), status === 'failed');
     assert.equal(turn.disclosures.size, 0);
     assert.equal(findByClass(turn, 'execution-result-link').disabled, true);
@@ -818,7 +818,7 @@ function testCompletionRendering() {
   ]) {
     const turn = render({...record, execution: {...execution, owner, ownPath, description: ''}});
     assert.equal(textOf(findByClass(turn, 'execution-breadcrumb')),
-                 `● Background command "make check" completed (exit code 0)${suffix}  [Show result]`);
+                 `● Background command "make check" completed (exit code 0)${suffix}  Show result`);
   }
   // All lifecycle words apply to monitors, but exit codes never do.
   for (const [status, , ending] of cases) {
@@ -829,14 +829,14 @@ function testCompletionRendering() {
       }});
       const events = eventCount === null ? '' : ` · ${eventCount} event${eventCount === 1 ? '' : 's'}`;
       assert.equal(textOf(findByClass(turn, 'execution-breadcrumb')),
-                   `● Monitor "Watch checks" ${ending.split(' (')[0]}${events}  [Show result]`);
+                   `● Monitor "Watch checks" ${ending.split(' (')[0]}${events}  Show result`);
       assert.equal(!!findByClass(turn, 'failed'), status === 'failed');
     }
   }
   // The row shows the host's verb, not one derived from the status, and escapes it.
   assert.equal(textOf(findByClass(render({...record, status: 'warning', verb: 'lost <b>',
     execution}), 'execution-breadcrumb')),
-    '● Background command "Run checks" lost <b> (exit code 0)  [Show result]');
+    '● Background command "Run checks" lost <b> (exit code 0)  Show result');
   const hostile = '<img src=x onerror="alert(1)">';
   const facts = {...execution, description: `${hostile}\nRun\tchecks`,
     owner: '/root/<script>bad()</script>'};
@@ -844,7 +844,7 @@ function testCompletionRendering() {
   const escaped = render({...record, execution: facts}, value => { opened = value; });
   const row = findByClass(escaped, 'execution-breadcrumb');
   assert.equal(textOf(row),
-               `● Background command "${hostile} Run checks" completed (exit code 0) · ${facts.owner}  [Show result]`);
+               `● Background command "${hostile} Run checks" completed (exit code 0) · ${facts.owner}  Show result`);
   assert.equal(row.children[0].children[1],
                `Background command "${hostile} Run checks" completed (exit code 0) · ${facts.owner}  `);
   const link = findByClass(escaped, 'execution-result-link');
@@ -3022,7 +3022,7 @@ async function main() {
   await deliverTo(sockets[1], {t: 'record', record: execution});
   const breadcrumb = findByRecordId(nodes.transcript, execution.id);
   assert.equal(textOf(findByClass(breadcrumb, 'execution-breadcrumb')),
-               '● Background command "Run failing command" failed (exit code 2) · /root/child  [Show result]');
+               '● Background command "Run failing command" failed (exit code 2) · /root/child  Show result');
   assert.ok(!textOf(breadcrumb).includes('CHILD OUTPUT'));
   assert.equal(breadcrumb.disclosures.size, 0);
   const beforeResult = sockets[1].sent.length;

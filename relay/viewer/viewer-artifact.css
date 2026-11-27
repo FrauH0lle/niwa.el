@@ -41,7 +41,9 @@
   border: 0;
   width: 100%;
   flex: 1 1 auto;
-  background: #fff;
+  /* Follow the theme: an artifact that declares both color schemes and no
+     background of its own has a transparent canvas. */
+  background: Canvas;
 }
 .artifact-prose {
   padding: 1rem 1.1rem;

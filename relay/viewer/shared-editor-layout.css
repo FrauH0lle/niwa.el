@@ -226,7 +226,7 @@ body.editor #board-shortcuts { width:660px; }
   body.editor .editor-bar { padding:4px 8px; gap:4px; min-height:46px; }
   body.editor #formatting { gap:2px; }
   body.editor #formatting > * { min-height:36px; }
-  body.editor #formatting select { width:112px; margin-right:4px; }
+  body.editor #formatting select { width:112px; margin-right:4px; font-size:16px; } /* under 16px, Safari zooms on focus */
   #undo,#redo { min-width:32px; padding:0 4px; }
   #ask-toggle { padding:6px 8px; }
   /* A document's toolbar keeps its room for formatting: the bubble and count say Discussions. */

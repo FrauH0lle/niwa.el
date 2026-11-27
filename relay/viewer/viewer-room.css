@@ -18,7 +18,7 @@ button,select,input { font:inherit; }
 .wordmark::before { content:""; flex:none; width:1.25em; height:1.25em; background:var(--accent); -webkit-mask:var(--niwa-mark) center/contain no-repeat; mask:var(--niwa-mark) center/contain no-repeat;
   --niwa-mark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11.4 22.5c.3-2.6-1.6-4.2-.4-6.6.9-1.8 2.4-2.6 1.4-7.4' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'/%3E%3Cpath d='M11 15.6 7.6 14.4M12.6 11.6l3.4-1.2' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round'/%3E%3Cellipse cx='6.4' cy='13.6' rx='3.9' ry='2.1'/%3E%3Cellipse cx='17.4' cy='9.6' rx='3.9' ry='2.1'/%3E%3Cellipse cx='11.6' cy='5.2' rx='5' ry='2.7'/%3E%3Cpath d='M4.5 22.5h15' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"); }
 .room-heading { flex:1 1 auto; min-width:0; padding-left:24px; border-left:1px solid var(--line); }
-.project-name { display:block; font-size:11px; line-height:1.5; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.project-name { display:block; font-size:12px; line-height:1.5; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .project-name:empty { display:none; }
 /* The small line names where the page is: the project, which opens the
    menu of places to go, then the room an open panel covers. */
@@ -65,7 +65,7 @@ input.heading-title[readonly] { cursor:default; }
 #appearance-menu > summary::after { content:'⌄'; margin-left:10px; }
 .appearance-body { position:absolute; right:0; top:calc(100% + 12px); z-index:25; width:244px; display:grid; gap:14px; padding:20px; background:var(--surface); border:1px solid var(--rule-strong); box-shadow:var(--shadow); }
 .appearance-body label { display:grid; gap:6px; font-size:12px; color:var(--muted); }
-.appearance-body select { padding:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:3px; }
+.appearance-body select { padding:8px; border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink); border-radius:3px; }
 .appearance-body p { margin:0; font-size:11px; color:var(--muted); }
 .terminal-state { width:min(560px,calc(100% - 32px)); margin:48px auto 16px; padding:32px; background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--failed); border-radius:4px; }
 .terminal-state h2 { margin:0 0 12px; font-size:30px; line-height:1.25; letter-spacing:-.035em; font-weight:600; }
@@ -212,7 +212,7 @@ body[data-transcript-empty] #terminal-state:not([hidden]) ~ .dock { margin-top:0
 #session-box #new-session-button::after { content:'+'; }
 .dock-count { font-size:12px; font-weight:400; color:var(--muted); }
 .skill-search { display:grid; gap:6px; font-size:12px; color:var(--muted); margin-bottom:10px; }
-.skill-search input { font-size:14px; min-width:0; width:100%; background:var(--surface); color:var(--ink); border:1px solid var(--line); padding:8px; border-radius:3px; }
+.skill-search input { font-size:14px; min-width:0; width:100%; background:var(--surface); color:var(--ink); border:1px solid var(--rule-strong); padding:8px; border-radius:3px; }
 #skill-chips { padding:0; gap:5px; }
 .skill-chip { white-space:normal; overflow-wrap:anywhere; text-align:left; font:13px/1.5 var(--font-mono); padding:6px 8px; background:var(--surface); }
 .skill-chip.armed { background:var(--accent-soft); }
@@ -288,6 +288,7 @@ body[data-editor-docked] .room-button { display:grid; }
   .back { width:32px; height:32px; margin-right:-4px; }
   .room-heading h1,.heading-title { font-size:15px; margin:0; }
   .header-actions { gap:6px; }
+  .you-menu > summary,.head-more > summary,.header-actions .btn,.bell { min-width:40px; min-height:40px; }
   #editing-box .editing-create .btn { min-height:40px; }
   .filter { padding:6px 12px; }
   .ledger { padding:24px 16px 20px; gap:24px; }
@@ -302,11 +303,11 @@ body[data-editor-docked] .room-button { display:grid; }
   .artifact-size { display:none; }
   .artifact-open { padding:6px; }
   .dock { padding:10px 12px; }
-  .composer { padding:12px; }
+  .composer { padding:8px 12px; }
   .composer textarea { font-size:16px; }
   .composer-row { gap:4px; }
   .composer-identity { display:none; }
-  .you-menu > summary { padding:3px; border-color:transparent; }
+  .you-menu > summary { justify-content:center; padding:3px; border-color:transparent; }
   .you-label { display:none; }
   /* In this room is one compact row that opens as a sheet over the room. */
   #session-box { padding:0 14px; border-radius:6px; }
@@ -324,7 +325,10 @@ body[data-editor-docked] .room-button { display:grid; }
   .composer-field > .expandable-input { position:relative; }
   .composer-field > .expandable-input > .input-expand { top:0; right:0; }
   .composer textarea { min-height:44px; max-height:30dvh; }
-  .composer-row > .btn { font-size:11px; padding:6px 9px; }
+  .composer-row > .btn { min-height:40px; font-size:12px; padding:6px 9px; }
+  .message-action { min-height:36px; }
+  /* Safari zooms the page when a focused field is under 16px. */
+  .you-body input,.skill-search input,.request-feedback,.decision-feedback .request-feedback,.appearance-body select,input.heading-title:not([readonly]) { font-size:16px; }
   .sheet-form { padding:20px; }
   .modeline { font-size:12px; gap:8px; }
 }
@@ -356,7 +360,7 @@ body[data-editor-docked] .room-button { display:grid; }
 .room-button[aria-expanded="true"] { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
 .room-button svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linejoin:round; }
 @media (max-width:640px) and (max-height:700px) {
-  .room-button { display:grid; }
+  .room-button { display:grid; min-width:40px; min-height:40px; }
   #session-box:not([open]) { display:none; }
   .modeline:has(.conn.connected):not(:has(.settings-button,.ml.plan,.ml.tail:not(:empty),#pending-schedules-button:not([hidden]))) { display:none; }
 }

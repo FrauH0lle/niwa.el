@@ -528,7 +528,7 @@
       label.append(el('span', `execution-status${record.status === 'failed' ? ' failed' : ''}`, '● '));
       label.append(`${monitor ? 'Monitor' : 'Background command'} "${subject}" ${flat(record.verb)}${detail}${owner}  `);
       row.append(label);
-      const link = el('button', 'execution-result-link', '[Show result]');
+      const link = el('button', 'execution-result-link', 'Show result');
       link.type = 'button';
       link.disabled = typeof onExecutionOpen !== 'function';
       if (!link.disabled) link.addEventListener('click', () => onExecutionOpen(facts));

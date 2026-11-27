@@ -9,7 +9,7 @@
   --artifact-secondary:#7a602c; --artifact-secondary-soft:#f1eadb;
   --on-danger:#fdfefe; --ok:#2e7d32; --failed:#9b1c2e;
   --diff-add:#e3f0e4; --diff-add-ink:#1f5f23; --diff-del:#f7e4e7; --diff-del-ink:#8a1626;
-  --kw:#7a3e9d; --str:#2e7d32; --fn:var(--accent); --com:#626b78;
+  --kw:#7a3e9d; --str:#276b2c; --fn:var(--accent); --com:#5a6370;
   color-scheme:light;
 }
 :root[data-palette="warm"] { --guest:#536584; --guest-soft:#e7ebf2; }
@@ -23,7 +23,7 @@
 /* Two complete color families. Geometry, typography and authored content match. */
 :root[data-palette="warm"] {
   --ground: #f6f4f0; --surface: #fefdfa; --surface-2: #ece7df;
-  --ink: #211f1c; --muted: #625b52; --line: #d8d1c6; --rule-strong: #9e9284;
+  --ink: #211f1c; --muted: #625b52; --line: #d8d1c6; --rule-strong: #9a8e80;
   --accent: #bf421f; --accent-soft: #fcefe7; --on-accent: #fefdfa;
   --shadow: 0 2px 10px rgb(35 29 22 / 8%);
   --board-bg: #fdfcf9; --board-dot: #d9d3ca; --board-selection:#bf421f;
