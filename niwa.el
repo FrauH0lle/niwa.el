@@ -225,7 +225,7 @@ See `niwa-library-provenance' for how installation methods are covered.")
 (autoload 'niwa-journal-idle-session-opened "niwa-journal-idle")
 (autoload 'niwa-reminders--transform "niwa-reminders")
 (autoload 'niwa-review-install-slash-command "niwa-review")
-(autoload 'niwa-session-persistence-choose-entry "niwa-session-persistence")
+(autoload 'niwa-session-persistence-choose-entry "niwa-session-catalog")
 (autoload 'niwa-shared-conversation-transform "niwa-shared-conversation")
 (autoload 'niwa-skills--transform-apply-request-model-policy "niwa-skills-invoke")
 (autoload 'niwa-skills-input-transform-inline-attachments "niwa-skills-input")
@@ -323,9 +323,9 @@ See `niwa-library-provenance' for how installation methods are covered.")
 (declare-function niwa-schedule-restore "niwa-schedule" ())
 (autoload 'niwa-schedule-restore "niwa-schedule")
 
-;; `niwa-session-persistence'
+;; `niwa-session-catalog'
 (declare-function niwa-session-persistence-choose-entry
-                  "niwa-session-persistence" (workspace))
+                  "niwa-session-catalog" (workspace))
 
 ;; `niwa-skills-core'
 (declare-function niwa-skills-install-hot-reload

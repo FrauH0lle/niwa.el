@@ -12,6 +12,7 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
 (require 'niwa-artifact-store)
+(require 'niwa-session-catalog)
 (require 'niwa-artifact-backend)
 (require 'niwa-session-control-fs)
 (require 'niwa-session-persistence)

@@ -36,6 +36,17 @@
                   (delete-directory directory t)))
               (unless (featurep 'niwa-session-artifacts)
                 (error "Facade did not load its artifact owner"))))
+           (catalog
+            (progn
+              (require 'niwa-session-catalog)
+              (let ((directory (make-temp-file "niwa-catalog-load-" t)))
+                (unwind-protect
+                    (when (niwa-session-persistence-list-sessions
+                           (niwa-workspace--create :root directory))
+                      (error "Catalog listed sessions in an empty workspace"))
+                  (delete-directory directory t)))
+              (when (featurep 'niwa-session-persistence)
+                (error "Empty catalog listing loaded persistence"))))
            (artifacts
             (progn
               (require 'niwa-structs)
@@ -110,6 +121,19 @@
                '(:cum-turn 1 :segment 1))
               (when (featurep 'niwa-session-fork)
                 (error "Rewind loaded Fork"))))
+           (diagnostics
+            (progn
+              (require 'niwa-telemetry)
+              (require 'niwa-structs)
+              (let ((session (niwa-session--create :authority-mode 'portable
+                                                   :publication-active-p t)))
+                (when (niwa-session-publication-append-diagnostic
+                       session "log" "entry")
+                  (error "Diagnostic append bypassed active publication")))
+              (unless (featurep 'niwa-session-diagnostics)
+                (error "Telemetry did not load its diagnostic owner"))
+              (when (featurep 'niwa-session-publication)
+                (error "Deferred diagnostic loaded critical publication"))))
            (fork
             (progn
               (require 'niwa-structs)

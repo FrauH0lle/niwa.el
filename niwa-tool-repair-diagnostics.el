@@ -28,9 +28,9 @@
 (declare-function niwa-execution-target-remote-p
                   "niwa-execution-target" (target))
 
-;; `niwa-session-publication'
+;; `niwa-session-diagnostics'
 (declare-function niwa-session-publication-append-diagnostic
-                  "niwa-session-publication" (session path content))
+                  "niwa-session-diagnostics" (session path content))
 
 ;; `niwa-tool-repair'
 (defvar niwa-tool-repair--in-flight)
@@ -248,7 +248,7 @@ Report formatting failures in the originating SCOPE."
               (progn
                 (unless (fboundp
                          'niwa-session-publication-append-diagnostic)
-                  (require 'niwa-session-publication))
+                  (require 'niwa-session-diagnostics))
                 (niwa-session-publication-append-diagnostic
                  session file content))
             (let ((coding-system-for-write 'utf-8-unix))

@@ -5,6 +5,7 @@
 ;;; Code:
 
 (require 'niwa-tool-registry)
+(require 'niwa-session-diagnostics)
 (require 'niwa-tool-repair)
 (require 'niwa-tool-repair-diagnostics)
 (require 'niwa-agents)

@@ -237,13 +237,15 @@
                   "niwa-session-collection" (session))
 (autoload 'niwa-session-collection-schedule "niwa-session-collection")
 
-;; `niwa-session-persistence'
+;; `niwa-session-catalog'
 (declare-function niwa-session-persistence-schedule-cleanup
-                  "niwa-session-persistence" (workspace))
+                  "niwa-session-catalog" (workspace))
+(autoload 'niwa-session-persistence-schedule-cleanup
+  "niwa-session-catalog")
+
+;; `niwa-session-persistence'
 (declare-function niwa-session-persistence-start-checkpoints
                   "niwa-session-persistence" nil)
-(autoload 'niwa-session-persistence-schedule-cleanup
-  "niwa-session-persistence")
 (autoload 'niwa-session-persistence-start-checkpoints
   "niwa-session-persistence")
 (defvar niwa-session--read-only-mode)

@@ -402,8 +402,9 @@ restore plans and the Rewind transaction; and `niwa-session-fork.el` owns
 Fork/Worktree projection and publication. `niwa-session-naming.el` owns
 display names and background title requests. `niwa-session-collection.el`
 owns idle publication scans and their session lifetime.
-`niwa-session-persistence.el` remains the lifecycle, resume, listing,
-locking, and cleanup facade used by callers.
+`niwa-session-persistence.el` owns lifecycle, resume, and locking.
+`niwa-session-catalog.el` owns listing, the chooser, and stale-session cleanup.
+`niwa-session-diagnostics.el` owns diagnostic appends.
 
 Sessions auto-save lazily and at turn settlement under
 `<workspace-root>/.niwa/sessions/<timestamp>-<12-hex-suffix>/`.
@@ -3418,9 +3419,9 @@ releases a held inhibitor, and enabling it evaluates the current work. A plain
 
 Defined in `niwa-session-persistence.el` unless another module is named:
 
-- `niwa-sessions-directory` (default `.niwa/sessions/`)
-- `niwa-session-max-age-days` (default 30)
-- `niwa-session-keep-recent-count` (default 3)
+- `niwa-sessions-directory` (in `niwa-session-artifacts.el`, default `.niwa/sessions/`)
+- `niwa-session-max-age-days` (in `niwa-session-catalog.el`, default 30)
+- `niwa-session-keep-recent-count` (in `niwa-session-catalog.el`, default 3)
 - `niwa-file-history-max-snapshot-bytes` (default 1 MiB)
 - `niwa-session-lease-seconds` (in `niwa-session-durability.el`,
   default 90; renewal runs from a timer that cannot fire inside blocking

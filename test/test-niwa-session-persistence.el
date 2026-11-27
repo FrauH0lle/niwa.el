@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'niwa-notes)
+(require 'niwa-session-catalog)
 (require 'niwa-instruction-test-support
          (file-name-concat
           (file-name-directory

@@ -18,7 +18,7 @@
 (autoload 'niwa-schedule-overview-late-delivery "niwa-schedule")
 (autoload 'niwa-schedule-latest-late-delivery "niwa-schedule")
 (autoload 'niwa--workspace-sessions "niwa-chat")
-(autoload 'niwa-session-persistence-list-sessions "niwa-session-persistence")
+(autoload 'niwa-session-persistence-list-sessions "niwa-session-catalog")
 (autoload 'niwa--display-chat-buffer "niwa-chat")
 (autoload 'niwa-session-persistence-resume-id "niwa-session-persistence")
 

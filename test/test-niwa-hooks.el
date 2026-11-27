@@ -5,6 +5,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'niwa-session-diagnostics)
 (require 'json)
 (require 'helpers
          (file-name-concat

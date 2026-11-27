@@ -19,6 +19,7 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "niwa-session-test-support"))
 (require 'cl-lib)
+(require 'niwa-session-catalog)
 (require 'niwa-collaboration)
 (require 'niwa-collaboration-lobby)
 (require 'niwa-collaboration-guest)

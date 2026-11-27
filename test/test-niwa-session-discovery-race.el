@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'niwa-session-artifacts)
+(require 'niwa-session-catalog)
 (require 'niwa-session-durability)
 (require 'niwa-session-control-fs)
 (require 'niwa-session-persistence)

@@ -12,6 +12,7 @@
           "helpers"))
 (require 'niwa-prompt-index)
 (require 'niwa-view)
+(require 'niwa-session-catalog)
 (require 'niwa-view-render)
 
 (defmacro niwa-batch-test--with-history (&rest body)

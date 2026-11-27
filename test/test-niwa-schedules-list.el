@@ -12,6 +12,7 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
 (require 'niwa-menu)
+(require 'niwa-session-catalog)
 (require 'niwa-schedules-list)
 (require 'niwa-session-persistence)
 (require 'niwa-view)

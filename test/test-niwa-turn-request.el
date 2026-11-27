@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'niwa-agent-control)
+(require 'niwa-session-catalog)
 (require 'niwa-agents)
 (require 'niwa-artifact-backend)
 (require 'niwa-execution)

@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'niwa-session-catalog)
 (require 'ert)
 (require 'niwa-agent-control)
 (require 'niwa-agent-exec)

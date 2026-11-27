@@ -123,17 +123,19 @@
 (autoload 'niwa-session-durability-call-with-reserved-lease
   "niwa-session-durability")
 
+;; `niwa-session-catalog'
+(declare-function niwa-session-persistence-list-sessions "niwa-session-catalog" (workspace &optional cached observe-sidecar))
+(declare-function niwa-session-persistence-parse-iso-time "niwa-session-catalog" (str))
+(autoload 'niwa-session-persistence-list-sessions
+  "niwa-session-catalog")
+(autoload 'niwa-session-persistence-parse-iso-time
+  "niwa-session-catalog")
+
 ;; `niwa-session-persistence'
-(declare-function niwa-session-persistence-list-sessions "niwa-session-persistence" (workspace &optional cached))
 (declare-function niwa-session-persistence-notify-session-event "niwa-session-persistence" (session event &rest args))
-(declare-function niwa-session-persistence-parse-iso-time "niwa-session-persistence" (str))
 (declare-function niwa-session-persistence-resume-id "niwa-session-persistence" (workspace session-id))
 (declare-function niwa-session-persistence-write-current-buffer-atomically "niwa-session-persistence" (path))
-(autoload 'niwa-session-persistence-list-sessions
-  "niwa-session-persistence")
 (autoload 'niwa-session-persistence-notify-session-event
-  "niwa-session-persistence")
-(autoload 'niwa-session-persistence-parse-iso-time
   "niwa-session-persistence")
 (autoload 'niwa-session-persistence-resume-id
   "niwa-session-persistence")

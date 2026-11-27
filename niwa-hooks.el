@@ -65,11 +65,11 @@
                   "niwa-reminders" (buffer key body &optional commit))
 (autoload 'niwa-reminders-queue-turn-event "niwa-reminders")
 
-;; `niwa-session-publication'
+;; `niwa-session-diagnostics'
 (declare-function niwa-session-publication-append-diagnostic
-                  "niwa-session-publication" (session path content))
+                  "niwa-session-diagnostics" (session path content))
 (autoload 'niwa-session-publication-append-diagnostic
-  "niwa-session-publication")
+  "niwa-session-diagnostics")
 
 ;; `niwa-skills-core'
 (declare-function niwa-skills-project-files

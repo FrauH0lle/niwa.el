@@ -128,30 +128,32 @@
 (defvar niwa-session-naming-renamed-hook)
 (autoload 'niwa-session-naming-rename "niwa-session-naming")
 
-;; `niwa-session-persistence'
+;; `niwa-session-catalog'
 (declare-function niwa-session-persistence-delete
-                  "niwa-session-persistence" (workspace save-path))
+                  "niwa-session-catalog" (workspace save-path))
 (declare-function niwa-session-persistence-list-sessions
-                  "niwa-session-persistence" (workspace &optional cached))
+                  "niwa-session-catalog" (workspace &optional cached observe-sidecar))
 (declare-function niwa-session-persistence-parse-iso-time
-                  "niwa-session-persistence" (str))
+                  "niwa-session-catalog" (str))
+(declare-function niwa-session-persistence-without-dedicated
+                  "niwa-session-catalog" (workspace entries))
+
+;; `niwa-session-persistence'
 (declare-function niwa-session-persistence-restore
                   "niwa-session-persistence"
                   (session-dir &optional lifecycle-source session-override
                                workspace))
-(declare-function niwa-session-persistence-without-dedicated
-                  "niwa-session-persistence" (workspace entries))
 
 ;; `niwa-turn'
 (declare-function niwa-turn-busy-p "niwa-turn" (&optional buffer))
 (autoload 'niwa-turn-busy-p "niwa-turn")
-(autoload 'niwa-session-persistence-delete "niwa-session-persistence")
+(autoload 'niwa-session-persistence-delete "niwa-session-catalog")
 (autoload 'niwa-session-persistence-without-dedicated
-  "niwa-session-persistence")
+  "niwa-session-catalog")
 (autoload 'niwa-session-persistence-list-sessions
-  "niwa-session-persistence")
+  "niwa-session-catalog")
 (autoload 'niwa-session-persistence-restore "niwa-session-persistence")
-(autoload 'niwa-session-persistence-parse-iso-time "niwa-session-persistence")
+(autoload 'niwa-session-persistence-parse-iso-time "niwa-session-catalog")
 
 ;; `niwa-sleep'
 (declare-function niwa-sleep-update "niwa-sleep" (&rest _))

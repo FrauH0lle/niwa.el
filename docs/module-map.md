@@ -220,10 +220,12 @@ Chat / view
   niwa-session-durability.el lease and storage primitives
   niwa-session-recovery.el  specialized recovery protocol and markers
   niwa-session-transfer.el  durable cooperative control transfer protocol
-  niwa-session-publication.el immutable publication (async jobs stage, digest and select), retention/deletion, diagnostics
+  niwa-session-publication.el immutable publication (async jobs stage, digest and select), retention/deletion
+  niwa-session-diagnostics.el append-only session diagnostic channels
   niwa-session-collection.el  coalesced idle generation scans and cleanup lifecycle
   niwa-session-save-as.el portable Save As transaction and adoption
-  niwa-session-persistence.el  lifecycle/resume/listing/locking/cleanup facade
+  niwa-session-persistence.el  lifecycle, save, resume and locking facade
+  niwa-session-catalog.el      saved-session listing, chooser and cleanup
   niwa-session-rewind.el   restore plans, transactional Rewind, published-head redo
   niwa-session-fork.el     Fork/Worktree projection and publication
   niwa-session-naming.el   metadata-only rename and bounded background session titles

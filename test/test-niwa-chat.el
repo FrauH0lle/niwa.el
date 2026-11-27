@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'niwa-chat)
+(require 'niwa-session-catalog)
 (require 'niwa-collaboration-artifact-room)
 (require 'niwa-collaboration-owner)
 (require 'niwa-agent-control)

@@ -68,17 +68,19 @@
                   (session buffer name &optional current-p))
 (autoload 'niwa-session-naming-rename "niwa-session-naming")
 
-;; `niwa-session-persistence'
+;; `niwa-session-catalog'
 (declare-function niwa-session-persistence-delete
-                  "niwa-session-persistence" (workspace save-path))
+                  "niwa-session-catalog" (workspace save-path))
+(declare-function niwa-session-persistence-list-sessions
+                  "niwa-session-catalog" (workspace &optional cached observe-sidecar))
+(autoload 'niwa-session-persistence-delete "niwa-session-catalog")
+(autoload 'niwa-session-persistence-list-sessions "niwa-session-catalog")
+
+;; `niwa-session-persistence'
 (declare-function niwa-session-persistence-resume-id
                   "niwa-session-persistence" (workspace session-id))
 (declare-function niwa-session-persistence-write-sidecar-now
                   "niwa-session-persistence" (session buffer))
-(autoload 'niwa-session-persistence-delete "niwa-session-persistence")
-(declare-function niwa-session-persistence-list-sessions
-                  "niwa-session-persistence" (workspace &optional cached))
-(autoload 'niwa-session-persistence-list-sessions "niwa-session-persistence")
 (autoload 'niwa-session-persistence-resume-id "niwa-session-persistence")
 (autoload 'niwa-session-persistence-write-sidecar-now
   "niwa-session-persistence")

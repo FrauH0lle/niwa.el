@@ -12,6 +12,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'niwa-session-catalog)
 (require 'niwa-session-artifacts)
 (require 'niwa-session-control-fs)
 (require 'niwa-session-control-transfer)

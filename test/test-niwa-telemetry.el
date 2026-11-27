@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'gptel)
+(require 'niwa-session-diagnostics)
 (require 'niwa-agents)
 (require 'niwa-native)
 (require 'niwa-execution-target)

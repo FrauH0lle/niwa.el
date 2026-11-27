@@ -10,6 +10,7 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
 (require 'niwa-agent-control)
+(require 'niwa-session-catalog)
 (require 'niwa-agent-conversation)
 (require 'niwa-notes)
 (require 'niwa-persistence)

@@ -131,10 +131,10 @@
                   "niwa-resource" (path root))
 (autoload 'niwa-resource-within-root-p "niwa-resource")
 
-;; `niwa-session-persistence'
+;; `niwa-session-catalog'
 (declare-function niwa-session-persistence-list-sessions
-                  "niwa-session-persistence" (workspace &optional cached))
-(autoload 'niwa-session-persistence-list-sessions "niwa-session-persistence")
+                  "niwa-session-catalog" (workspace &optional cached observe-sidecar))
+(autoload 'niwa-session-persistence-list-sessions "niwa-session-catalog")
 
 ;; `niwa-shared-editing'
 (declare-function niwa-shared-editing-check-new "niwa-shared-editing" (kind title))

@@ -109,15 +109,17 @@
 (autoload 'niwa-session-fork-create "niwa-session-fork")
 (autoload 'niwa-session-fork-retarget-worktree-path "niwa-session-fork")
 
-;; `niwa-session-persistence'
+;; `niwa-session-catalog'
 (declare-function niwa-session-persistence-list-sessions
-                  "niwa-session-persistence" (workspace &optional cached))
+                  "niwa-session-catalog" (workspace &optional cached observe-sidecar))
+(autoload 'niwa-session-persistence-list-sessions
+  "niwa-session-catalog")
+
+;; `niwa-session-persistence'
 (declare-function niwa-session-persistence-restore
                   "niwa-session-persistence"
                   (session-dir &optional lifecycle-source
                                session-override workspace))
-(autoload 'niwa-session-persistence-list-sessions
-  "niwa-session-persistence")
 (autoload 'niwa-session-persistence-restore "niwa-session-persistence")
 
 ;; `niwa-session-rewind'

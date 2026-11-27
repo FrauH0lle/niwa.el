@@ -31,11 +31,11 @@
                   (&optional session data-buffer surface-buffer request invocation))
 (autoload 'niwa-permission-mode-effective "niwa-permission-mode")
 
-;; `niwa-session-publication'
+;; `niwa-session-diagnostics'
 (declare-function niwa-session-publication-append-diagnostic
-                  "niwa-session-publication" (session path content))
+                  "niwa-session-diagnostics" (session path content))
 (autoload 'niwa-session-publication-append-diagnostic
-  "niwa-session-publication")
+  "niwa-session-diagnostics")
 
 ;; `niwa-structs'
 (declare-function niwa-session-execution-target

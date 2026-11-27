@@ -15,6 +15,7 @@
 ;;; Code:
 
 (require 'niwa-tool-exec-registration)
+(require 'niwa-session-diagnostics)
 
 (require 'ert)
 (require 'cl-lib)

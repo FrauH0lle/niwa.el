@@ -32,9 +32,9 @@
 ;; `niwa-collaboration-discussions'
 (declare-function niwa-collaboration-discussions--load "niwa-collaboration-discussions" (item))
 
-;; `niwa-session-persistence'
-(declare-function niwa-session-persistence-list-sessions "niwa-session-persistence" (workspace &optional cached))
-(autoload 'niwa-session-persistence-list-sessions "niwa-session-persistence")
+;; `niwa-session-catalog'
+(declare-function niwa-session-persistence-list-sessions "niwa-session-catalog" (workspace &optional cached observe-sidecar))
+(autoload 'niwa-session-persistence-list-sessions "niwa-session-catalog")
 
 ;; `niwa-session-publication'
 (declare-function niwa-session-publication-read "niwa-session-publication" (session-dir &optional head names))

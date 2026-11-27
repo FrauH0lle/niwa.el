@@ -77,15 +77,17 @@
 (declare-function niwa-session-artifacts-fork-point-spans
                   "niwa-session-artifacts" (buffer))
 
-;; `niwa-session-persistence'
+;; `niwa-session-catalog'
 (declare-function niwa-session-persistence-choose-conversation-variant
-                  "niwa-session-persistence"
+                  "niwa-session-catalog"
                   (variants current-session-id))
 (declare-function niwa-session-persistence-conversation-variants
-                  "niwa-session-persistence"
+                  "niwa-session-catalog"
                   (session fork-point-id &optional sessions))
 (declare-function niwa-session-persistence-list-sessions
-                  "niwa-session-persistence" (workspace &optional cached))
+                  "niwa-session-catalog" (workspace &optional cached observe-sidecar))
+
+;; `niwa-session-persistence'
 (declare-function niwa-session-persistence-restore
                   "niwa-session-persistence"
                   (session-dir &optional lifecycle-source
