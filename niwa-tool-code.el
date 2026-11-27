@@ -39,7 +39,7 @@
 
 ;; `niwa-pipeline'
 (declare-function niwa-pipeline-run-tool
-                  "niwa-pipeline" (tool callback args))
+                  "niwa-pipeline" (tool callback args &optional metadata))
 
 ;; `niwa-tool-registry'
 (declare-function niwa-tool--positional-to-plist

@@ -72,10 +72,17 @@ When INCLUDE-INJECTIONS-P is non-nil, include body-injection fences."
              (end (or (niwa-skills-syntax--authored-fence-close-end
                        text close-re body-start)
                       len)))
-        (unless (and (not include-injections-p)
-                     (niwa-skills-syntax--injection-fence-opener-p line marker))
-          (push (cons line-start end) ranges))
-        (setq pos end)))
+        (cond
+         ;; Like a closer, an opener counts only when the author wrote it;
+         ;; one from arguments would pair with the author's opener.
+         ((not (niwa-skills-syntax--author-ranges-p
+                text line-start (+ line-start (length marker))))
+          (setq pos line-end))
+         (t
+          (unless (and (not include-injections-p)
+                       (niwa-skills-syntax--injection-fence-opener-p line marker))
+            (push (cons line-start end) ranges))
+          (setq pos end)))))
     (nreverse ranges)))
 
 (defun niwa-skills-syntax--injection-inline-marker-start (text position)

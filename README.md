@@ -1427,7 +1427,7 @@ Useful commands:
 |-------------------------------|----------------------------------------------------------|
 | `niwa-hooks-list`          | Show effective hooks for the current session.            |
 | `niwa-hooks-run-dry`       | Preview which hooks match an event without running them. |
-| `niwa-hooks-trust-project` | Trust the project's hook and permission files by hash.   |
+| `niwa-hooks-trust-project` | Trust the project's hooks, permissions and skills by hash. |
 
 ### Examples
 

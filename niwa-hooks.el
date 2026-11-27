@@ -81,6 +81,7 @@
 ;; `niwa-skills-core'
 (declare-function niwa-skills-project-files
                   "niwa-skills-core" (workspace-root))
+(declare-function niwa-skills-mark-files-dirty "niwa-skills-core" (files))
 (declare-function niwa-skills--parse-frontmatter
                   "niwa-skills-core" (skill-file &optional content workspace))
 (declare-function niwa-skills--normalize-hooks
@@ -1137,8 +1138,10 @@ safe variables; its deny and ask rules apply without trust."
           (cl-incf count)))
       (niwa-hooks--write-trust-db (nreverse db))
       ;; Trust changes which project files resolve, so the memoized
-      ;; configuration is stale from here.
+      ;; configuration and scanned skills are stale from here.
       (clrhash niwa-hooks--config-rules-cache)
+      (niwa-skills-mark-files-dirty
+       (niwa-skills-project-files (niwa-workspace-root workspace)))
       (message "niwa: trusted %d project file(s)" count))))
 
 
@@ -2527,22 +2530,28 @@ ignoring until M-x niwa-hooks-trust-project"
   "Run hook EVENT with EVENT-PLIST in CONTEXT's live dispatch buffer.
 
 CALLBACK, SESSION, WORKSPACE, REQUEST, and INVOCATION are forwarded to
-the hook runner."
-  (let ((buffer (plist-get context :buffer)))
+the hook runner, with CONTEXT's `:skill-hook-rules', which apply to
+this call only."
+  (let ((buffer (plist-get context :buffer))
+        (scoped (plist-get context :skill-hook-rules)))
     (if (buffer-live-p buffer)
         (with-current-buffer buffer
           (niwa-hooks-run-event
-           event event-plist callback session workspace request invocation))
+           event event-plist callback session workspace request invocation
+           scoped))
       (niwa-hooks-run-event
-       event event-plist callback session workspace request invocation))))
+       event event-plist callback session workspace request invocation
+       scoped))))
 
 (defun niwa-hooks-run-event
-    (event event-plist callback &optional session workspace request invocation)
+    (event event-plist callback
+           &optional session workspace request invocation scoped-rules)
   "Run hooks for EVENT and call CALLBACK with merged decision.
 
 EVENT-PLIST is the stable niwa event payload passed to Elisp hooks
 and serialized to JSON for command hooks.  CALLBACK receives nil or a
-decision plist."
+decision plist.  SCOPED-RULES, a preparing skill's hooks, join this
+run only, innermost."
   (let* ((event (niwa-hooks--event-symbol event))
          (session (or session
                       (and (boundp 'niwa--session) niwa--session)))
@@ -2558,8 +2567,9 @@ decision plist."
         (funcall callback nil)
       (let* ((payload (plist-put (copy-sequence event-plist)
                                  :hook-event-name event))
-             (rules (niwa-hooks-effective-rules
-                     session workspace request invocation))
+             (rules (append (niwa-hooks-effective-rules
+                             session workspace request invocation)
+                            scoped-rules))
              (handlers (niwa-hooks--handlers-for-event
                         event payload rules))
              (telemetry-span

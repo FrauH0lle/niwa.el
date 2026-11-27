@@ -527,6 +527,11 @@ yaml.el false sentinel :false.  Anything else is treated as t."
 (defconst niwa-skills--name-max-length 64
   "Maximum allowed length for a skill invocation identifier.")
 
+(defconst niwa-skills-untrusted-warning
+  "Project skill hooks and allowed-tools are ignored until this content is \
+trusted with M-x niwa-hooks-trust-project."
+  "Warning on a project skill whose authority waits for content trust.")
+
 (defun niwa-skills--valid-name-p (name)
   "Return non-nil when NAME is a valid skill invocation identifier.
 Names must match `[a-z0-9-]+' and be 1-64 chars.
@@ -741,12 +746,13 @@ YAML parsing fails, attributing the warning to WORKSPACE."
 
 (defun niwa-skills--from-plist
     (name plist source-file source
-          &optional source-family project-hooks-trusted-p plugin-name workspace
+          &optional source-family project-trusted-p plugin-name workspace
           discovery-root diagnostic-scope)
   "Build a `niwa-skill' from NAME and PLIST parsed from SOURCE-FILE.
 SOURCE is the origin tag symbol.  SOURCE-FAMILY is `niwa', `agents',
-or nil.  PROJECT-HOOKS-TRUSTED-P authorizes executable hooks from a
-project manifest; a trust key plist also binds their scripts.  NAME is
+or nil.  PROJECT-TRUSTED-P authorizes the authority a project manifest
+widens, its hooks and `allowed-tools'; a trust key plist also binds the
+hooks' scripts.  NAME is
 the resolved invocation identifier (already
 validated by the caller).  Description fallback from the body is the
 caller's responsibility -- anything in PLIST's `:description' wins over
@@ -772,9 +778,8 @@ supplied, owns local warnings independently of persisted WORKSPACE state."
           (and-let* ((body (plist-get plist :system)))
             (plist-get (niwa-skills-syntax-parse-dependencies body)
                        :dependencies)))
-         (hooks (and (or (not (eq source 'project))
-                         project-hooks-trusted-p)
-                     declared-hooks))
+         (untrusted-p (and (eq source 'project) (not project-trusted-p)))
+         (hooks (and (not untrusted-p) declared-hooks))
          (warnings
           (append
            (when (and (eq context 'inline)
@@ -783,9 +788,9 @@ supplied, owns local warnings independently of persisted WORKSPACE state."
              (list
               (format "Agent %s is ignored for inline skills; use context: fork to select an agent"
                       agent)))
-           (when (and declared-hooks (eq source 'project)
-                      (not project-hooks-trusted-p))
-             (list "Project skill hooks are ignored until the manifest is trusted")))))
+           (when (and untrusted-p
+                      (or declared-hooks allowed-tools))
+             (list niwa-skills-untrusted-warning)))))
     (niwa-skills--warn-shell shell source-file (or diagnostic-scope workspace))
     (niwa-skill--create
      :name name
@@ -804,8 +809,10 @@ supplied, owns local warnings independently of persisted WORKSPACE state."
      :agent (and (stringp agent) agent)
      :allowed-tools (ensure-list allowed-tools)
      :allowed-tool-rules
-     (niwa-skills--parse-allowed-tool-rules
-      (ensure-list allowed-tools) source-file)
+     ;; Parse even when untrusted so a malformed entry fails the same way.
+     (let ((rules (niwa-skills--parse-allowed-tool-rules
+                   (ensure-list allowed-tools) source-file)))
+       (and (not untrusted-p) rules))
      :ptc-primitives (niwa-skills--parse-ptc-primitives plist source-file)
      :model (and model
                  (cond
@@ -823,7 +830,7 @@ supplied, owns local warnings independently of persisted WORKSPACE state."
         (if (eq source 'project) 'project-file
           (if (eq source 'plugin) 'plugin 'user-file))
         source-file (file-name-directory source-file)
-        (and (eq source 'project) project-hooks-trusted-p)))
+        (and (eq source 'project) project-trusted-p)))
      :dependencies
      (mapcar
       (lambda (dependency)
@@ -963,6 +970,16 @@ DIAGNOSTIC-SCOPE supplies ownership for root-only scans."
             (when-let* ((body (plist-get plist :system))
                         (fallback (niwa-skills--first-paragraph body)))
               (setq plist (plist-put plist :description fallback))))
+          ;; One notice per content version, as for project hook configs.
+          (when (and snapshot (not (plist-get snapshot :trusted-p))
+                     (or (plist-get plist :hooks)
+                         (plist-get plist :allowed-tools)))
+            (niwa--warn-once
+             (niwa-diagnostic-scope (or diagnostic-scope workspace))
+             (list 'skill-untrusted skill-file (plist-get snapshot :hash))
+             "Project skill %s is not trusted; its hooks and allowed-tools \
+are ignored until M-x niwa-hooks-trust-project"
+             skill-file))
           (niwa-skills--from-plist
            raw-name plist skill-file source source-family
            (plist-get snapshot :trusted-p) plugin-name workspace
@@ -1154,6 +1171,40 @@ has no body text or cannot be read."
                   ((not (string-blank-p body))))
         (setf (niwa-skill-body skill) body)
         body)))
+
+(defun niwa-skill-load-current (skill)
+  "Return SKILL with its body read from its SKILL.md now.
+A project skill is returned as a copy whose `allowed-tools' rules and
+hooks come from the same trust-checked read, so a manifest changed since
+discovery cannot run its new body under the grants of the version that
+was trusted.  Return nil when the file cannot be read or parsed."
+  (let ((file (niwa-skill-source-file skill))
+        (workspace (niwa-skill-workspace skill)))
+    (if (not (and file (eq (niwa-skill-source skill) 'project)))
+        ;; Grants of other sources need no trust; keep their identity.
+        (progn
+          (when file (setf (niwa-skill-body skill) nil))
+          (and (niwa-skill-load-body skill) skill))
+      (condition-case nil
+          (let* ((copy (copy-niwa-skill skill))
+                 (snapshot (niwa-hooks-project-file-snapshot workspace file))
+                 (plist (niwa-skills--parse-frontmatter
+                         file (plist-get snapshot :content) workspace))
+                 (body (plist-get plist :system))
+                 (fresh (and plist
+                             (niwa-skills--from-plist
+                              (niwa-skill-name skill) plist file 'project
+                              (niwa-skill-source-family skill)
+                              (plist-get snapshot :trusted-p) nil workspace
+                              (niwa-skill-discovery-root skill)))))
+            (when (and fresh (stringp body) (not (string-blank-p body)))
+              (setf (niwa-skill-body copy) body
+                    (niwa-skill-allowed-tool-rules copy)
+                    (niwa-skill-allowed-tool-rules fresh)
+                    (niwa-skill-hooks copy) (niwa-skill-hooks fresh)
+                    (niwa-skill-warnings copy) (niwa-skill-warnings fresh))
+              copy))
+        (error nil)))))
 
 
 ;;
@@ -1472,6 +1523,12 @@ Watchers whose consumer list becomes empty are torn down."
   "Mark BUFFER as needing a rescan."
   (when (buffer-live-p buffer)
     (puthash buffer t niwa-skills--dirty-buffers)))
+
+(defun niwa-skills-mark-files-dirty (files)
+  "Mark every chat buffer consuming a directory of FILES as needing a rescan."
+  (dolist (file files)
+    (dolist (dir (niwa-skills--file-under-watched-dirs file))
+      (niwa-skills--mark-dir-dirty dir))))
 
 
 ;;;; check-on-save strategy

@@ -1025,6 +1025,8 @@ description: present
 
   :doc "allowed-tools validation works before installation and rejects unknown tools"
   (let* ((niwa-skills-include-bundled nil)
+         ;; The relative root is a project root; stand for trusted content.
+         (niwa-hooks-require-project-trust nil)
          (dir (make-temp-file "niwa-skills-preinstall-" t))
          (warnings nil))
     (unwind-protect
@@ -1072,6 +1074,7 @@ allowed-tools:
   ;; --from-plist runs each `allowed-tools' string through the parser.
   ;; Malformed entries warn-and-skip; valid entries become rules.
   (let* ((niwa-skills-include-bundled nil)
+         (niwa-hooks-require-project-trust nil)
          (dir (make-temp-file "niwa-skills-test-" t))
          (warnings nil)
          ;; Use the same fake-tool-get pattern as the parser tests so
@@ -1204,6 +1207,27 @@ hooks:
             (car (niwa-skills-scan
                   root '(".niwa/skills") workspace)))))
       (niwa-hooks-invalidate-config)
+      (delete-directory root t)
+      (delete-directory user-dir t)))
+
+  :doc "trusting a project marks its skill consumers for rescan"
+  (let* ((root (make-temp-file "niwa-skills-trust-dirty-" t))
+         (skill-dir (file-name-as-directory
+                     (expand-file-name (file-name-concat root ".niwa" "skills"))))
+         (user-dir (make-temp-file "niwa-skills-trust-dirty-user-" t))
+         (niwa-user-dir (file-name-as-directory user-dir))
+         (workspace (niwa-skills-test--make-workspace root))
+         (buf (generate-new-buffer " *niwa-test-trust-dirty*")))
+    (unwind-protect
+        (progn
+          (niwa-skills-test--write-skill skill-dir "x" "name: x\n" "Body")
+          (puthash skill-dir (list buf) niwa-skills--dir-buffers)
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project workspace))
+          (should (gethash buf niwa-skills--dirty-buffers)))
+      (remhash skill-dir niwa-skills--dir-buffers)
+      (remhash buf niwa-skills--dirty-buffers)
+      (kill-buffer buf)
       (delete-directory root t)
       (delete-directory user-dir t)))
 

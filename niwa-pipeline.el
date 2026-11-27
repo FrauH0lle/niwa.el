@@ -1911,6 +1911,9 @@ logged so a misbehaving CALLBACK cannot strand the pipeline."
                         :origin (or (plist-get metadata :origin)
                                     (niwa-current-origin))
                         :call-source (plist-get metadata :source)
+                        :skill-permission-rules
+                        (plist-get metadata :skill-permission-rules)
+                        :skill-hook-rules (plist-get metadata :skill-hook-rules)
                         :progress-callback (plist-get metadata :progress)
                         :tool-event-callback #'niwa-pipeline--tool-event
                         :parent-tool-use-id
@@ -2061,9 +2064,12 @@ the tool call as a canonical error result rather than escape."
             (funcall start)))
       (funcall start))))
 
-(defun niwa-pipeline-run-tool (tool callback args)
-  "Execute TOOL and deliver its provider-facing result to CALLBACK."
-  (niwa-pipeline--run-tool tool callback args nil nil))
+(defun niwa-pipeline-run-tool (tool callback args &optional metadata)
+  "Execute TOOL and deliver its provider-facing result to CALLBACK.
+METADATA may supply `:skill-permission-rules', allow rules that apply to
+this call only, innermost, as a preparing skill's `allowed-tools' do, and
+`:skill-hook-rules', that skill's hooks for this call only."
+  (niwa-pipeline--run-tool tool callback args nil metadata))
 
 (defun niwa-pipeline-run-tool-outcome (tool callback args &optional metadata)
   "Execute TOOL and deliver its canonical structured outcome to CALLBACK.

@@ -17,7 +17,7 @@
 
 ;; `niwa-pipeline'
 (declare-function niwa-pipeline-run-tool
-                  "niwa-pipeline" (tool callback args))
+                  "niwa-pipeline" (tool callback args &optional metadata))
 
 ;; `niwa-tool-ask-ui'
 (declare-function niwa-tool-ask-ui-show

@@ -483,10 +483,18 @@ Current fields include:
 `user-invocable` defaults to true; `disable-model-invocation` defaults to
 false.
 
-Command hooks retain their skill resource origin.  Project skill hooks are
-omitted until `niwa-hooks-trust-project` records the exact workspace, path,
-and `SKILL.md` content hash; editing the manifest invalidates that consent for
-both user- and model-origin invocation.  Trusted project skill commands and
+Command hooks retain their skill resource origin.  Project skill hooks and
+`allowed-tools` grants are omitted until `niwa-hooks-trust-project` records
+the exact workspace, path, and `SKILL.md` content hash; editing the manifest
+invalidates that consent for both user- and model-origin invocation.  The
+rest of an untrusted project skill, its instructions included, still loads.
+Invocation rereads the manifest and takes the body, grants, and hooks from
+that one trust-checked read, so a manifest edited since discovery never runs
+under the previous version's grants.
+niwa notes an untrusted manifest that declares either field once per content
+version, and a refused body injection of such a skill names the trust
+command.  Trusting marks the skill's consumers for a rescan, so the grants
+apply at the next invocation.  Trusted project skill commands and
 same-target remote project-plugin commands run on the session target.  User,
 bundled, managed, and client-local plugin skill commands stay local at the
 directory containing their `SKILL.md`.  Elisp hooks remain local.
@@ -791,8 +799,9 @@ Read tools come from the selected agent's tool list.
 removes tools from the model and never denies unspecified tools.
 
 For command invocations, parsed entries become skill-scoped permission rules
-on the owned request or agent invocation. For instructions they apply only
-while the skill prepares and do not grant tools to the consuming request. These buckets outrank session and persistent rules for allow/ask
+on the owned request or agent invocation. While any skill prepares, its rules
+apply only to its own body injections, never to other tool calls of a running
+turn; instructions grant nothing to the consuming request. These buckets outrank session and persistent rules for allow/ask
 resolution, while deny remains absolute across all buckets. Plan mode applies its capability restriction before skill allow grants: only
 ApplyPatch to explicit session-owned `work://` descendants has a bounded write
 exception. NoteWrite may create review notes, not mutate existing ones. Goal execution uses
@@ -808,11 +817,12 @@ the variable. A skill with no directory leaves it unexpanded, which matches
 nothing.
 
 Preparation's `!` commands run through the tool pipeline under the buffer's
-request. Between turns a temporary preparation request holds that slot with
-the skill's rules and hooks and the caller's Plan limits, and is removed when
-preparation settles. A skill prepared during a turn, by steering or a `Skill`
-call, never takes the turn's slot: its rules and hooks join the turn's
-innermost scope, the agent invocation if any, until preparation settles. The
+request. Each command carries the skill's rules and hooks itself, innermost,
+for that call only; the `UserPromptExpansion` hook also receives the hooks.
+Between turns a temporary preparation request holds that slot with the
+caller's Plan limits, and is removed when preparation settles. A skill
+prepared during a turn, by steering or a `Skill` call, never takes the turn's
+slot and lends it nothing. The
 turn keeps its own rules, Plan limits and cancellation, can end meanwhile, and
 an abort stops the skill's commands with the turn. A slot that changed hands
 mid-turn once let a turn end against a stand-in and be put back afterwards,
@@ -925,7 +935,8 @@ Argument substitution runs before execution. Supported argument
 placeholders are `$ARGUMENTS` for the raw argument string,
 `$ARGUMENTS[N]` for a zero-based parsed argument, `$N` as shorthand for
 `$ARGUMENTS[N]`, and `$name` for names declared in frontmatter
-`arguments`.
+`arguments`. Placeholders inside substituted argument text stay literal, so an
+argument containing `$ARGUMENTS` is inserted as written.
 
 Claude-compatible literal substitutions are supported for imported skills:
 `${CLAUDE_SESSION_ID}`, `${CLAUDE_SKILL_DIR}`, and `${CLAUDE_EFFORT}`.
@@ -971,7 +982,9 @@ another injection's output remain literal text in the prepared body.
 The marker syntax and delimiters must be author-written, but the
 command/expression body may contain substituted arguments. For example,
 `` !el`(length "$ARGUMENTS")` `` is valid when the skill author controls
-the surrounding elisp expression. Substitution is textual, so skill
+the surrounding elisp expression. Markers inside an author's Markdown code
+fence stay literal, and only author-written fence lines open or close one, so
+arguments cannot unfence an example. Substitution is textual, so skill
 authors must quote or escape interpolated values correctly before using
 them inside shell scripts or elisp strings.
 

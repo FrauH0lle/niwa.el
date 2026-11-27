@@ -77,7 +77,8 @@
 (declare-function niwa-hooks-run-event
                   "niwa-hooks"
                   (event event-plist callback
-                         &optional session workspace request invocation))
+                         &optional session workspace request invocation
+                         scoped-rules))
 (declare-function niwa-hooks-sanitize-final-decision
                   "niwa-hooks" (event decision &optional scope))
 (autoload 'niwa-hooks-additional-context-string "niwa-hooks")
@@ -108,7 +109,7 @@
 ;; `niwa-skills-preparation'
 (declare-function niwa-skills-preparation-expand-body
                   "niwa-skills-preparation"
-                  (text callback &optional skill session live-p))
+                  (text callback &optional skill session live-p rules hooks))
 (declare-function niwa-skills-preparation-substitute
                   "niwa-skills-preparation"
                   (text arguments session skill))
@@ -335,11 +336,12 @@ DISPLAY-CALLBACK receives the lifecycle event when non-nil."
              `(:status error :reason ,reason :message ,message))))
 
 (defun niwa-skills--run-expansion-hook
-    (skill arguments prompt origin session callback)
+    (skill arguments prompt origin session callback &optional hooks)
   "Run `UserPromptExpansion' for a user SKILL expansion.
 ARGUMENTS is the raw user argument string.  SESSION supplies workspace
 context.  CALLBACK receives (PROMPT DECISION).  Non-user ORIGIN values
-skip the hook and call CALLBACK with PROMPT and nil."
+skip the hook and call CALLBACK with PROMPT and nil.  HOOKS, the skill's
+own hooks, join this run only."
   (if (not (eq origin 'user))
       (funcall callback prompt nil)
     (let* ((workspace (and session (niwa-session-workspace session)))
@@ -356,7 +358,7 @@ skip the hook and call CALLBACK with PROMPT and nil."
          (let* ((updated (plist-get decision :updated-input))
                 (prompt (if (stringp updated) updated prompt)))
            (funcall callback prompt decision)))
-       session workspace request nil))))
+       session workspace request nil hooks))))
 
 (defun niwa-skills--invoke-done (skill outcome callback display-callback)
   "Emit SKILL done event, then deliver OUTCOME to CALLBACK.
@@ -689,11 +691,10 @@ ROOTS is a list of plists containing :skill, :arguments, :role, and
                     (reject 'dependency-source
                             "Skill '%s' source is not readable: %s"
                             (niwa-skill-name skill) file))
-                  (let* ((body
-                          (progn
-                            (when (niwa-skill-source-file skill)
-                              (setf (niwa-skill-body skill) nil))
-                            (niwa-skill-load-body skill)))
+                  ;; Body and authority come from one read of the manifest.
+                  (let* ((current (niwa-skill-load-current skill))
+                         (skill (or current skill))
+                         (body (and current (niwa-skill-body current)))
                          (substituted
                           (and body
                                (condition-case err
@@ -788,11 +789,6 @@ ROOTS is a list of plists containing :skill, :arguments, :role, and
                   (setf (plist-get node :root) root))))))
         (list :status 'ok :roots roots :nodes (nreverse order))))))
 
-(defun niwa-skills--without-added (list added)
-  "Return LIST without the last occurrence of each element of ADDED."
-  (dolist (item added list)
-    (setq list (cl-remove item list :test #'eq :count 1 :from-end t))))
-
 (defmacro niwa-skills--in-buffer (buffer &rest body)
   "Run BODY in BUFFER while it is live, else in the current buffer."
   (declare (indent 1) (debug t))
@@ -801,49 +797,29 @@ ROOTS is a list of plists containing :skill, :arguments, :role, and
      (progn ,@body)))
 
 (defun niwa-skills--preparation-settler
-    (session rules hooks callback)
+    (session callback)
   "Scope preparation's commands and return its settlement closure.
 While a turn holds the buffer's request slot, preparation runs under that
 turn: the slot never changes hands, so the turn settles, aborts and reads
-as running as it would without a preparation.  RULES and HOOKS join its
-innermost scope, the agent invocation if any, until the closure runs.
-Otherwise a temporary preparation request holds the slot, keeping the
-caller's Plan limits.  The closure undoes either and calls CALLBACK with
-its outcome exactly once."
+as running as it would without a preparation.  Otherwise a temporary
+preparation request holds the slot, keeping the caller's Plan limits.
+The closure undoes that and calls CALLBACK with its outcome exactly once.
+The skill's rules and hooks are not lent to either: preparation passes
+them to its own commands only."
   (let ((origin-buffer (current-buffer))
         (turn (and (boundp 'niwa--current-request) niwa--current-request))
         (invocation niwa--agent-invocation)
         settled)
     (if turn
-        (cl-flet ((adjust (function)
-                    (if invocation
-                        (setf (niwa-agent-invocation-skill-permission-rules invocation)
-                              (funcall function
-                                       (niwa-agent-invocation-skill-permission-rules
-                                        invocation)
-                                       rules)
-                              (niwa-agent-invocation-hook-rules invocation)
-                              (funcall function
-                                       (niwa-agent-invocation-hook-rules invocation)
-                                       hooks))
-                      (setf (niwa-request-skill-permission-rules turn)
-                            (funcall function (niwa-request-skill-permission-rules turn)
-                                     rules)
-                            (niwa-request-hook-rules turn)
-                            (funcall function (niwa-request-hook-rules turn) hooks)))))
-          (adjust #'append)
-          (lambda (outcome)
-            (unless settled
-              (setq settled t)
-              (adjust #'niwa-skills--without-added)
-              (niwa-skills--in-buffer origin-buffer (funcall callback outcome)))))
+        (lambda (outcome)
+          (unless settled
+            (setq settled t)
+            (niwa-skills--in-buffer origin-buffer (funcall callback outcome))))
       (let ((invocation-local-p (local-variable-p 'niwa--agent-invocation))
             (request (niwa-request--create
                       :session session
                       :origin (niwa-current-origin)
                       :file-snapshots (make-hash-table :test #'equal)
-                      :skill-permission-rules rules
-                      :hook-rules hooks
                       :plan-read-only (and (niwa-plan-read-only-p session) t))))
         (setq-local niwa--current-request request)
         (setq-local niwa--agent-invocation nil)
@@ -950,9 +926,14 @@ sanitized `UserPromptExpansion' hook decision."
                         (and (eq turn niwa--current-request)
                              (not (niwa-request-cancelled-p turn))))))
          (finish (niwa-skills--preparation-settler
-                  session rules hooks callback)))
+                  session callback)))
     (cl-labels
         ((fail (reason message)
+           ;; A refused injection of an untrusted skill names the fix.
+           (when (and (eq reason 'permission-denied)
+                      (member niwa-skills-untrusted-warning
+                              (niwa-skill-warnings skill)))
+             (setq message (concat message " " niwa-skills-untrusted-warning)))
            (niwa-skills--display-event
             scope display-callback
             `(:event error :skill ,skill-name :reason ,reason :message ,message))
@@ -981,10 +962,11 @@ sanitized `UserPromptExpansion' hook decision."
               origin session
               (lambda (expanded decision)
                 (complete (plist-get injection-outcome :body)
-                          expanded decision)))
+                          expanded decision))
+              hooks)
            (fail (plist-get injection-outcome :reason)
                  (plist-get injection-outcome :message))))
-       skill session live-p))))
+       skill session live-p rules hooks))))
 
 (defun niwa-skills--node-reachable-p (candidate root)
   "Return non-nil when CANDIDATE is ROOT or one of its dependencies."

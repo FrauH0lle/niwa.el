@@ -22,7 +22,7 @@
 
 ;; `niwa-pipeline'
 (declare-function niwa-pipeline-run-tool
-                  "niwa-pipeline" (tool callback args))
+                  "niwa-pipeline" (tool callback args &optional metadata))
 (autoload 'niwa-pipeline-run-tool "niwa-pipeline")
 
 ;; `niwa-skills-core'
@@ -368,13 +368,14 @@ shadow `$0'/`$1' shorthand."
            (lambda ()
              (or (nth (string-to-number (match-string 1))
                       parsed-args)
-                 ""))))
+                 ""))
+           t))
     ;; 3. $N shorthand.
     (setq result (niwa-skills-preparation--substitute-shorthand result parsed-args))
     ;; 4. $ARGUMENTS (full).
     (setq result
           (niwa-skills-preparation--substitute-regexp
-           result "\\$ARGUMENTS" (lambda () full)))
+           result "\\$ARGUMENTS" (lambda () full) t))
     ;; Decide append-fallback BEFORE the niwa-specific ${...} subs
     ;; so they don't influence the "no placeholder substituted" check.
     (let ((args-substituted niwa-skills-preparation--substitution-made-p))
@@ -461,12 +462,14 @@ prompt, which only a tool result has stripped for it."
             (niwa-execution-target-error
              (error-message-string err)))))))))
 
-(defun niwa-skills-preparation--run-shell-command-async (command marker callback)
+(defun niwa-skills-preparation--run-shell-command-async
+    (command marker callback &optional rules hooks)
   "Run COMMAND through the Bash tool pipeline, then call CALLBACK.
 
 CALLBACK receives either \\=(:status ok :output STRING) or
 \\=(:status error :reason SYMBOL :message STRING).  MARKER is the
-original shell-injection marker used in diagnostics."
+original shell-injection marker used in diagnostics.  RULES are the
+skill's allow rules and HOOKS its hooks, for this call only."
   (let ((tool (niwa-tool-ensure "Bash")))
     (when tool
       (setq tool (copy-niwa-tool tool))
@@ -499,7 +502,8 @@ original shell-injection marker used in diagnostics."
                    :wait-for-completion-p t
                    :trust-literal-p
                    (niwa-skills-syntax--author-ranges-p
-                    command 0 (length command)))))
+                    command 0 (length command)))
+             (list :skill-permission-rules rules :skill-hook-rules hooks)))
         (error
          (funcall callback
                   `(:status error :reason shell-failure
@@ -507,12 +511,14 @@ original shell-injection marker used in diagnostics."
                                               marker
                                               (error-message-string err))))))))))
 
-(defun niwa-skills-preparation--run-elisp-expression-async (expression marker callback)
+(defun niwa-skills-preparation--run-elisp-expression-async
+    (expression marker callback &optional rules hooks)
   "Run EXPRESSION through the Eval tool pipeline, then call CALLBACK.
 
 CALLBACK receives either \\=(:status ok :output STRING) or
 \\=(:status error :reason SYMBOL :message STRING).  MARKER is the
-original elisp-injection marker used in diagnostics."
+original elisp-injection marker used in diagnostics.  RULES are the
+skill's allow rules and HOOKS its hooks, for this call only."
   (let ((tool (niwa-tool-ensure "Eval")))
     (when tool
       (setq tool (copy-niwa-tool tool))
@@ -542,7 +548,8 @@ original elisp-injection marker used in diagnostics."
                    :trust-literal-p
                    (niwa-skills-syntax--author-ranges-p
                     expression 0 (length expression))
-                   :result-format "injection")))
+                   :result-format "injection")
+             (list :skill-permission-rules rules :skill-hook-rules hooks)))
         (error
          (funcall callback
                   `(:status error :reason elisp-failure
@@ -649,7 +656,7 @@ The return value is a plist with :start, :end, :command, and
                       (plist-get b :start))))))))
 
 (defun niwa-skills-preparation-expand-body
-    (text callback &optional skill session live-p)
+    (text callback &optional skill session live-p rules hooks)
   "Replace skill body injection markers in TEXT, then call CALLBACK.
 
 CALLBACK receives either \\=(:status ok :body STRING) or
@@ -666,7 +673,9 @@ Each command/expression goes through its normal tool pipeline with
 oversized-result persistence stay aligned with normal tool
 execution.  SKILL and SESSION identify the invoking skill and target.
 LIVE-P, when non-nil, must still return non-nil before each command
-starts; preparation lent to a turn stops once that turn has ended."
+starts; preparation lent to a turn stops once that turn has ended.
+RULES, the skill's `allowed-tools' rules, and HOOKS, its hooks, apply to
+these commands only."
   (if-let* ((match (niwa-skills-preparation--injection-match text)))
       (let ((start (plist-get match :start))
             (end (plist-get match :end))
@@ -707,9 +716,10 @@ starts; preparation lent to a turn stops once that turn has ended."
                               (plist-get outcome :output))
                              suffix
                              (substring text end))
-                     callback skill session live-p))
+                     callback skill session live-p rules hooks))
                    (_
-                    (funcall callback outcome)))))))))
+                    (funcall callback outcome))))))
+           rules hooks)))
     (funcall callback `(:status ok :body ,(substring-no-properties text)))))
 
 

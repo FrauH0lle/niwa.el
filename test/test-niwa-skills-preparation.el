@@ -132,6 +132,16 @@
                    (niwa-skills-preparation-substitute
                     "indexed=$ARGUMENTS[2]" "foo bar baz" nil skill))))
 
+  :doc "$ARGUMENTS forms inside substituted argument text stay literal"
+  (let ((skill (niwa-skill--create :name "x" :argument-names '("topic"))))
+    (should (equal "A=see $ARGUMENTS all=x \"see $ARGUMENTS\" two"
+                   (niwa-skills-preparation-substitute
+                    "A=$1 all=$ARGUMENTS" "x \"see $ARGUMENTS\" two"
+                    nil skill)))
+    (should (equal "T=$ARGUMENTS[1]"
+                   (niwa-skills-preparation-substitute
+                    "T=$topic" "$ARGUMENTS[1] two" nil skill))))
+
   :doc "${CLAUDE_SESSION_ID} and ${CLAUDE_SKILL_DIR} substitute"
   (let* ((ws (niwa-workspace--create
               :type 'file :id "s" :root "/tmp/s" :name "s"
@@ -687,7 +697,7 @@ Return the outcome plist produced by the async helper."
          seen
          outcome)
     (cl-letf (((symbol-function 'niwa-pipeline-run-tool)
-               (lambda (_tool callback args)
+               (lambda (_tool callback args &rest _)
                  (setq seen args)
                  (funcall callback "ok"))))
       (setq outcome (niwa-skills-test--shell-injections-sync body)))
@@ -703,7 +713,7 @@ Return the outcome plist produced by the async helper."
          seen
          outcome)
     (cl-letf (((symbol-function 'niwa-pipeline-run-tool)
-               (lambda (_tool callback args)
+               (lambda (_tool callback args &rest _)
                  (setq seen args)
                  (funcall callback "ok"))))
       (setq outcome (niwa-skills-test--shell-injections-sync body)))
@@ -753,6 +763,26 @@ Return the outcome plist produced by the async helper."
       (should (eq 'ok (plist-get outcome :status)))
       (should (equal "value\n7"
                      (plist-get outcome :body)))))
+
+  :doc "an argument-opened fence does not unfence an authored example"
+  (let* ((skill (niwa-skill--create :name "x"))
+         (template "Topic: $ARGUMENTS\n```\nExample only: !`touch x`\n```\n")
+         ran
+         outcome)
+    ;; Control: the authored fence keeps the example inert.
+    (should-not (niwa-skills-preparation--injection-match
+                 (niwa-skills-preparation-substitute
+                  template "hello" nil skill)))
+    (cl-letf (((symbol-function 'niwa-pipeline-run-tool)
+               (lambda (_tool callback args &rest _)
+                 (push (plist-get args :command) ran)
+                 (funcall callback "ok"))))
+      (setq outcome (niwa-skills-test--shell-injections-sync
+                     (niwa-skills-preparation-substitute
+                      template "x\n```" nil skill))))
+    (should-not ran)
+    (should (eq 'ok (plist-get outcome :status)))
+    (should (string-search "!`touch x`" (plist-get outcome :body))))
   :doc "skipped inline elisp marker does not hide later author marker"
   (niwa-skills-test--with-eval-allowed
     (let* ((skill (niwa-skill--create :name "x"))

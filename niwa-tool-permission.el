@@ -469,6 +469,13 @@ outcomes) or FAIL (all denial shapes, plus `aborted')."
            :workspace workspace
            :request request
            :invocation invocation
+           ;; A preparing skill's rules reach only its own calls.
+           :invocation-rules
+           (when-let* ((scoped (plist-get context :skill-permission-rules)))
+             (append scoped
+                     (and invocation
+                          (niwa-agent-invocation-skill-permission-rules
+                           invocation))))
            :persistent-snapshot
            (plist-get context :persistent-permission-snapshot)
            :one-shot-mutations-p one-shot-mutations-p

@@ -1201,7 +1201,7 @@ cover, so the permission step's warning about it is captured here."
 			result)
 		   (cl-letf (((symbol-function 'niwa-hooks-run-event)
 			      (lambda (_event payload callback
-					      &optional _session _workspace req inv)
+					      &optional _session _workspace req inv &rest _)
 				(setq seen-request req
 				      seen-invocation inv
 				      seen-payload payload)

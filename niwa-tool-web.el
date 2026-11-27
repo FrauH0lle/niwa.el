@@ -32,7 +32,7 @@
 
 ;; `niwa-pipeline'
 (declare-function niwa-pipeline-run-tool
-                  "niwa-pipeline" (tool callback args))
+                  "niwa-pipeline" (tool callback args &optional metadata))
 (declare-function niwa-pipeline-tool-results-dir
                   "niwa-pipeline" (session buffer &optional request))
 

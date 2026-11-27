@@ -256,6 +256,8 @@
   :doc "skill allowed-tools [Eval] authorizes elisp body injection end to end"
   (niwa-tool-exec--register)
   (let* ((niwa-skills-include-bundled nil)
+         ;; The relative root is a project root; stand for trusted content.
+         (niwa-hooks-require-project-trust nil)
          (root (make-temp-file "niwa-skills-eval-" t))
          (ws (niwa-skills-test--make-workspace root))
          (session (niwa-session-create "main" ws))
@@ -278,6 +280,214 @@ allowed-tools:
                 (accept-process-output nil 0.01)))
             (should (eq 'ok (plist-get outcome :status)))
             (should (equal "result=6" (plist-get outcome :body)))))
+      (delete-directory root t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-skills--invoke-inline/project-allowed-tools-trust ()
+  ,test
+  (test)
+  :doc "a project skill's allowed-tools grant nothing until its bytes are trusted"
+  (niwa-tool-exec--register)
+  (let* ((niwa-skills-include-bundled nil)
+         (niwa-hooks-require-project-trust t)
+         (niwa-permission-mode 'ask)
+         (niwa-permission-rules nil)
+         (root (file-name-as-directory
+                (make-temp-file "niwa-skills-trust-" t)))
+         (user-dir (make-temp-file "niwa-skills-trust-user-" t))
+         (niwa-user-dir (file-name-as-directory user-dir))
+         (skills (file-name-concat root ".agents" "skills"))
+         (marker (file-name-concat root "deployed"))
+         (ws (niwa-skills-test--make-workspace root))
+         (session (niwa-session-create "main" ws))
+         notices)
+    (cl-labels
+        ((write (description &optional target)
+           (niwa-skills-test--write-skill
+            skills "setup"
+            (format "name: setup\ndescription: %s\nallowed-tools:\n  - Bash\n"
+                    description)
+            (format "ran=!`touch %s`" (or target marker))))
+         (invoke (&optional stale)
+           (let ((skill (or stale
+                            (car (niwa-skills-scan root '(".agents/skills") ws))))
+                 outcome)
+             (with-temp-buffer
+               (setq-local niwa--session session)
+               (niwa-skills-invoke
+                skill nil (lambda (o) (setq outcome o)) :origin 'model)
+               (while (null outcome)
+                 (accept-process-output nil 0.01)))
+             (list skill outcome)))
+         (refused-p (outcome)
+           ;; Preparation never prompts, so an unauthorized command is
+           ;; refused, and the refusal names the one fixing action.
+           (and (eq 'permission-denied (plist-get outcome :reason))
+                (string-match-p "niwa-hooks-trust-project"
+                                (plist-get outcome :message)))))
+      (unwind-protect
+          (cl-letf (((symbol-function 'display-warning)
+                     (lambda (_type message &rest _)
+                       (when (string-match-p "niwa-hooks-trust-project" message)
+                         (push message notices)))))
+            (write "first")
+            ;; Untrusted: the grant is ignored, so the command does not run.
+            (pcase-let ((`(,skill ,outcome) (invoke)))
+              (should-not (file-exists-p marker))
+              (should (refused-p outcome))
+              (should (cl-some (lambda (warning)
+                                 (string-match-p "niwa-hooks-trust-project"
+                                                 warning))
+                               (niwa-skill-warnings skill))))
+            ;; One notice per content version, however often it is scanned.
+            (niwa-skills-scan root '(".agents/skills") ws)
+            (should (equal 1 (length notices)))
+            ;; Trusted: the grant applies.
+            (niwa-test--with-captured-messages nil
+              (niwa-hooks-trust-project ws))
+            (pcase-let ((`(,skill ,outcome) (invoke)))
+              (should (eq 'ok (plist-get outcome :status)))
+              (should (file-exists-p marker))
+              (should-not (niwa-skill-warnings skill))
+              ;; Changed after discovery: the stale struct's grant does not
+              ;; reach the new body, which is read and checked at invocation.
+              (let ((changed (file-name-concat root "changed")))
+                (write "first-changed" changed)
+                (pcase-let ((`(,_ ,outcome) (invoke skill)))
+                  (should-not (file-exists-p changed))
+                  (should (refused-p outcome)))))
+            ;; Edited: the new content is untrusted again.
+            (delete-file marker)
+            (write "second")
+            (pcase-let ((`(,_skill ,outcome) (invoke)))
+              (should-not (file-exists-p marker))
+              (should (refused-p outcome)))
+            (should (equal 2 (length notices))))
+        (delete-directory root t)
+        (delete-directory user-dir t)
+        (niwa-workspace-clear-registry)))))
+
+(niwa-deftest niwa-skills--invoke-inline/turn-rules-scope ()
+  ,test
+  (test)
+  :doc "during a turn, a preparing skill's rules reach only its own commands"
+  (niwa-tool-exec--register)
+  (let* ((niwa-skills-include-bundled nil)
+         ;; The relative root is a project root; stand for trusted content.
+         (niwa-hooks-require-project-trust nil)
+         (niwa-permission-mode 'ask)
+         (niwa-permission-rules nil)
+         (root (file-name-as-directory
+                (make-temp-file "niwa-skills-turn-rules-" t)))
+         (marker (file-name-concat root "prepared"))
+         (ws (niwa-skills-test--make-workspace root))
+         (session (niwa-session-create "main" ws))
+         (turn (niwa-request--create :session session))
+         outcome)
+    (unwind-protect
+        (progn
+          (niwa-skills-test--write-skill
+           root "setup" "name: setup\nallowed-tools:\n  - Bash\n"
+           (format "ran=!`sleep 0.5 && touch %s`" marker))
+          (with-temp-buffer
+            (setq-local niwa--session session)
+            (setq-local niwa--current-request turn)
+            ;; Control: the turn alone does not allow the other command.
+            (should-not (eq 'allow (niwa-tool-permission-decide-now
+                                    "Bash" '(:command "rm -rf build"))))
+            (niwa-skills-invoke
+             (car (niwa-skills-scan root '(".")))
+             nil (lambda (o) (setq outcome o)) :origin 'model)
+            ;; Another call of the same turn while the skill prepares.
+            (should-not outcome)
+            (should-not (eq 'allow (niwa-tool-permission-decide-now
+                                    "Bash" '(:command "rm -rf build"))))
+            (should-not (niwa-request-skill-permission-rules turn))
+            (while (null outcome)
+              (accept-process-output nil 0.01))
+            ;; The skill's own command still ran under its rule.
+            (should (eq 'ok (plist-get outcome :status)))
+            (should (file-exists-p marker))))
+      (delete-directory root t)
+      (niwa-workspace-clear-registry))))
+
+(defvar niwa-skills-test--scope-hook-calls nil
+  "Tool inputs seen by `niwa-skills-test--scope-hook'.")
+
+(defun niwa-skills-test--scope-hook (event)
+  "Record EVENT's tool input for the hook-scope test."
+  (push (plist-get event :tool-input) niwa-skills-test--scope-hook-calls)
+  nil)
+
+(niwa-deftest niwa-skills--invoke-inline/turn-hooks-scope ()
+  ,test
+  (test)
+  :doc "during a turn, a preparing command skill's hooks see only its own commands"
+  (niwa-tool-exec--register)
+  (let* ((niwa-skills-include-bundled nil)
+         ;; The relative root is a project root; stand for trusted content.
+         (niwa-hooks-require-project-trust nil)
+         (niwa-permission-mode 'ask)
+         (niwa-permission-rules nil)
+         (niwa-skills-test--scope-hook-calls nil)
+         (root (file-name-as-directory
+                (make-temp-file "niwa-skills-turn-hooks-" t)))
+         (marker (file-name-concat root "prepared"))
+         (ws (niwa-skills-test--make-workspace root))
+         (session (niwa-session-create "main" ws))
+         (turn (niwa-request--create :session session))
+         outcome)
+    (unwind-protect
+        (progn
+          (niwa-skills-test--write-skill
+           root "setup"
+           "name: setup
+allowed-tools:
+  - Bash
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: elisp
+          function: niwa-skills-test--scope-hook
+"
+           (format "ran=!`sleep 0.5 && touch %s`" marker))
+          (with-temp-buffer
+            (setq-local niwa--session session)
+            (setq-local niwa--current-request turn)
+            (cl-flet ((other-call ()
+                        (let (decision)
+                          (niwa-hooks-run-event
+                           'PreToolUse
+                           (niwa-hooks-event-plist
+                            'PreToolUse session ws :tool-name "Bash"
+                            :tool-input '(:command "rm -rf build"))
+                           (lambda (d) (setq decision (or d 'none)))
+                           session ws turn nil)
+                          (while (null decision)
+                            (accept-process-output nil 0.01)))))
+              (niwa-skills-prepare
+               (car (niwa-skills-scan root '(".")))
+               "" (lambda (o) (setq outcome o))
+               :role 'command :origin 'user)
+              ;; Another call of the same turn while the skill prepares.
+              (should-not outcome)
+              (other-call)
+              (should-not (cl-find "rm -rf build"
+                                   niwa-skills-test--scope-hook-calls
+                                   :key (lambda (input)
+                                          (plist-get input :command))
+                                   :test #'equal))
+              (should-not (niwa-request-hook-rules turn))
+              (while (null outcome)
+                (accept-process-output nil 0.01))
+              ;; The skill's own command still met its hook.
+              (should (eq 'ok (plist-get outcome :status)))
+              (should (file-exists-p marker))
+              (should (cl-find-if (lambda (input)
+                                    (string-search
+                                     "touch" (or (plist-get input :command) "")))
+                                  niwa-skills-test--scope-hook-calls)))))
       (delete-directory root t)
       (niwa-workspace-clear-registry))))
 
@@ -372,20 +582,17 @@ allowed-tools:
   (test)
   :doc "between turns, holds the slot with a preparation request and settles once"
   (let* ((session (niwa-skills-test--make-session))
-         (rules '(("Read" :action allow)))
-         (hooks '((PreToolUse nil)))
          outcomes)
     (with-temp-buffer
       (let ((settle (niwa-skills--preparation-settler
-                     session rules hooks
+                     session
                      (lambda (outcome) (push outcome outcomes)))))
         (should (eq session
                     (niwa-request-session niwa--current-request)))
-        (should (equal rules
-                       (niwa-request-skill-permission-rules
-                        niwa--current-request)))
-        (should (equal hooks
-                       (niwa-request-hook-rules niwa--current-request)))
+        ;; The skill's rules and hooks go to its own commands, not to the request.
+        (should-not (niwa-request-skill-permission-rules
+                     niwa--current-request))
+        (should-not (niwa-request-hook-rules niwa--current-request))
         (funcall settle 'first)
         (should-not niwa--current-request)
         (funcall settle 'second)
@@ -396,31 +603,29 @@ allowed-tools:
         (admitted (niwa-request--create :id "admitted")))
     (with-temp-buffer
       (let ((settle (niwa-skills--preparation-settler
-                     session nil nil #'ignore)))
+                     session #'ignore)))
         (setq-local niwa--current-request admitted)
         (funcall settle 'done)
         (should (eq admitted niwa--current-request)))))
 
-  :doc "during a turn, lends the skill's rules to the turn's own request"
+  :doc "during a turn, keeps the turn's slot and lends it nothing"
   ;; Regression: preparation used to take the turn's slot, so a turn ending
   ;; meanwhile ended nothing and was put back afterwards, running forever,
   ;; and an ACP turn took the stand-in for a replacement and stopped.
   (let* ((session (niwa-skills-test--make-session))
          (earlier '("Bash" :action allow))
-         (rules (list earlier '("Read" :action allow)))
-         (hooks '((PreToolUse nil)))
          (turn (niwa-request--create :session session
                                         :skill-permission-rules (list earlier)))
          outcomes)
     (with-temp-buffer
       (setq-local niwa--current-request turn)
       (let ((settle (niwa-skills--preparation-settler
-                     session rules hooks
+                     session
                      (lambda (outcome) (push outcome outcomes)))))
         (should (eq turn niwa--current-request))
-        (should (equal (cons earlier rules)
+        (should (equal (list earlier)
                        (niwa-request-skill-permission-rules turn)))
-        (should (equal hooks (niwa-request-hook-rules turn)))
+        (should-not (niwa-request-hook-rules turn))
         ;; The turn ends while its skill prepares; nothing puts it back.
         (setq-local niwa--current-request nil)
         (funcall settle 'first)
@@ -430,9 +635,8 @@ allowed-tools:
         (should-not (niwa-request-hook-rules turn))
         (should (equal '(first) outcomes)))))
 
-  :doc "during an agent's turn, lends the rules to its invocation"
+  :doc "during an agent's turn, keeps its invocation and lends it nothing"
   (let* ((session (niwa-skills-test--make-session))
-         (rules '(("Read" :action allow)))
          (turn (niwa-request--create :session session))
          (invocation (niwa-agent-invocation--create
                       :path "/root/explore" :parent-session session)))
@@ -440,13 +644,13 @@ allowed-tools:
       (setq-local niwa--current-request turn)
       (setq-local niwa--agent-invocation invocation)
       (let ((settle (niwa-skills--preparation-settler
-                     session rules nil #'ignore)))
+                     session #'ignore)))
         (should (eq invocation niwa--agent-invocation))
-        (should (equal rules (niwa-agent-invocation-skill-permission-rules
-                              invocation)))
-        (should-not (niwa-request-skill-permission-rules turn))
+        (should-not (niwa-agent-invocation-hook-rules invocation))
+        (should-not (niwa-agent-invocation-skill-permission-rules invocation))
+        (should-not (niwa-request-hook-rules turn))
         (funcall settle 'done)
-        (should-not (niwa-agent-invocation-skill-permission-rules invocation)))))
+        (should (eq invocation niwa--agent-invocation)))))
 
   :doc "keeps the caller's Plan read-only authority for preparation commands"
   (let ((session (niwa-skills-test--make-session)))
@@ -457,7 +661,7 @@ allowed-tools:
                    :path "/root/explore" :parent-session session
                    :plan-read-only t))
       (let ((settle (niwa-skills--preparation-settler
-                     session nil nil #'ignore)))
+                     session #'ignore)))
         (should-not niwa--agent-invocation)
         (should (niwa-request-plan-read-only niwa--current-request))
         (should (niwa-plan-read-only-p session))
@@ -467,12 +671,12 @@ allowed-tools:
     (with-temp-buffer
       (setq-local niwa--session session)
       (setf (niwa-session-plan-mode session) t)
-      (niwa-skills--preparation-settler session nil nil #'ignore)
+      (niwa-skills--preparation-settler session #'ignore)
       (should (niwa-request-plan-read-only niwa--current-request)))
     (with-temp-buffer
       (setq-local niwa--session session)
       (setf (niwa-session-plan-mode session) nil)
-      (niwa-skills--preparation-settler session nil nil #'ignore)
+      (niwa-skills--preparation-settler session #'ignore)
       (should-not (niwa-request-plan-read-only
                    niwa--current-request)))))
 
@@ -550,10 +754,11 @@ allowed-tools:
     (with-temp-buffer
       (setq-local niwa--session session)
       (cl-letf (((symbol-function 'niwa-skills-preparation-expand-body)
-                 (lambda (body callback &rest _)
-                   (setq injection-rules
-                         (niwa-request-skill-permission-rules
-                          niwa--current-request))
+                 (lambda (body callback _skill _session _live-p rules &rest _)
+                   ;; The rules reach the injections, not the request.
+                   (should-not (niwa-request-skill-permission-rules
+                                niwa--current-request))
+                   (setq injection-rules rules)
                    (funcall callback (list :status 'ok :body body))))
                 ((symbol-function 'niwa-hooks-run-event)
                  (lambda (_event _event-plist callback &rest _)
@@ -593,7 +798,7 @@ allowed-tools:
       (setq-local niwa--session session)
       (setq-local niwa--current-request turn)
       (cl-letf (((symbol-function 'niwa-skills-preparation-expand-body)
-                 (lambda (_body _callback _skill _session live)
+                 (lambda (_body _callback _skill _session live &rest _)
                    (setq live-p live))))
         (niwa-skills-prepare skill "" #'ignore :role 'instruction :origin 'user))
       (should (funcall live-p))
@@ -746,7 +951,7 @@ hooks:
                                               (with-temp-buffer
                                                 (setq-local niwa--session session)
                                                 (cl-letf (((symbol-function 'niwa-pipeline-run-tool)
-                                                           (lambda (tool callback args)
+                                                           (lambda (tool callback args &rest _)
                                                              (push (list (niwa-tool-name tool)
                                                                          (plist-get args :command))
                                                                    calls)
@@ -828,7 +1033,7 @@ hooks:
                                                     (setq-local default-directory remote-root)
                                                     (setq-local niwa--session session)
                                                     (cl-letf (((symbol-function 'niwa-pipeline-run-tool)
-                                                               (lambda (tool callback args)
+                                                               (lambda (tool callback args &rest _)
                                                                  (push (list (niwa-tool-name tool)
                                                                              (plist-get args :command))
                                                                        calls)
@@ -933,7 +1138,7 @@ hooks:
                                                 (setq-local niwa--session session)
                                                 (cl-letf (((symbol-function
                                                             'niwa-skills-preparation--run-elisp-expression-async)
-                                                           (lambda (form _marker callback)
+                                                           (lambda (form _marker callback &rest _)
                                                              (setq expression form)
                                                              (funcall callback '(:status ok :output "3"))))
                                                           ((symbol-function 'niwa-pipeline-run-tool)
@@ -952,6 +1157,8 @@ hooks:
   (test)
   :doc "preflights, deduplicates, and prepares dependency-first with isolated rules"
   (let* ((niwa-skills-check-for-modifications nil)
+         ;; The project root stands for trusted content.
+         (niwa-hooks-require-project-trust nil)
          (root (make-temp-file "niwa-skill-graph-" t))
          (dir (file-name-concat root ".niwa" "skills"))
          (workspace (niwa-skills-test--make-workspace root))
@@ -963,13 +1170,16 @@ hooks:
     (unwind-protect
         (progn
           (niwa-skills-test--write-skill
-           dir "child" "name: child\ndescription: Child\n"
+           dir "child"
+           "name: child\ndescription: Child\nallowed-tools:\n  - Read\n"
            "Child($ARGUMENTS)")
           (niwa-skills-test--write-skill
-           dir "first" "name: first\ndescription: First\n"
+           dir "first"
+           "name: first\ndescription: First\nallowed-tools:\n  - Grep\n"
            "First $0\n!$child -- $0")
           (niwa-skills-test--write-skill
-           dir "second" "name: second\ndescription: Second\n"
+           dir "second"
+           "name: second\ndescription: Second\nallowed-tools:\n  - Glob\n"
            "Second\n!$child -- VALUE")
           (setq session (niwa-session-create "graph" workspace root))
           (niwa-session-set-root-buffer session root-buffer)
@@ -978,9 +1188,7 @@ hooks:
           (let ((child (niwa-session-get-skill session "child"))
                 (first (niwa-session-get-skill session "first"))
                 (second (niwa-session-get-skill session "second")))
-            (setf (niwa-skill-allowed-tool-rules child) '(("Read" :action allow))
-                  (niwa-skill-allowed-tool-rules first) '(("Grep" :action allow))
-                  (niwa-skill-allowed-tool-rules second) '(("Glob" :action allow)))
+            (ignore child)
             (with-temp-buffer
               (setq-local niwa--session session)
               (setq-local niwa--agent-invocation
@@ -992,18 +1200,20 @@ hooks:
                            (setq refresh-buffer buffer)))
                         ((symbol-function
                           'niwa-skills-preparation-expand-body)
-                         (lambda (body callback skill &rest _)
+                         (lambda (body callback skill _session _live-p rules &rest _)
+                           ;; Each node's rules reach only its injections.
+                           (should-not (niwa-request-skill-permission-rules
+                                        niwa--current-request))
                            (setq expanded
                                  (append
                                   expanded
                                   (list
                                    (list (niwa-skill-name skill) body
-                                         (niwa-request-skill-permission-rules
-                                          niwa--current-request)
+                                         rules
                                          niwa--agent-invocation))))
                            (funcall callback (list :status 'ok :body body))))
                         ((symbol-function 'niwa-skills--run-expansion-hook)
-                         (lambda (skill _arguments prompt _origin _session callback)
+                         (lambda (skill _arguments prompt _origin _session callback &rest _)
                            (funcall callback prompt
                                     (list :additional-context
                                           (list
@@ -2451,7 +2661,7 @@ description: Yell
                (lambda (body callback &rest _)
                  (funcall callback (list :status 'ok :body body))))
               ((symbol-function 'niwa-skills--run-expansion-hook)
-               (lambda (_skill _arguments prompt _origin _session callback)
+               (lambda (_skill _arguments prompt _origin _session callback &rest _)
                  (funcall callback prompt nil))))
       (niwa-skills--prepare-single
        node 'user (lambda (value) (setq outcome value))))

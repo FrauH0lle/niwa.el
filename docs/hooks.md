@@ -565,8 +565,9 @@ commands run on the target and must not run unless the workspace hook config
 is trusted. By default:
 
 - user defcustom and user `.agents/hooks.*` / `.niwa/hooks.*` files are trusted.
-- project `.agents/hooks.*`, `.niwa/hooks.*`, and `SKILL.md` hook declarations
-  are ignored until the user trusts them for that workspace.
+- project `.agents/hooks.*`, `.niwa/hooks.*`, and `SKILL.md` hook and
+  `allowed-tools` declarations are ignored until the user trusts them for that
+  workspace.
 - trust state lives under user state. Each record holds a workspace id, a
   project hook file's path and hash, and the hash of each project script
   that file's commands name. A script hash counts only for the record that
