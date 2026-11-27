@@ -243,6 +243,13 @@ unsaved readers use the execution module's temporary spool instead."
              (list (file-name-as-directory
                     (expand-file-name temporary-root)))))))
 
+(defconst niwa-tool-exec--unset-cdpath
+  (concat "builtin unset CDPATH 2>/dev/null || { builtin printf '%s\\n' "
+          "'niwa: CDPATH is readonly in this shell, so cd targets cannot be "
+          "checked; the command did not run' >&2; builtin exit 126; }; ")
+  "Script prefix that unsets CDPATH, or stops when a profile made it readonly.
+Ask's resource check resolves `cd NAME' as ./NAME.")
+
 (defconst niwa-tool-exec--sandbox-recovery-guidance
   (concat
    "This command ran with network/path confinement. If confinement caused "
@@ -799,19 +806,26 @@ CALLBACK receives the envelope.  ARGS has :command; KIND may be `monitor'."
            (temporary-root (niwa-tool-exec--sandbox-temporary-root workdir))
            (pipeline-marker (make-temp-name "pipeline_"))
            (launch-command
-            (if read-only-p
-                ;; -p suppresses startup files and inherited shell functions
-                ;; and shell-option variables.  It grants no OS authority.
-                (list "bash" "--noprofile" "--norc" "-p" "-c"
-                      (niwa-tool-exec--pipeline-source
-                       (niwa-bash-analysis-prepare-read-only
-                        command analysis
-                        (niwa-execution-target-native-path
-                         (and session (niwa-session-execution-target session))
-                         temporary-root))
-                       pipeline-marker command))
-              (list "bash" "-lc"
-                    (niwa-tool-exec--pipeline-source command pipeline-marker))))
+            ;; Inside the script, so it holds on every launch path and after
+            ;; a login profile: `cd NAME' then means ./NAME, as policy assumes.
+            (let ((unset-cdpath niwa-tool-exec--unset-cdpath))
+              (if read-only-p
+                  ;; -p suppresses startup files and inherited shell functions
+                  ;; and shell-option variables.  It grants no OS authority.
+                  (list "bash" "--noprofile" "--norc" "-p" "-c"
+                        (concat
+                         unset-cdpath
+                         (niwa-tool-exec--pipeline-source
+                          (niwa-bash-analysis-prepare-read-only
+                           command analysis
+                           (niwa-execution-target-native-path
+                            (and session (niwa-session-execution-target session))
+                            temporary-root))
+                          pipeline-marker command)))
+                (list "bash" "-lc"
+                      (concat unset-cdpath
+                              (niwa-tool-exec--pipeline-source
+                               command pipeline-marker command))))))
            (permission-context
             (niwa-tool-exec-permission-current-context "Bash" args session))
            (sandbox-request

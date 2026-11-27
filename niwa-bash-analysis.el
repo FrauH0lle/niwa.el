@@ -149,7 +149,8 @@ quoted separator characters.  It does not evaluate expansions."
            (string-prefix-p "/" word)
            (string-prefix-p "./" word)
            (string-prefix-p "../" word)
-           (string-prefix-p "~/" word)
+           ;; Bare `~' and `~USER' name home directories too.
+           (string-prefix-p "~" word)
            (string-match-p "/" word))))
 
 (defun niwa-bash-analysis--source-resources (source)

@@ -55,7 +55,7 @@
 (declare-function niwa-bash-policy-explicit-deny-p
                   "niwa-bash-policy"
                   (buckets command &optional analysis))
-(declare-function niwa-bash-policy-missing-resource-paths
+(declare-function niwa-bash-policy-resource-authority
                   "niwa-bash-policy"
                   (command permission-context request))
 (declare-function niwa-bash-policy-profile-segments
@@ -1373,7 +1373,9 @@ or delegated reviewer approved the operation.
 Return decision metadata.  An `ask' names what still stands in the way in
 `:needs': `operation', `escalation', `capabilities' with the
 additive `:state', or `resources' with the command `:paths' lacking
-authority.  Every result carries the `:operation' decision it rests on.
+authority.  Bash operands whose location cannot be resolved need the
+operation approved by the user.  Every result carries the `:operation'
+decision it rests on.
 Admission and queued rechecks share this one ordering."
   (let* ((bash-p (equal tool-name "Bash"))
          (requested (plist-get request :additional-permissions))
@@ -1426,13 +1428,17 @@ Admission and queued rechecks share this one ordering."
                      (niwa-tool-exec-permission--additional-authority-state
                       tool-name request context)))
                (missing (plist-get state :missing))
-               (paths (and bash-p
-                           (niwa-bash-policy-missing-resource-paths
-                            detail context request))))
+               (authority (and bash-p
+                               (niwa-bash-policy-resource-authority
+                                detail context request)))
+               (paths (car authority)))
           (cond
            ((plist-get state :deny-via)
             (decide 'deny (plist-get state :deny-via)))
            (paths (decide 'ask 'workspace-boundary :needs 'resources :paths paths))
+           ((and (cdr authority) (not (plist-get settled :operation)))
+            (decide 'ask 'workspace-boundary :needs 'operation
+                    :unresolved (cdr authority)))
            ((and missing (not (car (plist-get request :approval-cell))))
             (decide 'ask (if (plist-get missing :network)
                              'sandbox-network

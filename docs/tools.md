@@ -1247,7 +1247,12 @@ prompt adaptation live in `niwa-tool-exec-permission.el`.
 Bash source normally runs through `bash -lc`, so login-shell initialization
 contributes to the requested command's output. Analyzer-proven read-only calls
 instead use `bash --noprofile --norc -p -c` to avoid startup-file and environment
-side effects. Managed Bash has no automatic timeout; use
+side effects. Both forms begin the script by unsetting `CDPATH`, after any
+login initialization and on every launch path (confined or direct, local or
+remote), so a `cd NAME` always means the current directory's `NAME`, as the
+[Ask resource check](permissions.md) assumes. If a login profile made `CDPATH`
+readonly, the script prints why and exits with status 126 without running the
+command. Managed Bash has no automatic timeout; use
 the native `timeout` command when the command itself needs a deadline. On Unix,
 Emacs places each child in a dedicated process group, and niwa sends TERM
 followed by KILL to the whole group. Local descendants that moved into a group

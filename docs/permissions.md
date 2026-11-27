@@ -687,6 +687,9 @@ run, preset, model, effort, permission mode, overlap rule, expiry and prompt.
 A permission mode above the creating session's current mode, or for a change
 above the schedule's stored mode, is flagged as an escalation. The approved
 mode is not capped by the creating session's mode.
+The stored schedules under `.niwa/schedules/` are a read-only protected path,
+so an agent cannot raise a schedule's mode by editing its file; niwa's own
+schedule store writes do not pass through tools or the sandbox.
 
 Only the head is visible in the view interaction zone. The permission UI
 registers that head with `niwa-view-interaction.el`, which owns ordering,
@@ -1285,7 +1288,16 @@ needed. The hint grants nothing, changes no matching, and never prompts or retri
 In Ask, before Bash executes, identified literal resources are resolved against
 the working directory. Resources outside the allowed roots require a covering
 additive grant — exact, or recursive over an ancestor directory; bare `.` and
-`..` operands participate in this check. Command
+`..` operands participate in this check. So do words starting with `~`, plain
+literal operands that name a symlink, and the home directory of a bare `cd`.
+Each operand resolves against every directory the command may be in at its
+position, after earlier literal `cd`s. A bare `cd` or `cd -` is not read-only.
+The Bash tool's shell unsets `CDPATH` before the command runs, so `cd NAME`
+resolves against the current directory. A non-literal `cd` destination is
+unresolved, and so is any operand of a command that reaches more than eight
+directories or needs more than 256 symlink probes. An unresolved operand asks
+for the command through the ordinary Bash prompt, even under an allow rule;
+approving it runs that invocation. Command
 authorization is resolved first so an explicit command deny retains precedence.
 Provider-shaped empty optional fields, such as disabled network plus empty
 filesystem lists, are treated as omitted rather than as an authority request.

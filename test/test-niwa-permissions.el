@@ -368,6 +368,19 @@
                   :tool-struct mock-tool
                   :mode 'ask)
                 'ask)))
+  :doc "Edits asks before rewriting a stored workspace schedule"
+  (let ((niwa-permission-rules nil)
+        (niwa-protected-paths
+         (eval (car (get 'niwa-protected-paths 'standard-value)) t))
+        (tool (niwa-tool--create
+               :name "ApplyPatch" :groups '(edit reviewed-edit))))
+    (dolist (case '(("/project/.niwa/schedules/s-000001/schedule.eld" ask)
+                    ;; Control: an ordinary workspace file stays automatic.
+                    ("/project/.niwa/notes.md" allow)))
+      (should (eq (niwa-check-permission
+                   "ApplyPatch" :tool-struct tool :path (car case)
+                   :mode 'edits :workspace-root "/project")
+                  (cadr case)))))
   :doc "reviewed edits use review inside roots and retain outside path rules"
   (let ((niwa-protected-paths nil)
         (tool (niwa-tool--create

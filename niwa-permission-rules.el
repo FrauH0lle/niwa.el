@@ -118,6 +118,8 @@ Example:
     ;; The artifact store's bookkeeping changes through niwa only, so an
     ;; edit cannot bypass item leases, versions and validation.
     ("**/.niwa/artifacts/.state/**" . read-only)
+    ;; A stored schedule selects its runs' permission mode.
+    ("**/.niwa/schedules/**" . read-only)
     ("**/.niwa/leases/**" . read-only)
     ;; Existing stores that grant authority: an agent edit must not raise
     ;; its own.  User stores derive from `niwa-user-dir' when niwa loads.

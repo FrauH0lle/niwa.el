@@ -911,6 +911,54 @@ A synchronous result must come with exactly one matching acknowledgement."
       (should (zerop (apply #'process-file (car (plist-get captured :command))
                            nil t nil (cdr (plist-get captured :command)))))
       (should (string-prefix-p "text & more\n$(sleep 1 &)\n" (buffer-string)))))
+  :doc "the launched shell ignores a CDPATH from the user's environment"
+  (let* ((root (file-name-as-directory (make-temp-file "niwa-cdpath-" t)))
+         (work (file-name-concat root "work"))
+         (alt (file-name-concat root "alt"))
+         (process-environment (cons (concat "CDPATH=" alt) process-environment)))
+    (unwind-protect
+        (progn
+          (make-directory (file-name-concat work "sub") t)
+          (make-directory (file-name-concat alt "sub") t)
+          ;; Read-only (`bash -p') and ordinary (`bash -lc') launches.
+          (dolist (source '("cd sub && pwd" "cd sub && echo \"$PWD\""))
+            (let (captured)
+              (cl-letf (((symbol-function 'niwa-execution-start-bash)
+                         (lambda (&rest args) (setq captured (cdr args)))))
+                (niwa-tool-exec-test--call-bash #'ignore (list :command source)))
+              (with-temp-buffer
+                (let ((default-directory (file-name-as-directory work)))
+                  (should (zerop (apply #'process-file
+                                        (car (plist-get captured :command))
+                                        nil t nil
+                                        (cdr (plist-get captured :command))))))
+                (should (string-prefix-p
+                         (concat (file-truename (file-name-concat work "sub")) "\n")
+                         (buffer-string)))))))
+      (delete-directory root t)))
+  :doc "a readonly CDPATH from a login profile stops the ordinary launch"
+  (let* ((root (file-name-as-directory (make-temp-file "niwa-cdpath-ro-" t)))
+         (marker (file-name-concat root "ran"))
+         (process-environment (cons (concat "HOME=" root) process-environment))
+         captured)
+    (unwind-protect
+        (progn
+          (write-region "readonly CDPATH=/nonexistent\n" nil
+                        (file-name-concat root ".bash_profile") nil 'silent)
+          (cl-letf (((symbol-function 'niwa-execution-start-bash)
+                     (lambda (&rest args) (setq captured (cdr args)))))
+            (niwa-tool-exec-test--call-bash
+             #'ignore (list :command (format "touch %s" marker))))
+          (should (equal '("bash" "-lc") (butlast (plist-get captured :command))))
+          (with-temp-buffer
+            (let ((default-directory root))
+              (should (= 126 (apply #'process-file
+                                    (car (plist-get captured :command))
+                                    nil t nil
+                                    (cdr (plist-get captured :command))))))
+            (should (string-match-p "CDPATH is readonly" (buffer-string))))
+          (should-not (file-exists-p marker)))
+      (delete-directory root t)))
   :doc "still rejects executable backgrounding within expanding heredocs"
   (should-error
    (niwa-tool-exec-test--call-bash
@@ -973,7 +1021,8 @@ A synchronous result must come with exactly one matching acknowledgement."
       (should captured)
       (should-not (plist-get captured :read-only-p))
       (should (equal '("bash" "-lc") (butlast (plist-get captured :command))))
-      (should (string-prefix-p source (car (last (plist-get captured :command)))))
+      (should (string-prefix-p (concat niwa-tool-exec--unset-cdpath source)
+                               (car (last (plist-get captured :command)))))
       (with-temp-buffer
         (should (zerop (apply #'process-file (car (plist-get captured :command))
                              nil t nil (cdr (plist-get captured :command))))))

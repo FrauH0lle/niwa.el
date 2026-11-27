@@ -145,6 +145,36 @@
             (should (equal (list (file-name-concat child "marker"))
                            (plist-get decision :paths)))))
       (delete-directory child t)
+      (delete-directory root t)))
+  :doc "Ask runs `cd NAME' under an allow rule and asks for unresolved operands"
+  (let* ((root (file-name-as-directory (make-temp-file "niwa-exec-cd-" t)))
+         (session (niwa-session--create :working-directory root))
+         (niwa-permission-rules nil)
+         (context
+          (plist-put
+           (niwa-permission--invocation-context
+            :tool-name "Bash" :session session :mode 'ask :allowed-roots (list root)
+            :session-rules '(("Bash" :pattern "make*" :action allow)))
+           :execution-directory root)))
+    (unwind-protect
+        (progn
+          (make-directory (file-name-concat root "sub"))
+          (should
+           (eq 'allow
+               (plist-get (niwa-tool-exec-permission--decide
+                           "Bash" "cd sub && make" '(:level use-default) context)
+                          :outcome)))
+          ;; Over the resolution bound: the normal prompt, then allowed.
+          (let* ((command "cd a; cd b; cd c; cd d; make")
+                 (decision (niwa-tool-exec-permission--decide
+                            "Bash" command '(:level use-default) context)))
+            (should (eq 'ask (plist-get decision :outcome)))
+            (should (eq 'operation (plist-get decision :needs)))
+            (should (eq 'allow
+                        (plist-get (niwa-tool-exec-permission--decide
+                                    "Bash" command '(:level use-default) context
+                                    '(:operation t))
+                                   :outcome)))))
       (delete-directory root t))))
 
 (niwa-deftest niwa-tool-exec-permission-current-context/registered-bash

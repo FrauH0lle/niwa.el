@@ -107,7 +107,7 @@
 ;;; Policies
 
 (defconst niwa-bash-policy--simple-read-only-commands
-  '("cat" "cd" "cut" "echo" "expr" "false" "grep" "head" "id" "ls"
+  '("cat" "cut" "echo" "expr" "false" "grep" "head" "id" "ls"
     "nl" "paste" "pwd" "rev" "seq" "stat" "tail" "tr" "true" "uname"
     "wc" "which" "whoami")
   "Commands whose argument handling does not introduce child effects.")
@@ -335,6 +335,10 @@ recursively, even when the original shell word is quoted."
          (not (string-match-p "/" command))
          (cond
           ((member command niwa-bash-policy--simple-read-only-commands) t)
+          ;; A bare `cd' goes home and `cd -' to $OLDPWD; neither is literal.
+          ((string-equal command "cd")
+           (and (= (length argv) 2)
+                (not (string-prefix-p "-" (cadr argv)))))
           ((string-equal command "git")
            (niwa-bash-git-read-only-p argv))
           ((member command '("diff" "cmp" "readlink" "realpath" "du"))
@@ -370,41 +374,112 @@ recursively, even when the original shell word is quoted."
              (error "Permission context has no execution directory"))))
     default-directory))
 
-(defun niwa-bash-policy--bash-resource-paths
+(defconst niwa-bash-policy--resource-directory-limit 8
+  "Most directories a command's `cd's may reach before resolution gives up.")
+
+(defconst niwa-bash-policy--resource-probe-limit 256
+  "Most symlink probes one command's resource resolution may make.")
+
+(defun niwa-bash-policy--bash-resources
     (command &optional analysis permission-context)
-  "Return canonical literal resource paths identified in COMMAND.
-Dynamic expansions remain complex and are not evaluated.  Reuse ANALYSIS when
-the caller already analyzed COMMAND.  PERMISSION-CONTEXT supplies the target."
-  (let ((resources
-         (plist-get (or analysis (niwa-bash-analysis-analyze command))
-                    :resources)))
-    (when resources
+  "Return (PATHS . UNRESOLVED) for the literal resources of COMMAND.
+PATHS are canonical.  Each operand resolves against every directory the
+command may be in at its position, after earlier literal `cd's; plain
+operands count when they name a symlink.  UNRESOLVED describes operands
+whose location cannot be determined.  Dynamic expansions remain complex and
+are not evaluated.  Reuse ANALYSIS when the caller already analyzed COMMAND.
+PERMISSION-CONTEXT supplies the target."
+  (let* ((analysis (or analysis (niwa-bash-analysis-analyze command)))
+         (resources (plist-get analysis :resources))
+         (commands (plist-get analysis :commands))
+         (literal-p (lambda (word)
+                      (not (string-match-p "[$*?`{}]\\|\\[\\|\\]" word)))))
+    ;; Literal resources need a directory; plain operands are probed only
+    ;; when the context names one.
+    (when-let* ((base (if resources
+                          (niwa-bash-policy--context-directory permission-context)
+                        (and commands
+                             (ignore-errors
+                               (niwa-bash-policy--context-directory
+                                permission-context))))))
       (let* ((session (plist-get permission-context :session))
-             (base (niwa-bash-policy--context-directory permission-context))
              (target (or (and session
                               (niwa-session-execution-target session))
                          (and (file-remote-p base)
-                              (niwa-execution-target-create base)))))
-        (mapcar
-         (lambda (path)
-           (let ((remote-file-name-inhibit-cache t))
-             (file-truename
-              (if target
-                  (niwa-execution-target-expand-path target path base)
-                (expand-file-name path base)))))
-         resources)))))
+                              (niwa-execution-target-create base))))
+             (remote-file-name-inhibit-cache t)
+             (place (lambda (path dir)
+                      (if target
+                          (niwa-execution-target-expand-path target path dir)
+                        (expand-file-name path dir))))
+             (dirs (list base))
+             (probes 0)
+             seen paths unresolved)
+        (cl-flet ((resolve (word)
+                    (dolist (dir dirs)
+                      (push (file-truename (funcall place word dir)) paths)))
+                  (probe (word dir)
+                    ;; The budget bounds actual probes, so check it first.
+                    (when (>= probes niwa-bash-policy--resource-probe-limit)
+                      (throw 'niwa-bash-policy--exhausted t))
+                    (cl-incf probes)
+                    (file-symlink-p (funcall place word dir))))
+          ;; shortcut: one symlink probe per plain operand and directory, a
+          ;; round trip each over TRAMP; batch them if remote checks get slow.
+          (when (catch 'niwa-bash-policy--exhausted
+                  (dolist (argv commands)
+                    (dolist (word (cdr argv))
+                      (cond
+                       ((member word resources) (push word seen) (resolve word))
+                       ((and (not (string-prefix-p "-" word)) (funcall literal-p word)
+                             (cl-some (lambda (dir) (probe word dir)) dirs))
+                        (resolve word))))
+                    ;; The Bash tool unsets CDPATH at launch, so `cd NAME' is ./NAME.
+                    (when (equal (car argv) "cd")
+                      (let ((to (car (last (cdr argv)))))
+                        (cond
+                         ((null to) (resolve "~"))
+                         ((not (funcall literal-p to))
+                          (push (format "cd %s (unresolved destination)" to) unresolved)))
+                        ;; Keep the directories before a `cd' too, since it may fail.
+                        (setq dirs
+                              (delete-dups
+                               (append dirs
+                                       (mapcar (lambda (dir)
+                                                 (file-name-as-directory
+                                                  (file-truename
+                                                   (funcall place (or to "~") dir))))
+                                               dirs))))))
+                    (when (> (length dirs) niwa-bash-policy--resource-directory-limit)
+                      (throw 'niwa-bash-policy--exhausted t)))
+                  nil)
+            (push "command (too many directories or operands to resolve)"
+                  unresolved))
+          ;; Resources outside parsed commands may run in any reached directory.
+          (dolist (word resources)
+            (unless (member word seen) (resolve word))))
+        (cons (delete-dups (nreverse paths)) (nreverse unresolved))))))
 
-(defun niwa-bash-policy-missing-resource-paths
+(defun niwa-bash-policy--bash-resource-paths
+    (command &optional analysis permission-context)
+  "Return canonical literal resource paths identified in COMMAND.
+See `niwa-bash-policy--bash-resources' for ANALYSIS and PERMISSION-CONTEXT."
+  (car (niwa-bash-policy--bash-resources command analysis permission-context)))
+
+(defun niwa-bash-policy-resource-authority
     (command permission-context request)
-  "Return COMMAND resources lacking authority under PERMISSION-CONTEXT.
-REQUEST may supply exact additive filesystem grants for this invocation."
-  (let ((resources
-         (and (not (memq (niwa-bash-policy-effective-permission-mode
-                          permission-context)
-                         '(edits full-auto)))
-         (niwa-bash-policy--bash-resource-paths
-          command nil permission-context))))
-    (when resources
+  "Return (MISSING . UNRESOLVED) for COMMAND under PERMISSION-CONTEXT.
+MISSING lists resources lacking authority; REQUEST may supply exact additive
+filesystem grants for this invocation.  UNRESOLVED describes operands whose
+location cannot be determined, which only the user can approve."
+  (pcase-let ((`(,resources . ,unresolved)
+               (and (not (memq (niwa-bash-policy-effective-permission-mode
+                                permission-context)
+                               '(edits full-auto)))
+                    (niwa-bash-policy--bash-resources
+                     command nil permission-context))))
+    (cons
+     (when resources
       (let* ((session (plist-get permission-context :session))
              (base (niwa-bash-policy--context-directory permission-context))
              (target (or (and session
@@ -435,7 +510,14 @@ REQUEST may supply exact additive filesystem grants for this invocation."
                       (niwa-execution-target-native-path target path)
                     path)
                   missing)))
-        (delete-dups (nreverse missing))))))
+        (delete-dups (nreverse missing))))
+     unresolved)))
+
+(defun niwa-bash-policy-missing-resource-paths
+    (command permission-context request)
+  "Return COMMAND resources lacking authority under PERMISSION-CONTEXT.
+REQUEST may supply exact additive filesystem grants for this invocation."
+  (car (niwa-bash-policy-resource-authority command permission-context request)))
 
 
 ;;

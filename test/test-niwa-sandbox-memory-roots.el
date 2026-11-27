@@ -41,6 +41,7 @@
                           "set -e; cd ..; "
                           "if touch .niwa/artifacts/.state/forged 2>/dev/null; then exit 1; fi; "
                           "if touch .niwa/leases/forged 2>/dev/null; then exit 2; fi; "
+                          "if mkdir .niwa/schedules/forged 2>/dev/null; then exit 5; fi; "
                           "if touch \"$1/.niwa/artifacts/.state/forged\" 2>/dev/null; then exit 3; fi; "
                           "if touch \"$1/.niwa/leases/forged\" 2>/dev/null; then exit 4; fi; "
                           "printf authored >.niwa/artifacts/new.html")
@@ -54,7 +55,7 @@
                              (with-temp-buffer
                                (insert-file-contents (file-name-concat directory "MEMORY.md"))
                                (buffer-string)))))
-            (dolist (relative '(".niwa/artifacts/.state" ".niwa/leases"))
+            (dolist (relative '(".niwa/artifacts/.state" ".niwa/leases" ".niwa/schedules"))
               (should (file-directory-p (file-name-concat root relative))))
             (with-temp-buffer
               (should (zerop (apply #'call-process (car (plist-get prepared :command))
@@ -62,7 +63,8 @@
                                     (cdr (plist-get prepared :command))))))
             (should (file-exists-p (file-name-concat root ".niwa/artifacts/new.html")))
             (should-not (file-exists-p (file-name-concat root ".niwa/artifacts/.state/forged")))
-            (should-not (file-exists-p (file-name-concat root ".niwa/leases/forged"))))
+            (should-not (file-exists-p (file-name-concat root ".niwa/leases/forged")))
+            (should-not (file-exists-p (file-name-concat root ".niwa/schedules/forged"))))
         (when prepared (niwa-sandbox-cleanup prepared))
         (delete-directory secondary t)
         (delete-directory external t)

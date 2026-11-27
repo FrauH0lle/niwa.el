@@ -45,7 +45,8 @@
              ("uniq" "--" "input" "-")
              ("test" "-f" "file")
              ("[" "1" "=" "2" "]")
-             ("test" "1" "-eq" "2")))
+             ("test" "1" "-eq" "2")
+             ("cd" "sub")))
     (should (niwa-bash-policy-read-only-p argv)))
   :doc "Git variants:
 `niwa-bash-policy-read-only-p' accepts hardened Git inspection arguments"
@@ -76,7 +77,12 @@
              ("sed" "-n" "1,5d" "file")
              ("awk" "{system(\"id\")}" "file")
              ("awk" "BEGIN { f = \"sys\" \"tem\"; @f(\"id\") }")
-             ("awk" "{print $1 > \"out\"}" "file")))
+             ("awk" "{print $1 > \"out\"}" "file")
+             ;; A bare `cd' goes home and `cd -' to $OLDPWD.
+             ("cd")
+             ("cd" "-")
+             ("cd" "--")
+             ("cd" "-P" "sub")))
     (should-not (niwa-bash-policy-read-only-p argv))))
 
 (niwa-deftest niwa-bash-policy-read-only-p/bundled-short-options ()
@@ -1214,6 +1220,66 @@ for effects despite reusable authority"
             `(:level additive
                      :additional-permissions
                      (:file-system ((:path ,secret :access read)))))))
+      (delete-directory parent t)))
+  :doc "home words, cd targets and plain symlink names are resources"
+  (let* ((parent (file-truename (make-temp-file "niwa-bash-resource-home-" t)))
+         (root (file-name-concat parent "workspace"))
+         (home (file-name-concat parent "home"))
+         (secret (file-name-concat parent "secret"))
+         (process-environment (cons (concat "HOME=" home) process-environment))
+         (default-directory (file-name-as-directory root))
+         (context `(:allowed-roots (,root) :resource-grants nil)))
+    (unwind-protect
+        (progn
+          (make-directory (file-name-concat root "sub") t)
+          (make-directory home)
+          (write-region "secret" nil secret nil 'silent)
+          (make-symbolic-link secret (file-name-concat root "notes"))
+          (make-symbolic-link secret (file-name-concat root "notes~"))
+          (write-region "backup" nil (file-name-concat root "README~") nil 'silent)
+          (make-symbolic-link secret (file-name-concat root "sub" "inner"))
+          (pcase-dolist (`(,command . ,missing)
+                         `(("rg secret ~" ,home)
+                           ("cd ~ && cat .netrc" ,home)
+                           ("cd && cat .netrc" ,home)
+                           ("cat notes" ,secret)
+                           ;; Only a leading `~' expands.
+                           ("cat notes~" ,secret)
+                           ("cd sub && cat inner" ,secret)
+                           ;; Controls: in-workspace names, an earlier operand
+                           ;; before a later `cd', and `cd NAME' outside
+                           ;; read-only commands (the launch unsets CDPATH).
+                           ("cat README")
+                           ("cat README~")
+                           ("cd sub && ls")
+                           ("cat ./inner && cd sub")
+                           ("cd sub && make")))
+            (should (equal missing
+                           (niwa-bash-policy-missing-resource-paths
+                            command context '(:level use-default)))))
+          ;; Unresolved operands are reported apart from missing paths.
+          (pcase-dolist (`(,command . ,unresolved)
+                         `(("cd a; cd b; cd c; cd d; ls"
+                            "command (too many directories or operands to resolve)")
+                           (,(concat "ls " (string-join (make-list 300 "x") " "))
+                            "command (too many directories or operands to resolve)")
+                           ("cd $X; make" "cd $X (unresolved destination)")
+                           ("cd sub && make")))
+            (should (equal unresolved
+                           (cdr (niwa-bash-policy-resource-authority
+                                 command context '(:level use-default))))))
+          ;; The budget is checked before each probe, so the walk stops there.
+          (let ((probes 0)
+                (probe (symbol-function 'file-symlink-p)))
+            (cl-letf (((symbol-function 'file-symlink-p)
+                       (lambda (file)
+                         (when (string-suffix-p "/x" file) (cl-incf probes))
+                         (funcall probe file))))
+              (should (equal '("command (too many directories or operands to resolve)")
+                             (cdr (niwa-bash-policy--bash-resources
+                                   (concat "ls " (string-join (make-list 300 "x") " "))
+                                   nil context)))))
+            (should (= niwa-bash-policy--resource-probe-limit probes))))
       (delete-directory parent t)))
   :doc "remote resources stay target-native after symlink resolution"
   (let* ((parent (make-temp-file "niwa-bash-remote-resource-" t))
