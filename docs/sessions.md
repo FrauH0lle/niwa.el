@@ -3063,6 +3063,13 @@ restart before the first child request can drop the report detail while the
 durable provenance facts remain available for regeneration. Failure outside
 Git never falls back to Conversation Fork.
 
+When `niwa-worktree-setup-enabled` is on, the fork runs
+`niwa-worktree-setup-command` in the new checkout before the child session
+opens, as `/worktree create` does. A setup failure aborts the fork and creates
+no child session. The new branch and directory are retained, and the error
+names them with a cleanup command that removes both the worktree and the
+branch.
+
 An owner-link browser guest can also create a Conversation Fork from a settled
 assistant response; see [browser collaboration](collaboration.md). It publishes
 the child without a first prompt and opens a room for it.

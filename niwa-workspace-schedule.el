@@ -7,7 +7,7 @@
 ;; implementation policy.  The workspace state is the source of truth:
 ;;
 ;;   .niwa/schedules/ID/schedule.eld        the schedule
-;;   .niwa/schedules/ID/runs/SECONDS.el    one record per run
+;;   .niwa/schedules/ID/runs/SECONDS.eld   one record per run
 ;;   .niwa/schedules/ID/notify-receipts.json
 ;;
 ;; A run is keyed by its schedule and scheduled time.  Every change runs as

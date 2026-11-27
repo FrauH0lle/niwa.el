@@ -1077,6 +1077,22 @@ branch-name grammar before any mutating Git command runs."
      (niwa-worktree--expand-git-path common-dir source-directory)
      :base-commit base-commit)))
 
+(defun niwa-worktree--cleanup-command
+    (source-root directory branch)
+  "Return the shell command removing worktree DIRECTORY and then BRANCH.
+It pins the repository at SOURCE-ROOT with `git -C' and deletes
+BRANCH only after the removal succeeded, so it is safe from any directory."
+  (let ((native-source
+         (niwa-worktree--native-path source-root source-root))
+        (native-directory
+         (niwa-worktree--native-path directory source-root)))
+    (format
+     "git -C %s worktree remove --force %s && git -C %s branch -D %s"
+     (shell-quote-argument native-source)
+     (shell-quote-argument native-directory)
+     (shell-quote-argument native-source)
+     (shell-quote-argument branch))))
+
 (defun niwa-worktree-fork-reservation (session &optional preflight branch)
   "Return the first free branch and directory reservation for SESSION.
 Use PREFLIGHT when it already describes SESSION's immutable Git state.
@@ -1129,17 +1145,7 @@ or directory signals instead of choosing another."
       :branch branch
       :directory directory
       :cleanup-command
-      (let ((native-source
-             (niwa-worktree--native-path
-              source-directory source-directory))
-            (native-directory
-             (niwa-worktree--native-path directory source-directory)))
-        (format
-         "git -C %s worktree remove --force %s && git -C %s branch -D %s"
-         (shell-quote-argument native-source)
-         (shell-quote-argument native-directory)
-         (shell-quote-argument native-source)
-         (shell-quote-argument branch)))))))
+      (niwa-worktree--cleanup-command source-directory directory branch)))))
 
 (defun niwa-worktree-fork-create (reservation)
   "Create the linked worktree described by RESERVATION."
@@ -1353,21 +1359,6 @@ new session."
                 (error-message-string err))
         :warning)))))
 
-(defun niwa-worktree--cleanup-message
-    (worktree-directory workspace-root)
-  "Return shell cleanup commands for WORKTREE-DIRECTORY under WORKSPACE-ROOT."
-  (let* ((path (if (and workspace-root
-                        (file-in-directory-p worktree-directory workspace-root))
-                   (directory-file-name
-                    (file-relative-name worktree-directory workspace-root))
-                 (directory-file-name
-                  (niwa-worktree--native-path
-                   worktree-directory worktree-directory))))
-         (quoted (shell-quote-argument path)))
-    (format
-     "Cleanup:\n  git worktree remove %s\n  rm -rf %s\n  git worktree prune"
-     quoted quoted)))
-
 (defun niwa-worktree-create-session (&optional branch purpose clean)
   "Create and return a new worktree session from the current session.
 Prompt for BRANCH when it is nil.  PURPOSE is included in the setup
@@ -1463,8 +1454,9 @@ The return value is a plist with `:buffer', `:branch', `:directory', and
               (niwa-worktree--native-path
                worktree-directory source-directory)
               (error-message-string err)
-              (niwa-worktree--cleanup-message
-               worktree-directory workspace-root)))))))))
+              (format "Cleanup:\n  %s"
+                      (niwa-worktree--cleanup-command
+                       source-directory worktree-directory branch))))))))))
 
 (defun niwa-worktree--create (tokens)
   "Create a new worktree session from parsed option TOKENS."

@@ -9,6 +9,7 @@ nav:
   - Using niwa:
       - Conversation and workspace view: view.md
       - Browser collaboration: collaboration.md
+      - Shared whiteboards and documents: shared-editing.md
       - Plans: plan-mode.md
       - Goals: goals.md
       - Agents and tasks: agents.md

@@ -1794,7 +1794,7 @@ run history without a card, since it removes authority.
 
 The workspace state holds the schedules
 (`.niwa/schedules/ID/schedule.eld`) and one record per run
-(`runs/SECONDS.el`, keyed by schedule and scheduled time). Every change is
+(`runs/SECONDS.eld`, keyed by schedule and scheduled time). Every change is
 one target program under a lock on `.niwa/schedules/` that proves the bytes
 it read before writing, so Emacs instances sharing the workspace never lose
 each other's updates. A firing exclusively creates its run record in the same
@@ -1817,6 +1817,18 @@ error when the session could not start. A one-shot schedule is `finished`
 after its run; one whose next run would pass its expiry is `expired`. While a
 run's first request is in flight, [Notify](#notify) receipts belong to the
 schedule, so identical text from consecutive runs is suppressed for 24 hours.
+
+A run is unattended, and the approved `schedule` card covers only the schedule
+itself. A later ask the run's permission mode does not settle, such as an
+uncertain Bash command or live Eval, queues like any other
+[prompt](permissions.md#prompt-queues) and waits for a person. By default
+it waits without a deadline: the run's first request stays unsettled, so the run
+stays open and blocks the schedule's next firing, which records `skipped`,
+until someone answers or aborts it. To let such runs settle without a person,
+set `niwa-permission-queue-timeout` to a number of seconds. The unanswered
+queue then expires and denies each ask, and the run can finish; see
+[Absence timeout](permissions.md#absence-timeout). The option is off by
+default and applies to every root session, not only schedule runs.
 
 Use `M-x niwa-schedules-list-open` (Standing jobs in the workspace menu)
 to see the timing, next run and status. Open a row for its history: each run

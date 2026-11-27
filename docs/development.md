@@ -55,7 +55,9 @@ This repo's `.dir-locals.el` configures creation-time setup, requiring Emacs
 approval. The separate `niwa-worktree-setup-enabled` flag defaults off;
 `niwa-worktree-setup-command` holds argv. Both creation paths and the skill
 honor that authorization; see [the worktree ADR](adr/0001-worktree-command-and-skill.md).
-Setup output stays in `*niwa worktree setup*`; failure retains the checkout.
+Setup output stays in `*niwa worktree setup*`. Failure retains the checkout and
+its branch in both creation paths: `/worktree create` prints cleanup commands,
+including `git branch -D`, and a Worktree Fork aborts without a child session.
 
 ## Dependency maintenance
 

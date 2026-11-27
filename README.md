@@ -649,6 +649,31 @@ The chat view provides comint-style input history: `M-p` / `M-n` cycle previous
 and next inputs, `M-r` searches, `C-c C-l` browses the ring. History persists
 per workspace as `.niwa/input-history.eld`.
 
+### Schedules, worktrees, shared items, artifacts and rooms
+
+- **Workspace schedules.** Ask the model to schedule a recurring or one-off
+  job; the `Schedule` tool shows an approval card, and each run starts a new
+  session with the approved policy. `M-x niwa-schedules-list-open` lists the
+  jobs and their run history. An unattended run that needs an ask its
+  permission mode does not settle waits for you; set
+  `niwa-permission-queue-timeout` to let it expire. See
+  [`docs/tools.md`](docs/tools.md#workspace-schedules).
+- **Worktrees.** `/worktree status`, `/worktree list` and
+  `/worktree create [NAME] [--for "purpose"] [--clean]` manage linked Git
+  worktrees under `.worktrees/` with their own sessions; Worktree Fork
+  (`niwa-view-arm-worktree-fork`) forks a conversation into one. See
+  [`docs/skills.md`](docs/skills.md) and
+  [`docs/sessions.md`](docs/sessions.md).
+- **Shared whiteboards and documents.** In the artifacts cockpit, `n` or
+  `M-x niwa-artifacts-new-shared-item` creates one that you and the assistant
+  edit together. See [`docs/shared-editing.md`](docs/shared-editing.md).
+- **Artifacts.** `M-x niwa-artifacts` opens the project artifact cockpit. See
+  [`docs/view.md`](docs/view.md).
+- **Browser rooms.** `/collab` shares the current session with browser guests
+  through a relay and `/collab stop` ends that share. `/collab lobby` shares
+  the workspace's session list instead, and `/collab lobby stop` stops it. See
+  [`docs/collaboration.md`](docs/collaboration.md).
+
 ### Chat View
 
 niwa runs gptel in an internal Org data buffer, but presents a compact
@@ -1635,7 +1660,7 @@ The maintained detail docs live in [`docs/`](docs/):
   and input history.
 - [`docs/tools.md`](docs/tools.md) — tool pipeline, renderers, groups, and
   oversized-result persistence.
-- [`docs/ptc-dialect.md`](docs/ptc-dialect.md) — closed ToolScript language,
+- [`docs/ptc-dialect.md`](docs/ptc-dialect.md) — closed ToolCall language,
   nested tools, parallel calls, limits, and security boundary.
 - [`docs/permissions.md`](docs/permissions.md) — permission decision chain,
   bucket precedence, Bash/Eval handling, and sub-agent propagation.
@@ -1661,6 +1686,10 @@ The maintained detail docs live in [`docs/`](docs/):
 - [`docs/backlog.md`](docs/backlog.md) — project notes,
   todos, feature ideas, fixes, and deferred work.
 - [`docs/commits.md`](docs/commits.md) — commit message format and guidelines.
+- [`docs/collaboration.md`](docs/collaboration.md) — browser rooms, the lobby,
+  artifact rooms and remote artifacts.
+- [`docs/shared-editing.md`](docs/shared-editing.md) — shared whiteboards and
+  documents.
 
 ## Development
 

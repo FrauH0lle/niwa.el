@@ -1991,7 +1991,17 @@
                               (niwa-worktree-create-session "worktree/setup" nil t)
                               :type 'user-error)))
                     (should (string-match-p "setup failed (19)"
-                                            (error-message-string err)))))
+                                            (error-message-string err)))
+                    ;; The retry needs the branch gone, as in Worktree Fork.
+                    (let ((msg (error-message-string err))
+                          (src (shell-quote-argument
+                                (directory-file-name root))))
+                      ;; Pinned to the source repo, removal before deletion.
+                      (should (string-match-p
+                               (format "git -C %s/? worktree remove --force .*setup/? && git -C %s/? branch -D worktree/setup"
+                                       (regexp-quote src) (regexp-quote src))
+                               msg))
+                      (should-not (string-match-p "rm -rf" msg)))))
                 (should (eq (zerop status) opened))
                 (should (file-directory-p (file-name-concat root ".worktrees/setup"))))))
         (kill-buffer new-buffer)
