@@ -15,6 +15,8 @@
 (require 'niwa-compact-evidence)
 
 ;; `niwa-agents'
+(declare-function niwa-agent-invocation-parent-session "niwa-agents" (invocation))
+(declare-function niwa-agent-invocation-require-path "niwa-agents" (invocation))
 (declare-function niwa-agent-invocation-parent-turn "niwa-agents" (invocation))
 
 (defun niwa-claude-code-history--foreign-p (record)
@@ -62,18 +64,30 @@ The record is attached to OWNER's turn context."
 Without RECORD, a retained HISTORY failed to start; it is marked so recovery
 can be offered, and its diagnosis names excerpt recovery.  Divergence
 observed during the turn is preserved.  Successful answers retain the exact
-native message boundary, replacing any checkpoint at the same root turn."
-  (if (not record)
-      (let ((info (niwa-engine-info owner)))
-        (when (and (plist-get history :id)
-                   (eq 'error (plist-get info :niwa-acp-outcome)))
-          (plist-put history :start-failed t)
-          (setf (niwa-engine-info owner)
-                (plist-put info :error
-                           (concat (if (listp (plist-get info :error))
-                                       (plist-get (plist-get info :error) :message)
-                                     (plist-get info :error))
-                                   "; if native history is unavailable, use M-x niwa-claude-code-recover-history to continue from the retained transcript")))))
+native message boundary, replacing any checkpoint at the same root turn.
+If prompt preparation failed after opening RECORD, restore the prior history."
+  (cond
+   ((and record (not (eq 'success (plist-get outcome :status)))
+         (not (plist-get (niwa-engine-info owner) :niwa-acp-prompted))
+         (not (eq 'diverged (plist-get record :state))))
+    (let* ((child (not (niwa-request-p owner)))
+           (session (if child (niwa-agent-invocation-parent-session owner) (niwa-request-session owner)))
+           (scope (if child (niwa-agent-invocation-require-path owner) "root"))
+           (prior (or history (list :engine 'claude-code :state 'unstarted))))
+      (setf (alist-get scope (niwa-session-external-conversations session) nil nil #'equal) prior
+            (niwa-engine-info owner) (plist-put (niwa-engine-info owner) :niwa-claude-history prior))))
+   ((not record)
+    (let ((info (niwa-engine-info owner)))
+      (when (and (plist-get history :id)
+                 (eq 'error (plist-get info :niwa-acp-outcome)))
+        (plist-put history :start-failed t)
+        (setf (niwa-engine-info owner)
+              (plist-put info :error
+                         (concat (if (listp (plist-get info :error))
+                                     (plist-get (plist-get info :error) :message)
+                                   (plist-get info :error))
+                                 "; if native history is unavailable, use M-x niwa-claude-code-recover-history to continue from the retained transcript"))))))
+   (t
     (unless (eq 'diverged (plist-get record :state))
       (plist-put record :state
                  (if (eq 'success (plist-get outcome :status)) 'ready 'uncertain)))
@@ -88,7 +102,7 @@ native message boundary, replacing any checkpoint at the same root turn."
                                        :host (plist-get record :host)
                                        :directory (plist-get record :directory)
                                        :message-id id
-                                       :input-boundary (copy-tree (plist-get record :input-boundary))))))))))
+                                       :input-boundary (copy-tree (plist-get record :input-boundary)))))))))))
 
 (defun niwa-claude-code-history-excerpt (session &optional child end)
   "Return labelled evidence before the current prompt for SESSION.

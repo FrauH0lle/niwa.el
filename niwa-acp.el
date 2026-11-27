@@ -565,7 +565,8 @@ This short-lived connection never resumes or prompts either conversation."
                                        (niwa-acp-capabilities connection))))
            (dolist (capability (if (eq operation 'fork) '(fork resume delete) '(delete)))
              (unless (assq capability capabilities)
-               (user-error "Agent lacks session %s capability; /btw needs fork, resume and delete" capability))))
+               (user-error "Cannot run ACP session/%s: agent lacks session %s capability"
+                           operation capability))))
          (let ((turn
                 (list :event #'ignore
                       :complete

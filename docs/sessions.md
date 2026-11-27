@@ -766,8 +766,9 @@ inputs expand independently of root mention history; a child follow-up
 can attach the image again without marking it as delivered to the root.
 
 Before dispatch, the native ID and `in-flight` state are published while the
-session transport is idle. A successful terminal response records `ready`;
-failure or interruption records `uncertain`. Restore also converts a saved
+session transport is idle. If preparation fails before prompt submission, the
+turn restores the previous history. After submission, a successful terminal
+response records `ready`; failure or interruption records `uncertain`. Restore also converts a saved
 `in-flight` record to `uncertain`. Opening a session does not start its external
 process. The next root submission creates a process and resumes the stored root
 ID.

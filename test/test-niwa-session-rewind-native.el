@@ -115,6 +115,24 @@
              (error-message-string
               (should-error (niwa-session-rewind--reduce-native-histories session 3)))))))
 
+(niwa-deftest niwa-session-rewind/native-missing-capability ()
+  (let* ((process-environment (copy-sequence process-environment))
+         (boundary (list :id "old" :message-id "answer" :host (system-name)
+                         :directory (expand-file-name niwa-claude-code-directory)))
+         failure)
+    (setenv "NIWA_ACP_TEST_HISTORY" default-directory)
+    (setenv "NIWA_ACP_TEST_MISSING_CAP" "resume")
+    (cl-letf (((symbol-function 'niwa-claude-code-launch)
+               (lambda (&rest _) (list :command (executable-find "python3")
+                                       :args (list niwa-test--acp-peer) :cwd default-directory))))
+      (niwa-claude-code-fork-histories
+       `(("root" :engine claude-code :id "old" :boundaries (,boundary)))
+       (lambda (_histories error _cleanup) (setq failure error)))
+      (niwa-test--await 10 "Native fork refusal" failure)
+      (should-not (string-search "/btw" failure))
+      (should (string-search "session/fork" failure))
+      (should (string-search "lacks session resume capability" failure)))))
+
 (niwa-deftest niwa-session-rewind-rewind/native-committed ()
   ,test
   (test)

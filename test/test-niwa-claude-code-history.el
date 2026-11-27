@@ -35,7 +35,7 @@
            (original (copy-tree prior))
            (record (niwa-claude-code-history-open owner "new" (cons 2 3) prior)))
       (setf (niwa-engine-info owner)
-            (plist-put (niwa-engine-info owner) :niwa-native-message-id "four"))
+            (append (niwa-engine-info owner) '(:niwa-acp-prompted t :niwa-native-message-id "four")))
       (niwa-claude-code-history-settle owner prior record '(:status error))
       (should (equal (plist-get original :boundaries) (plist-get record :boundaries)))
       (dotimes (_ 2)

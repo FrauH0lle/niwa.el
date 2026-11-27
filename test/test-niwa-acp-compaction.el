@@ -5,6 +5,8 @@
 
 ;;; Code:
 
+(require 'niwa-claude-code)
+
 (require 'niwa-engine-test-support
          (file-name-concat (file-name-directory (or load-file-name buffer-file-name))
                            "niwa-engine-test-support"))
@@ -44,6 +46,39 @@
             (with-current-buffer archive
               (should (string-search "ARCHIVED RESPONSE" (buffer-string))))
           (kill-buffer archive))))))
+
+(niwa-deftest niwa--send-request/native-compaction-guards (:quiet t)
+  (dolist (isolated '(t nil))
+    (niwa-engine-test--with-claude-session
+      (let* ((completed '((sessionUpdate . "compaction_update") (compactionId . "second")
+                          (status . "completed")
+                          (summary . [((type . "text") (text . "REJECTED SUMMARY"))])))
+             (events (if isolated (vector completed)
+                       (vector '((sessionUpdate . "compaction_update") (compactionId . "first")
+                                 (status . "in_progress")) completed))))
+        (setq-local gptel-system-prompt "Compaction guard fixture" gptel-tools nil)
+        (cl-letf (((symbol-function 'niwa-claude-code-launch)
+                   (niwa-engine-test--claude-launch
+                    (lambda (&rest _)
+                      ;; Let the fixture peer deliver an unexpected update on an isolated turn.
+                      (list :compaction t :meta `((compactionEvents . ,events)))))))
+          (niwa--insert-user-turn "Keep this question")
+          (when isolated
+            (insert (niwa--format-hook-audit-record
+                     '(:type guest-prompt :name "Guest"
+                       :shared (:itemId "board-1" :questionId "q1" :title "Board"
+                                :text "Keep this question")))))
+          (niwa--send-request "Keep this question")
+          (niwa-test--await 5 "Guarded compaction did not settle" (not (niwa-turn-busy-p buffer))))
+        (let ((info (niwa-engine-info request)))
+          (should (eq isolated (and (plist-get info :niwa-native-isolated) t)))
+          (should (= 1 (niwa-session-current-segment session)))
+          (should (string-search "Keep this question" (buffer-string)))
+          (should-not (string-search "REJECTED SUMMARY" (buffer-string)))
+          (should (eq 'error (plist-get info :niwa-acp-outcome)))
+          (should (string-search (if isolated "Isolated compaction cannot replace root history"
+                                   "ACP reported overlapping compactions")
+                                 (plist-get info :error))))))))
 
 (niwa-deftest niwa--send-request/native-compaction-terminal (:quiet t)
   (dolist (status '("cancelled" "failed" "completed" "empty"))

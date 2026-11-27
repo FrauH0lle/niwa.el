@@ -9,6 +9,7 @@
          (file-name-concat (file-name-directory (or load-file-name buffer-file-name))
                            "niwa-engine-test-support"))
 (require 'niwa-claude-code-session)
+(require 'niwa-claude-code)
 
 (niwa-deftest niwa-claude-code-history-assert-current ()
   (let ((niwa-claude-code-directory (make-temp-file "niwa-history-" t)))
@@ -59,6 +60,7 @@
 
 (niwa-deftest niwa-claude-code-history-settle ()
   (let ((owner (niwa-request--create)))
+    (setf (niwa-engine-info owner) (list :niwa-acp-prompted t))
     (dolist (case '((success ready) (error uncertain) (interrupted uncertain)))
       (let ((record (list :id "native" :state 'in-flight)))
         (niwa-claude-code-history-settle owner nil record (list :status (car case)))
@@ -76,6 +78,38 @@
     (setf (niwa-engine-info owner) (list :niwa-acp-outcome 'error :error "Startup failed"))
     (niwa-claude-code-history-settle owner nil nil '(:status error))
     (should (equal "Startup failed" (plist-get (niwa-engine-info owner) :error)))))
+
+(niwa-deftest niwa--send-request/unused-native-history (:quiet t)
+  (niwa-engine-test--with-claude-session
+    (let ((file (file-name-concat root "context.pdf")) ids)
+      (niwa--insert-user-turn "Earlier API task")
+      (insert (propertize "\nPrior API answer\n" 'gptel 'response))
+      (setf (niwa-session-turn-count session) 1
+            (niwa-session-prompt-index session) '((1 (:cum-turn 1))))
+      (niwa-request-end)
+      (write-region "%PDF-1.4" nil file nil 'silent)
+      (setq-local gptel-use-context 'user gptel-context (list (list file :mime "application/pdf")))
+      (cl-letf (((symbol-function 'niwa-claude-code-launch)
+                 (niwa-engine-test--claude-launch
+                  (lambda (_system _mcp _model _effort &optional id _hook)
+                    (push id ids)
+                    '(:meta ((echoAllText . t)))))))
+        (niwa--insert-user-turn "First question")
+        (setq request (niwa--send-request "First question"))
+        (niwa-test--await 8 "Unsupported attachment did not settle" (not (niwa-turn-busy-p buffer)))
+        (should (string-search "does not support application/pdf" (plist-get (niwa-engine-info request) :error)))
+        (should-not (plist-get (niwa-engine-info request) :niwa-acp-prompted))
+        (let ((metadata (niwa-session-codec-read
+                         (niwa-session-artifacts-sidecar-path (niwa-session-save-path session)))))
+          (should-not (plist-get (cdr (assoc "root" (plist-get metadata :external-conversations))) :id)))
+        (setq gptel-context nil)
+        (goto-char (point-max))
+        (niwa--insert-user-turn "Try again")
+        (niwa--send-request "Try again")
+        (niwa-test--await 8 "Next send did not settle" (not (niwa-turn-busy-p buffer)))
+        (should (equal ids '(nil nil)))
+        (should (string-search "answer:Excerpt continuation" (buffer-string)))
+        (should (string-search "provenance: assistant ---\nPrior API answer" (buffer-string)))))))
 
 (niwa-deftest niwa-claude-code-recover-history/root (:quiet t)
   (niwa-engine-test--with-claude-session
