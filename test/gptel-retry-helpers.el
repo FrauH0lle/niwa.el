@@ -41,7 +41,7 @@ a timer it returns is cancelled with the fixture."
           (gptel--request-alist nil)
           (niwa-gptel-retry--states nil)
           ;; Owned timers are stubbed below; stall tests opt in with real ones.
-          (niwa-gptel-retry-stall-timeout nil)
+          (niwa-provider-stall-timeout nil)
           (gptel-use-curl t)
           (niwa-test-allow-provider-requests t)
           (gptel-log-level nil)
@@ -190,7 +190,7 @@ The response returns its sending timer."
 (defmacro niwa-retry-test--with-real-clock (timeout &rest body)
   "Run BODY with stall TIMEOUT seconds and real timers for owned waits."
   (declare (indent 1) (debug t))
-  `(let ((niwa-gptel-retry-stall-timeout ,timeout))
+  `(let ((niwa-provider-stall-timeout ,timeout))
      (cl-letf (((symbol-function 'niwa-transport-run-at-time)
                 (lambda (seconds function &rest args)
                   (apply #'run-at-time seconds nil function args))))

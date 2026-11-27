@@ -55,6 +55,22 @@ This covers remote Bash children and oversized control programs."
   :type 'boolean
   :group 'niwa)
 
+(defcustom niwa-provider-stall-timeout 300
+  "Seconds a model request may wait on its provider without progress.
+Progress means new content, reasoning or tool-call output; keep-alives do
+not count, and neither does time spent in niwa running a tool or waiting
+for permission.  A stalled request is retried once when retrying cannot
+repeat side effects; otherwise, or when the retry stalls too, its turn ends
+with an error.  Applies to native gptel and ACP engines.  nil disables it."
+  :type '(choice (const :tag "Off" nil) number)
+  :group 'niwa)
+
+(defun niwa-provider-stall-message (&optional suffix)
+  "Describe a provider stall at the current timeout, followed by SUFFIX."
+  (format "No response from the provider for %s%s"
+          (format-seconds "%x%m min%z %s s" niwa-provider-stall-timeout)
+          (or suffix "")))
+
 
 ;;
 ;;; Nesting depth

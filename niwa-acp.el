@@ -137,6 +137,8 @@ acp.el's sentinel ignores stop and continue events."
     (niwa-acp--cancel-timer connection)
     (when-let* ((retry (plist-get turn :retry-timer)))
       (cancel-timer retry))
+    (when-let* ((stall (plist-get turn :stall-timer)))
+      (cancel-timer stall))
     (setf (niwa-acp-active connection) nil)
     (unless (eq (niwa-acp-state connection) 'closed)
       (setf (niwa-acp-state connection) 'idle))
@@ -606,7 +608,13 @@ CONTENT is a vector of ACP content-block alists.  EVENT receives session-owned
 notifications.  COMPLETE receives one plist with :status, :stop-reason and raw
 :response, or :message on failure.  A failed prompt is re-sent once only when
 it reported no tool call and the launch's :prompt-retry-delay accepts the
-failure (see `niwa-acp-open')."
+failure (see `niwa-acp-open').
+A prompt without a session update for `niwa-provider-stall-timeout' stalls,
+unless the launch's :busy-p reports niwa running a tool or hook for it; see
+`niwa-acp-note-local-work'.  The first stall of a prompt that has neither
+announced nor run a tool is cancelled and re-sent once,
+showing its status through the launch's :stall-observer; any other stall
+ends the turn with an error."
   (unless (and (eq (niwa-acp-state connection) 'idle)
                (process-live-p (alist-get :process (niwa-acp-client connection))))
     (error "ACP conversation is not ready for a prompt"))
@@ -619,17 +627,66 @@ failure (see `niwa-acp-open')."
         turn)
     (cl-labels
         ((observe (notification)
-           (when (equal "tool_call" (alist-get 'sessionUpdate
-                                               (alist-get 'update (alist-get 'params notification))))
-             (plist-put turn :acted t))
+           (when (equal "session/update" (alist-get 'method notification))
+             (plist-put turn :progress-at (float-time))
+             (when (equal "tool_call" (alist-get 'sessionUpdate
+                                                 (alist-get 'update (alist-get 'params notification))))
+               (plist-put turn :acted t)))
            (funcall event notification))
+         (arm (delay)
+           (plist-put turn :stall-timer (niwa-transport-run-at-time delay #'stall-check)))
+         (stall-check ()
+           (plist-put turn :stall-timer nil)
+           (when-let* ((timeout niwa-provider-stall-timeout)
+                       ((eq turn (niwa-acp-active connection)))
+                       ((not (or (plist-get turn :cancelled) (plist-get turn :stall-cancel)
+                                 (plist-get turn :retry-timer)))))
+             (let ((busy (plist-get (niwa-acp-launch connection) :busy-p))
+                   (remaining (- (+ (plist-get turn :progress-at) timeout) (float-time))))
+               (cond
+                ;; A tool or permission wait in niwa is not provider silence.
+                ((and busy (funcall busy))
+                 (plist-put turn :progress-at (float-time))
+                 (arm timeout))
+                ((> remaining 0) (arm remaining))
+                ((or (plist-get turn :acted) (plist-get turn :retried)) (stalled))
+                (t
+                 (plist-put turn :stall-cancel t)
+                 (when-let* ((observer (plist-get (niwa-acp-launch connection) :stall-observer)))
+                   (ignore-errors (funcall observer (niwa-provider-stall-message " · retrying"))))
+                 (niwa-acp--request-cancel
+                  connection turn
+                  (niwa-provider-stall-message
+                   "; the agent did not acknowledge cancellation")))))))
+         (stalled ()
+           (niwa-acp--finish
+            connection turn
+            (list :status 'error
+                  :message (niwa-provider-stall-message
+                            (if (plist-get turn :retried)
+                                ", again after a retry; the turn ended"
+                              "; the turn had called tools, so it was not retried")))))
          (send ()
            (when (niwa-acp--check-auth-expiry connection)
              (when-let* ((observer (plist-get (niwa-acp-launch connection) :send-observer)))
                (ignore-errors (funcall observer (plist-get turn :retried))))
+            (when niwa-provider-stall-timeout
+              (when-let* ((timer (plist-get turn :stall-timer))) (cancel-timer timer))
+              (plist-put turn :progress-at (float-time))
+              (arm niwa-provider-stall-timeout))
              (niwa-acp--send connection request #'settle #'failed)))
          (settle (response)
-           (let ((reason (alist-get 'stopReason response)))
+          (let ((reason (alist-get 'stopReason response)))
+           (if (and (plist-get turn :stall-cancel) (equal reason "cancelled")
+                    (not (plist-get turn :cancelled)) (eq turn (niwa-acp-active connection)))
+               ;; The agent acknowledged the stall's cancellation.
+               (progn
+                 (niwa-acp--cancel-timer connection)
+                 (plist-put turn :stall-cancel nil)
+                 (if (plist-get turn :acted)
+                     (stalled)
+                   (plist-put turn :retried t)
+                   (send)))
              (niwa-acp--finish
               connection turn
               (list :status (cond
@@ -637,12 +694,14 @@ failure (see `niwa-acp-open')."
                                   (equal reason "cancelled")) 'interrupted)
                              ((equal reason "end_turn") 'success)
                              (t 'error))
-                    :stop-reason reason :response response))))
+                    :stop-reason reason :response response)))))
          (failed (failure)
            ;; acp.el contains callback errors, but cannot settle our turn.
            (condition-case err
+               ;; A failure while a stall's cancellation is pending is terminal:
+               ;; only the agent's `cancelled' acknowledgement may re-send.
                (if-let* (((not (or (plist-get turn :acted) (plist-get turn :retried)
-                                   (plist-get turn :cancelled))))
+                                   (plist-get turn :cancelled) (plist-get turn :stall-cancel))))
                          (retry (plist-get (niwa-acp-launch connection) :prompt-retry-delay))
                          (delay (funcall retry failure)))
                    (plist-put turn :retry-timer
@@ -670,23 +729,38 @@ Wait for the terminal acknowledgement before accepting more input."
         ;; may start another turn: this cancellation belongs only to TURN.
         (niwa-acp--finish connection turn '(:status interrupted))
       (setf (niwa-acp-active connection) (plist-put turn :cancelled t))
-      (let (timer)
-        (setq timer
-              (niwa-transport-run-at-time
-               niwa-acp--control-timeout
-               (lambda ()
-                 (when (and (eq timer (niwa-acp-timer connection))
-                            (eq turn (niwa-acp-active connection)))
-                   (niwa-acp--fail connection "ACP cancellation timed out")))))
-        (setf (niwa-acp-timer connection) timer))
-      (niwa-acp--wake connection)
-      (condition-case err
-          (when (niwa-acp--live-p connection)
-            (acp-send-notification
-             :client (niwa-acp-client connection)
-             :notification (acp-make-session-cancel-notification
-                            :session-id (niwa-acp-session-id connection))))
-        (error (niwa-acp--fail connection (error-message-string err)))))))
+      (niwa-acp--request-cancel connection turn "ACP cancellation timed out"))))
+
+(defun niwa-acp-note-local-work (connection &optional started)
+  "Record niwa-side work for CONNECTION's active prompt.
+STARTED non-nil means a tool or hook began: the prompt may have side effects,
+so a stall no longer re-sends it.  Either way the provider's silence is
+measured afresh from now, so tool or permission time never counts as a stall."
+  (when-let* ((turn (niwa-acp-active connection)))
+    (plist-put turn :progress-at (float-time))
+    (when started (plist-put turn :acted t))))
+
+(defun niwa-acp--request-cancel (connection turn timeout-message)
+  "Send session/cancel for CONNECTION's TURN.
+Without an acknowledgement in time, fail CONNECTION with TIMEOUT-MESSAGE."
+  (let (timer)
+    (setq timer
+          (niwa-transport-run-at-time
+           niwa-acp--control-timeout
+           (lambda ()
+             (when (and (eq timer (niwa-acp-timer connection))
+                        (eq turn (niwa-acp-active connection)))
+               (niwa-acp--fail connection timeout-message)))))
+    (niwa-acp--cancel-timer connection)
+    (setf (niwa-acp-timer connection) timer))
+  (niwa-acp--wake connection)
+  (condition-case err
+      (when (niwa-acp--live-p connection)
+        (acp-send-notification
+         :client (niwa-acp-client connection)
+         :notification (acp-make-session-cancel-notification
+                        :session-id (niwa-acp-session-id connection))))
+    (error (niwa-acp--fail connection (error-message-string err)))))
 
 (defun niwa-acp-close (connection)
   "Release CONNECTION and settle pending work as interrupted, once."

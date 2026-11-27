@@ -20,6 +20,10 @@
 (require 'niwa-presets)
 (require 'niwa-view-stream)
 
+;; `niwa-agent-conversation'
+(declare-function niwa-agent-conversation-record-activity
+                  "niwa-agent-conversation" (invocation item &optional suppress-rerender))
+
 ;; `niwa-goal'
 (declare-function niwa-goal-capture-request "niwa-goal" (request))
 
@@ -207,7 +211,7 @@ for it; duplicate or late continuations cannot start a cancelled turn."
          ;; Native identities of calls the adapter announced on stdout.
          (announced (make-hash-table :test #'equal))
          pending draining server connection configuration finished cancellation-held started terminal-pending
-         last-end last-send send-context)
+         last-end last-send send-context (holds 0) stall-status)
     (unless (and (buffer-live-p buffer)
                  (if root-p
                      (and (eq request (buffer-local-value 'niwa--current-request buffer))
@@ -237,6 +241,32 @@ for it; duplicate or late continuations cannot start a cancelled turn."
            (if root-p (niwa-request-cancelled-p request)
              (or (and admission (niwa-request-cancelled-p admission))
                  (plist-get (niwa-engine-info request) :niwa-cancelled))))
+         (hold (complete)
+           ;; A tool or hook in niwa, with its permission prompt, is no stall;
+           ;; it may have side effects, so the prompt is no longer replayable.
+           (let ((open t))
+             (cl-incf holds)
+             (when connection (niwa-acp-note-local-work connection t))
+             (cl-labels ((release ()
+                           (when open
+                             (setq open nil)
+                             (cl-decf holds)
+                             (when connection (niwa-acp-note-local-work connection)))))
+               (cons (lambda (&rest args) (release) (apply complete args))
+                     #'release))))
+         (show-stall (text)
+           (if root-p
+               (when-let* ((view (buffer-local-value 'niwa--view-buffer buffer)))
+                 (unless stall-status
+                   (setq stall-status
+                         (list (niwa-view-stream-claim-progress view text 'provider-retry)))))
+             (niwa-agent-conversation-record-activity request (list :type 'status :summary text))))
+         (clear-stall ()
+           (when-let* ((claim stall-status))
+             (setq stall-status nil)
+             (when (buffer-live-p buffer)
+               (niwa-view-stream-release-progress
+                (buffer-local-value 'niwa--view-buffer buffer) (car claim)))))
          (enqueue (operation &optional terminal reject)
            (if (or finished (and (not terminal) (cancelled)))
                (when reject (funcall reject))
@@ -303,6 +333,7 @@ for it; duplicate or late continuations cannot start a cancelled turn."
            (niwa-acp-prompt
             connection input
             (lambda (event)
+              (clear-stall)
               (let ((update (alist-get 'update (alist-get 'params event))))
                 (when (equal "tool_call" (alist-get 'sessionUpdate update))
                   (when-let* ((id (alist-get 'toolCallId update)))
@@ -341,6 +372,7 @@ for it; duplicate or late continuations cannot start a cancelled turn."
                  (error (setq outcome (list :status 'error :message (error-message-string err)))))))
            (unless finished
              (setq finished t)
+            (clear-stall)
              (setq pending nil)
              (niwa-transport-cancel-pending event-key)
              (when cancellation-held
@@ -416,7 +448,9 @@ for it; duplicate or late continuations cannot start a cancelled turn."
              (when admission (niwa-request-cancel admission)))
            (finish '(:status interrupted)))
          (dispatch (name args metadata complete)
-           (let ((id (plist-get metadata (plist-get configuration :tool-id-field)))
+           (let* ((held (hold complete))
+                  (complete (car held))
+                  (id (plist-get metadata (plist-get configuration :tool-id-field)))
                  (deadline (+ (float-time) niwa-acp-turn--announce-wait))
                  cancel-call cancelled-call)
              (cl-labels
@@ -450,6 +484,7 @@ for it; duplicate or late continuations cannot start a cancelled turn."
                (attempt))
              (lambda ()
                (setq cancelled-call t)
+              (funcall (cdr held))
                (when (functionp cancel-call) (funcall cancel-call)))))
          (dispatch-now (name args metadata complete)
            (unless (and (owned) (not finished)
@@ -539,7 +574,9 @@ for it; duplicate or late continuations cannot start a cancelled turn."
                                                  (mapcar #'niwa-tool-gptel-tool tools)))
                                      #'dispatch
                                      (lambda (event complete)
-                                       (let (abandoned)
+                                       (let* ((held (hold complete))
+                                              (complete (car held))
+                                              abandoned)
                                          (enqueue-later
                                           (lambda ()
                                             ;; A hook client that gave up never
@@ -560,7 +597,7 @@ for it; duplicate or late continuations cannot start a cancelled turn."
                                             ;; Reject its authority without running
                                             ;; the queued control transaction.
                                             (funcall complete nil "The owning turn was cancelled")))
-                                         (lambda () (setq abandoned t))))
+                                         (lambda () (setq abandoned t) (funcall (cdr held)))))
                                     nil
                                     (lambda (diagnostic)
                                       (niwa-acp-turn--reply-lost request diagnostic))))
@@ -569,6 +606,9 @@ for it; duplicate or late continuations cannot start a cancelled turn."
                                              (niwa-mcp-hook-command server)))
                               (unless (plist-get (niwa-engine-info request) :niwa-native-isolated)
                                 (setq configuration (plist-put configuration :compaction t)))
+                              (setq configuration
+                                    (plist-put (plist-put configuration :busy-p (lambda () (> holds 0)))
+                                               :stall-observer #'show-stall))
                               (setq configuration
                                     (plist-put configuration :send-observer
                                                (lambda (resend)

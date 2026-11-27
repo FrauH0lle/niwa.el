@@ -11,7 +11,7 @@
 ;; Explicit root retry uses this replay, or forks ACP history at the answer
 ;; before the failed prompt and replays that input without undoing tool effects.
 ;; A streaming attempt that waits on its provider without content, reasoning
-;; or tool-call deltas for `niwa-gptel-retry-stall-timeout' is retired as a
+;; or tool-call deltas for `niwa-provider-stall-timeout' is retired as a
 ;; stall and retried once; a second stall ends the sample.
 
 ;;; Code:
@@ -94,14 +94,6 @@
 Zero disables automatic sample recovery.  Successful tool-loop samples start
 a fresh allowance.  Claude Code and background requests are unaffected."
   :type 'natnum :group 'niwa)
-
-(defcustom niwa-gptel-retry-stall-timeout 300
-  "Seconds a streaming sample may wait on its provider without progress.
-Progress means content, reasoning or tool-call deltas; keep-alives and other
-envelopes do not count.  Tools run outside this wait.  A stalled attempt is
-retried once through the ordinary retry path; a second stall ends the sample
-with an error.  nil disables stall detection."
-  :type '(choice (const :tag "Off" nil) number) :group 'niwa)
 
 (defvar niwa-gptel-retry--states nil
   "Live sample owners, including requests parked without a transport.")
@@ -479,10 +471,10 @@ Retained agent turns have no root request: their runtime owns the machine."
 (defun niwa-gptel-retry--watch (state info)
   "Start STATE's stall watch over streaming attempt INFO."
   (niwa-gptel-retry--unwatch state)
-  (when (and niwa-gptel-retry-stall-timeout (plist-get info :stream))
+  (when (and niwa-provider-stall-timeout (plist-get info :stream))
     (plist-put state :progress-at (float-time))
     (plist-put state :stall-timer
-               (niwa-transport-run-at-time niwa-gptel-retry-stall-timeout
+               (niwa-transport-run-at-time niwa-provider-stall-timeout
                                            #'niwa-gptel-retry--stall-check state info))))
 
 (defun niwa-gptel-retry--unwatch (state)
@@ -498,7 +490,7 @@ without one, the attempt settles directly.  The first stall is retried;
 a second stall's code is not retryable."
   (plist-put state :stall-timer nil)
   (let* ((fsm (plist-get state :fsm))
-         (timeout niwa-gptel-retry-stall-timeout)
+         (timeout niwa-provider-stall-timeout)
          (remaining (and timeout (- (+ (plist-get state :progress-at) timeout) (float-time)))))
     (when (and remaining (niwa-gptel-retry--live-p state info)
                (memq (gptel-fsm-state fsm) '(WAIT TYPE MRESEND)))
@@ -509,9 +501,8 @@ a second stall's code is not retryable."
         (let* ((again (plist-get state :stalled))
                (error-data
                 (list :code (if again "stream_stalled_again" "stream_stalled")
-                      :message (format "No response from the provider for %s%s"
-                                       (format-seconds "%x%m min%z %s s" timeout)
-                                       (if again ", again after a retry; the request ended" ""))))
+                      :message (niwa-provider-stall-message
+                                (and again ", again after a retry; the request ended"))))
                (transports (seq-filter (lambda (entry)
                                          (and (eq fsm (cadr entry)) (process-live-p (car entry))))
                                        gptel--request-alist)))

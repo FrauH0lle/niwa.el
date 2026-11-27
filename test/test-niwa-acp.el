@@ -147,6 +147,113 @@
       (await (lambda () completions))
       (should (= 1 (length completions)))))
 
+  :doc "a prompt silent after one update is cancelled and re-sent once"
+  (let* ((statuses nil) (sends 0)
+         (niwa-provider-stall-timeout 1.0)
+         (niwa-acp-test--launch-options
+          (list :stall-observer (lambda (text) (push text statuses))
+                :send-observer (lambda (_resend) (cl-incf sends)))))
+    (niwa-acp-test--with-connection nil
+      (let ((text "") outcome)
+        (niwa-acp-prompt connection [((type . "text") (text . "stall-once"))]
+                         (lambda (notification)
+                           (let ((update (alist-get 'update (alist-get 'params notification))))
+                             (setq text (concat text (alist-get 'text (alist-get 'content update))))))
+                         (lambda (value) (setq outcome value)))
+        (await (lambda () outcome))
+        (should (eq 'success (plist-get outcome :status)))
+        (should (string-suffix-p "recovered" text))
+        (should (= 2 sends))
+        (should (equal 1 (length statuses)))
+        (should (string-match-p "\\`No response from the provider for .* · retrying" (car statuses)))
+        (should (eq 'idle (niwa-acp-state connection))))))
+
+  :doc "a re-sent prompt that stalls again, or a stall after a tool call, ends with an error"
+  (dolist (case '(("wait" 2 "again after a retry; the turn ended")
+                  ("stall-after-tool" 1 "had called tools, so it was not retried")))
+    (ert-info ((car case))
+      (let* ((sends 0) (niwa-provider-stall-timeout 1.0)
+             (niwa-acp-test--launch-options
+              (list :send-observer (lambda (_resend) (cl-incf sends)))))
+        (niwa-acp-test--with-connection nil
+          (let (outcome)
+            (niwa-acp-prompt connection `[((type . "text") (text . ,(car case)))]
+                             #'ignore (lambda (value) (setq outcome value)))
+            (await (lambda () outcome))
+            (should (eq 'error (plist-get outcome :status)))
+            (should (string-match-p (concat "\\`No response from the provider for .*"
+                                            (regexp-quote (nth 2 case)))
+                                    (plist-get outcome :message)))
+            (should (= (nth 1 case) sends)))))))
+
+  :doc "slow progress, a busy niwa tool or permission wait, or no timeout is not a stall"
+  ;; Above ACP output pacing's longest pause, 0.45 s: a paced agent is not silent.
+  (dolist (case '(("slow" nil 1.0 success) ("wait" t 1.0 nil) ("wait" nil nil nil)))
+    (ert-info ((format "%S" case))
+      (let* ((statuses nil) (niwa-provider-stall-timeout (nth 2 case))
+             (niwa-acp-test--launch-options
+              (list :busy-p (let ((busy (nth 1 case))) (lambda () busy))
+                    :stall-observer (lambda (text) (push text statuses)))))
+        (niwa-acp-test--with-connection nil
+          (let ((start (float-time)) outcome)
+            (niwa-acp-prompt connection `[((type . "text") (text . ,(car case)))]
+                             #'ignore (lambda (value) (setq outcome value)))
+            (if (nth 3 case)
+                (progn (await (lambda () outcome))
+                       (should (> (- (float-time) start) 1.5))
+                       (should (eq 'success (plist-get outcome :status))))
+              (niwa-test--await 4 "unexpected" (> (- (float-time) start) 2.5))
+              (should-not outcome)
+              (should (eq 'prompting (niwa-acp-state connection))))
+            (should-not statuses))))))
+
+  :doc "niwa-side work ending just before the deadline restarts the provider interval"
+  (let* ((busy nil) (statuses nil) (timers nil)
+         (niwa-provider-stall-timeout 1.0)
+         (niwa-acp-test--launch-options
+          (list :busy-p (lambda () busy)
+                :stall-observer (lambda (text) (push text statuses)))))
+    (niwa-acp-test--with-connection nil
+      (let (outcome)
+        (unwind-protect
+            (progn
+              (niwa-acp-prompt connection [((type . "text") (text . "late"))]
+                               #'ignore (lambda (value) (setq outcome value)))
+              ;; A permission wait from 0.2 s that ends at 0.9 s; the agent
+              ;; answers at 1.5 s, within a fresh interval from 0.9 s.
+              (push (run-at-time 0.2 nil (lambda ()
+                                           (setq busy t)
+                                           (niwa-acp-note-local-work connection t)))
+                    timers)
+              (push (run-at-time 0.9 nil (lambda ()
+                                           (setq busy nil)
+                                           (niwa-acp-note-local-work connection)))
+                    timers)
+              (await (lambda () outcome)))
+          (mapc #'cancel-timer timers))
+        (should (eq 'success (plist-get outcome :status)))
+        (should-not statuses))))
+
+  :doc "a prompt failure while a stall's cancellation is pending is terminal"
+  (let* ((sends 0) (niwa-provider-stall-timeout 1.0)
+         (niwa-acp-test--launch-options
+          (list :send-observer (lambda (_resend) (cl-incf sends))
+                :prompt-retry-delay (lambda (_failure) 0.05))))
+    (niwa-acp-test--with-connection nil
+      (let (outcome turn)
+        (niwa-acp-prompt connection [((type . "text") (text . "stall-cancel-fails"))]
+                         #'ignore (lambda (value) (setq outcome value)))
+        (setq turn (niwa-acp-active connection))
+        (await (lambda () outcome))
+        (should (eq 'error (plist-get outcome :status)))
+        ;; Long enough for the 0.05 s retry delay to have re-sent the prompt.
+        (let ((end (+ (float-time) 0.3)))
+          (niwa-test--await 2 "Wait did not end" (> (float-time) end)))
+        (should (= 1 sends))
+        (should-not (niwa-acp-timer connection))
+        (should-not (memq (plist-get turn :stall-timer) timer-list))
+        (should-not (memq (plist-get turn :retry-timer) timer-list)))))
+
   :doc "real peer output during an ordinary TRAMP wait retains its ACP drain"
   (niwa-acp-test--with-connection nil
     (let (outcome)

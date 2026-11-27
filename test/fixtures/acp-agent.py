@@ -92,6 +92,8 @@ sdk_after_batches = []
 continuation_prompts = []
 prompt_number = 0
 refresh_attempts = 0
+stalls = 0
+cancel_error = False
 session_info = {}
 config_behavior = None
 applied = {}
@@ -353,6 +355,30 @@ for line in sys.stdin:
                         marker.write("written")
             elif prompt == "wait-silent":
                 pending = request_id
+            elif prompt in ("stall-once", "stall-after-tool", "stall-cancel-fails"):
+                # One update, then silence until cancelled; stall-once recovers.
+                stalls += 1
+                cancel_error = prompt == "stall-cancel-fails"
+                if prompt == "stall-once" and stalls > 1:
+                    chunk("recovered")
+                    reply(request_id, {"stopReason": "end_turn"})
+                else:
+                    if prompt == "stall-after-tool":
+                        print(json.dumps({"jsonrpc": "2.0", "method": "session/update", "params": {
+                            "sessionId": session_id, "update": {
+                                "sessionUpdate": "tool_call", "toolCallId": "native-1"}}}), flush=True)
+                    else:
+                        chunk("stalling")
+                    pending = request_id
+            elif prompt == "late":
+                time.sleep(1.5)
+                chunk("late")
+                reply(request_id, {"stopReason": "end_turn"})
+            elif prompt == "slow":
+                for index in range(6):
+                    time.sleep(0.3)
+                    chunk("slow %d " % index)
+                reply(request_id, {"stopReason": "end_turn"})
             elif prompt.startswith("refresh-race"):
                 # The Claude CLI streams its refusal, then fails the prompt
                 # while another process holds the credential refresh lock.
@@ -517,7 +543,8 @@ for line in sys.stdin:
                     chunk(response_text or "workload complete")
                 reply(request_id, prompt_response)
                 reply(request_id, prompt_response)
-            elif prompt.startswith("read:"):
+            elif prompt.startswith(("read:", "read-stall:")):
+                path = prompt.split(":", 1)[1]
                 config = mcp_servers[0]
                 with subprocess.Popen([config["command"], *config["args"]],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -529,12 +556,16 @@ for line in sys.stdin:
                     json.loads(bridge.stdout.readline())
                     send({"jsonrpc": "2.0", "method": "notifications/initialized"})
                     send({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                          "params": {"name": "Read", "arguments": {"file_path": prompt[5:]},
+                          "params": {"name": "Read", "arguments": {"file_path": path},
                                      "_meta": {"fixtureToolId": "fixture-read"}}})
                     result = json.loads(bridge.stdout.readline())["result"]
                     bridge.stdin.close()
                     bridge.wait(timeout=5)
-                if hook_command:
+                if prompt.startswith("read-stall:"):
+                    # The tool ran unannounced; now the agent goes silent.
+                    pending = request_id
+                    continue
+                elif hook_command:
                     hook_reply = subprocess.run(hook_command, shell=True, check=True,
                                                 input=json.dumps({"hook_event_name": "PostToolBatch"}),
                                                 capture_output=True, text=True, timeout=5)
@@ -557,7 +588,11 @@ for line in sys.stdin:
                 reply(request_id, prompt_response)
         elif method == "session/cancel" and pending is not None:
             wait_gate("NIWA_ACP_TEST_CANCEL_GATE")
-            reply(pending, cancel_response)
+            if cancel_error:
+                print(json.dumps({"jsonrpc": "2.0", "id": pending, "error": {
+                    "code": -32603, "message": "Fixture prompt failed during cancellation"}}), flush=True)
+            else:
+                reply(pending, cancel_response)
             pending = None
     except Exception:
         # A scripting mistake reaches the test as this request's error,

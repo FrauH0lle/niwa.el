@@ -12,6 +12,7 @@
 (require 'niwa-acp-turn)
 (require 'niwa-claude-code)
 (require 'niwa-mcp)
+(require 'niwa-mcp-tools)
 (require 'niwa-plan-mode)
 (require 'niwa-view-render)
 (require 'niwa-sigpipe-test-support
@@ -858,6 +859,98 @@ BODY delivers the receipt and a Read call through `connection', `content' and
         (should-not (plist-get (car sends) :resend))
         (should (plist-get (cadr sends) :resend))
         (should (>= (plist-get (cadr sends) :since-send-ms) 50))))))
+
+(niwa-deftest niwa-acp-turn-start/stall (:quiet t)
+  ,test
+  (test)
+
+  :doc "a real MCP tool slower than the timeout is not provider silence"
+  (niwa-engine-test--with-session
+    (let ((path (file-name-concat root "source.txt"))
+          (call (symbol-function 'niwa-mcp-tools-call))
+          (niwa-provider-stall-timeout 1.0)
+          stalls)
+      (write-region "slow tool evidence" nil path nil 'silent)
+      ;; The tool, including any permission prompt, runs inside this call.
+      (cl-letf (((symbol-function 'niwa-mcp-tools-call)
+                 (lambda (owner buffer tool args id callback)
+                   (funcall call owner buffer tool args id
+                            (lambda (&rest result)
+                              (run-at-time 2.5 nil (lambda () (apply callback result))))))))
+        (niwa-acp-turn-start
+         request
+         (lambda (mcp _hook-command)
+           (list :command (executable-find "python3")
+                 :args (list niwa-test--acp-peer) :cwd root
+                 :mcp mcp :tool-id-field :fixtureToolId))
+         (vector `((type . "text") (text . ,(concat "read:" path))))
+         (list (niwa-tool-ensure "Read")))
+        (advice-add 'niwa-provider-stall-message :before
+                    (lambda (&rest _) (push t stalls)) '((name . stall-probe)))
+        (unwind-protect
+            (niwa-test--await 8 "Slow tool turn did not settle" (not (niwa-turn-busy-p buffer)))
+          (advice-remove 'niwa-provider-stall-message 'stall-probe)))
+      (should (string-search "slow tool evidence" (buffer-string)))
+      (should (string-search "read finished" (buffer-string)))
+      (should-not stalls)
+      (should (eq 'success (plist-get (niwa-engine-info request) :niwa-acp-outcome)))))
+
+  :doc "an unannounced tool then silence ends the turn without replaying the tool"
+  (niwa-engine-test--with-session
+    (let ((path (file-name-concat root "source.txt"))
+          (call (symbol-function 'niwa-mcp-tools-call))
+          (niwa-provider-stall-timeout 1.0)
+          (executions 0) (prompts 0))
+      (write-region "tool evidence" nil path nil 'silent)
+      (cl-letf (((symbol-function 'niwa-mcp-tools-call)
+                 (lambda (&rest args) (cl-incf executions) (apply call args))))
+        (advice-add 'niwa-acp--send :before
+                    (lambda (_connection request &rest _)
+                      (when (equal "session/prompt" (alist-get :method request))
+                        (cl-incf prompts)))
+                    '((name . prompt-probe)))
+        (unwind-protect
+            (progn
+              (niwa-acp-turn-start
+               request
+               (lambda (mcp _hook-command)
+                 (list :command (executable-find "python3")
+                       :args (list niwa-test--acp-peer) :cwd root
+                       :mcp mcp :tool-id-field :fixtureToolId))
+               (vector `((type . "text") (text . ,(concat "read-stall:" path))))
+               (list (niwa-tool-ensure "Read")))
+              (niwa-test--await 8 "Stalled tool turn did not settle"
+                (not (niwa-turn-busy-p buffer))))
+          (advice-remove 'niwa-acp--send 'prompt-probe)))
+      (should (= 1 executions))
+      (should (= 1 prompts))
+      (should (eq 'error (plist-get (niwa-engine-info request) :niwa-acp-outcome)))
+      (should (string-match-p "had called tools, so it was not retried"
+                              (format "%s" (plist-get (niwa-engine-info request) :error))))))
+
+  :doc "a child whose re-sent prompt stalls again settles with an honest error"
+  (niwa-engine-test--with-session
+    (let* ((niwa-provider-stall-timeout 1.0)
+           (invocation
+            (niwa-agent-invocation--create
+             :buffer buffer :path "/root/stalled-child" :description "Stalled child"
+             :runtime-context (list :buffer buffer :niwa-request request)))
+           (settled 0) terminal-status)
+      (setq-local niwa--agent-invocation invocation)
+      (niwa-acp-turn-start
+       invocation
+       (lambda (mcp _hook)
+         (list :command (executable-find "python3")
+               :args (list niwa-test--acp-peer) :cwd root :mcp mcp))
+       [((type . "text") (text . "wait"))] nil nil nil
+       (lambda (status)
+         (cl-incf settled)
+         (setq terminal-status status)
+         (setf (niwa-agent-invocation-runtime-settled-p invocation) t)))
+      (niwa-test--await 8 "Stalled child did not settle" (= 1 settled))
+      (should (eq 'error terminal-status))
+      (should (string-match-p "No response from the provider for .* again after a retry"
+                              (format "%s" (plist-get (niwa-engine-info invocation) :error)))))))
 
 (provide 'test-niwa-acp-turn)
 ;;; test-niwa-acp-turn.el ends here

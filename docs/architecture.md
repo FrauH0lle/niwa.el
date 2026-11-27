@@ -489,7 +489,7 @@ resets the allowance. Root and concurrent children have independent budgets.
 Unadmitted background gptel requests and their separate retry policies are
 unchanged. Claude Code/ACP remains a separate, self-retrying engine; it keeps
 its built-in retries and niwa's existing one-time credential-refresh-lock
-replay.
+replay, plus the provider stall watch described below.
 
 gptel retains provider transport and parsing. The controller classifies errors
 conservatively using HTTP status and structured provider errors from native
@@ -504,7 +504,7 @@ failures do not retry. Output-limit and content-filter stops are not mistaken
 for interrupted transport. Unknown errors are not assumed transient.
 
 A streaming sample that waits on its provider without semantic progress for
-`niwa-gptel-retry-stall-timeout` (300 seconds by default; nil disables) is a
+`niwa-provider-stall-timeout` (300 seconds by default; nil disables) is a
 stall. Progress means new text, reasoning or tool-call argument deltas as
 gptel's parser reports them; keep-alive comments, pings and other envelopes
 do not count, and neither do raw bytes. gptel's own curl limit (`-y7200 -Y1`)
@@ -519,6 +519,18 @@ reach of interruption. Each attempt records its own curl when gptel starts
 writing to it. A non-local exit deletes that curl and retries the sample as
 `request_not_sent`; a stall or interruption during the write deletes it too.
 Another request's curl is never touched.
+
+ACP engines (Claude Code, Codex through ACP) use the same setting in
+`niwa-acp-prompt`. There, progress is any `session/update` notification for
+the prompt. An MCP tool call or native hook control that niwa is running for
+the turn, including its permission prompt, counts as progress for as long as
+it runs, and the provider's interval restarts when it ends. A prompt that has
+neither announced a `tool_call` nor had niwa start a tool or hook for it is
+cancelled with `session/cancel` on its first stall and re-sent once after the
+agent acknowledges with `cancelled`, showing the same status. Retrying it then
+cannot repeat side effects. A stall after a tool, a stall of the re-sent
+prompt, an unacknowledged cancellation, or a prompt failure while the
+cancellation is pending ends the turn with an error.
 
 Small Responses-specific normalization fills missing error/completion events:
 nested Responses errors, flat `error` events, `response.failed` errors, and

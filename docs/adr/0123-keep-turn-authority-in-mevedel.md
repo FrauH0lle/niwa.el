@@ -215,7 +215,11 @@ root requests still discard failed provisional output and retain the prepared
 sample for explicit failed-turn Retry. Retained agents opt out at zero.
 Unadmitted background gptel policies are unchanged. Claude Code/ACP stays
 separate and self-retrying, retaining its built-in retry behavior and the
-credential-lock replay below. The all-backend admission contract does not
+credential-lock replay below. Both paths share one provider stall watch
+(`niwa-provider-stall-timeout`). An ACP prompt silent for that long, with no
+niwa tool or permission wait running, is cancelled and re-sent once only
+while it has made no tool call; otherwise its turn ends with an error.
+The all-backend admission contract does not
 assert paid-service verification for every provider. Details are in
 [bounded sample recovery](../architecture.md#bounded-native-gptel-sample-recovery).
 
