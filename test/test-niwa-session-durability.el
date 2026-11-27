@@ -158,17 +158,16 @@
           (setq programs 0)
           (niwa-session-transfer-poll owner)
           (should (> programs 0))
-          ;; A requester with stale local history cannot cause a native
-          ;; conversation to be handed off by the automatic grant timer.
-          (let ((lease (copy-tree (niwa-session-lease owner))))
-            (setf (niwa-session-external-conversations owner)
-                  (list (list "root" :engine 'claude-code :id "native"
-                              :host (system-name) :directory root :state 'ready)))
-            (should (eq 'rejected
-                        (plist-get (niwa-session-transfer-poll owner) :state)))
-            (should-error (niwa-session-transfer-decide owner 'grant) :type 'user-error)
-            (should-error (niwa-session-transfer-release owner) :type 'user-error)
-            (should (equal lease (niwa-session-lease owner)))))
+          ;; Native history is handed over like the rest of the committed
+          ;; session; the requester's next send checks its installation.
+          (setf (niwa-session-external-conversations owner)
+                (list (list "root" :engine 'claude-code :id "native"
+                            :host (system-name) :directory root :state 'ready)))
+          (should (eq 'requested
+                      (plist-get (niwa-session-transfer-poll owner) :state)))
+          (should (eq 'grant (plist-get (niwa-session-transfer-decide owner 'grant)
+                                        :decision)))
+          (should (niwa-session-transfer-release owner)))
       (advice-remove 'niwa-session-control-fs-run-program count)
       (niwa-session-durability--cancel-renewal owner)
       (when (file-directory-p root)

@@ -11,6 +11,7 @@
           "niwa-engine-test-support"))
 (require 'niwa-claude-code)
 (require 'niwa-claude-code-context)
+(require 'niwa-session-control-transfer)
 (require 'niwa-journal-store)
 
 (niwa-deftest niwa-engine-test--with-claude-session (:quiet t)
@@ -1080,6 +1081,46 @@
               (should-not (niwa-session-messages restored-session))))
         (when (buffer-live-p restored)
           (test-niwa-session-persistence--release-and-kill restored restored-session))))))
+
+(niwa-deftest niwa--send-request/claude-foreign-history-after-adoption (:quiet t)
+  ;; Control transfer adopts another machine's native identity; the next root
+  ;; send must refuse it before any adapter launch.
+  (niwa-engine-test--with-claude-session
+    (let ((launches 0)
+          (dir (niwa-session-save-path session))
+          refusal)
+      (setf (niwa-session-external-conversations session)
+            (list (list "root" :engine 'claude-code :id "desktop-native"
+                        :host "other-machine" :directory "/other/claude"
+                        :state 'ready)))
+      (test-niwa-session-persistence--publish-generation
+       session dir
+       (niwa-session-artifacts-segment-path dir (niwa-session-current-segment session))
+       (buffer-string) (niwa-session-turn-count session))
+      (set-buffer-modified-p nil)
+      (setf (niwa-session-external-conversations session) nil)
+      (niwa-session-durability-lease-release dir session)
+      (niwa-session-persistence-apply-read-only-mode buffer)
+      (niwa-session-control-transfer-acquire session buffer)
+      (should-not niwa-session--read-only-mode)
+      (should (equal "desktop-native"
+                     (plist-get (cdr (assoc "root" (niwa-session-external-conversations
+                                                    session)))
+                                :id)))
+      (cl-letf (((symbol-function 'niwa-claude-code-launch)
+                 (lambda (&rest _) (cl-incf launches) (error "Adapter reached"))))
+        (goto-char (point-max))
+        (insert "Continue")
+        (condition-case err
+            (progn
+              (niwa--send-request "Continue")
+              (niwa-test--await 5 "Refused turn did not settle"
+                (not (niwa-turn-busy-p buffer))))
+          (user-error (setq refusal (error-message-string err)))))
+      (should (= 0 launches))
+      (ert-info ((format "refusal=%S info=%S" refusal (and request (niwa-engine-info request))))
+        (should (or (and refusal (string-search "another installation" refusal))
+                    (string-search "another installation" (buffer-string))))))))
 
 (niwa-deftest niwa--send-request/claude-initial-reminder-after-fork-point (:quiet t)
   (niwa-engine-test--with-claude-session

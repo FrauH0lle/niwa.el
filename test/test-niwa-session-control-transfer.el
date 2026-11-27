@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'niwa-notes)
+(require 'niwa-claude-code-history)
 (require 'niwa-session-test-support
          (file-name-concat (file-name-directory
                             (or buffer-file-name load-file-name byte-compile-current-file))
@@ -212,20 +213,13 @@
       ;; the user to stop seeing both.
       (should-not (plist-get idle :attention))
       (should (equal '("r" "b") (mapcar #'car (plist-get idle :keys)))))
-    ;; A live owner refuses cooperative transfer of native history, so the
-    ;; follower is offered only the takeover that works in every lease state.
+    ;; Native history transfers cooperatively too, so it keeps both keys.
     (setf (niwa-session-external-conversations session)
           '(("root" :engine claude-code :id "native")))
-    (dolist (state '(rejected released))
-      (setf (niwa-session-control-transfer session) (list :state state))
-      (should (equal '(("b" . "take over"))
-                     (plist-get (niwa-session-control-transfer-descriptor
-                                 session t)
-                                :keys))))
-    (should (string-match-p
-             "Claude history"
-             (plist-get (niwa-session-control-transfer-descriptor session t)
-                        :detail)))
+    (should (equal '("r" "b")
+                   (mapcar #'car (plist-get (niwa-session-control-transfer-descriptor
+                                             session t)
+                                            :keys))))
     (setf (niwa-session-external-conversations session) nil)
     ;; A writable session with no request has nothing to say.
     (should-not
@@ -542,17 +536,21 @@
                                   (overlay-start restored)
                                   (overlay-end restored)))))))
             (setq failure nil)
-            (setq native-history '(("root" :id "native-history")))
-            (should-error
-             (niwa-session-control-transfer--adopt-control session buffer)
-             :type 'user-error)
-            (should niwa-session--read-only-mode)
+            ;; A cooperative handover from another machine carries its native
+            ;; identity; the send-time check, not the transfer, refuses it here.
+            (setq native-history
+                  '(("root" :engine claude-code :id "native-history"
+                     :host "other-machine" :directory "/other/claude"
+                     :state ready)))
             (niwa-test--with-captured-messages nil
               (should
                (niwa-session-control-transfer--adopt-control
-                session buffer t)))
+                session buffer)))
             (should (equal native-history
                            (niwa-session-external-conversations session)))
+            (should-error (niwa-claude-code-history-assert-current
+                           (cdar native-history))
+                          :type 'user-error)
             (should (= 9 (niwa-session-turn-count session)))
             (should (= 2 (niwa-session-current-segment session)))
             (should (equal "new transcript" (buffer-string)))
@@ -567,7 +565,8 @@
              (niwa-session-control-transfer-drained-p session))
             (niwa-session-control-transfer-unregister-drain session drain)
             (should (niwa-session-control-transfer-drained-p session))
-            (should (= 5 releases))))
+            ;; One release per failed staging stage.
+            (should (= 4 releases))))
       (niwa-session-control-transfer-unregister-root-buffer session buffer)
       (when (buffer-live-p buffer)
         (with-current-buffer buffer

@@ -22,14 +22,6 @@
 (autoload 'niwa-agent-control-active-turn-p "niwa-agent-control")
 (autoload 'niwa-agent-control-interrupt-user "niwa-agent-control")
 
-;; `niwa-engine'
-(declare-function niwa-engine-assert-local-history "niwa-engine"
-                  (session operation &optional backend root-only))
-(autoload 'niwa-engine-assert-local-history "niwa-engine")
-(declare-function niwa-engine-external-history-p "niwa-engine"
-                  (session &optional root-only))
-(autoload 'niwa-engine-external-history-p "niwa-engine")
-
 ;; `niwa-execution'
 (declare-function niwa-execution-session-live-description
                   "niwa-execution" (session))
@@ -719,7 +711,7 @@ conflict on the user's behalf."
                 (kill-buffer staging-buffer)))))))))
 
 (defun niwa-session-control-transfer--adopt-control
-    (session buffer &optional direct-acquisition)
+    (session buffer)
   "Adopt SESSION's committed state into BUFFER under a freshly held lease.
 
 The caller has already acquired the lease.  Losing it again on any failure is
@@ -727,8 +719,8 @@ the point of the unwind: a client that cannot finish adopting committed state
 must not keep other clients out.
 
 The target incarnation, transcript, and instruction restore are staged before
-the live session or buffer changes.  DIRECT-ACQUISITION resumes an unheld
-session, including its native history, rather than a cooperative transfer."
+the live session or buffer changes.  Native history is adopted as on ordinary
+resume; the engine validates its installation on the next send."
   ;; Staging copies runtime slots before yielding instruction work.  A heartbeat
   ;; started there would be erased by the later whole-session copy, hiding a
   ;; running target program from the mutation gate.
@@ -756,8 +748,6 @@ session, including its native history, rather than a cooperative transfer."
           (error "Transferred session has no valid committed sidecar"))
         (unwind-protect
             (progn
-              (unless direct-acquisition
-                (niwa-engine-assert-local-history refreshed "Session control transfer"))
               (niwa-session-control-transfer--stage-session
                session refreshed publication staging-buffer)
               (niwa-session-control-transfer--insert-committed-segment
@@ -806,7 +796,6 @@ session, including its native history, rather than a cooperative transfer."
              (niwa-session-save-path session)
              (memq (plist-get (niwa-session-control-transfer session) :state)
                    '(requested quiescing)))
-    (niwa-engine-assert-local-history session "Session control transfer")
     (niwa-session-control-transfer-register-root-buffer session buffer)
     (when (buffer-modified-p buffer)
       (user-error "Read-only session changed locally; refresh before transfer"))
@@ -857,7 +846,7 @@ FORCE also offers confirmation to take over from a live holder."
   (niwa-session-control-transfer-register-root-buffer session buffer)
   (if (niwa-session-durability-lease-acquire
        (niwa-session-save-path session) (buffer-name buffer) session nil force)
-      (niwa-session-control-transfer--adopt-control session buffer t)
+      (niwa-session-control-transfer--adopt-control session buffer)
     (user-error "Another client took this session's lease first")))
 
 (defun niwa-session-control-transfer-take-over (session buffer)
@@ -921,15 +910,7 @@ the owner can see what a handoff is still waiting for."
   (let* ((transfer (niwa-session-control-transfer session))
          (state (plist-get transfer :state))
          (request (plist-get transfer :request))
-         (label (or (plist-get request :requester-label) "another client"))
-         ;; A live owner refuses to hand over native history cooperatively;
-         ;; take over acquires every lease state, so offer only it.
-         (native (niwa-engine-external-history-p session))
-         (keys (if native '(("b" . "take over"))
-                 '(("r" . "take control") ("b" . "take over"))))
-         (help (if native
-                   "Take over the lease; its Claude history cannot be handed over cooperatively"
-                 "Acquire an available lease or request cooperative control")))
+         (label (or (plist-get request :requester-label) "another client")))
     (cond
      ((and (not read-only-p) (eq state 'requested))
       (list :kind 'control-transfer
@@ -969,17 +950,15 @@ the owner can see what a handoff is still waiting for."
             :action 'request
             :attention t
             :title "Control request was declined"
-            :keys keys
-            :help-echo help))
+            :keys '(("r" . "take control") ("b" . "take over"))
+            :help-echo "Acquire an available lease or request cooperative control"))
      (t
       (list :kind 'control-transfer
             :action 'request
             :title "This session is read-only here"
-            :detail (if native
-                        "Its Claude history cannot be handed over; take over to acquire its lease."
-                      "Take control to acquire its lease or ask its current owner.")
-            :keys keys
-            :help-echo help)))))
+            :detail "Take control to acquire its lease or ask its current owner."
+            :keys '(("r" . "take control") ("b" . "take over"))
+            :help-echo "Acquire an available lease or request cooperative control")))))
 
 (provide 'niwa-session-control-transfer)
 

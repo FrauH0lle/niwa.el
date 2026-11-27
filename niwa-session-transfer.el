@@ -19,14 +19,6 @@
 ;; so this is a load-time dependency rather than a lazy one.
 (require 'niwa-session-durability)
 
-;; `niwa-engine'
-(declare-function niwa-engine-assert-local-history "niwa-engine"
-                  (session operation &optional backend root-only))
-(declare-function niwa-engine-external-history-p "niwa-engine"
-                  (session &optional root-only))
-(autoload 'niwa-engine-assert-local-history "niwa-engine")
-(autoload 'niwa-engine-external-history-p "niwa-engine")
-
 ;; `niwa-session-control-fs'
 (declare-function niwa-session-control-fs-directory-p
                   "niwa-session-control-fs" (path))
@@ -415,7 +407,6 @@ simply starts its notice window again."
 Return the immutable request record, or nil when another requester won the
 current-generation race.  The owner remains the sole mutator until it
 explicitly decides and releases its lease."
-  (niwa-engine-assert-local-history session "Session control transfer")
   (unless (niwa-session-durability--portable-session-p session)
     (error "Control transfer requires a portable project session"))
   (let ((session-dir (or (niwa-session-save-path session)
@@ -659,8 +650,7 @@ in the same program for the ordinary mutation gate."
         ;; requests the owner had never displayed -- silently, from the
         ;; user's point of view.
         (when (and request (not decision)
-                   (or (niwa-engine-external-history-p session)
-                       (progn
+                   (progn
                      (unless
                          (niwa-session-transfer--valid-timeout-p
                           niwa-session-transfer-prompt-timeout)
@@ -668,7 +658,7 @@ in the same program for the ordinary mutation gate."
                               niwa-session-transfer-prompt-timeout))
                      (<= (+ (max (plist-get request :created-at) observed-at)
                             niwa-session-transfer-prompt-timeout)
-                         now))))
+                         now)))
           (let ((candidate
                  (list :protocol-version 1
                        :request-id (plist-get request :request-id)
@@ -677,8 +667,7 @@ in the same program for the ordinary mutation gate."
                        :owner-client-id (plist-get request :owner-client-id)
                        :requester-client-id
                        (plist-get request :requester-client-id)
-                       :decision (if (niwa-engine-external-history-p session)
-                                     'reject 'grant)
+                       :decision 'grant
                        :decided-at now)))
             (niwa-session-transfer--directory directory "requests")
             (unless (niwa-session-durability--create-plist
@@ -728,8 +717,6 @@ attempting to rewrite an existing decision fails."
 
 (defun niwa-session-transfer--decide (session decision)
   "Apply DECISION for SESSION with heartbeat admission excluded by the caller."
-  (when (eq decision 'grant)
-    (niwa-engine-assert-local-history session "Session control transfer"))
   (unless (niwa-session-durability--portable-session-p session)
     (error "Control transfer requires a portable project session"))
   (unless (memq decision '(grant reject))
@@ -826,7 +813,6 @@ acceptance alone never changes the lease owner."
 
 (defun niwa-session-transfer--release (session)
   "Release SESSION's transfer lease with heartbeat admission excluded."
-  (niwa-engine-assert-local-history session "Session control transfer")
   (unless (niwa-session-durability--portable-session-p session)
     (error "Control transfer requires a portable project session"))
   (let* ((transfer (niwa-session-control-transfer session))

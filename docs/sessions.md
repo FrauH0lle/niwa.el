@@ -866,7 +866,7 @@ gptel payload rule or Claude system/prompt receipt, not the previous engine's
 acknowledgements.
 
 A session retaining a native identity in its root or any child conversation
-rejects cooperative control transfer, Save As and Fork. Rewind and Redo prepare
+rejects Save As and Fork. Rewind and Redo prepare
 native forks at recorded settled answer boundaries for each surviving root or
 child scope before publishing their replacement head. The source native
 sessions remain intact so Redo can return to them. Failed preparation or a
@@ -904,17 +904,14 @@ identity in session metadata, and deletes the fork when the side ends.
 Direct commands and menu actions report the external-history restriction before
 arming a fork or changing state. Save As refuses before asking for a name or
 saving the parent.
-Cooperative control requests refuse before creating a request; an owner rejects
-requests from a client with stale native history information instead of
-automatically granting them. Direct acquisition of an unheld or expired lease
-preserves native identities just as ordinary resume does. The next send checks
-the native installation and history, so recovery after an Emacs crash does not
-require copying or discarding native history. Forced **take over** of a live
-holder is the same direct acquisition and also keeps native identities: no
-owner grant is involved, and the send-time check still refuses history that
-another machine or installation holds. The read-only banner therefore offers
-only **take over** for these sessions; `r` still acquires a free lease.
-Read-only following remains available.
+Control transfer preserves native identities just as ordinary resume does,
+whether it acquires an unheld or expired lease, takes over a live holder, or
+completes a cooperative request the owner granted after draining its work. The
+next send checks the native installation and history: on the same machine and
+installation it resumes, and history another machine or installation holds
+refuses with `niwa-claude-code-recover-history` as the next action. Recovery
+after an Emacs crash therefore does not require copying or discarding native
+history. Read-only following remains available.
 For adapter crashes, diagnostic logs default to `~/.niwa/claude-agent-logs`
 on the Emacs host, controlled by `niwa-claude-code-agent-log-directory`;
 an inherited `CLAUDE_AGENT_LOGS` value takes precedence. See

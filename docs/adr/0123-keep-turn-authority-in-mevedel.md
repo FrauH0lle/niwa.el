@@ -80,7 +80,9 @@ must be acknowledged again before subsequent tools. Cross-engine continuation
 uses the effective segment and labels a new native conversation as excerpt
 continuation. Same-machine resume retains native identity, including direct
 acquisition of a released or expired lease from an already open read-only view.
-Cooperative transfer from a live owner still refuses retained native histories.
+Cooperative transfer and forced takeover from a live owner carry native
+identities the same way; the next send's installation check refuses history
+another machine or installation holds.
 Rewind and Redo use recorded root and retained-child answer boundaries to fork
 native histories before the existing publication transaction commits. The ACP
 bridge records the adapter's assistant `messageId`, whose persisted identity
@@ -89,8 +91,8 @@ explicit, so a transcript copy cannot silently stand in for a native history.
 Native preparation excludes new root and child turns. A failed preparation or
 pre-CAS transaction deletes its new forks; source sessions and forks referenced
 by a committed head remain available for Redo. Missing coordinates or deleted
-native sessions refuse before publication. Save As, durable Fork and cooperative
-control transfer retain their native-history restriction. These constraints are documented in
+native sessions refuse before publication. Save As and durable Fork retain
+their native-history restriction. These constraints are documented in
 [session lifecycle](../sessions.md#external-conversation-references), rather
 than hidden behind a transcript copy that claims exact model-history
 equivalence.
@@ -334,6 +336,14 @@ through later compaction.
   already open read-only view could not recover even though ordinary resume
   preserved the same native identity. Direct acquisition now follows resume's
   history policy; the cooperative protocol retains its native-history guard.
+
+- **Backwards handover:** the remaining cooperative guard refused `r` take
+  control for a live owner, while forced `b` take over, also a direct
+  acquisition, succeeded and interrupted the owner. Neither copies native
+  history, and the send-time installation check already refuses foreign
+  history, so the cooperative guard protected nothing the forced path left
+  open. Cooperative transfer now carries native identities too, letting the
+  owner drain first.
 
 - **Notice lifetime:** waiting for the next root request left a child failure
   banner visible throughout a long-running turn, even after work continued.

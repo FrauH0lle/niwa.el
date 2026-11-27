@@ -303,7 +303,7 @@
 (niwa-deftest niwa-view-control-transfer/native-banner ()
   ,test
   (test)
-  :doc "renders only take over, with matching help, for native history"
+  :doc "renders take control and take over alike for native history"
   (dolist (native '(nil t))
     (dolist (state '(released rejected))
       (niwa-view-test--with-buffers
@@ -323,9 +323,8 @@
                           (overlay-start overlay) (overlay-end overlay)))
                    (help (overlay-get overlay 'help-echo)))
               (should (string-match-p "take over" text))
-              (should (eq (not native) (and (string-match-p "take control" text) t)))
-              (should (eq (not native) (and (string-match-p "cooperative control" help) t)))
-              (should (eq native (and (string-match-p "Take over" help) t))))))))))
+              (should (string-match-p "take control" text))
+              (should (string-match-p "cooperative control" help)))))))))
 
 (provide 'test-niwa-view-control-transfer)
 ;;; test-niwa-view-control-transfer.el ends here
