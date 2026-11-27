@@ -750,6 +750,31 @@
                      (car controls)))
       (should-not (gethash "phone-guest-id" push-guests)))))
 
+(niwa-deftest niwa-collaboration--handle-push-subscription/read-only
+  (:doc "a read-only session guest is told why instead of being subscribed")
+  (let* ((guests (make-hash-table :test #'eql))
+         (push-guests (make-hash-table :test #'equal))
+         (room (list :transport 'transport :guests guests
+                     :push-guests push-guests))
+         controls sent)
+    (puthash 2 (list :name "Viewer" :ready t :writable nil
+                     :guest-id "viewer-guest-id")
+             guests)
+    (cl-letf (((symbol-function 'niwa-collaboration--transport-control)
+               (lambda (_transport control) (push control controls) t))
+              ((symbol-function 'niwa-collaboration--transport-send)
+               (lambda (_transport peer frame) (push (cons peer frame) sent) t)))
+      (niwa-collaboration--dispatch-frame
+       room 2 (list :t "push-subscribe"
+                    :endpoint "https://push.example/subscription" :active t))
+      (niwa-collaboration--dispatch-frame room 2 (list :t "push-state" :active t))
+      (niwa-collaboration--dispatch-frame room 2 (list :t "push-unsubscribe"))
+      (should-not controls)
+      (should (zerop (hash-table-count push-guests)))
+      (should (equal `((2 :t "notice" :kind "push-refused"
+                          :message ,niwa-collaboration--push-read-only-message))
+                     sent)))))
+
 (niwa-deftest niwa-collaboration--push-endpoint-p
   (:doc "accepts only bounded HTTPS endpoint strings")
   (let ()
@@ -786,21 +811,26 @@
     (should (equal '("phone-guest-id") targeted))))
 
 (niwa-deftest niwa-collaboration--restore-push-subscriptions
-  (:doc "replays remembered endpoints as inactive after relay reconnect")
+  (:doc "replays remembered writable endpoints as inactive; drops view-tier ones")
   (let ((subscriptions (make-hash-table :test #'equal))
         controls)
     (puthash "phone-guest-id"
              '(:endpoint "https://push.example/subscription" :writable t)
              subscriptions)
+    ;; Admitted by code that let any session guest subscribe.
+    (puthash "viewer-guest-id"
+             '(:endpoint "https://push.example/viewer" :writable nil)
+             subscriptions)
     (cl-letf (((symbol-function 'niwa-collaboration--transport-control)
                (lambda (_transport control) (push control controls))))
       (niwa-collaboration--restore-push-subscriptions
        (list :transport 'transport :push-guests subscriptions)))
-    (should (equal '(:t "push-subscribe" :peer 0
-                     :guestId "phone-guest-id"
-                     :endpoint "https://push.example/subscription"
-                     :active :json-false)
-                   (car controls)))))
+    (should (equal '((:t "push-subscribe" :peer 0
+                      :guestId "phone-guest-id"
+                      :endpoint "https://push.example/subscription"
+                      :active :json-false))
+                   controls))
+    (should-not (gethash "viewer-guest-id" subscriptions))))
 
 (niwa-deftest niwa-collaboration--handle-prompt--media-cleanup
   (:doc "leaves no saved image behind when the prompt is not queued")

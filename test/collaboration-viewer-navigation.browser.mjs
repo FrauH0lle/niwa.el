@@ -558,7 +558,7 @@ test('only the bound lobby reply supplies workspace schedules in chat', async ()
   } finally { await browser.close(); }
 });
 
-test('workspace notification bell belongs to full and owner lobby links only', async () => {
+test('workspace notifications belong to full and owner lobby links; a view link is told why', async () => {
   const browser = await chromium.launch();
   try {
     for (const length of [32, 48, 64]) {
@@ -587,8 +587,11 @@ test('workspace notification bell belongs to full and owner lobby links only', a
       await page.goto(link);
       await page.locator('#lobby').waitFor();
       const bell = page.locator('#notify-button');
-      assert.equal(await bell.isVisible(), length !== 32);
+      assert.equal(await bell.isVisible(), true);
       if (length === 32) {
+        assert.match(await bell.getAttribute('aria-label'), /need an edit link/);
+        await bell.click();
+        await page.getByText('Background notifications need an edit link. Ask the host for one.', {exact: true}).waitFor();
         await page.push[lobbyRoom.id]({t: 'notice', kind: 'failure'});
         await page.push[lobbyRoom.id]({t: 'notice', message: 'delivered'});
         await page.getByText('delivered', {exact: true}).waitFor();

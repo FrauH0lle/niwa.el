@@ -1599,7 +1599,7 @@
       sessions.setWorkspace(frame.workspace);
       if (typeof frame.project === 'string' && frame.project) state.project = frame.project;
       lobby.show(frame);
-      state.lobbyNotifications = state.writable;
+      state.lobbyNotifications = true;
       notifications.render();
       if (sessionLabel && typeof frame.project === 'string') {
         sessionLabel.textContent = `Lobby · ${frame.project}`;
@@ -1673,7 +1673,7 @@
       showTerminal('Session ended', 'The host has ended this shared session. '
                    + 'Ask the host for a new invitation to continue.');
     } else if (frame.t === 'notice') {
-      if (frame.kind === 'push-refused' && state.lobbyNotifications) {
+      if (frame.kind === 'push-refused') {
         state.pushSubscribed = false;
         notifications.render();
       }
@@ -1866,7 +1866,7 @@
             'Room closed', 'This room is no longer available. '
               + 'Ask the host for a new invitation to continue.');
         },
-        // A view link can subscribe only after a session welcome, never in a lobby.
+        // Only an edit link subscribes to push; a view link's is in-tab only.
         onOpen: () => state.writable && restoreNotifications(),
       });
       transport.connect();

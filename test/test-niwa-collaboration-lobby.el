@@ -1490,12 +1490,16 @@ The list of stopped transports is bound to `stopped'."
         (when niwa-schedule--timer (cancel-timer niwa-schedule--timer))))))
 
 (niwa-deftest niwa-collaboration-lobby/push-tiers
-  (:doc "only authenticated full and owner guests change their browser subscription")
+  (:doc "only authenticated full and owner guests change their browser subscription; view guests are told why")
   (niwa-collaboration-lobby-test--with-relay
     (let ((subscribe '(:t "push-subscribe" :guestId "forged-id" :endpoint "https://push.test/a" :active t)))
       (send 1 subscribe)
       (hello 1 "browser-a" 'view)
+      (setq replies nil)
       (send 1 subscribe)
+      (should (equal `((:t "notice" :kind "push-refused"
+                           :message ,niwa-collaboration--push-read-only-message))
+                     replies))
       (send 1 '(:t "push-unsubscribe"))
       (send 1 '(:t "push-state" :active t))
       (should-not controls)

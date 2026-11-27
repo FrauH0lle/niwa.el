@@ -2,6 +2,9 @@
 'use strict';
 
 (() => {
+  // Mirrors the host's niwa-collaboration--push-read-only-message.
+  const pushNeedsEditMessage = 'Background notifications need an edit link. Ask the host for one.';
+
   function create({state, button, send, flash, decode}) {
     const baseTitle = document.title || 'niwa live session';
     let registration = null;
@@ -13,6 +16,11 @@
 
     function available() {
       return state.connected || state.lobbyNotifications;
+    }
+
+    // The lobby notifies only edit links; a session view link keeps in-tab notices.
+    function viewLobby() {
+      return !state.writable && state.lobbyNotifications;
     }
 
     function pushSupported() {
@@ -27,7 +35,7 @@
           && localStorage.getItem(`niwa-notify:${state.fragment}`) === 'on';
       }
       catch (_error) { /* storage unavailable: stay off */ }
-      return optedIn && supported() && Notification.permission === 'granted';
+      return optedIn && !viewLobby() && supported() && Notification.permission === 'granted';
     }
 
     function away() {
@@ -47,14 +55,15 @@
       const on = enabled();
       const blocked = supported() && Notification.permission === 'denied';
       button.setAttribute('aria-pressed', on ? 'true' : 'false');
-      const label = blocked
-        ? 'Notifications blocked by the browser'
+      const label = viewLobby() ? pushNeedsEditMessage
+        : blocked ? 'Notifications blocked by the browser'
         : on
           ? state.pushSubscribed
             ? 'Notifications on — background delivery enabled'
             : 'Notifications on — you will be told while this tab is away'
           : state.lobbyNotifications ? 'Notifications off — notify me about sessions in this workspace'
-            : 'Notifications off — click to be told when the session needs you';
+            : state.writable ? 'Notifications off — click to be told when the session needs you'
+              : 'Notifications off — click to be told while this tab is away';
       button.setAttribute('aria-label', label);
       button.setAttribute('title', label);
       button.className = `bell${on ? ' on' : ''}${blocked ? ' blocked' : ''}`;
@@ -63,8 +72,9 @@
       button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">'
         + '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4Z"/><path d="M10 21h4"/>'
         + (blocked ? '<path d="m4 3 16 18"/>' : '') + '</svg>'
-        + `<span class="bell-label">${blocked ? 'Notifications blocked'
-          : on ? 'Notifications on' : 'Turn on notifications'}</span>`;
+        + `<span class="bell-label">${viewLobby() ? 'Notifications need an edit link'
+          : blocked ? 'Notifications blocked'
+            : on ? 'Notifications on' : 'Turn on notifications'}</span>`;
     }
 
     function maybeNotify(title, body) {
@@ -106,7 +116,8 @@
     }
 
     async function syncPushNow() {
-      if (!pushSupported() || !state.fragment) {
+      // Only an edit link subscribes to background push.
+      if (!state.writable || !pushSupported() || !state.fragment) {
         state.pushSubscribed = false;
         return false;
       }
@@ -197,7 +208,9 @@
       if (button) {
         button.addEventListener('click', async () => {
           if (!available()) return;
-          if (enabled()) {
+          if (viewLobby()) {
+            flash(pushNeedsEditMessage);
+          } else if (enabled()) {
             forgetShare();
             forgetPreference();
             await dropPush();
@@ -210,7 +223,8 @@
             } catch (_error) { /* opt-in then lasts for this page only */ }
             if (permission === 'granted') {
               persistShare();
-              await syncPush();
+              if (state.writable) await syncPush();
+              else flash(`Notifications on while this tab is open. ${pushNeedsEditMessage}`);
             } else {
               flash('Notifications are blocked for this site.');
             }

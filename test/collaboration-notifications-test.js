@@ -159,15 +159,60 @@ async function testNotificationsModule() {
   const decode = () => Uint8Array.from({length: 65}, (_, index) => index);
   const make = (fragment, write = async frame => sent.push({fragment, frame})) => {
     const button = new Button();
-    const state = {fragment, connected: true, pushSubscribed: false};
+    const state = {fragment, connected: true, writable: true, pushSubscribed: false};
+    const flashed = [];
     const notifications = api.create({
       state,
-      button, decode, flash() {},
+      button, decode, flash: message => flashed.push(message),
       send: write,
     });
     notifications.bind();
-    return {button, notifications, state};
+    return {button, notifications, state, flashed};
   };
+
+  // A session view link keeps in-tab notifications but never subscribes to
+  // background push; the bell says background delivery needs an edit link.
+  const pushNeedsEdit = 'Background notifications need an edit link. Ask the host for one.';
+  const viewFragment = 'viewonlyroomroo1.view-secret';
+  const view = make(viewFragment);
+  view.state.writable = false;
+  view.notifications.render();
+  assert.equal(view.button.hidden, false);
+  assert.match(view.button.attributes['aria-label'], /while this tab is away/);
+  view.button.dispatch('click');
+  await waitFor(() => view.notifications.enabled(), 'view link in-tab opt-in');
+  await waitFor(() => view.flashed.length === 1, 'view link explanation');
+  assert.equal(view.flashed[0], `Notifications on while this tab is open. ${pushNeedsEdit}`);
+  assert.equal(await view.notifications.syncPush(), false);
+  assert.equal(view.state.pushSubscribed, false);
+  assert.equal(registrations.size, 0);
+  assert.equal(sent.some(item => item.frame.t === 'push-subscribe'), false);
+  view.button.dispatch('click');
+  await waitFor(() => !view.notifications.enabled(), 'view link opt-out');
+  await waitFor(() => sent.length === 1, 'view link opt-out send');
+  sent.length = 0;
+  storage.clear();
+
+  // A view-link lobby gets no workspace notices: its bell explains why and
+  // asks for no browser permission.
+  const viewLobby = make(viewFragment);
+  viewLobby.state.writable = false;
+  viewLobby.state.lobbyNotifications = true;
+  storage.set(`niwa-notify:${viewFragment}`, 'on');
+  viewLobby.notifications.render();
+  assert.equal(viewLobby.notifications.enabled(), false);
+  assert.equal(viewLobby.button.attributes['aria-label'], pushNeedsEdit);
+  let asked = false;
+  const request = context.Notification.requestPermission;
+  context.Notification.requestPermission = async () => { asked = true; return 'granted'; };
+  viewLobby.button.dispatch('click');
+  await tick();
+  context.Notification.requestPermission = request;
+  assert.equal(asked, false);
+  assert.deepEqual(viewLobby.flashed, [pushNeedsEdit]);
+  assert.equal(sent.length, 0);
+  storage.clear();
+
   const firstFragment = 'roomroomroomroom.room-secret-one';
   const secondFragment = 'otherroomroomroo.room-secret-two';
   const first = make(firstFragment);
@@ -297,8 +342,9 @@ async function testLivePageFallback() {
     Uint8Array, encodeURIComponent,
   };
   vm.runInNewContext(fs.readFileSync('relay/viewer/notifications.js', 'utf8'), context);
+  const state = {fragment, connected: true, writable: true, pushSubscribed: false};
   const notifications = window.niwaViewerNotifications.create({
-    state: {fragment, connected: true, pushSubscribed: false},
+    state,
     button: null, decode() {}, flash() {}, send: async () => {},
   });
 
@@ -309,9 +355,15 @@ async function testLivePageFallback() {
   assert.equal(shown.length, 1);
   assert.equal(shown[0].title, 'Away');
   assert.equal(shown[0].options.body, 'shown');
+  // A session view link keeps in-tab notifications.
+  state.writable = false;
+  notifications.maybeNotify('View link', 'shown');
+  assert.equal(shown.length, 2);
+  assert.equal(shown[1].title, 'View link');
+  state.writable = true;
   storage.set(`niwa-notify:${fragment}`, 'off');
   notifications.maybeNotify('Opted out', 'ignored');
-  assert.equal(shown.length, 1);
+  assert.equal(shown.length, 2);
 }
 
 async function runNotificationTests() {

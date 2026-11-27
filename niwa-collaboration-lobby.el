@@ -778,14 +778,13 @@ returns; for the lobby's own types the value is unspecified."
      (when (niwa-collaboration--guest lobby peer)
        (niwa-collaboration-lobby--send-listing lobby peer)))
     ((or "push-subscribe" "push-unsubscribe" "push-state")
-     (when (plist-get (niwa-collaboration--guest lobby peer) :writable)
-       (condition-case refusal
-           (niwa-collaboration--handle-push-subscription
-            lobby peer frame (apply-partially #'niwa-collaboration-lobby--persist-push lobby))
-         (niwa-collaboration-lobby-push-refused
-          (niwa-collaboration--transport-send
-           (plist-get lobby :transport) peer
-           (list :t "notice" :kind "push-refused" :message (cadr refusal)))))))
+     (condition-case refusal
+         (niwa-collaboration--handle-push-subscription
+          lobby peer frame (apply-partially #'niwa-collaboration-lobby--persist-push lobby))
+       (niwa-collaboration-lobby-push-refused
+        (niwa-collaboration--transport-send
+         (plist-get lobby :transport) peer
+         (list :t "notice" :kind "push-refused" :message (cadr refusal))))))
     ("open-session"
      (niwa-collaboration-lobby--handle-open lobby peer frame))
     ("delete-session"

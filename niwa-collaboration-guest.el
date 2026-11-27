@@ -971,14 +971,27 @@ that step."
            niwa-collaboration--max-push-endpoint-bytes)
        (string-match-p "\\`https://[^[:space:][:cntrl:]#]+\\'" value)))
 
+(defconst niwa-collaboration--push-read-only-message
+  "Background notifications need an edit link. Ask the host for one."
+  "Why a read-only guest cannot subscribe to push notifications.")
+
 (defun niwa-collaboration--handle-push-subscription (room peer frame &optional persist)
   "Forward authenticated PEER's push subscription FRAME for ROOM.
-Before a mutation, call PERSIST with the guest id and new endpoint
-\(nil for removal).  A failed write must not change the live subscription."
+Session rooms and the lobby share this check: only a writable guest
+may subscribe; a read-only guest's subscribe gets a `push-refused'
+notice.  Before a mutation, call PERSIST with the guest id and new
+endpoint \(nil for removal).  A failed write must not change the live
+subscription."
   (when-let* ((guest (niwa-collaboration--guest room peer))
               ((plist-get guest :ready))
               (guest-id (plist-get guest :guest-id)))
-    (pcase (plist-get frame :t)
+    (pcase (and (plist-get guest :writable) (plist-get frame :t))
+      ('nil
+       (when (equal (plist-get frame :t) "push-subscribe")
+         (niwa-collaboration--transport-send
+          (plist-get room :transport) peer
+          (list :t "notice" :kind "push-refused"
+                :message niwa-collaboration--push-read-only-message))))
       ("push-subscribe"
        (when-let* ((endpoint (plist-get frame :endpoint))
                    ((niwa-collaboration--push-endpoint-p endpoint)))
@@ -1081,15 +1094,20 @@ Permission cards reach room guests on display, not on admission."
     woken))
 
 (defun niwa-collaboration--restore-push-subscriptions (room)
-  "Restore ROOM's Web Push endpoints after a relay reconnect."
+  "Restore ROOM's Web Push endpoints after a relay reconnect.
+Drop endpoints saved for a read-only guest by older code.  No guest is
+connected yet; an older viewer that subscribes again gets the
+`push-refused' notice, and the current viewer's bell explains the rule."
   (when-let* ((subscriptions (plist-get room :push-guests)))
     (maphash
      (lambda (guest-id subscription)
-       (niwa-collaboration--transport-control
-        (plist-get room :transport)
-        (list :t "push-subscribe" :peer 0 :guestId guest-id
-              :endpoint (plist-get subscription :endpoint)
-              :active :json-false)))
+       (if (not (plist-get subscription :writable))
+           (remhash guest-id subscriptions)
+         (niwa-collaboration--transport-control
+          (plist-get room :transport)
+          (list :t "push-subscribe" :peer 0 :guestId guest-id
+                :endpoint (plist-get subscription :endpoint)
+                :active :json-false))))
      subscriptions)))
 
 (cl-defun niwa-collaboration--handle-prompt (room peer frame)

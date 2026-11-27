@@ -2135,18 +2135,27 @@ The viewer supports installable-PWA presentation, host-synchronized theme,
 and opt-in system notifications for attention-worthy session changes. On
 platforms with the Push API, opt-in registers a service worker and a
 room-scoped Web Push endpoint. Pending interactions wake only the subscribed
-writable guests they target. A user-started turn wakes all session subscribers
+guests they target. A user-started turn wakes all session subscribers
 when it finishes. Automatic turns, including Goal continuations and mailbox
 wakes from Monitors or background commands, finish quietly. `Notify` and
-terminal Goals instead wake writable subscribers deliberately, even if the
+terminal Goals instead wake subscribers deliberately, even if the
 user started the turn; they do not replace a user turn’s completion wake. The
 relay sends an empty push, so browser push services receive no session
 content; the service worker displays a generic notice and the viewer
 reconnects for sealed detail. This works for supporting Android browsers as
 well as an iOS/iPadOS Home Screen web app.
 
+Background (Web Push) notifications need a **full or owner** link, in a
+session room and in the lobby alike; the host applies one check to both
+and refuses a view link's subscription with "Background notifications need
+an edit link. Ask the host for one." In a session room, a view link's bell
+still turns on in-tab notifications for while the page is open and says
+that background delivery needs an edit link. The lobby notifies only edit
+links, so a view link's lobby bell shows that message and asks for no
+browser permission.
+
 For workspace-wide notifications, open the lobby with a **full or owner**
-link and turn on its bell. A view-only lobby link cannot subscribe. The lobby
+link and turn on its bell. The lobby
 wakes for admitted permission cards, `Notify`, and terminal Goals from any
 session in that workspace, even an unshared one. A user-started turn also
 wakes the lobby on completion if the session is shared.
