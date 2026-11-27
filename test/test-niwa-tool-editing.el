@@ -146,6 +146,21 @@
        (when (buffer-live-p buffer) (kill-buffer buffer))
        (delete-directory directory t))))
 
+(niwa-deftest niwa-tool-editing-actor
+  (:doc "Contribution history distinguishes scheduled and worktree roots from chat" :quiet t)
+  (niwa-tool-editing-test--with-session
+    (setf (niwa-session-session-id session) "session-12")
+    (let* ((id (plist-get (parse (run "SharedCreate" '(:kind "document" :title "Draft"))) :id))
+           (history (list :file_path (format "shared://%s/history" id))))
+      (dolist (case '((nil t "scheduled run session-12")
+                      (worktree nil "worktree session-12")
+                      (nil nil "/root")))
+        (setf (niwa-session-fork-type session) (car case))
+        (setq-local niwa-workspace-schedule--run-active (nth 1 case))
+        (run "SharedEdit" (list :id id :action "rename" :title (nth 2 case)))
+        (should (string-search (concat " · Agent: " (nth 2 case) " · ")
+                               (car (split-string (text (run "Read" history)) "\n"))))))))
+
 (niwa-deftest niwa-tool-editing--edit
   (:doc "The model lists library items through shared://library and inserts one into a board" :quiet t)
   (niwa-tool-editing-test--with-session

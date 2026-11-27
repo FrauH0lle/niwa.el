@@ -1886,27 +1886,7 @@ as presence may interleave, so only notices are returned."
                        :endpoint "https://push.example/subscription"
                        :active :json-false)
                      (car controls)))
-      (niwa-collaboration--on-state (current-buffer) 'stopped)))
-
-  :doc "warns once when a relay dial never opens, but not after it has"
-  (with-temp-buffer
-    (let* ((room (list :data-buffer (current-buffer)
-                       :guests (make-hash-table :test #'eql)))
-           (niwa-collaboration--rooms
-            (niwa-test-room-registry room))
-           warnings)
-      (cl-letf (((symbol-function 'display-warning)
-                 (lambda (_type text &rest _) (push text warnings))))
-        ;; A share whose dial never succeeded is not live; say so once.
-        (niwa-collaboration--on-state (current-buffer) 'down)
-        (niwa-collaboration--on-state (current-buffer) 'down)
-        (should (= 1 (length warnings)))
-        (should (string-match-p "not live" (car warnings)))
-        ;; An ordinary drop after a working connection stays quiet.
-        (setq warnings nil)
-        (niwa-collaboration--on-state (current-buffer) 'open)
-        (niwa-collaboration--on-state (current-buffer) 'down)
-        (should-not warnings)))))
+      (niwa-collaboration--on-state (current-buffer) 'stopped))))
 
 (niwa-deftest niwa-collaboration--admit-hello/relay-replay
   (:quiet t

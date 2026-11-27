@@ -30,6 +30,9 @@
 ;; `niwa-agent-conversation'
 (defvar niwa--agent-invocation)
 
+;; `niwa-workspace-schedule'
+(defvar niwa-workspace-schedule--run-active)
+
 ;; `niwa-agents'
 (declare-function niwa-agent-invocation-require-path "niwa-agents" (invocation))
 
@@ -95,9 +98,13 @@ encode these as vectors so the host does not mistake them for objects."
 (defun niwa-tool-editing-actor ()
   "Return the attribution of the agent calling an editing tool."
   (concat "Agent: "
-          (if (bound-and-true-p niwa--agent-invocation)
-              (niwa-agent-invocation-require-path niwa--agent-invocation)
-            "/root")))
+          (cond ((bound-and-true-p niwa--agent-invocation)
+                 (niwa-agent-invocation-require-path niwa--agent-invocation))
+                ((bound-and-true-p niwa-workspace-schedule--run-active)
+                 (concat "scheduled run " (niwa-session-session-id niwa--session)))
+                ((eq (niwa-session-fork-type niwa--session) 'worktree)
+                 (concat "worktree " (niwa-session-session-id niwa--session)))
+                (t "/root"))))
 
 (defun niwa-tool-editing--deliver (callback create)
   "Return a reply handler delivering a pipeline result to CALLBACK.

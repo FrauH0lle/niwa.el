@@ -427,6 +427,11 @@ whiteboard finds `SharedCreate`. The prompt's resource roster lists
 | `shared://library/LIBRARY/ITEM-ID/view.png` | one library item rendered |
 | `shared://ID/library[/...]` | a remote whiteboard's origin libraries, in the same shapes as `shared://library` |
 
+Contribution history labels ordinary root chat edits `Agent: /root`. Edits by
+an active workspace schedule run or a worktree fork's root instead show
+`Agent: scheduled run SESSION-ID` or `Agent: worktree SESSION-ID`. Subagent
+edits keep their agent path.
+
 An overview line is `HASH JSON`: a 12-character content hash of the element or
 block, then its JSON. The hash is computed over sorted keys, so writers' key
 order does not matter. Lines stay within Read's 2,000-character cap: past

@@ -893,6 +893,7 @@ until it is stopped."
                (niwa-collaboration--transport-open
                 (format "%s/r/%s?role=host" (car origins) room-id)
                 key
+                :initial-dial-scope (niwa-diagnostic-scope workspace)
                 :headers (niwa-collaboration--host-headers)
                 :on-frame (lambda (peer frame)
                             (niwa-collaboration-lobby--on-frame

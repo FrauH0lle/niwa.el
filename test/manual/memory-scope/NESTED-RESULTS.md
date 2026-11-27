@@ -1,5 +1,9 @@
 # Nested shared address: viable, with explicit scope guidance
 
+**Scheme update (2026-11-27):** The `local://shared/` addresses below are
+historical. Project notes now use `work://shared/`; `shared://` addresses
+shared artifacts, not working notes.
+
 The follow-up on 2026-09-08 tested `local://shared/...` with gpt-5.6-sol,
 gpt-5.6-luna and deepseek-v4-flash. All three recovered the required findings in
 all six cases. This supports using the proposed layout for working notes. It

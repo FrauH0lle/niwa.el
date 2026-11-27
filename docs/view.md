@@ -1932,9 +1932,10 @@ room, unless a turn is still running there, which refuses the deletion. One
 that cannot be deleted yet, because another client holds it or journal
 capture is pending, stays as an ordinary session and expires like one.
 
-The model writes artifacts with ordinary ApplyPatch; there is no artifact
-tool. After a settled ApplyPatch, `niwa-tool-patch-apply` reports its
-writes to the store:
+The model uses ApplyPatch to write file-based artifacts. For whiteboards
+and documents in the same store, it uses SharedCreate and SharedEdit.
+After a settled ApplyPatch, `niwa-tool-patch-apply` reports its writes to
+the store:
 
 - a write into a new id directory creates the artifact; the host writes its
   `meta.eld`, with the kind from the file type and the id as its title;

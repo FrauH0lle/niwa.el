@@ -782,30 +782,26 @@ input; the questionnaire handler validates the shape for each question."
   "Settle the ui-request answered by writable guest PEER through FRAME.
 
 The first answer -- from Emacs or any guest -- wins; the shared settle
-already guards exactly-once, and a request no longer in the registry gets
-a nonterminal notice.  A function option runs in the prompt's buffer so an
+already guards exactly-once, and a missing request or dead prompt buffer
+gets a nonterminal notice.  A function option runs in the prompt's buffer so an
 answer can execute the same path the host key binding would."
-  (let ((guest (niwa-collaboration--guest room peer))
-        (request-id (plist-get frame :reqId)))
+  (let* ((guest (niwa-collaboration--guest room peer))
+         (request-id (plist-get frame :reqId))
+         (overlay (gethash request-id (plist-get room :ui-requests)))
+         (remote (and overlay (overlay-get overlay 'niwa--remote))))
     (when (and guest
                (plist-get guest :writable)
                niwa-collaboration-remote-interactions
-               (integerp request-id))
-      (unless (gethash request-id (plist-get room :ui-requests))
-        (niwa-collaboration--transport-send
-         (plist-get room :transport) peer
-         (list :t "notice" :message
-               "Request is no longer pending; nothing was approved.")))
-      (when-let* ((overlay (gethash request-id (plist-get room :ui-requests)))
-                  ;; Seeing a narrowed interaction and answering it are
-                  ;; the same authority, so the audience is rechecked
-                  ;; here: a request id is guessable, the audience is not.
-                  ((niwa-collaboration--audience-peer-p
-                    room peer
-                    (plist-get (overlay-get overlay 'niwa--remote)
-                               :audience))))
-        (let* ((remote (overlay-get overlay 'niwa--remote))
-               (options (plist-get remote :options))
+               (integerp request-id)
+               ;; A guessable id grants no authority, even for a stale card.
+               (niwa-collaboration--audience-peer-p
+                room peer (plist-get remote :audience)))
+      (if (not (and overlay (buffer-live-p (overlay-buffer overlay))))
+          (niwa-collaboration--transport-send
+           (plist-get room :transport) peer
+           (list :t "notice" :message
+                 "Request is no longer pending; nothing was approved."))
+        (let* ((options (plist-get remote :options))
                (feedback (plist-get frame :feedback))
                (option (plist-get frame :option))
                (answers (plist-get frame :answers))
@@ -847,7 +843,7 @@ answer can execute the same path the host key binding would."
                             (user-error "Option input must be bounded text"))
                           (lambda () (funcall handler (string-trim value))))
                       handler))))))
-          (when (and outcome (buffer-live-p (overlay-buffer overlay)))
+          (when outcome
             (message "niwa: interaction answered by guest %s"
                      (plist-get guest :name))
             (with-current-buffer (overlay-buffer overlay)
@@ -1521,22 +1517,8 @@ returns; for the room's own types the value is unspecified."
        (clrhash (plist-get room :guests))
        (when-let* ((ledgers (plist-get room :fork-ledgers)))
          (clrhash ledgers))
-       (niwa-collaboration-presence-publish room)
-       ;; The links and QR are handed out before the async dial settles.
-       ;; A dial that has never succeeded -- wrong relay URL or a missing or
-       ;; stale configured host token -- would otherwise retry forever
-       ;; with the user none the wiser that the share is dead.
-       (unless (or (plist-get room :was-open)
-                   (plist-get room :dial-warned))
-         (setq room (plist-put room :dial-warned t))
-         (niwa-diagnostic-warning
-          (niwa-diagnostic-scope (niwa-collaboration--room-workspace room)) 'niwa
-          (concat "Collaboration relay dial failing; the share is not "
-                  "live. Check `niwa-collaboration-relay-url' and "
-                  "the relay's optional host-token configuration.")
-          :warning)))
+       (niwa-collaboration-presence-publish room))
       ('open
-       (setq room (plist-put room :was-open t))
        (niwa-collaboration--restore-push-subscriptions room))
       ('stopped nil))))
 

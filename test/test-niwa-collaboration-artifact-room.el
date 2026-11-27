@@ -2320,7 +2320,25 @@ Return the artifact's directory."
                                 consumer 1 `((action . "read") (id . ,id)))))
             (should-not (cl-some (lambda (frame) (equal "bye" (alist-get 't frame)))
                                  (niwa-artifact-room-test--frames consumer))))
-        (niwa-artifact-room-test--close consumer)))))
+        (niwa-artifact-room-test--close consumer))))
+
+  :doc "both kinds of link warn when their relay dial fails"
+  (niwa-artifact-room-test--with-origin (root workspace _state _port)
+    (require 'niwa-collaboration-lobby)
+    (let ((niwa-collaboration-lobby--lobbies (make-hash-table :test #'equal))
+          (id (niwa-artifact-room-test--board workspace "Pipeline"))
+          warnings)
+      (cl-letf (((symbol-function 'websocket-open) (lambda (&rest _) (error "Dial refused")))
+                ((symbol-function 'display-warning)
+                 (lambda (_type text &rest _) (push text warnings))))
+        (unwind-protect
+            (progn
+              (niwa-collaboration-artifact-room-share root id)
+              (should (string-search "the share is not live" (pop warnings)))
+              (niwa-collaboration-lobby-start root)
+              (should (string-search "the share is not live" (pop warnings)))
+              (should-not warnings))
+          (niwa-collaboration-lobby--stop-all))))))
 
 (provide 'test-niwa-collaboration-artifact-room)
 ;;; test-niwa-collaboration-artifact-room.el ends here

@@ -896,6 +896,7 @@ Return the live room when one is already running."
                 (format "%s/r/%s?role=host" (car origins)
                         (plist-get credentials :room-id))
                 (plist-get credentials :key)
+                :initial-dial-scope (niwa-diagnostic-scope workspace)
                 :headers (niwa-collaboration--host-headers)
                 :on-frame (lambda (peer frame)
                             (niwa-collaboration-artifact-room--on-frame

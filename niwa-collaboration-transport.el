@@ -56,7 +56,10 @@ See relay/README.md for what changes with it.")
 
 ;; `niwa-utilities'
 (declare-function niwa--delete-process "niwa-utilities" (process))
+(declare-function niwa-diagnostic-warning "niwa-utilities"
+                  (scope type message &optional level buffer-name))
 (autoload 'niwa--delete-process "niwa-utilities")
+(autoload 'niwa-diagnostic-warning "niwa-utilities")
 
 ;; `websocket'
 (declare-function make-websocket-frame "websocket"
@@ -248,6 +251,7 @@ unibyte room key.  CALLBACKS is a plist:
               after `niwa-collaboration--transport-stop'.
   :headers    an alist of extra handshake headers, resent on every
               reconnect.  The relay may require one to create a room.
+  :initial-dial-scope  diagnostic scope for a failed first dial.
 
 Return the transport handle without waiting for TCP/TLS connection setup.
 TLS uses Emacs' configured certificate and hostname verification policy.
@@ -261,6 +265,7 @@ count as drops; undecryptable or malformed input is dropped silently."
   (let ((transport (list :url url
                          :key key
                          :headers (plist-get callbacks :headers)
+                         :initial-dial-scope (plist-get callbacks :initial-dial-scope)
                          :ws nil
                          :state 'connecting
                          :backoff niwa-collaboration--backoff-initial
@@ -334,7 +339,16 @@ the pongs and pings websocket.el handles without surfacing them."
                     (plist-put transport :inbound-at (float-time))))))
 
 (defun niwa-collaboration--transport-notify (transport state)
-  "Report STATE through TRANSPORT's `:on-state' callback, if any."
+  "Warn if TRANSPORT's first dial failed, then report STATE to its callback."
+  (when-let* ((scope (plist-get transport :initial-dial-scope)))
+    (plist-put transport :initial-dial-scope nil)
+    (when (eq state 'down)
+      (niwa-diagnostic-warning
+       scope 'niwa
+       (concat "Collaboration relay dial failing; the share is not "
+               "live. Check `niwa-collaboration-relay-url' and "
+               "the relay's optional host-token configuration.")
+       :warning)))
   (when-let* ((callback (plist-get transport :on-state)))
     (funcall callback state)))
 

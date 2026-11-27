@@ -1172,6 +1172,7 @@ returning the live room."
                   (niwa-collaboration--transport-open
                    (format "%s/r/%s?role=host" ws-origin room-id)
                    key
+                   :initial-dial-scope (niwa-diagnostic-scope session)
                    :headers (niwa-collaboration--host-headers)
                    :on-frame (lambda (peer frame)
                                (niwa-collaboration--on-frame

@@ -376,6 +376,36 @@
                                   "Request is no longer pending; nothing was approved."))
                          (car sent)))))))
 
+  :doc "a dead prompt buffer gets a late-answer notice only for an authorized peer"
+  (with-temp-buffer
+    (let* ((guests (make-hash-table :test #'eql))
+           (requests (make-hash-table :test #'eql))
+           (room (list :transport 'transport :guests guests
+                       :data-buffer (current-buffer) :ui-requests requests))
+           (niwa-collaboration--rooms (niwa-test-room-registry room))
+           (niwa-collaboration-remote-interactions t)
+           (frame '(:t "ui-response" :reqId 41 :option 0))
+           answered sent)
+      (with-temp-buffer
+        (let ((overlay (make-overlay (point-min) (point-min))))
+          (overlay-put overlay 'niwa--remote
+                       (list :audience 'owner :options
+                             (list (cons (lambda () (setq answered t)) "Approve"))))
+          (puthash 41 overlay requests)))
+      (should-not (overlay-buffer (gethash 41 requests)))
+      (puthash 1 '(:ready t :writable nil) guests)
+      (puthash 2 '(:ready t :writable t) guests)
+      (puthash 3 '(:ready t :writable t :owner t) guests)
+      (cl-letf (((symbol-function 'niwa-collaboration--transport-send)
+                 (lambda (_transport peer reply) (push (cons peer reply) sent))))
+        (dolist (peer '(1 2))
+          (niwa-collaboration--on-frame (current-buffer) peer frame))
+        (should-not sent)
+        (niwa-collaboration--on-frame (current-buffer) 3 frame)
+        (should (equal sent '((3 :t "notice" :message
+                                 "Request is no longer pending; nothing was approved."))))
+        (should-not answered))))
+
   :doc "actionable response failures reach the normal owner-safe frame boundary"
   (with-temp-buffer
     (let* ((overlay (make-overlay (point-min) (point-min)))

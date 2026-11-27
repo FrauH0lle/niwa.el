@@ -73,6 +73,10 @@ fail to recover a finding.
 
 ## Follow-up: nested shared address
 
+**Scheme update (2026-11-27):** This experiment predates the rename from
+`local://` to `work://`. Project notes now use `work://shared/`; `shared://`
+addresses shared artifacts, not working notes.
+
 Set `NIWA_SCOPE_NESTED=1` to run only the third arm, `nested-shared`.
 It uses the same three cases, two trials, tools, facts, limits and model settings.
 Project notes live at `local://shared/sessions/<session>/notes.md`; plans and other

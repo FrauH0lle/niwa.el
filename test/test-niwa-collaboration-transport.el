@@ -806,6 +806,20 @@
                    transport (list :t "push")))
       (should (= 1 (length sent))))))
 
+(niwa-deftest niwa-collaboration--transport-notify
+  (:doc "warns once on initial failure and never on a drop after open")
+  (let (warnings)
+    (cl-letf (((symbol-function 'display-warning)
+               (lambda (_type text &rest _) (push text warnings))))
+      (dolist (first '(open down))
+        (let ((transport (list :initial-dial-scope "/project/")))
+          (dolist (state (list first 'down 'down))
+            (niwa-collaboration--transport-notify transport state))
+          (if (eq first 'open)
+              (should-not warnings)
+            (should (= 1 (length warnings)))
+            (should (string-match-p "/project/.*not live" (car warnings)))))))))
+
 (niwa-deftest niwa-collaboration--transport-down
   (:doc "reconnects with backoff after the relay drops and stops cleanly")
   (niwa-relay-test--with-path-capture
