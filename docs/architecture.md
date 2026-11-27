@@ -503,6 +503,23 @@ model-not-found, context overflow, exhausted quota, and local bookkeeping
 failures do not retry. Output-limit and content-filter stops are not mistaken
 for interrupted transport. Unknown errors are not assumed transient.
 
+A streaming sample that waits on its provider without semantic progress for
+`niwa-gptel-retry-stall-timeout` (300 seconds by default; nil disables) is a
+stall. Progress means new text, reasoning or tool-call argument deltas as
+gptel's parser reports them; keep-alive comments, pings and other envelopes
+do not count, and neither do raw bytes. gptel's own curl limit (`-y7200 -Y1`)
+is not this guard: any keep-alive defeats it. Tools, retry backoff and
+terminal states are not watched. The first stall is retried with a visible
+"No response from the provider…" status; a second stall in the same sample
+ends it with an error, which a retained agent's parent receives as its result.
+The watch starts before the request is written: gptel registers its curl
+transport only after writing the whole request to curl's stdin, so a write
+that stops partway, or exits non-locally, leaves curl unregistered and out of
+reach of interruption. Each attempt records its own curl when gptel starts
+writing to it. A non-local exit deletes that curl and retries the sample as
+`request_not_sent`; a stall or interruption during the write deletes it too.
+Another request's curl is never touched.
+
 Small Responses-specific normalization fills missing error/completion events:
 nested Responses errors, flat `error` events, `response.failed` errors, and
 interrupted Responses streams, including errors delivered with HTTP 200. It

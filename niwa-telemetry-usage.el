@@ -245,25 +245,26 @@ This seam is downstream of niwa's compaction/admission gates."
         (setq info (plist-put info :niwa-usage-call call))
         (setf (gptel-fsm-info fsm) (plist-put info :callback wrapper))
         (niwa-telemetry-usage--emit call 'start)
-        (condition-case err
-            (progn
+        (let ((returned nil))
+          (unwind-protect
+              (progn
               ;; Workspace appends can yield before transport registration.
               ;; Refuse a cancelled pass without launching an orphan request.
               (when-let* ((currentp (plist-get context :niwa-telemetry-currentp)))
                 (unless (funcall currentp)
                   (niwa-telemetry-usage--finish call nil 'aborted)
                   (error "Memory provider dispatch cancelled")))
-              (funcall original fsm))
-          ((error quit)
-           ;; handle-wait runs post-request hooks after registering transport.
-           ;; A hook failure must propagate, but that active call can still
-           ;; report usage later.  Only a failed transport start settles here.
-           (unless (cl-some (lambda (entry)
-                              (and (eq (cadr entry) fsm)
-                                   (not (memq (cdr entry) registered-transports))))
-                            gptel--request-alist)
-             (niwa-telemetry-usage--finish call nil 'error))
-           (signal (car err) (cdr err))))))))
+              (prog1 (funcall original fsm) (setq returned t)))
+            ;; Any non-local exit, including a throw, still propagates.
+            ;; handle-wait runs post-request hooks after registering transport;
+            ;; that active call can still report usage later.  Only a failed
+            ;; transport start settles here.
+            (unless (or returned
+                        (cl-some (lambda (entry)
+                                   (and (eq (cadr entry) fsm)
+                                        (not (memq (cdr entry) registered-transports))))
+                                 gptel--request-alist))
+              (niwa-telemetry-usage--finish call nil 'error))))))))
 
 (defun niwa-telemetry-usage-install ()
   "Install sparse usage observation for niwa-owned provider calls."

@@ -10,6 +10,9 @@
 ;; background requests retain their own recovery policies.
 ;; Explicit root retry uses this replay, or forks ACP history at the answer
 ;; before the failed prompt and replays that input without undoing tool effects.
+;; A streaming attempt that waits on its provider without content, reasoning
+;; or tool-call deltas for `niwa-gptel-retry-stall-timeout' is retired as a
+;; stall and retried once; a second stall ends the sample.
 
 ;;; Code:
 
@@ -91,6 +94,14 @@
 Zero disables automatic sample recovery.  Successful tool-loop samples start
 a fresh allowance.  Claude Code and background requests are unaffected."
   :type 'natnum :group 'niwa)
+
+(defcustom niwa-gptel-retry-stall-timeout 300
+  "Seconds a streaming sample may wait on its provider without progress.
+Progress means content, reasoning or tool-call deltas; keep-alives and other
+envelopes do not count.  Tools run outside this wait.  A stalled attempt is
+retried once through the ordinary retry path; a second stall ends the sample
+with an error.  nil disables stall detection."
+  :type '(choice (const :tag "Off" nil) number) :group 'niwa)
 
 (defvar niwa-gptel-retry--states nil
   "Live sample owners, including requests parked without a transport.")
@@ -403,7 +414,8 @@ Permanent structured errors take precedence over transport status and text."
        codes '("server_error" "internal_server_error" "overloaded_error"
                "server_is_overloaded" "model_at_capacity" "model_capacity_exceeded"
                "service_unavailable_error" "rate_limit_exceeded" "rate_limit_error" "slow_down"
-               "stream_interrupted" "timeout_error") :test #'equal) t)
+               "stream_interrupted" "stream_stalled" "request_not_sent" "timeout_error")
+       :test #'equal) t)
      ((or (cl-some (lambda (code)
                     (or (member code '("408" "429"))
                         (string-match-p "\\`5[0-9][0-9]\\'" code))) codes)
@@ -464,6 +476,88 @@ Retained agent turns have no root request: their runtime owns the machine."
              (and (not (niwa-agent-invocation-runtime-settled-p invocation))
                   (eq invocation (buffer-local-value 'niwa--agent-invocation buffer)))))))
 
+(defun niwa-gptel-retry--watch (state info)
+  "Start STATE's stall watch over streaming attempt INFO."
+  (niwa-gptel-retry--unwatch state)
+  (when (and niwa-gptel-retry-stall-timeout (plist-get info :stream))
+    (plist-put state :progress-at (float-time))
+    (plist-put state :stall-timer
+               (niwa-transport-run-at-time niwa-gptel-retry-stall-timeout
+                                           #'niwa-gptel-retry--stall-check state info))))
+
+(defun niwa-gptel-retry--unwatch (state)
+  "Stop STATE's stall watch."
+  (when-let* ((timer (plist-get state :stall-timer)))
+    (cancel-timer timer)
+    (plist-put state :stall-timer nil)))
+
+(defun niwa-gptel-retry--stall-check (state info)
+  "Retire attempt INFO if STATE's provider made no progress for the timeout.
+A live transport is killed so its own cleanup settles the stall error;
+without one, the attempt settles directly.  The first stall is retried;
+a second stall's code is not retryable."
+  (plist-put state :stall-timer nil)
+  (let* ((fsm (plist-get state :fsm))
+         (timeout niwa-gptel-retry-stall-timeout)
+         (remaining (and timeout (- (+ (plist-get state :progress-at) timeout) (float-time)))))
+    (when (and remaining (niwa-gptel-retry--live-p state info)
+               (memq (gptel-fsm-state fsm) '(WAIT TYPE MRESEND)))
+      (if (> remaining 0)
+          (plist-put state :stall-timer
+                     (niwa-transport-run-at-time remaining #'niwa-gptel-retry--stall-check
+                                                 state info))
+        (let* ((again (plist-get state :stalled))
+               (error-data
+                (list :code (if again "stream_stalled_again" "stream_stalled")
+                      :message (format "No response from the provider for %s%s"
+                                       (format-seconds "%x%m min%z %s s" timeout)
+                                       (if again ", again after a retry; the request ended" ""))))
+               (transports (seq-filter (lambda (entry)
+                                         (and (eq fsm (cadr entry)) (process-live-p (car entry))))
+                                       gptel--request-alist)))
+          (plist-put state :stalled t)
+          (if (not transports)
+              ;; A dispatch still writing its request has no transport yet.
+              (progn
+                (niwa-gptel-retry--delete-unregistered (gptel-fsm-info fsm))
+                (niwa-gptel-retry--fail-attempt state info error-data))
+            (plist-put (gptel-fsm-info fsm) :niwa-retry-provider-error error-data)
+            (dolist (entry transports)
+              (niwa-transport-resume-process (car entry))
+              (kill-process (car entry)))))))))
+
+(defun niwa-gptel-retry--capture-process (info &rest _)
+  "Record the curl that gptel is about to feed attempt INFO's request.
+gptel builds the config in the new process's buffer and registers the
+transport only after writing it, so an interrupted write leaves curl
+waiting on stdin, unreachable by abort.  This keeps it reachable."
+  (when (plist-get info :niwa-retry-state)
+    (plist-put info :niwa-retry-process (get-buffer-process (current-buffer)))))
+
+(defun niwa-gptel-retry--delete-unregistered (info)
+  "Delete attempt INFO's own curl if gptel never registered it."
+  (when-let* ((process (plist-get info :niwa-retry-process)))
+    (plist-put info :niwa-retry-process nil)
+    (unless (assq process gptel--request-alist)
+      (delete-process process)
+      (when (buffer-live-p (process-buffer process))
+        (kill-buffer (process-buffer process))))))
+
+(defun niwa-gptel-retry--fail-attempt (state info error-data)
+  "Settle STATE's transport-free attempt INFO with ERROR-DATA.
+Mirror gptel's failed-curl cleanup: reach TYPE, call back, then transition,
+so the ordinary retry gate retries or ends the sample."
+  (let ((fsm (plist-get state :fsm)))
+    (when (and (niwa-gptel-retry--live-p state info)
+               (memq (gptel-fsm-state fsm) '(WAIT TYPE MRESEND))
+               (not (seq-some (lambda (entry) (eq fsm (cadr entry))) gptel--request-alist)))
+      (let ((current (gptel-fsm-info fsm)))
+        (plist-put current :niwa-retry-provider-error error-data)
+        (plist-put current :error error-data)
+        (unless (eq (gptel-fsm-state fsm) 'TYPE) (gptel--fsm-transition fsm))
+        (funcall (plist-get current :callback) nil current)
+        (gptel--fsm-transition fsm)))))
+
 (defun niwa-gptel-retry--status (state text)
   "Display transient TEXT only while STATE owns its root or agent."
   (when (niwa-gptel-retry--live-p state)
@@ -519,6 +613,8 @@ the machine so its next dispatch aborts instead of sampling again."
 
 (defun niwa-gptel-retry--abort-transports (fsm)
   "Retire exactly FSM's native transports, including late registrations."
+  ;; A request still being written has no registered transport yet.
+  (niwa-gptel-retry--delete-unregistered (gptel-fsm-info fsm))
   (unwind-protect
       (dolist (entry (copy-sequence gptel--request-alist))
         (when (eq fsm (cadr entry))
@@ -761,10 +857,14 @@ STATE owns the logical sample; CALLBACK-INFO is gptel's callback context."
     (when (and (plist-get state :pending) (not (plist-get state :timer))
                (niwa-gptel-retry--live-p state info))
       (let* ((attempt (1+ (plist-get state :retries)))
-             (delay (niwa-gptel-retry--delay attempt (plist-get info :niwa-retry-advice))))
+             (delay (niwa-gptel-retry--delay attempt (plist-get info :niwa-retry-advice)))
+             (error-data (plist-get info :error)))
         (niwa-gptel-retry--status
-         state (format "Provider temporarily unavailable · retry %d/%d in %.0fs"
-                       attempt (plist-get state :limit) delay))
+         state (if (member (and (listp error-data) (plist-get error-data :code))
+                           '("stream_stalled" "request_not_sent"))
+                   (format "%s · retrying in %.0fs" (plist-get error-data :message) delay)
+                 (format "Provider temporarily unavailable · retry %d/%d in %.0fs"
+                         attempt (plist-get state :limit) delay)))
         (when (niwa-gptel-retry--live-p state info)
           (plist-put state :timer
                      (niwa-transport-run-at-time delay #'niwa-gptel-retry--resend state)))))))
@@ -781,7 +881,20 @@ STATE owns the logical sample; CALLBACK-INFO is gptel's callback context."
      (plist-put info :niwa-retry-attempt (make-symbol "gptel-attempt"))
     (plist-put info :callback wrapper)
     (setf (gptel-fsm-info fsm) info)
-    (gptel--handle-wait fsm)
+    ;; Watch before dispatch: writing a large request can itself stall.
+    (niwa-gptel-retry--watch state info)
+    (let ((sent nil))
+      (unwind-protect
+          (progn (gptel--handle-wait fsm) (setq sent t))
+        (if sent
+            (plist-put info :niwa-retry-process nil)
+          ;; Any non-local exit, including a throw from a filter run while
+          ;; the request was being written, must not orphan curl or the turn.
+          (niwa-gptel-retry--delete-unregistered info)
+          (niwa-transport-run-at-time
+           0 #'niwa-gptel-retry--fail-attempt state info
+           '(:code "request_not_sent"
+             :message "The provider request was interrupted before it was sent")))))
     (dolist (entry gptel--request-alist)
       (when (and (eq fsm (cadr entry)) (processp (car entry)))
         (unless (process-get (car entry) 'niwa-retry-info)
@@ -903,7 +1016,17 @@ Inspect complete SSE or JSON-line envelopes, not provider text or tool data."
      ((not state) (funcall original backend info))
      (t
       (when (niwa-gptel-retry--live-p state info)
-        (let ((text (funcall original backend info)))
+        (let* ((partial (plist-get info :partial_json))
+               (tool-use (plist-get info :tool-use))
+               (reasoning (plist-get info :reasoning))
+               (text (funcall original backend info)))
+          ;; Semantic deltas only: keep-alives leave all of these unchanged.
+          (when (or (and (stringp text) (not (string-empty-p text)))
+                    (and (plist-get info :reasoning)
+                         (not (eq reasoning (plist-get info :reasoning))))
+                    (not (eq partial (plist-get info :partial_json)))
+                    (not (eq tool-use (plist-get info :tool-use))))
+            (plist-put state :progress-at (float-time)))
           ;; Some native parsers leave in-band errors unread.  Scan complete
           ;; envelopes independently, without advancing the native parse cursor.
           (save-excursion
@@ -1044,6 +1167,9 @@ ORIGINAL still owns native transitions and all their handlers."
         (when (or (not (plist-get state :cancelled)) (eq new-state 'ABRT))
           (let* ((next (or new-state (gptel--fsm-next fsm)))
                  (terminal (memq next '(DONE ERRS ABRT))))
+            ;; Only a provider wait is watched; tools and backoff are not stalls.
+            (unless (memq next '(WAIT TYPE MRESEND))
+              (niwa-gptel-retry--unwatch state))
             (when (eq next 'TOOL)
               ;; Tools now own the machine; a recovered tool-only response may
               ;; deliver no callback to end the retry status.
@@ -1128,7 +1254,8 @@ ORIGINAL still owns native transitions and all their handlers."
                   (list (cons 'depth (if (memq (car pair)
                                                '(gptel-curl--stream-cleanup gptel-curl--sentinel
                                                  gptel-curl--stream-filter))
-                                          -90 100)))))))
+                                          -90 100))))))
+  (advice-add 'gptel-curl--get-config :before #'niwa-gptel-retry--capture-process))
 
 (defun niwa-gptel-retry-uninstall ()
   "Cancel owned recovery and remove gptel adapters."
@@ -1146,7 +1273,8 @@ ORIGINAL still owns native transitions and all their handlers."
                   (gptel-curl--sentinel . niwa-gptel-retry--cleanup)
                   (gptel-curl--stream-insert-response . niwa-gptel-retry--insert)
                   (gptel--insert-response . niwa-gptel-retry--insert)))
-    (advice-remove (car pair) (cdr pair))))
+    (advice-remove (car pair) (cdr pair)))
+  (advice-remove 'gptel-curl--get-config #'niwa-gptel-retry--capture-process))
 
 (provide 'niwa-gptel-retry)
 ;;; niwa-gptel-retry.el ends here

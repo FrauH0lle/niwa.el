@@ -1042,6 +1042,19 @@ reached TOOL and could dispatch the next call from inside the cleanup."
           (should (eq 'missing (plist-get (cadr finishes) :usage-status)))
           (should-not (plist-get (cadr finishes) :input-tokens))))))
 
+  :doc "a throw through an unregistered dispatch settles its call"
+  (test-niwa-usage--with-session
+    (test-niwa-usage--with-observer
+      (let ((gptel-use-curl t)
+            (fsm (test-niwa-usage--fsm data-buf)))
+        ;; A filter run while curl's request is written can throw past it.
+        (cl-letf (((symbol-function 'gptel-curl-get-response)
+                   (lambda (_machine) (throw 'test-niwa-usage-unwind nil))))
+          (catch 'test-niwa-usage-unwind (gptel--handle-wait fsm)))
+        (let ((finishes (test-niwa-usage--events session 'finish)))
+          (should (= 1 (length finishes)))
+          (should (eq 'error (plist-get (car finishes) :outcome)))))))
+
   :doc "new transport registration beside a stale one remains active after a hook error"
   (test-niwa-usage--with-session
     (test-niwa-usage--with-observer

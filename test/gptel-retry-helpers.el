@@ -28,7 +28,9 @@
           "data: {\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"server_error\",\"message\":\"Model at capacity\"},\"usage\":{\"input_tokens\":7,\"output_tokens\":2}}}\n\n"))
 
 (defmacro niwa-retry-test--with-http (responses &rest body)
-  "Evaluate BODY against local HTTP RESPONSES, with all state isolated."
+  "Evaluate BODY against local HTTP RESPONSES, with all state isolated.
+A function response receives the client process and drives its own stream;
+a timer it returns is cancelled with the fixture."
   (declare (indent 1) (debug t))
   `(let* ((data-buf (generate-new-buffer " *retry-data*"))
           (session (niwa-session--create :name "retry-test"))
@@ -38,6 +40,8 @@
           (finished 0) (failed 0) (aborted 0) (waits 0)
           (gptel--request-alist nil)
           (niwa-gptel-retry--states nil)
+          ;; Owned timers are stubbed below; stall tests opt in with real ones.
+          (niwa-gptel-retry-stall-timeout nil)
           (gptel-use-curl t)
           (niwa-test-allow-provider-requests t)
           (gptel-log-level nil)
@@ -70,9 +74,14 @@
                   (process-put client 'answered t)
                   (push (substring input (+ 4 (string-match "\r\n\r\n" input))) requests)
                   (let ((response (or (pop remaining) niwa-retry-test--success)))
-                    (if (and (stringp response) (string-prefix-p "HTTP/" response))
-                        ;; A complete raw response, such as a proxy error page.
-                        (process-send-string client response)
+                    (cond
+                     ((functionp response)
+                      (let ((timer (funcall response client)))
+                        (when (timerp timer) (push timer chunk-timers))))
+                     ((and (stringp response) (string-prefix-p "HTTP/" response))
+                      ;; A complete raw response, such as a proxy error page.
+                      (process-send-string client response))
+                     (t
                     (let ((body (if (consp response) (apply #'concat response) response)))
                       (process-send-string
                        client (format "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"
@@ -85,7 +94,7 @@
                                            (lambda ()
                                              (when (process-live-p client)
                                                (process-send-string client (apply #'concat (cdr response))))))
-                              chunk-timers))))))))))
+                              chunk-timers)))))))))))
           (backend (gptel--make-openai-oauth
                     :name "Codex test" :header nil :stream t :models '(test-model)
                     ;; Pass the real auth guard without reading or refreshing
@@ -148,6 +157,49 @@
            (cancel-timer (car entry))
            (apply (nth 1 entry) (nth 2 entry)))))
      (should (< (float-time) deadline))))
+
+(defconst niwa-retry-test--first-delta
+  "event: response.output_text.delta\ndata: {\"delta\":\"First sentence. \"}\n\n")
+
+(defconst niwa-retry-test--keepalives
+  '(": keep-alive\n\n"
+    "event: ping\ndata: {\"type\":\"ping\"}\n\n"
+    "event: response.in_progress\ndata: {\"response\":{\"status\":\"in_progress\"}}\n\n")
+  "SSE comment, Anthropic-style ping and Responses progress envelopes.")
+
+(defmacro niwa-retry-test--stream (first chunks &optional forever period)
+  "Return an open-ended response for `niwa-retry-test--with-http'.
+It sends headers and FIRST, then one of CHUNKS each PERIOD seconds (0.1 by
+default).  Afterwards it repeats FOREVER without closing, or closes.
+The response returns its sending timer."
+  `(let ((pending ,chunks) (repeat ,forever) (interval (or ,period 0.1)))
+     (lambda (client)
+       (process-send-string
+        client (concat "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
+                       "Connection: close\r\n\r\n" ,first))
+       (let (timer)
+         (setq timer
+               (run-at-time interval interval
+                            (lambda ()
+                              (cond ((not (process-live-p client)) (cancel-timer timer))
+                                    (pending (process-send-string client (pop pending)))
+                                    (repeat (process-send-string client repeat))
+                                    (t (cancel-timer timer) (delete-process client))))))
+         timer))))
+
+(defmacro niwa-retry-test--with-real-clock (timeout &rest body)
+  "Run BODY with stall TIMEOUT seconds and real timers for owned waits."
+  (declare (indent 1) (debug t))
+  `(let ((niwa-gptel-retry-stall-timeout ,timeout))
+     (cl-letf (((symbol-function 'niwa-transport-run-at-time)
+                (lambda (seconds function &rest args)
+                  (apply #'run-at-time seconds nil function args))))
+       ,@body)))
+
+(defun niwa-retry-test--stall-timers ()
+  "Return pending stall timers."
+  (seq-filter (lambda (timer) (eq (timer--function timer) #'niwa-gptel-retry--stall-check))
+              timer-list))
 
 (provide 'gptel-retry-helpers)
 ;;; gptel-retry-helpers.el ends here

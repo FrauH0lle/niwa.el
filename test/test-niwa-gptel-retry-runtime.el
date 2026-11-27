@@ -297,6 +297,35 @@ runtime.  BEFORE-RESULT can interrupt inside an accepted terminal callback."
     (should (= 1 (length results)))
     (should (equal '(ERRS) terminal-events))))
 
+(ert-deftest niwa-gptel-retry-runtime/repeated-stall-ends-agent-turn ()
+  "A retry that stalls again ends the turn; the parent gets an honest error.
+The visible row says what happened before the retry, and the third response
+is never requested."
+  (let ((stalled (niwa-retry-test--stream niwa-retry-test--first-delta nil
+                                          (car niwa-retry-test--keepalives))))
+    (niwa-retry-runtime-test--with-agent (list stalled stalled niwa-retry-test--success)
+      (niwa-retry-test--with-real-clock 0.4
+        (gptel--fsm-transition fsm)
+        (niwa-retry-test--drain-native t)
+        ;; Settlement clears the row's activity; check it while parked.
+        (should (seq-some (lambda (item)
+                            (string-match-p "\\`No response from the provider for .* retrying"
+                                            (or (plist-get item :summary) "")))
+                          (niwa-agent-invocation-activity invocation)))
+        (niwa-retry-test--drain-native))
+      (should (= 2 (length requests)))
+      (should (equal '(ERRS) terminal-events))
+      (should (equal '(error) stop-statuses))
+      (should (= 1 (length results)))
+      (should (eq 'error (plist-get (plist-get (car results) :event)
+                                    :niwa-agent-terminal-status)))
+      (should (string-match-p "No response from the provider for .* again after a retry"
+                              (plist-get (car results) :visible)))
+      (should-not (string-search "First sentence" (plist-get (car results) :visible)))
+      (should-not gptel--request-alist)
+      (should-not (niwa-retry-test--stall-timers))
+      (should-not niwa-gptel-retry--states))))
+
 (ert-deftest niwa-gptel-retry-runtime/interrupt-preempts-terminal-callback ()
   (niwa-retry-runtime-test--with-agent (list niwa-retry-test--success)
     (setq before-result
