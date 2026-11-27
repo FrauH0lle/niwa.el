@@ -132,7 +132,8 @@
         (setq-local niwa--session (niwa-tool-ui-test--session))
         (setf (niwa-session-tool-catalog niwa--session)
               '((("niwa" "Agent") . "Start a child")))
-        (niwa-tools--tool-search (lambda (text) (setq contract text)) "Agent"))
+        (niwa-tools--tool-search (lambda (text) (setq contract text)) "Agent"
+                                 niwa--session nil :unrestricted))
       (dolist (text (list contract (niwa-tool-prompt tool)
                          (plist-get task-arg :description)))
         (let ((case-fold-search t))
@@ -235,7 +236,8 @@
         (setq-local niwa--session (niwa-tool-ui-test--session))
         (setf (niwa-session-tool-catalog niwa--session)
               '((("niwa" "Agent") . "Start a child")))
-        (niwa-tools--tool-search (lambda (text) (setq contract text)) "Agent"))
+        (niwa-tools--tool-search (lambda (text) (setq contract text)) "Agent"
+                                 niwa--session nil :unrestricted))
       (should (string-search "working_directory" contract))
       (should (string-search (plist-get arg :description) contract)))))
 

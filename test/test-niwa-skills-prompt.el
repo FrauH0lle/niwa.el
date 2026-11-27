@@ -344,6 +344,28 @@
       (mapc #'kill-buffer buffers)
       (delete-directory root t)))
 
+  :doc "offers a discoverable Skill only when this recipient's request permits it"
+  (let* ((session (niwa-skills-test--make-session))
+         (skill (niwa-skill--create :name "elisp" :path-patterns '("*.el")
+                                    :active-p t :model-invocable-p t))
+         (call '(:tool-name "Read" :tool-category "niwa" :tool-input (:file_path "a.el"))))
+    (setf (niwa-session-skills session) (list skill))
+    (niwa-tool-ensure "Read")
+    (niwa-tool-ensure "Skill")
+    (with-temp-buffer
+      (setq-local niwa--session session
+                  niwa--agent-invocation
+                  (niwa-agent-invocation--create
+                   :buffer (current-buffer) :parent-session session
+                   :tool-catalog '((("niwa" "Skill") . "Invoke a skill")))
+                  gptel-tools (list (niwa-tool-gptel-tool (niwa-tool-ensure "ToolCall")))
+                  niwa--current-request (niwa-request--create :ptc-primitives nil))
+      (niwa-skills--post-tool-activate call)
+      (should-not (plist-get (niwa-reminders--stage-turn-events (current-buffer)) :entries))
+      (setf (niwa-request-ptc-primitives niwa--current-request) '("Skill"))
+      (niwa-skills--post-tool-activate call)
+      (should (plist-get (niwa-reminders--stage-turn-events (current-buffer)) :entries))))
+
   :doc "keeps path extraction scoped to the actual wrapped tool category"
   (let ((niwa-tool--registry (copy-hash-table niwa-tool--registry))
         (session (niwa-skills-test--make-session))

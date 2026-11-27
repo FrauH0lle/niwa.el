@@ -45,7 +45,8 @@
               (setq-local niwa--session
                           (niwa-session--create
                            :tool-catalog (list (cons (list (niwa-tool-category wrapped) "Probe") "Echo nested JSON"))))
-              (niwa-tools--tool-search (lambda (value) (setq result value)) call-name)
+              (niwa-tools--tool-search (lambda (value) (setq result value)) call-name
+                                       niwa--session nil :unrestricted)
               (should (string-search call-name result))
               (should (string-search "Standalone only" result))
               (cl-labels

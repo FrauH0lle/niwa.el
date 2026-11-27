@@ -379,6 +379,12 @@ carry both."
           (niwa-tools--buffer-local-agent-invocation buffer)
           (niwa-tools--buffer-local-session buffer)))))
 
+(defun niwa-tools--buffer-context ()
+  "Return the current buffer's invocation or session."
+  (or (and (niwa-agent-invocation-p niwa--agent-invocation)
+           niwa--agent-invocation)
+      (and (boundp 'niwa--session) niwa--session)))
+
 (defun niwa-tools--current-context ()
   "Return the tool context for the currently-executing tool call.
 
@@ -388,9 +394,20 @@ Falls back to the current buffer's `niwa--agent-invocation' before
 tests or tool dispatch paths already inside an agent buffer)."
   (if niwa-tools--current-engine
       (niwa-tools--context-for niwa-tools--current-engine)
-    (or (and (niwa-agent-invocation-p niwa--agent-invocation)
-             niwa--agent-invocation)
-        (and (boundp 'niwa--session) niwa--session))))
+    (niwa-tools--buffer-context)))
+
+(defun niwa-tools--dispatch-restriction (owner engine)
+  "Return ENGINE's request restriction, falling back to OWNER's buffer."
+  (let ((info (and engine (niwa-engine-info engine))))
+    (niwa-tool-ptc--restriction
+     (or (and (niwa-request-p engine) engine)
+         (plist-get info :niwa-request)
+         (when-let* ((buffer (or (niwa-tool-ptc--owner-buffer owner)
+                                 (plist-get info :buffer)))
+                     ((buffer-live-p buffer)))
+           (with-current-buffer buffer
+             (and (eq owner (niwa-tools--buffer-context))
+                  niwa--current-request)))))))
 
 (defun niwa-tools--search-catalog (ctx query)
   "Search CTX's catalog using case-insensitive OR terms from QUERY.
@@ -483,22 +500,26 @@ On a miss, suggest search terms from the effective callable CATALOG."
                  (niwa-tool-get (cadr (car entry)) (car (car entry))))))
              (seq-take matches 20) "\n")))))
 
-(cl-defun niwa-tools--tool-search (callback query)
-  "Retrieve contracts matching QUERY and deliver them through CALLBACK."
+(cl-defun niwa-tools--tool-search (callback query owner engine restriction
+                                            &optional include-hidden)
+  "Deliver OWNER's contracts matching QUERY through CALLBACK.
+ENGINE, RESTRICTION and INCLUDE-HIDDEN select the discovery roster."
   (niwa-tools--validate-params callback niwa-tools--tool-search
                                   (query (stringp . "string")))
-  (let* ((ctx (niwa-tools--current-context))
-         (roster (niwa-tool-ptc--roster))
+  (let* ((roster (niwa-tool-ptc-roster owner :engine engine :restriction restriction
+                                       :include-hidden include-hidden))
          (catalog
           (seq-filter
            (lambda (entry)
              (when-let* ((tool (niwa-tool-get (cadr (car entry)) (car (car entry)))))
                (member (niwa-tool-call-name tool) roster)))
-           (and ctx (niwa-tools--ctx-tool-catalog ctx))))
+           (and owner (niwa-tools--ctx-tool-catalog owner))))
          (matches
           (seq-filter (lambda (entry) (member entry catalog))
-                      (and ctx (niwa-tools--search-catalog ctx query)))))
-    (funcall callback (niwa-tools--tool-search-report matches catalog))))
+                      (and owner (niwa-tools--search-catalog owner query)))))
+    (funcall callback
+             (with-current-buffer (or (niwa-tool-ptc--owner-buffer owner) (current-buffer))
+               (niwa-tools--tool-search-report matches catalog)))))
 
 (defcustom niwa-tools-listing-budget 0.02
   "Fraction of the context window allotted to the specialist tool listing.
@@ -513,7 +534,7 @@ reachable through ToolSearch."
   "Return the current conversation's specialist tool listing, or nil.
 It lists catalog tools the current role and request may call through
 ToolCall, excluding native tools.  Without native ToolCall there is none."
-  (let* ((niwa-tools--current-engine
+  (let* ((engine
           (cl-find-if
            (lambda (owner)
              (and owner
@@ -522,15 +543,16 @@ ToolCall, excluding native tools.  Without native ToolCall there is none."
            (list niwa--agent-invocation
                  (niwa-engine-owner niwa--current-request)
                  niwa-tools--current-engine)))
-         (ctx (niwa-tools--current-context))
-         (native (niwa-tool-ptc--active-tool-names))
-         (roster (niwa-tool-ptc--roster))
+         (ctx (if engine (niwa-tools--context-for engine) (niwa-tools--buffer-context)))
+         (native (niwa-tool-ptc--active-tool-names ctx engine))
+         (roster (niwa-tool-ptc-roster ctx :engine engine
+                                       :restriction (niwa-tools--dispatch-restriction ctx engine)))
          (names
           (and ctx
                (cl-some (lambda (provider)
                           (when-let* ((tool (niwa-tool-for-gptel provider)))
                             (eq tool (niwa-tool-get "ToolCall" "niwa"))))
-                        (niwa-tool-ptc--native-tools))
+                        (niwa-tool-ptc--native-tools ctx engine))
                (delete-dups
                 (cl-loop for (path . _) in (niwa-tools--ctx-tool-catalog ctx)
                          for tool = (niwa-tool-get (cadr path) (car path))

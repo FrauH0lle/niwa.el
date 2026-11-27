@@ -43,7 +43,9 @@
 
 ;; `niwa-tools'
 (declare-function niwa-tools--tool-search
-                  "niwa-tools" (callback query))
+                  "niwa-tools" (callback query owner engine restriction &optional include-hidden))
+(declare-function niwa-tools--current-context "niwa-tools" ())
+(declare-function niwa-tools--dispatch-restriction "niwa-tools" (owner engine))
 (defvar niwa-tools--current-engine)
 
 ;; `niwa-view-agent'
@@ -145,9 +147,11 @@
 
 (defun niwa-tool-ui--tool-search (callback args)
   "Retrieve tool contracts described by ARGS and call CALLBACK."
-  (niwa-tools--tool-search
-   (apply-partially #'niwa-tool-ui--deliver-result callback)
-   (plist-get args :query)))
+  (let ((owner (niwa-tools--current-context)))
+    (niwa-tools--tool-search
+     (apply-partially #'niwa-tool-ui--deliver-result callback)
+     (plist-get args :query) owner niwa-tools--current-engine
+     (niwa-tools--dispatch-restriction owner niwa-tools--current-engine))))
 
 (defun niwa-tool-ui--send-message (args)
   "Deliver the SendMessage described by ARGS."

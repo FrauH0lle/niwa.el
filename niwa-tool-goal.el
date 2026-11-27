@@ -54,11 +54,11 @@
 (defconst niwa-tool-goal-names '("CreateGoal" "GetGoal" "UpdateGoal")
   "Goal tools whose visibility follows the owning root request.")
 
-(defun niwa-tool-goal-available-p (name &optional fsm)
+(defun niwa-tool-goal-available-p (name fsm)
   "Return whether Goal tool NAME is available to root request FSM.
 Other tool names are unaffected.  Apply this to native and discovered tools."
   (or (not (member name niwa-tool-goal-names))
-      (when-let* ((fsm (or fsm (bound-and-true-p niwa-tools--current-engine)))
+      (when-let* (fsm
                   (info (niwa-engine-info fsm))
                   (session (niwa-tools--context-for fsm))
                   ((niwa-session-p session))

@@ -217,7 +217,7 @@
                  nil)))
       (should (string-match-p "niwa: tools" line))
       (should (string-match-p "1 native" line))
-      (should (string-match-p "1 discoverable" line))
+      (should (string-match-p "1 session catalog member" line))
       (should (string-match-p "? keys" line))
       ;; The key list belongs in `?' help, not in the header.
       (should-not (string-match-p "RET details" line)))))
@@ -258,6 +258,25 @@
 ))))
       (when (buffer-live-p data-buffer)
         (kill-buffer data-buffer))))
+
+  :doc "search from an agent transcript shows session membership, not agent authority"
+  (let* ((session (niwa-tools-list-test--make-session))
+         (catalog '((("niwa" "Imenu") . "Parent outline"))))
+    (niwa-tools-register)
+    (setf (niwa-session-tool-catalog session) catalog)
+    (with-temp-buffer
+      (let ((transcript (current-buffer)))
+        (setq-local niwa--agent-invocation
+                    (niwa-agent-invocation--create
+                     :buffer transcript :parent-session session
+                     :tool-catalog '((("niwa" "Read") . "Child read")))
+                    niwa--current-request (niwa-request--create :ptc-primitives nil))
+        (with-current-buffer (niwa-tools-list-test--open-list session transcript)
+          (should (assoc '(discoverable "niwa" "Imenu") tabulated-list-entries))
+          (should-not (assoc '(discoverable "niwa" "Read") tabulated-list-entries))
+          (should (string-search "(Imenu" (niwa-tools-list-search "Imenu")))
+          (should (string-search "1 session catalog member" (niwa-cockpit-surface-header-line)))
+          (should (string-search "No matching" (niwa-tools-list-search "Read")))))))
 
   :doc "rejects opening without a cockpit context"
   (with-temp-buffer

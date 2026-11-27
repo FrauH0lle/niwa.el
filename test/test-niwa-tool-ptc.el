@@ -193,7 +193,7 @@
                        :type 'test :id "ptc-roster" :root "/tmp/ptc-roster/"
                        :name "ptc-roster"))
            (session (niwa-session--create
-                     :name "ptc-roster" :workspace workspace
+                     :name "ptc-roster" :workspace workspace :root-buffer buffer
                      :touched-files (make-hash-table :test #'equal)))))
   (unwind-protect ,test (kill-buffer buffer))
   (test)
@@ -207,9 +207,9 @@
       (let ((niwa-ptc-composable-tools '("Read" "Bash")))
         ;; Read is allowlisted and active; Glob is active but not in this
         ;; allowlist; Bash is allowlisted but not active in the request.
-        (should (equal '("Read" "Glob") (niwa-tool-ptc--roster)))
+        (should (equal '("Read" "Glob") (niwa-tool-ptc-roster session)))
         (setq-local gptel-tools (test-niwa-tool-ptc--gptel-tools "Glob"))
-        (should (equal '("Glob") (niwa-tool-ptc--roster))))))
+        (should (equal '("Glob") (niwa-tool-ptc-roster session))))))
 
   :doc "offers a deferred tool, which the pipeline can execute regardless"
   (progn
@@ -223,20 +223,18 @@
       (let ((niwa-ptc-composable-tools '("Read" "Treesitter" "Bash")))
         ;; Read is active, Treesitter is deferred but still callable, and
         ;; Bash is neither.
-        (should (equal '("Read" "Treesitter") (niwa-tool-ptc--roster))))))
+        (should (equal '("Read" "Treesitter") (niwa-tool-ptc-roster session))))))
 
   :doc "intersects the active roster with the owning skill restriction"
   (progn
     (niwa-tool-fs--register)
     (with-current-buffer buffer
       (setq-local gptel-tools
-                  (test-niwa-tool-ptc--gptel-tools "Read" "Glob")
-                  niwa--current-request
-                  (niwa-request--create :ptc-primitives '("Glob" "Bash")))
+                  (test-niwa-tool-ptc--gptel-tools "Read" "Glob"))
       (let ((niwa-ptc-composable-tools '("Read" "Glob")))
         ;; Bash is named by the skill but absent from the global allowlist
         ;; and request roster, so the restriction cannot grant it.
-        (should (equal '("Glob") (niwa-tool-ptc--roster))))))
+        (should (equal '("Glob") (niwa-tool-ptc-roster session :restriction '("Glob" "Bash")))))))
 
   :doc "keeps the registered description stable as the catalog changes"
   (progn
@@ -262,7 +260,7 @@
       (setq-local niwa--session session
                   gptel-tools (test-niwa-tool-ptc--gptel-tools "ToolCall"))
       ;; At prompt construction there need not be a bound engine yet.
-      (should (equal '("ApplyPatch" "Monitor" "Imenu") (niwa-tool-ptc--roster)))
+      (should (equal '("ApplyPatch" "Monitor" "Imenu") (niwa-tool-ptc-roster session)))
       (let ((listing (niwa-tools-listing-section)))
         (should-not (string-search "(Eval " listing))
         (should-not (string-search "(SharedEdit " listing)))
@@ -273,11 +271,10 @@
                    :parent-session session :buffer (current-buffer)
                    :runtime-context (list :buffer (current-buffer))
                    :plan-read-only t :tool-catalog catalog))
-      (dolist (owner (list nil
-                          (gptel-make-fsm :info (list :buffer (current-buffer)))
-                          niwa--agent-invocation))
-        (let ((niwa-tools--current-engine owner))
-          (should (equal '("ApplyPatch" "Imenu") (niwa-tool-ptc--roster))))))))
+      (dolist (engine (list nil (gptel-make-fsm :info (list :buffer (current-buffer)))
+                            niwa--agent-invocation))
+        (should (equal '("ApplyPatch" "Imenu")
+                       (niwa-tool-ptc-roster niwa--agent-invocation :engine engine)))))))
 
 (niwa-deftest niwa-tool-ptc--call-template ()
   ,test
@@ -291,7 +288,8 @@
     (should (equal "(TemplateProbe :path \"<path>\")"
                    (niwa-tool-ptc--call-template "TemplateProbe")))))
 
-(niwa-deftest niwa-tool-ptc--active-tool-names ()
+(niwa-deftest niwa-tool-ptc--active-tool-names
+  (:vars ((owner (niwa-session--create :root-buffer (current-buffer)))))
   ,test
   (test)
   :doc "keeps invalid native extras outside the expression roster"
@@ -303,7 +301,7 @@
         (setf (niwa-tool-gptel-tool tool) native)
         (niwa-tool-register tool)
         (push native gptel-tools)))
-    (should (equal '("server/Good") (niwa-tool-ptc--active-tool-names))))
+    (should (equal '("server/Good") (niwa-tool-ptc--active-tool-names owner nil))))
 
   :doc "rejects foreign same-name implementations but accepts request-local schema copies"
   (let ((niwa-tool--registry (make-hash-table :test #'equal)))
@@ -314,14 +312,15 @@
            (gptel-tools (list copy foreign)))
       (setf (gptel-tool-description copy) "Request-local description"
             (gptel-tool-function foreign) #'ignore)
-      (should (equal '("Read") (niwa-tool-ptc--active-tool-names)))))
+      (should (equal '("Read") (niwa-tool-ptc--active-tool-names owner nil)))))
 
   :doc "an explicitly empty request roster does not inherit buffer tools"
   (let ((niwa-tool--registry (make-hash-table :test #'equal)))
     (niwa-tool-fs--register)
     (let ((gptel-tools (test-niwa-tool-ptc--gptel-tools "Read"))
-          (niwa-tools--current-engine (gptel-make-fsm :info '(:tools nil))))
-      (should-not (niwa-tool-ptc--active-tool-names)))))
+          (engine (gptel-make-fsm :info '(:tools nil))))
+      (should (equal '("Read") (niwa-tool-ptc--active-tool-names owner nil)))
+      (should-not (niwa-tool-ptc--active-tool-names owner engine)))))
 
 (niwa-deftest niwa-tool-ptc--tool-declaration ()
   ,test
@@ -343,8 +342,9 @@
     (niwa-tool-fs--register)
     (setq-local gptel-tools
                 (test-niwa-tool-ptc--gptel-tools "Read" "Glob" "Grep")
+                niwa--session (niwa-session--create :root-buffer (current-buffer))
                 niwa--current-request
-                (niwa-request--create :ptc-primitives '("Read" "Glob")))
+                (niwa-request--create :session niwa--session :ptc-primitives '("Read" "Glob")))
     (let ((niwa-ptc-composable-tools '("Read")))
       (cl-letf (((symbol-function 'niwa-ptc-driver-run)
                  (lambda (callback expression roster &optional standalone)

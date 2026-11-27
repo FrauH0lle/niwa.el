@@ -924,7 +924,7 @@ With RAW-P, retain the full pipeline result including hidden render data."
     (test-niwa-ptc-driver--select-probe buffer)
     (let ((niwa-ptc-composable-tools '("PTCProbe")))
       (with-current-buffer buffer
-        (should (equal '("PTCProbe") (niwa-tool-ptc--roster))))
+        (should (equal '("PTCProbe") (niwa-tool-ptc-roster session))))
       (should
        (equal "(\"a\" \"b\" \"c\")"
               (test-niwa-ptc-driver--run

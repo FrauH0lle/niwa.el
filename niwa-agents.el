@@ -81,15 +81,13 @@
 (defvar niwa--session)
 
 ;; `niwa-tool-ptc'
-(declare-function niwa-tool-ptc--roster "niwa-tool-ptc" (&optional include-hidden))
-(autoload 'niwa-tool-ptc--roster "niwa-tool-ptc")
+(autoload 'niwa-tool-ptc-roster "niwa-tool-ptc")
+(autoload 'niwa-tool-ptc--restriction "niwa-tool-ptc")
 
 ;; `niwa-tools'
 (declare-function niwa-tools--ctx-tool-catalog "niwa-tools" (ctx))
-(declare-function niwa-tools--current-context "niwa-tools" ())
-(defvar niwa-tools--current-engine)
 (autoload 'niwa-tools--ctx-tool-catalog "niwa-tools")
-(autoload 'niwa-tools--current-context "niwa-tools")
+(autoload 'niwa-tools--buffer-context "niwa-tools")
 
 ;;
 ;;; Agent struct and registry
@@ -278,12 +276,13 @@ Freezing these explicit specs preserves membership on later invocations."
       ;; Preparation may finish from an async callback during another tool's
       ;; dispatch.  Inherit from the delegating buffer, like request locals,
       ;; not from that unrelated dynamic engine binding.
-      (let* ((niwa-tools--current-engine nil)
-             (owner (niwa-tools--current-context))
+      (let* ((owner (niwa-tools--buffer-context))
              (catalog (and owner (niwa-tools--ctx-tool-catalog owner)))
              ;; A later follow-up can leave Plan.  Freeze capability membership,
              ;; not this turn's transient visibility; dispatch filters each turn.
-             (roster (and catalog (niwa-tool-ptc--roster t))))
+             (roster (and catalog (niwa-tool-ptc-roster
+                                   owner :include-hidden t :restriction
+                                   (niwa-tool-ptc--restriction niwa--current-request)))))
         (append
          base
          (cl-loop for (path . _summary) in catalog
@@ -315,8 +314,7 @@ so without them it would lack workspace guidance and environment facts."
           (not (equal "default" (niwa-agent-name agent))))
       (niwa-agent-context-components agent)
     ;; Resolve the delegator from its buffer, as for inherited tool specs.
-    (let* ((niwa-tools--current-engine nil)
-           (owner (niwa-tools--current-context)))
+    (let ((owner (niwa-tools--buffer-context)))
       (if (niwa-agent-invocation-p owner)
           (copy-sequence
            (niwa-agent-context-components

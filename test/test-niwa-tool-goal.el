@@ -480,9 +480,9 @@ and `verify-callback' delivers the verifier outcome."
   (test)
   :doc "filters native and catalog Goal tools for root, Plan, and agent contexts"
   (niwa-tool-goal-test--with-request
-    (should (equal '("CreateGoal" "GetGoal") (niwa-tool-ptc--roster)))
+    (should (equal '("CreateGoal" "GetGoal") (niwa-tool-ptc-roster session :engine fsm)))
     (setf (niwa-session-plan-mode session) t)
-    (should (equal '("GetGoal") (niwa-tool-ptc--roster)))
+    (should (equal '("GetGoal") (niwa-tool-ptc-roster session :engine fsm)))
     (should-error (niwa-tool-goal--handle-create '(:objective "Forbidden")))
     (setf (niwa-session-plan-mode session) nil)
     (dolist (kind '(ephemeral cancelled))
@@ -498,6 +498,31 @@ and `verify-callback' delivers the verifier outcome."
     (plist-put (gptel-fsm-info fsm) :context '(:niwa-context-summary t))
     (should-not (niwa-tool-goal-available-p "GetGoal" fsm))
     (should (niwa-tool-goal-available-p "Read" fsm)))
+
+  :doc "an unrelated root dispatch does not lend visibility or tools to other owners"
+  (niwa-tool-goal-test--with-request
+    (should (member "GetGoal" (niwa-tool-ptc-roster session :engine fsm)))
+    (niwa-tool-fs--register)
+    (niwa-tool-patch-register)
+    (with-temp-buffer
+      (let ((parent (niwa-session--create :root-buffer (current-buffer)
+                                          :tool-catalog '((("niwa" "GetGoal") . "goal")
+                                                          (("niwa" "Glob") . "files")))))
+        (setq-local niwa--session parent
+                    gptel-tools (list (niwa-tool-gptel-tool (niwa-tool-get "Read"))))
+        (with-temp-buffer
+          (let ((child (niwa-agent-invocation--create
+                        :parent-session parent :buffer (current-buffer)
+                        :tool-catalog '((("niwa" "Grep") . "search")))))
+            (setq-local niwa--session parent niwa--agent-invocation child
+                        gptel-tools (list (niwa-tool-gptel-tool (niwa-tool-get "ApplyPatch"))))
+            (with-current-buffer (plist-get (gptel-fsm-info fsm) :buffer)
+              (should (equal '("ApplyPatch" "Grep") (niwa-tool-ptc-roster child)))
+              (should (equal '("Read" "Glob") (niwa-tool-ptc-roster parent)))
+              (should (equal '("Read" "GetGoal" "Glob")
+                             (niwa-tool-ptc-roster parent :include-hidden t)))
+              (should (equal '("GetGoal") (niwa-tool-ptc-roster
+                                           parent :include-hidden t :restriction '("GetGoal"))))))))))
 
   :doc "refuses every unfinished Goal and either accepted Plan reservation"
   (niwa-tool-goal-test--with-request

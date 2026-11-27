@@ -61,12 +61,10 @@
 (declare-function niwa-session-tool-catalog
                   "niwa-structs" (cl-x) t)
 (declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(defvar niwa--agent-invocation)
-(defvar niwa--session)
 
 ;; `niwa-tools'
 (declare-function niwa-tools--tool-search
-                  "niwa-tools" (callback query))
+                  "niwa-tools" (callback query owner engine restriction &optional include-hidden))
 
 ;; `niwa-utilities'
 (declare-function niwa--truncate-display
@@ -157,7 +155,7 @@
     (niwa-cockpit-format-header
      "tools"
      (niwa-tools-list--session-label context)
-     (format "%d native · %d discoverable"
+     (format "%d native · %d session catalog members"
              (alist-get 'active counts 0)
              (alist-get 'discoverable counts 0)))))
 
@@ -217,11 +215,8 @@
       (niwa-diagnostic-user-error (niwa-cockpit-diagnostic-scope context)
                                    "Search query cannot be empty"))
     (with-current-buffer data-buffer
-      (let ((niwa--agent-invocation nil)
-            (niwa--session session))
-        (niwa-tools--tool-search
-         (lambda (text) (setq result text))
-         query)))
+      (niwa-tools--tool-search (lambda (text) (setq result text))
+                               query session nil :unrestricted t))
     (niwa-tools-list-refresh)
     (message "%s" result)
     result))
@@ -239,7 +234,7 @@
   (list :title "Tools help"
         :sections (list (list :id 'keys :title "Keys"
                               :body (niwa-cockpit-surface-key-help-text niwa-tools-list--surface))
-			(list :id 'rows :title "Rows" :body "active    Native tools in the current payload\ndiscoverable  Contracts through ToolSearch; calls through ToolCall"))))
+			(list :id 'rows :title "Rows" :body "active    Native tools in the current payload\ndiscoverable  Session catalog membership, not turn callability"))))
 
 (defun niwa-tools-list-help ()
   "Open tools cockpit help."

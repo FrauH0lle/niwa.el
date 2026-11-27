@@ -776,7 +776,8 @@
         (niwa-preset--setup-catalog 'catalog-test)
         (niwa-preset--setup-extras 'catalog-test)
         (let ((before (copy-sequence gptel-tools)) result)
-          (niwa-tools--tool-search (lambda (value) (setq result value)) "Eval Imenu")
+          (niwa-tools--tool-search (lambda (value) (setq result value)) "Eval Imenu"
+                                   niwa--session nil :unrestricted)
           (should (string-search "ToolCall(expression)" result))
           (should (equal before gptel-tools))
           (should (equal '("Read") (mapcar #'gptel-tool-name gptel-tools)))

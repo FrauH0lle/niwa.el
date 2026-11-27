@@ -1884,29 +1884,36 @@ CTX may be a `niwa-session' or `niwa-agent-invocation'."
     (let* ((native (copy-tree gptel-tools t))
            (catalog (copy-tree (niwa-session-tool-catalog niwa--session)))
            result repeat)
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe00 Probe01")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe00 Probe01"
+                               niwa--session nil :unrestricted)
       (should (string-search "Probe00" result))
       (should (string-search "Probe01" result))
       (should (= 3 (length (split-string result "Complete contract body" t))))
       (should (string-search "A required probe value" result))
       (should (string-search "Standalone only" result))
-      (niwa-tools--tool-search (lambda (s) (setq repeat s)) "Probe00 Probe01")
+      (niwa-tools--tool-search (lambda (s) (setq repeat s)) "Probe00 Probe01"
+                               niwa--session nil :unrestricted)
       (should (equal result repeat))
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "probes")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "probes"
+                               niwa--session nil :unrestricted)
       (should (string-search "Found 21 tools; showing the first 20" result))
       (should (string-search "- (Probe00 :value string) - Probe summary" result))
       (should-not (string-search "Complete contract body" result))
       (should-not (string-search "Probe20" result))
       (should (string-search "one or two exact names" result))
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe00 Probe01 Probe02")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe00 Probe01 Probe02"
+                               niwa--session nil :unrestricted)
       (should (string-search "Complete contract body" result))
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe00 Probe01 Probe02 Probe03")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe00 Probe01 Probe02 Probe03"
+                               niwa--session nil :unrestricted)
       (should-not (string-search "Complete contract body" result))
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "absent")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "absent"
+                               niwa--session nil :unrestricted)
       (should (string-search "No matching tools found." result))
       (should (string-search "niwa, probes" result))
       (should-not (string-search "Complete contract body" result))
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "probes")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "probes"
+                               niwa--session nil :unrestricted)
       (should (string-search "Found 21 tools" result))
       (should (equal native gptel-tools))
       (should (equal catalog (niwa-session-tool-catalog niwa--session)))))
@@ -1921,13 +1928,16 @@ CTX may be a `niwa-session' or `niwa-agent-invocation'."
         :contextualize
         (lambda (args summary)
           (cons (list (list (car (car args)) 'string :required
-                            "Buffer description"))
+                            (if niwa--session "Buffer description" "Wrong buffer")))
                 summary))))
       (setq-local niwa--session
                   (niwa-session--create
+                   :root-buffer (current-buffer)
                    :tool-catalog '((("niwa" "Contextual") . "Static summary"))))
-      (let (result)
-        (niwa-tools--tool-search (lambda (s) (setq result s)) "Contextual")
+      (let ((owner niwa--session) result)
+        (with-temp-buffer
+          (niwa-tools--tool-search (lambda (s) (setq result s)) "Contextual"
+                                   owner nil :unrestricted))
         (should (string-search "Buffer description" result))
         (should-not (string-search "Static description" result)))
       (should (equal static
@@ -1943,8 +1953,27 @@ CTX may be a `niwa-session' or `niwa-agent-invocation'."
                                  (("niwa" "Ghost") . "ghost")))
                 niwa--current-request (niwa-request--create :ptc-primitives nil))
     (let (result)
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe Ghost")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "Probe Ghost"
+                               niwa--session nil (niwa-request-ptc-primitives niwa--current-request))
       (should (equal "No matching tools found." result))))
+
+  :doc "ToolSearch dispatch prefers its engine request then the recipient's request"
+  (with-temp-buffer
+    (let* ((session (niwa-session--create :tool-catalog '((("niwa" "Probe") . "Probe"))))
+           (info (list :buffer (current-buffer) :niwa-request nil))
+           (niwa-tools--current-engine (gptel-make-fsm :info info)))
+      (niwa-define-tool :name "Probe" :handler #'ignore :description "Probe contract")
+      (setq-local niwa--session session
+                  niwa--current-request (niwa-request--create :session session :ptc-primitives nil))
+      (with-temp-buffer
+        (cl-flet ((search-probe ()
+                    (let (text)
+                      (niwa-tool-ui--tool-search
+                       (lambda (result) (setq text (plist-get result :result))) '(:query "Probe"))
+                      text)))
+          (should (equal "No matching tools found." (search-probe)))
+          (plist-put info :niwa-request (niwa-request--create :session session))
+          (should (string-search "Probe contract" (search-probe)))))))
 
   :doc "miss suggestions use only callable catalog entries and stay bounded"
   (let (entries)
@@ -1968,15 +1997,18 @@ CTX may be a `niwa-session' or `niwa-agent-invocation'."
                  :ptc-primitives (mapcar (lambda (entry) (mapconcat #'identity (car entry) "/"))
                                          entries)))
     (let (result repeat)
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "absent")
-      (niwa-tools--tool-search (lambda (s) (setq repeat s)) "absent")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "absent"
+                               niwa--session nil (niwa-request-ptc-primitives niwa--current-request))
+      (niwa-tools--tool-search (lambda (s) (setq repeat s)) "absent"
+                               niwa--session nil (niwa-request-ptc-primitives niwa--current-request))
       (should (equal result repeat))
       (should (string-search "category00, category01" result))
       (should (string-search "category19" result))
       (should (string-search "first 20 of 22" result))
       (dolist (hidden '("category20" "category21" "private" "secret" "ghost" "contract"))
         (should-not (string-search hidden result)))
-      (niwa-tools--tool-search (lambda (s) (setq result s)) "category00")
+      (niwa-tools--tool-search (lambda (s) (setq result s)) "category00"
+                               niwa--session nil (niwa-request-ptc-primitives niwa--current-request))
       (should (string-search "Allowed contract" result))))))
 
 (niwa-deftest niwa-tools-listing-section
@@ -2152,8 +2184,7 @@ CTX may be a `niwa-session' or `niwa-agent-invocation'."
         (should-not (plist-member (gptel-fsm-info fsm) :tools))
         (setq-local niwa--current-request (niwa-request--create :fsm fsm))
         (should-not (niwa-tools-listing-section))
-        (let ((niwa-tools--current-engine fsm))
-          (should-not (niwa-tool-ptc--native-tools)))))))
+        (should-not (niwa-tool-ptc--native-tools niwa--session fsm))))))
 
 (provide 'test-niwa-tools)
 ;;; test-niwa-tools.el ends here

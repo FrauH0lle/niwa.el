@@ -149,7 +149,7 @@
       (setq-local niwa--agent-invocation
                   (niwa-agent-invocation--create :parent-session session :path "/root/child"))
       (should-not (member "Notify" (mapcar #'niwa-tool-name (niwa-tools-native-roster fsm))))
-      (should-not (member "Notify" (niwa-tool-ptc--roster)))
+      (should-not (member "Notify" (niwa-tool-ptc-roster niwa--agent-invocation :engine fsm)))
       (should (eq 'error (plist-get (call "Child bypass") :status)))
       (setq-local niwa--agent-invocation nil)
       (setf (niwa-request-origin niwa--current-request) "/root/child")

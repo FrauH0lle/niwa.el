@@ -36,10 +36,9 @@
 
 (autoload 'niwa-ptc-driver-run "niwa-ptc-driver")
 
-;; `niwa-structs'
-(declare-function niwa-request-ptc-primitives
-                  "niwa-structs" (request))
-(defvar niwa--current-request)
+;; `niwa-agents'
+(declare-function niwa-agent-invocation-buffer "niwa-agents" (cl-x) t)
+(declare-function niwa-agent-invocation-p "niwa-agents" (cl-x) t)
 
 ;; `niwa-tool-registry'
 (declare-function niwa-tool-args "niwa-tool-registry" (tool))
@@ -56,6 +55,8 @@
 ;; `niwa-tools'
 (declare-function niwa-tools--ctx-tool-catalog "niwa-tools" (ctx))
 (declare-function niwa-tools--current-context "niwa-tools" ())
+(declare-function niwa-tools--buffer-context "niwa-tools" ())
+(declare-function niwa-tools--dispatch-restriction "niwa-tools" (owner engine))
 (declare-function niwa-tools-visibility "niwa-tools" (&optional owner))
 (defvar niwa-tools--current-engine)
 
@@ -87,50 +88,60 @@ and interaction tools require a model turn to consume their result."
   :type 'natnum
   :group 'niwa)
 
-(defun niwa-tool-ptc--native-tools ()
-  "Return the current request's native tools, or the buffer's before admission."
-  (let* ((fsm (bound-and-true-p niwa-tools--current-engine))
-         (info (and fsm (niwa-engine-info fsm))))
-    (if fsm
-        (plist-get info :tools)
-      (bound-and-true-p gptel-tools))))
+(defun niwa-tool-ptc--owner-buffer (owner)
+  "Return OWNER's live conversation buffer, including transient sessions."
+  (or (let ((buffer (cond ((niwa-agent-invocation-p owner)
+                           (niwa-agent-invocation-buffer owner))
+                          ((niwa-session-p owner) (niwa-session-root-buffer owner)))))
+        (and (buffer-live-p buffer) buffer))
+      (and owner (eq owner (niwa-tools--buffer-context)) (current-buffer))))
 
-(defun niwa-tool-ptc--active-tool-names ()
-  "Return canonical names of registered tools active in the current request."
+(defun niwa-tool-ptc--native-tools (owner engine)
+  "Return ENGINE's admitted tools, or OWNER's native tools before admission."
+  (if engine (plist-get (niwa-engine-info engine) :tools)
+    (when-let* ((buffer (niwa-tool-ptc--owner-buffer owner)))
+      (buffer-local-value 'gptel-tools buffer))))
+
+(defun niwa-tool-ptc--active-tool-names (owner engine)
+  "Return canonical names of registered tools active for OWNER and ENGINE."
   (delq nil
         (mapcar (lambda (tool)
                   (when-let* ((registered (niwa-tool-for-gptel tool)))
                     (when (niwa-tool-callable-p registered)
                       (niwa-tool-call-name registered))))
-                (niwa-tool-ptc--native-tools))))
+                (niwa-tool-ptc--native-tools owner engine))))
 
-(defun niwa-tool-ptc--catalog-tool-names ()
-  "Return canonical names in the current owner's discoverable catalog."
-  (when-let* ((ctx (niwa-tools--current-context)))
+(defun niwa-tool-ptc--catalog-tool-names (owner)
+  "Return canonical names in OWNER's discoverable catalog."
+  (when owner
     (delq nil
           (mapcar (lambda (entry)
                     (when-let* ((tool (niwa-tool-get (cadr (car entry))
                                                        (car (car entry)))))
                       (when (niwa-tool-callable-p tool)
                         (niwa-tool-call-name tool))))
-                  (niwa-tools--ctx-tool-catalog ctx)))))
+                  (niwa-tools--ctx-tool-catalog owner)))))
 
-(defun niwa-tool-ptc--roster (&optional include-hidden)
-  "Return callable names allowed by the current role and request.
+(defun niwa-tool-ptc--restriction (request)
+  "Return REQUEST's primitive restriction, or :unrestricted before admission."
+  (if request (niwa-request-ptc-primitives request) :unrestricted))
+
+(cl-defun niwa-tool-ptc-roster
+    (owner &key include-hidden engine
+           (restriction (if engine (niwa-tools--dispatch-restriction owner engine)
+                          :unrestricted)))
+  "Return OWNER's callable names for ENGINE under RESTRICTION.
 INCLUDE-HIDDEN retains tools hidden by transient turn visibility, for role
 inheritance.  Capability membership and skill restrictions still apply."
   (let ((available (delete-dups
-                    (append (niwa-tool-ptc--active-tool-names)
-                            (niwa-tool-ptc--catalog-tool-names))))
-        (visible (niwa-tools-visibility
-                  (bound-and-true-p niwa-tools--current-engine)))
-        (restriction
-         (if (bound-and-true-p niwa--current-request)
-             (niwa-request-ptc-primitives niwa--current-request)
-           :unrestricted)))
+                    (append (niwa-tool-ptc--active-tool-names owner engine)
+                            (niwa-tool-ptc--catalog-tool-names owner))))
+        (visible (if engine (niwa-tools-visibility engine)
+                   (when-let* ((buffer (niwa-tool-ptc--owner-buffer owner)))
+                     (with-current-buffer buffer (niwa-tools-visibility))))))
     (seq-filter (lambda (name)
                   (and (not (member name '("ToolCall" "ToolSearch")))
-                       (or include-hidden (funcall visible name))
+                       (or include-hidden (and visible (funcall visible name)))
                        (or (eq restriction :unrestricted)
                            (member name restriction))))
                 available)))
@@ -181,7 +192,10 @@ inheritance.  Capability membership and skill restrictions still apply."
 
 (defun niwa-tool-ptc--handler (callback args)
   "Run the script in ARGS through the current request's nested tool roster."
-  (let ((roster (niwa-tool-ptc--roster)))
+  (let* ((owner (niwa-tools--current-context))
+         (engine niwa-tools--current-engine)
+         (roster (niwa-tool-ptc-roster
+                  owner :engine engine :restriction (niwa-tools--dispatch-restriction owner engine))))
     (niwa-ptc-driver-run
      callback (plist-get args :expression) roster
      (seq-remove #'niwa-tool-ptc--composable-p roster))))

@@ -224,7 +224,7 @@
                          (mapcar (lambda (entry) (cadr (car entry)))
                                  (niwa-agent-invocation-tool-catalog niwa--agent-invocation))))
           (should (equal (unless plan '("Eval" "SharedEdit"))
-                         (niwa-tool-ptc--roster))))))))
+                         (niwa-tool-ptc-roster niwa--agent-invocation))))))))
 
 (niwa-deftest niwa-agent--specs-contain-tool-p/test
   (:before-each (test-niwa-agents--restore-builtins))

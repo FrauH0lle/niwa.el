@@ -53,7 +53,11 @@
 (defvar niwa--session)
 
 ;; `niwa-tool-ptc'
-(declare-function niwa-tool-ptc--roster "niwa-tool-ptc" ())
+(autoload 'niwa-tool-ptc-roster "niwa-tool-ptc")
+(autoload 'niwa-tool-ptc--restriction "niwa-tool-ptc")
+
+;; `niwa-tools'
+(autoload 'niwa-tools--buffer-context "niwa-tools")
 
 ;; `niwa-tool-permission'
 (declare-function niwa-tool-permission-paths "niwa-tool-permission"
@@ -254,7 +258,9 @@ only after delivery.  Path notices do not change the system-roster snapshot."
   (with-current-buffer buffer
     (when (or (cl-find "Skill" gptel-tools :key #'gptel-tool-name :test #'equal)
               (and (cl-find "ToolCall" gptel-tools :key #'gptel-tool-name :test #'equal)
-                   (member "Skill" (niwa-tool-ptc--roster))))
+                   (member "Skill" (niwa-tool-ptc-roster
+                                    (niwa-tools--buffer-context) :restriction
+                                    (niwa-tool-ptc--restriction niwa--current-request)))))
       (dolist (skill skills)
         (let ((fact (list (niwa-skill-name skill)
                           (niwa-skill-source-file skill)

@@ -1017,7 +1017,8 @@ Each element is (NAME SEARCH-RESULT IN-TOOLCALL-ROSTER-P)."
       (mapcar (lambda (name)
                 (let (result)
                   (niwa-tools--tool-search
-                   (lambda (value) (setq result value)) name)
+                   (lambda (value) (setq result value)) name (niwa-tools--buffer-context) nil
+                   (niwa-tool-ptc--restriction niwa--current-request))
                   (list name result (and (member name roster) t))))
               names))))
 
