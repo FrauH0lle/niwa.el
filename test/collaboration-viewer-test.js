@@ -603,9 +603,11 @@ async function testEditingDock() {
   const state = {records:new Map(),ownQueue:[],readOnly:false,sessionName:'Planning'};
   const document = {title:'Planning · niwa',getElementById:node,querySelectorAll:()=>[]};
   let focused = 0, init = null, editorPort = null, api;
+  // This browser's grid and snapping choices, kept by the page for every board.
+  const stored = new Map([['niwa-board-view','{"grid":false,"snap":true,"guides":true}']]);
   const context = {
     URL, crypto, TextEncoder, TextDecoder, Uint8Array, btoa, atob, setTimeout, clearTimeout, MessageChannel,
-    localStorage:{length:0,getItem:()=>null}, document,
+    localStorage:{length:0,getItem:key=>stored.get(key)??null,setItem:(key,value)=>stored.set(key,value)}, document,
     window:{matchMedia:()=>media, open:()=>assert.fail('A docked item opens no tab'),
       location:{href:'http://localhost/',hash:''}, history:{replaceState(){}},
       niwaViewerTransport:{parseFragment:()=>null}},
@@ -648,6 +650,10 @@ async function testEditingDock() {
   editorPort.postMessage({type:'focus-chat'});
   await tick();
   assert.equal(focused,1);
+  assert.deepEqual({...init.boardView},{grid:false,snap:true,guides:true});
+  editorPort.postMessage({type:'board-view',view:{grid:true,snap:false,guides:false}});
+  await tick();
+  assert.equal(stored.get('niwa-board-view'),'{"grid":true,"snap":false,"guides":false}');
   // Narrowing the window keeps the same editor, now full screen.
   media.matches = false;
   media.listeners.forEach(fn => fn({matches:false}));

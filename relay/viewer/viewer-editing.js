@@ -83,6 +83,9 @@ window.niwaEditingView = {
         titleInput.blur();
       }
     });
+    function boardView() {
+      try { return JSON.parse(localStorage.getItem('niwa-board-view')); } catch (_) { return null; }
+    }
     function setName(name) {
       port?.postMessage({ type: 'name', name });
     }
@@ -401,6 +404,11 @@ window.niwaEditingView = {
           saveDraft(id, data.draft);
           return;
         }
+        if (data.type === 'board-view') {
+          // Grid and snapping choices belong to this browser, for every board.
+          try { localStorage.setItem('niwa-board-view', JSON.stringify(data.view)); } catch (_) { /* page-only preference */ }
+          return;
+        }
         if (data.type === 'recovery') {
           download(data.result, result.title);
           return;
@@ -476,6 +484,7 @@ window.niwaEditingView = {
             online: connected && !recoveryOnly,
             docked,
             appearance,
+            boardView: boardView(),
             name: state.guestName || 'Participant',
           },
           '*',

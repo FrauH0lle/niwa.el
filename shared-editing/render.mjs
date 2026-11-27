@@ -351,11 +351,15 @@ export function elementSVG(e, scene, files, interactive = false) {
   else if (e.type === 'frame' || e.type === 'magicframe') svg = local(frameSVG(e));
   else if (e.type === 'embeddable' || e.type === 'iframe') svg = local(placeholderSVG(e));
   else svg = local((interactive ? silhouette(e) : '') + `<g stroke-linecap="round">${draw(shapeDrawable(e))}</g>`);
-  const frame = e.frameId && scene.byId.get(e.frameId);
-  const opacity = ((frame && ['frame', 'magicframe'].includes(frame.type) ? frame.opacity : 100) * e.opacity) / 10000;
+  const opacity = displayedOpacity(e, scene);
   svg = `<g data-shape="${escape(e.id)}"${LINEAR.includes(e.type) ? ' data-linear="true"' : ''}${opacity < 1 ? ` opacity="${n(opacity)}"` : ''}>${svg}</g>`;
   rememberSVG(cache, key, svg);
   return svg;
+}
+/* Element E's opacity as drawn in SCENE, from 0 to 1: its own within its frame's. */
+export function displayedOpacity(e, scene) {
+  const frame = e.frameId && scene.byId.get(e.frameId);
+  return ((frame && ['frame', 'magicframe'].includes(frame.type) ? frame.opacity : 100) * e.opacity) / 10000;
 }
 /* Clip paths for frames, so elements inside a frame stay inside it. */
 function frameClips(scene) {

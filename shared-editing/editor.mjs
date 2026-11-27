@@ -22,8 +22,9 @@ import {
 import { extensions, schema, seedEmptyText, selectionPositions, validateDocument } from './document.mjs';
 import { restore, encode, inspect, filesOf, putElement, putFile, validateElement, validate, compareOrder, GEOMETRY } from './model.mjs';
 import { validateImage } from './image.mjs';
-import { sceneSVG, elementSVG, escape, resolveScene, bounds, extent, shapesInRegion } from './render.mjs';
+import { sceneSVG, elementSVG, escape, resolveScene, bounds, extent, shapesInRegion, displayedOpacity } from './render.mjs';
 import { CONTAINERS, LINEAR, pointBounds } from './scene.mjs';
+import { gridLevels, guidesSVG, snapMove } from './snap.mjs';
 import { containerTextBox, containerSizeFor, fontStack, measure, FONT_FILES } from './text.mjs';
 import { serializeScene, placeElements } from './excalidraw.mjs';
 import { recognize } from './autoshape.mjs';
@@ -64,6 +65,8 @@ let port,
 let tool = 'select',
   /* Whether drawing tools stay active after each new shape. */
   toolLocked = false,
+  /* What this browser shows and snaps to; never board content. */
+  boardView = { grid: true, snap: false, guides: true },
   selected = new Set(),
   /* The group a double-click entered, whose members select individually. */
   editingGroup = null,
@@ -378,7 +381,7 @@ function dragGeometry(d) {
   if (d.mode === 'move')
     return d.boxes.map(([id, g]) => {
       const box = geometryBox(g);
-      return [id, transformGeometry(g, [box[0] + d.end[0] - d.start[0], box[1] + d.end[1] - d.start[1], box[2], box[3]])];
+      return [id, transformGeometry(g, [box[0] + d.delta[0], box[1] + d.delta[1], box[2], box[3]])];
     });
   if (d.mode === 'point') {
     const points = d.base.points.map((p) => p.slice());
@@ -421,6 +424,81 @@ function applyChanges(id, changes) {
     if (GEOMETRY.includes(key)) geometry[key] = value;
     else element.set(key, value);
   element.set('geometry', geometry);
+}
+/* Decide where move D puts its selection for the latest pointer position:
+   once per sample, for the local preview, the peers' preview and the commit.
+   BYPASS is the Alt key, which places freely. */
+function placeMove(d, bypass) {
+  const canvas = $('canvas'), matrix = canvas.getScreenCTM(), scale = matrix?.a || 1;
+  const raw = [d.end[0] - d.start[0], d.end[1] - d.start[1]];
+  // A press that barely moves stays the small move it always was.
+  d.moved ||= Math.hypot(...raw) * scale >= 4;
+  d.delta = raw;
+  d.guides = null;
+  if (!matrix || !d.moved || !(boardView.snap || boardView.guides)) return;
+  const scene = currentScene();
+  if (d.targetScene !== scene) {
+    // Committed boxes of what stays put and shows. Arrows, lines and strokes
+    // have no edges to align with. ID order makes a tie between two targets
+    // independent of their layers.
+    d.targetScene = scene;
+    d.targets = scene.order.filter((e) => !e.bound && !d.ids.has(e.id) && !LINEAR.includes(e.type) && e.type !== 'freedraw'
+      && displayedOpacity(e, scene) > 0).sort((a, b) => (a.id < b.id ? -1 : 1)).map((e) => e.box);
+  }
+  // The visible canvas, which is wider or taller than the viewBox.
+  const frame = canvas.getBoundingClientRect(), inverse = matrix.inverse();
+  const a = new DOMPoint(frame.left, frame.top).matrixTransform(inverse),
+    b = new DOMPoint(frame.right, frame.bottom).matrixTransform(inverse);
+  const view = [a.x, a.y, b.x - a.x, b.y - a.y], [x, y, w, h] = d.extent, put = [x + raw[0], y + raw[1]];
+  const result = snapMove([...put, w, h], d.targets, view,
+    { scale, grid: boardView.snap, guides: boardView.guides, bypass });
+  // One translation for every member; an axis nothing snapped keeps the pointer's own.
+  d.delta = [result.x === put[0] ? raw[0] : result.x - x, result.y === put[1] ? raw[1] : result.y - y];
+  if (boardView.guides) d.guides = { result, view };
+}
+let gridSignature = '';
+/* Lay the dot grid over the board as panned and zoomed: a dot on every grid
+   multiple, in a colour that shows on the canvas. */
+function drawGrid() {
+  // The view, the canvas colour and the choice decide the dots; a resized
+  // canvas clears the signature. Layout is read only when one of them changed.
+  const grid = $('board-grid'), paper = canvasPaper(), signature = [boardView.grid, paper, ...view].join(' ');
+  if (signature === gridSignature) return;
+  grid.hidden = !boardView.grid;
+  const matrix = boardView.grid && $('canvas').getScreenCTM();
+  // A canvas not laid out yet is placed on a later draw.
+  if (boardView.grid && !matrix) return;
+  gridSignature = signature;
+  if (!matrix) return;
+  const frame = $('board').getBoundingClientRect();
+  const [r, g, b] = (/^#(..)(..)(..)$/.exec(paper) || [0, 'ff', 'ff', 'ff']).slice(1).map((v) => parseInt(v, 16));
+  const ink = 0.2126 * r + 0.7152 * g + 0.0722 * b > 102 ? '0 0 0' : '255 255 255';
+  gridLevels(matrix.a).forEach((level, i) => {
+    const n = i + 1, set = (name, value) => grid.style.setProperty(`--grid-${name}${n}`, value);
+    set('size', `${level.px}px`);
+    set('dot', `${level.radius}px`);
+    set('ink', `rgb(${ink} / ${([0.2, 0.36][i] * level.alpha).toFixed(3)})`);
+    // A gradient's dot sits at the centre of its tile.
+    set('x', `${matrix.e - frame.left - level.px / 2}px`);
+    set('y', `${matrix.f - frame.top - level.px / 2}px`);
+  });
+}
+/* Reflect the browser's grid and snapping choices in their controls. */
+function showBoardView() {
+  const menu = $('view-menu');
+  if (!menu) return;
+  for (const key of Object.keys(boardView)) if ($(`view-${key}`)) $(`view-${key}`).checked = boardView[key];
+  menu.dataset.snap = String(boardView.snap);
+  menu.firstElementChild.setAttribute('aria-label', `Grid and snapping${boardView.snap ? ', snap to grid on' : ''}`);
+}
+const BOARD_VIEW = { grid: 'Show grid', snap: 'Snap to grid', guides: 'Smart guides' };
+/* Switch one of this browser's grid and snapping choices and remember it. */
+function toggleBoardView(key) {
+  boardView[key] = !boardView[key];
+  port.postMessage({ type: 'board-view', view: { ...boardView } });
+  $('board-announce').textContent = `${BOARD_VIEW[key]} ${boardView[key] ? 'on' : 'off'}`;
+  showBoardView();
+  draw();
 }
 function visibleGeometry(id) {
   const geometry = geometryOf(id);
@@ -468,6 +546,7 @@ function draw() {
   const custom = document.querySelector('#canvas-background .custom');
   custom?.setAttribute('aria-pressed', String(Boolean(background) && !BACKGROUNDS.some(([value]) => value === background)));
   const scale = $('canvas').getScreenCTM()?.a || 1;
+  drawGrid();
   if ($('board-zoom')) $('board-zoom').textContent = `${Math.round(scale * 100)}%`;
   const files = filesOf(doc);
   const signature = JSON.stringify([shapes, Object.keys(files), [...agentTargets], $('show-agent').checked, scene.paper]);
@@ -498,7 +577,9 @@ function draw() {
   $('image-size').textContent = selectedImage ? `${Math.round(selectedImage.width)} × ${Math.round(selectedImage.height)} px` : '';
   $('selection').dataset.selected = [...selected].sort().join(' ');
   // A box selection's area shows while drawn and while a draft carries it.
-  $('selection').innerHTML = selectionSVG(scene, scale)
+  $('selection').innerHTML = (drag?.mode === 'move' && drag.guides
+    ? `<g class="guides">${guidesSVG(drag.guides.result, drag.extent, drag.guides.view, scale)}</g>` : '')
+    + selectionSVG(scene, scale)
     + regionSVG(drag?.mode === 'marquee' ? drag.region : attachedRegion(), drag?.mode === 'marquee')
     + hoverSVG(tool === 'discuss' && !drag && scene.byId.get(hoverShape), scale)
     // Strokes in progress are authored content, drawn as the board will be.
@@ -1136,6 +1217,25 @@ function board() {
     return node;
   };
   island('island-menu', 'Editor menu').append($('menu'));
+  // Grid and snapping belong to this browser, so they sit apart from the
+  // board's own menu.
+  const viewMenu = document.createElement('details');
+  viewMenu.id = 'view-menu';
+  viewMenu.className = 'popover';
+  viewMenu.innerHTML = `<summary title="Grid and snapping"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v16M15 4v16M4 9h16M4 15h16"/></svg></summary>
+    <div class="menu-body"><h4>Grid and snapping · only you</h4>
+    <label><input id="view-grid" type="checkbox" /> Show grid <kbd>G</kbd></label>
+    ${readOnly ? '' : `<label><input id="view-snap" type="checkbox" /> Snap to grid <kbd>⇧ G</kbd></label>
+    <label><input id="view-guides" type="checkbox" /> <span>Smart guides<small>Line up with objects and your view</small></span> <kbd>S</kbd></label>
+    <p class="alt-hint">Hold Alt while dragging to place freely.</p>`}</div>`;
+  $('menu').after(viewMenu);
+  for (const key of Object.keys(boardView)) if ($(`view-${key}`)) $(`view-${key}`).onchange = () => toggleBoardView(key);
+  const announce = document.createElement('p');
+  announce.id = 'board-announce';
+  announce.className = 'visually-hidden';
+  announce.setAttribute('role', 'status');
+  $('board').append(announce);
+  showBoardView();
   const panels = island('island-panels', 'Panels');
   const strip = document.createElement('div');
   strip.className = 'drawing-tools';
@@ -1523,6 +1623,7 @@ function board() {
     refreshStyle();
     for (const [b, enabled] of actions) b.disabled = !enabled();
     $('hint').textContent = readOnly ? 'View only · Select objects or use the hand to explore.'
+      : drag?.mode === 'move' && drag.moved && (boardView.snap || boardView.guides) ? 'Hold Alt to place freely.'
       : hints[tool] || 'Drag to draw. The panel sets the style of the next object.';
   };
   const library = readOnly ? null : libraryPanel({
@@ -1584,6 +1685,7 @@ function board() {
     <div class="shortcut-columns"><section><h3>Tools</h3><dl>${tools.filter(([value]) => !readOnly || ['pan','select'].includes(value)).map(([,label,key]) => `<div><dt>${label}</dt><dd><kbd>${key}</kbd></dd></div>`).join('')}${readOnly ? '' : '<div><dt>Insert image</dt><dd><kbd>9</kbd></dd></div><div><dt>Keep the tool after drawing</dt><dd><kbd>Q</kbd></dd></div>'}</dl></section>
     <section><h3>Working on the canvas</h3><dl>
     <div><dt>Select all</dt><dd>Ctrl / ⌘ A</dd></div><div><dt>Clear selection</dt><dd>Esc</dd></div>
+    <div><dt>Show grid</dt><dd><kbd>G</kbd></dd></div>${readOnly ? '' : '<div><dt>Snap to grid</dt><dd>Shift G</dd></div><div><dt>Smart guides</dt><dd><kbd>S</kbd></dd></div><div><dt>Place freely while dragging</dt><dd>Hold Alt</dd></div>'}
     <div><dt>Select multiple</dt><dd>Shift + click</dd></div><div><dt>Box-select contained objects</dt><dd>Drag on empty canvas</dd></div><div><dt>Box-select touched objects</dt><dd>Alt + drag</dd></div><div><dt>Add a box to the selection</dt><dd>Shift + drag</dd></div><div><dt>Pan</dt><dd>Scroll / middle-button drag</dd></div><div><dt>Pan sideways</dt><dd>Shift + scroll</dd></div><div><dt>Zoom at pointer</dt><dd>Ctrl / ⌘ scroll / pinch</dd></div>
     ${readOnly ? '' : '<div><dt>Edit text</dt><dd>Enter / double-click</dd></div><div><dt>Finish text</dt><dd>Ctrl / ⌘ Enter</dd></div><div><dt>Cancel text</dt><dd>Esc</dd></div><div><dt>Resize</dt><dd>Drag the corner handle</dd></div><div><dt>Move 1px / 10px</dt><dd>Arrows / Shift + arrows</dd></div><div><dt>Duplicate</dt><dd>Ctrl / ⌘ D</dd></div><div><dt>Group / ungroup</dt><dd>Ctrl / ⌘ G / Shift G</dd></div><div><dt>Delete</dt><dd>Del / Backspace</dd></div><div><dt>Undo / redo</dt><dd>Ctrl / ⌘ Z / Shift Z</dd></div><div><dt>Insert image</dt><dd>Drop / paste an image</dd></div><div><dt>Discuss the selection</dt><dd>Ctrl / ⌘ Alt M</dd></div>'}
     </dl></section></div><div class="dialog-actions"><button>Close</button></div></form>`;
@@ -1614,7 +1716,7 @@ function board() {
   history.hidden = readOnly;
   boardPresence = new BoardPresence(canvas, $('presence'));
   boardPreviews = new BoardPreviews(()=>{ draw(); saved(); });
-  new ResizeObserver(() => draw()).observe(canvas);
+  new ResizeObserver(() => { gridSignature = ''; draw(); }).observe(canvas);
   /* The selectable element under EVENT: a label selects its container,
      and locked elements are not selectable. */
   const hitAt = (event) => {
@@ -1732,6 +1834,9 @@ function board() {
           start: point,
           loose,
           boxes: [...selected].map((key) => [key, loose.has(key) ? detachedGeometry(key) : visibleGeometry(key)]),
+          ids: new Set(selected),
+          // Snapping places the selection's displayed extent, and every member with it.
+          extent: extent([...selected].map((key) => ({ id: key })), displayedScene()),
         };
       }
       return;
@@ -1748,13 +1853,17 @@ function board() {
     if (LINEAR.includes(tool)) element.points = [[0, 0], [0, 0]];
     drag = { mode: 'draw', start: point, points: [point], from: id, element };
   };
+  const previewDrag = () => {
+    outgoingPreview = {shapes:dragGeometry(drag).slice(0,100).map(([id,g])=>({id,box:geometryBox(g)}))};
+  };
   canvas.onpointermove = (event) => {
     const point = world(event);
     if (drag && ['move', 'transform', 'point'].includes(drag.mode)) {
       drag.end = point;
       drag.snap = event.shiftKey;
       drag.keepAspect = event.shiftKey !== Boolean(drag.fixedAspect);
-      outgoingPreview = {shapes:dragGeometry(drag).slice(0,100).map(([id,g])=>({id,box:geometryBox(g)}))};
+      if (drag.mode === 'move') placeMove(drag, event.altKey);
+      previewDrag();
     }
     if (event.pointerType !== 'touch' || drag)
       presence(point, tool === 'laser' ? 'laser' : 'cursor');
@@ -1986,7 +2095,18 @@ function board() {
     }
     draw();
   };
+  /* Alt places a moving selection freely from the moment it is pressed. */
+  const altMove = (event) => {
+    if (event.key !== 'Alt' || drag?.mode !== 'move' || !drag.end) return false;
+    event.preventDefault();
+    placeMove(drag, event.type === 'keydown');
+    previewDrag();
+    draw();
+    return true;
+  };
+  canvas.onkeyup = altMove;
   canvas.onkeydown = (event) => {
+    if (altMove(event)) return;
     if (event.ctrlKey || event.metaKey) {
       const key = event.key.toLowerCase();
       if (key === 'a') {
@@ -2038,6 +2158,14 @@ function board() {
     if (event.key.toLowerCase() === 'q' && !readOnly) {
       event.preventDefault();
       $('board-tool-lock').click();
+    }
+    if (event.key.toLowerCase() === 'g' && !(readOnly && event.shiftKey)) {
+      event.preventDefault();
+      toggleBoardView(event.shiftKey ? 'snap' : 'grid');
+    }
+    if (event.key.toLowerCase() === 's' && !readOnly) {
+      event.preventDefault();
+      toggleBoardView('guides');
     }
     if (event.key === 'Escape') {
       // Escape leaves an entered group with the group selected, then clears.
@@ -2313,6 +2441,8 @@ async function start(event) {
     return;
   initialized = true;
   setAppearance(event.data.appearance);
+  for (const key of Object.keys(boardView))
+    if (typeof event.data.boardView?.[key] === 'boolean') boardView[key] = event.data.boardView[key];
   port = event.ports[0];
   item = event.data.item;
   document.documentElement.dataset.kind = item.kind;

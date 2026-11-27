@@ -182,7 +182,7 @@ Excalidraw's fonts and text layout. Every browser, the host's PNGs and the
 exports draw the same wobble.
 
 The whiteboard's controls float over its canvas in islands, as Excalidraw's
-do: the editor menu (☰) at the top left, the drawing tools centred at the top
+do: the editor menu (☰) and **Grid and snapping** at the top left, the drawing tools centred at the top
 with the current tool's hint below them, **Library** and **Discussions** at the
 top right, zoom with undo and redo at the bottom left, and the keyboard
 shortcuts (**?**) at the bottom right. Where the board is narrower than 1,100
@@ -301,6 +301,50 @@ Scrolling pans the board, and Shift turns a mouse wheel sideways;
 Ctrl/Command+scroll and a trackpad pinch zoom at the pointer, in proportion to
 the scroll. Panning, zooming, the zoom buttons, Fit, and the percentage button
 (reset to 100%) affect only the local viewport. The board fits existing objects once on opening. Fit and opening keep them clear of the controls floating over the canvas's top and foot, and zoom in no further than 100%, as Excalidraw's fit does.
+
+The canvas shows a grid of dots: one on every 20 board units and a stronger
+one on every 100, panning and zooming with the objects. Zooming out, the
+step grows fivefold whenever dots would come closer than 8 pixels; zooming
+in never subdivides it. The dots take their colour from the canvas, darker
+on a light canvas and lighter on a dark one, so they show on every
+background.
+
+**Grid and snapping**, beside the editor menu, holds three choices that
+belong to the browser, not the board: **Show grid** (G, on at first),
+**Snap to grid** (Shift+G, off at first) and **Smart guides** (S, on at
+first). The room page keeps them for every board opened in that browser.
+They are never board content: changing one makes no edit, undo step or
+presence message, and exports do not carry them. A view-only link offers
+**Show grid** alone. The button is tinted while **Snap to grid** is on, and
+each change is announced to assistive technology.
+
+Both snaps act on dragging a selection with the selection tool, and on
+nothing else: resizing, rotating, drawing, point editing and the arrow keys
+are unchanged, and a press that moves less than four pixels is not snapped.
+Each pointer sample is decided once, separately for x and y, and the same
+translation moves every member, shows to other participants and is saved on
+release:
+
+1. Holding Alt places the selection freely, from the moment it is pressed.
+2. With smart guides, the nearest guide within 6 screen pixels wins. Guides
+   are the left, centre and right (top, middle, bottom) of another object
+   against the same feature of the selection's bounding box, an edge against
+   the facing edge, the position that makes the gaps in a row or column
+   equal, and the edges and centre of the visible canvas. Objects win a tie
+   over equal spacing, which wins over the canvas; a tie between two
+   objects goes to the lower element ID, whatever their layers.
+3. Otherwise, with snap to grid, the bounding box's top-left corner goes to
+   the nearest multiple of 20.
+
+Shapes, sticky notes, text, images and frames at least partly on screen are
+guide targets, locked ones included; arrows, lines, freehand drawings,
+bound labels and objects drawn fully transparent, by their own opacity or
+their frame's, are not. One translation moves the whole selection, so a
+coordinate the move does not change is saved exactly as it was. Guides appear only for what holds exactly at the
+shown position: a line through aligned objects, a capped bar with the gap's
+size in each equal gap, a dashed line labelled **Centre of your view**, and
+a bar along a canvas edge. They are local, like the grid: other participants
+see the object move, never the lines.
 Both whiteboards and documents accept PNG, JPEG, and WebP through the board's
 image button or **Insert → Image…**, clipboard paste, or file drag-and-drop. Dropped images land at the board pointer or document insertion
 position; multiple files insert together and support Undo/Redo. Images are

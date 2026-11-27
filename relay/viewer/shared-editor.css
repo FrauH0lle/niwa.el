@@ -206,8 +206,20 @@ button:disabled {
   position: absolute;
   inset: 0;
   background-color: var(--canvas, #f3f5f3);
-  background-image: radial-gradient(#ccd5d0 0.7px, transparent 0.7px);
-  background-size: 20px 20px;
+  filter: var(--canvas-filter);
+}
+/* The grid: a dot on every 20 board units and a stronger one on every 100,
+   placed by the editor as the view pans and zooms. It is an element of its
+   own, so moving it restyles nothing else on the board. */
+#board-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, var(--grid-ink2) var(--grid-dot2), transparent calc(var(--grid-dot2) + 0.35px)),
+    radial-gradient(circle, var(--grid-ink1) var(--grid-dot1), transparent calc(var(--grid-dot1) + 0.35px));
+  background-size: var(--grid-size2) var(--grid-size2), var(--grid-size1) var(--grid-size1);
+  background-position: var(--grid-x2) var(--grid-y2), var(--grid-x1) var(--grid-y1);
   filter: var(--canvas-filter);
 }
 #scene, #selection .authored, #shape-text, #canvas-background .swatch[data-background] {
@@ -263,6 +275,36 @@ button:disabled {
   stroke: var(--board-selection);
   stroke-width: 1;
   stroke-dasharray: 5 4;
+}
+/* Smart guides: what the moving selection lines up with. Each kind has its
+   own shape, and a casing keeps the line visible over objects. */
+#selection .guides .case {
+  stroke: var(--surface);
+  stroke-width: 3.5;
+  opacity: 0.8;
+}
+#selection .guides .line {
+  stroke: var(--board-guide);
+  stroke-width: 1.25;
+}
+#selection .guides .dash {
+  stroke-dasharray: 7 4;
+}
+#selection .guides .edge,
+#selection .guides .pill {
+  fill: var(--board-guide);
+}
+#selection .guides text {
+  fill: var(--board-guide-ink);
+  font: 600 10px var(--font-ui);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+@media (forced-colors: active) {
+  #board-grid { --grid-ink1: CanvasText !important; --grid-ink2: CanvasText !important; }
+  #selection .guides .line { stroke: Highlight; }
+  #selection .guides .edge, #selection .guides .pill { fill: Highlight; }
+  #selection .guides text { fill: HighlightText; }
 }
 #selection .discussion-hover {
   fill: none;
