@@ -306,7 +306,8 @@ Returns the new `niwa-task' struct."
            (task (niwa-task--create
                   :id (or id (niwa-tool-task--next-id session))
                   :subject subject
-                  :description (and (stringp description) description)
+                  :description (and (stringp description)
+                                    (not (string-empty-p description)) description)
                   :status status
                   :owner
                   (niwa-task-normalize-owner
@@ -319,10 +320,10 @@ Returns the new `niwa-task' struct."
                   :metadata metadata)))
       task)))
 
-(defun niwa-tool-task--prepare-update (session id updates)
+(defun niwa-tool-task--prepare-update (session id updates edges open)
   "Validate replacement UPDATES for task ID in SESSION; return an applier.
-UPDATES is the plist of replacement fields.  Every check runs here, so a
-batch can validate all its entries before mutating any task.  Calling the
+UPDATES is the plist of replacement fields.  Record replaced blocker lists
+in EDGES and final open status in OPEN for the batch cycle check.  Calling the
 returned function applies the fields and returns the task.  Signals an
 error if ID is unknown or a field is invalid."
   (let ((task (niwa-tool-task--find session id))
@@ -342,12 +343,13 @@ error if ID is unknown or a field is invalid."
               subject-p t))
       (when (plist-member p :description)
         (let ((d (plist-get p :description)))
-          (setq description (and (stringp d) d)
+          (setq description (and (stringp d) (not (string-empty-p d)) d)
                 description-p t)))
       (when-let* ((status-raw (niwa-tool-task--optional-argument
                                p :status)))
         (setq new-status (niwa-tool-task--parse-status status-raw)
-              status-p t))
+              status-p t)
+        (puthash id (not (eq new-status 'completed)) open))
       (when (plist-member p :owner)
         (setq owner (niwa-task-normalize-owner
                      (plist-get p :owner)
@@ -360,7 +362,8 @@ error if ID is unknown or a field is invalid."
               (niwa-tool-task--normalize-id-list
                (niwa-tool-task--plist-get-any
                 p :blockedBy :blocked_by :blocked-by))
-              blocked-by-p t))
+              blocked-by-p t)
+        (puthash id blocked-by edges))
       (when (plist-member p :metadata)
         (setq metadata (plist-get p :metadata)
               metadata-p t))
@@ -980,13 +983,36 @@ this runs after the task mutation it accompanies."
       (niwa-tool-task--clear-inactive-status-notes session)
       (niwa-tool-task--note-feedback owner note stored))))
 
+(defun niwa-tool-task--check-cycles (session edges open)
+  "Reject cycles through SESSION's replaced EDGES among final OPEN task IDs."
+  (maphash
+   (lambda (id blockers)
+     (let ((pending (copy-sequence blockers))
+           (seen (make-hash-table :test #'eql)))
+       (while pending
+         (let ((next (pop pending)))
+           (when (and (gethash next open) (not (gethash next seen)))
+             (when (= next id)
+               (error "Dependency cycle: task #%d would depend on itself" id))
+             (puthash next t seen)
+             (let ((deps (gethash next edges 'unchanged)))
+               (when (eq deps 'unchanged)
+                 (setq deps (when-let* ((task (niwa-tool-task--find session next)))
+                              (niwa-task-blocked-by task))))
+               (dolist (dep deps) (push dep pending))))))))
+   edges))
+
 (defun niwa-tool-task--apply-specs (session specs)
   "Apply task SPECS to SESSION; return (CREATED . UPDATED) task lists.
 A spec with an `id' updates that task; one without creates a task.  The
 whole batch applies or none of it does: every entry is validated before
 any task changes."
   (let ((next-id (niwa-tool-task--next-id session))
+        (edges (make-hash-table :test #'eql))
+        (open (make-hash-table :test #'eql))
         created appliers updated)
+    (dolist (task (niwa-session-tasks session))
+      (puthash (niwa-task-id task) (niwa-tool-task--active-p task) open))
     (dolist (spec specs)
       (let* ((p (niwa-tool-task--object-to-plist spec))
              (id (plist-get p :id)))
@@ -997,11 +1023,16 @@ any task changes."
           (push (niwa-tool-task--prepare-update
                  session id
                  (cl-loop for (k v) on p by #'cddr
-                          unless (eq k :id) nconc (list k v)))
+                          unless (eq k :id) nconc (list k v))
+                 edges open)
                 appliers))
          (t
           (push (niwa-tool-task--create-one session p next-id) created)
+          (puthash next-id (niwa-tool-task--active-p (car created)) open)
+          (when-let* ((blockers (niwa-task-blocked-by (car created))))
+            (puthash next-id blockers edges))
           (cl-incf next-id)))))
+    (niwa-tool-task--check-cycles session edges open)
     (dolist (apply (nreverse appliers))
       (cl-pushnew (funcall apply) updated))
     (setq created (nreverse created))
@@ -1017,8 +1048,7 @@ any task changes."
          (prepared-note
           (niwa-tool-task--prepare-note-arg
            session args niwa-tool-task--note-owner-keys)))
-    (unless (or specs prepared-note
-                (niwa-tool-task--argument-value-present-p args :note))
+    (unless (or specs prepared-note)
       (error "TaskWrite needs tasks or a note"))
     (let* ((changes (niwa-tool-task--apply-specs session specs))
            (created (car changes))

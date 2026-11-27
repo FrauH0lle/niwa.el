@@ -224,6 +224,50 @@
                    (substring-no-properties
                     (niwa-tool-task--format-groups session))))))
 
+  :doc "an empty description leaves no detail line on create or update"
+  (test-niwa-tool-task--with-session session
+    (niwa-tool-task--handle-write '(:tasks [(:subject "A" :description "")
+                                            (:subject "B" :description "old")]))
+    (niwa-tool-task--handle-write '(:tasks [(:id 2 :description "")]))
+    (dolist (id '(1 2))
+      (should-not (string-match-p "Description:"
+                                  (plist-get (niwa-tool-task--handle-list
+                                              (list :id id)) :result)))))
+
+  :doc "rejects a self-blocking create without storing the task"
+  (test-niwa-tool-task--with-session session
+    (let ((err (should-error (niwa-tool-task--handle-write
+                              '(:tasks [(:subject "A" :blockedBy [1])])))))
+      (should (string-match-p "cycle.*#1" (error-message-string err)))
+      (should-not (niwa-session-tasks session))))
+
+  :doc "checks the final batch graph before applying updates or notes"
+  (test-niwa-tool-task--with-session session
+    (niwa-tool-task--handle-write '(:tasks [(:subject "A") (:subject "B")
+                                            (:subject "C" :blockedBy [1])]))
+    (let ((err (should-error
+                (niwa-tool-task--handle-write
+                 '(:tasks [(:id 1 :blockedBy [2]) (:id 2 :blockedBy [3])]
+                   :note "not stored")))))
+      (should (string-match-p "cycle.*#" (error-message-string err)))
+      (should-not (niwa-session-task-status-notes session))
+      (should (equal (mapcar #'niwa-task-blocked-by (niwa-session-tasks session))
+                     '(nil nil (1)))))
+    (niwa-tool-task--handle-write '(:tasks [(:id 1 :blockedBy [3])
+                                            (:id 3 :blockedBy [])]))
+    (should (equal (mapcar #'niwa-task-blocked-by (niwa-session-tasks session))
+                   '((3) nil nil))))
+
+  :doc "accepts a dependency that completion in the same batch prunes"
+  (test-niwa-tool-task--with-session session
+    (niwa-tool-task--handle-write '(:tasks [(:subject "A" :blockedBy [2])
+                                            (:subject "B")]))
+    (niwa-tool-task--handle-write '(:tasks [(:id 2 :blockedBy [1])
+                                            (:id 1 :status "completed")]))
+    (let ((tasks (niwa-session-tasks session)))
+      (should (equal (mapcar #'niwa-task-status tasks) '(completed pending)))
+      (should (equal (mapcar #'niwa-task-blocked-by tasks) '((2) nil)))))
+
   :doc "preserves blockedBy and owner fields"
   (test-niwa-tool-task--with-session session
     (niwa-tool-task--handle-write

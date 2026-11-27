@@ -37,7 +37,8 @@ owner's visible status note.
   also supported. Workstream names belong in subjects/descriptions. On an
   update, empty `owner` selects Main and empty `description` clears it.
 - `blockedBy` contains prerequisite task IDs. Unknown and completed IDs are
-  dropped, so use actual returned IDs, not guesses for future tasks.
+  dropped, so use actual returned IDs, not guesses for future tasks. A task
+  cannot depend on itself, even indirectly; a cycle rejects the whole batch.
 - `note` changes an owner group's visible status, independently of task fields.
   `noteOwner` defaults to the caller; an empty string selects Main. Omit `note`
   to keep it; `note=""` clears it. Notes show only above open work. A call may
