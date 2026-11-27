@@ -247,7 +247,8 @@ FALLBACK-OUTCOME settles an unresolved request without queue admission."
 			(funcall finish (list updated outcome))))
               (one-shot-p (plist-get context :one-shot-mutations-p))
               (entry
-               (append
+               (niwa-permission-queue-entry
+                (append
 		(list :tool-use-id (plist-get context :tool-use-id)
                       :approval-decision-cell (list '(:source user))
                       :args (plist-get context :args)
@@ -259,11 +260,8 @@ FALLBACK-OUTCOME settles an unresolved request without queue admission."
                       :parent-tool-use-id
                       (plist-get context :parent-tool-use-id)
                       :call-source (plist-get context :call-source))
-		entry))
-              (entry (if one-shot-p
-			 (niwa-permission--one-shot-prompt-entry
-			  entry (plist-get context :buffer))
-                       entry))
+		entry)
+                one-shot-p (plist-get context :buffer)))
               (original-settle settle)
               (settle
                (funcall guard (lambda (updated outcome)

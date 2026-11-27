@@ -69,10 +69,13 @@
                   "niwa-permissions" (&rest args))
 (declare-function niwa-permission--normalize-outcome
                   "niwa-permissions" (outcome))
+(declare-function niwa-permission--one-shot-prompt-outcome
+                  "niwa-permissions" (outcome))
 (autoload 'niwa-check-permission "niwa-permissions")
 (autoload 'niwa-permission--checker-args "niwa-permissions")
 (autoload 'niwa-permission--invocation-context "niwa-permissions")
 (autoload 'niwa-permission--normalize-outcome "niwa-permissions")
+(autoload 'niwa-permission--one-shot-prompt-outcome "niwa-permissions")
 
 ;; `niwa-sandbox'
 (declare-function niwa-sandbox-directory-read-masked-p
@@ -420,14 +423,8 @@ Return non-nil when this call delivered or consumed the outcome."
                    :justification))
       (when (plist-member entry key)
         (setq base (plist-put base key (plist-get entry key)))))
-    ;; Only fresh Eval reaches the child-confinement capability card.
-    (when-let* ((eval-mode
-                 (pcase (plist-get entry :kind)
-                   ('eval (plist-get entry :mode))
-                   ('generic (and (equal (plist-get entry :tool-name) "Eval")
-                                  (or (plist-get (plist-get entry :args) :mode) "live")))
-                   ('sandbox (and (equal (plist-get entry :tool-name) "Eval") "fresh")))))
-      (setq base (plist-put base :eval-mode eval-mode)))
+    (when-let* ((eval-mode (plist-get entry :eval-mode)))
+      (setq base (plist-put base :eval-mode (symbol-name eval-mode))))
     (when-let* ((selection (car (plist-get entry :resource-selection-cell))))
       (setq base (plist-put base :selected-resources (copy-tree selection))))
     (when-let* ((lifetime
@@ -479,10 +476,54 @@ live Eval and hook cards.  It is quoted explanation, never authorization."
          (not (string-empty-p (string-trim text)))
          (string-trim text))))
 
+(defun niwa-permission-queue-entry (entry &optional one-shot-p data-buffer)
+  "Return a normalized copy of permission ENTRY for every queue consumer.
+Fill `:tool-name' from `:kind' and derive the display `:eval-mode' once.
+Record invalid original Eval arguments as `:eval-invalid', which keeps the
+entry from automatic review.  With ONE-SHOT-P, apply one-time restrictions
+owned by DATA-BUFFER and collapse reusable outcomes reaching `:callback'."
+  (let* ((entry (copy-sequence entry))
+         (kind (plist-get entry :kind))
+         (tool (or (plist-get entry :tool-name)
+                   (pcase kind ('bash "Bash") ('eval "Eval"))))
+         (mode (plist-get (plist-get entry :args) :mode)))
+    (when tool (setq entry (plist-put entry :tool-name tool)))
+    (when (equal tool "Eval")
+      (setq entry
+            (plist-put entry :eval-mode
+                       (pcase kind
+                         ('eval (or (plist-get entry :eval-mode)
+                                    (intern (or (plist-get entry :mode) "live"))))
+                         ;; Only fresh Eval reaches the child-confinement card.
+                         ('sandbox 'fresh)
+                         (_ (if (member mode '("fresh" "sandbox")) (intern mode) 'live))))))
+    (when (equal tool "Eval")
+      (condition-case err
+          (niwa-tool-exec-permission-eval-mode
+           (or (plist-get entry :args)
+               (list :mode (plist-get entry :mode) :reset (plist-get entry :reset))))
+        (error (setq entry (plist-put entry :eval-invalid
+                                      (error-message-string err))))))
+    (when one-shot-p
+      (let ((callback (plist-get entry :callback)))
+        (dolist (pair '((:once-only . t) (:include-always . nil)
+                        (:remember-authority-cell . nil)
+                        (:reusable-operation-p . nil)))
+          (setq entry (plist-put entry (car pair) (cdr pair))))
+        (when data-buffer
+          (setq entry (plist-put entry :data-buffer data-buffer)))
+        (when callback
+          (setq entry (plist-put entry :callback
+                                 (lambda (outcome)
+                                   (funcall callback
+                                            (niwa-permission--one-shot-prompt-outcome
+                                             outcome))))))))
+    entry))
+
 (defun niwa-permission-request (entry &optional session)
   "Resolve automatic review for ENTRY before human admission to SESSION."
   (let* ((session (or session (niwa-queue--current-session)))
-         (entry (plist-put (copy-sequence entry) :session session))
+         (entry (plist-put (niwa-permission-queue-entry entry) :session session))
          (mode (niwa-permission-mode-for-context entry)))
     (setq entry
           (plist-put entry :permission-id
@@ -506,8 +547,12 @@ live Eval and hook cards.  It is quoted explanation, never authorization."
          ('allow 'allow-once) ('deny 'deny-once) (_ 'aborted))
        'mode))
      ((and session (eq niwa-permission-reviewer 'auto))
-      (niwa-permission-review-start
-       entry (lambda () (niwa-permission-queue--admit entry session))))
+      (if (plist-get entry :eval-invalid)
+          ;; Malformed Eval arguments are never eligible for automatic approval.
+          (niwa-permission-queue--admit
+           (plist-put entry :review-fallback 'invalid-eval) session)
+        (niwa-permission-review-start
+         entry (lambda () (niwa-permission-queue--admit entry session)))))
      (t (niwa-permission-queue--admit entry session)))))
 
 (defun niwa-permission-queue--admit (entry &optional session)
@@ -520,7 +565,8 @@ ordering and coalesce semantics require a session struct.
 
 ENTRY plist keys:
   :kind                  -- `generic' / `bash' / `eval' / `sandbox'
-  :tool-name             -- string (`generic' and `sandbox')
+  :tool-name             -- string, filled from :kind when absent
+  :eval-mode             -- `live' / `fresh' / `sandbox' (Eval only, derived)
   :args                  -- keyword plist
   :specifier-key         -- `:path', `:pattern', `:expression',
                             `:domain', or `:name'
@@ -838,8 +884,7 @@ cannot be cleared by a remembered sibling approval."
                (niwa--current-request (plist-get entry :request))
                (niwa--agent-invocation (plist-get entry :invocation))
                (kind (plist-get entry :kind))
-               (tool-name (or (plist-get entry :tool-name)
-                              (pcase kind ('bash "Bash") ('eval "Eval"))))
+               (tool-name (plist-get entry :tool-name))
                (spec-key (if (eq kind 'generic)
                              (or (plist-get entry :specifier-key) :path)
                            :pattern))

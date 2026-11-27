@@ -1465,17 +1465,6 @@
                              (plist-get context :resource-grants))))))
       (delete-directory root t))))
 
-(niwa-deftest niwa-permission--one-shot-prompt-entry
-  (:doc "captures the side buffer without caching parent activity")
-  (let ((side-buffer (generate-new-buffer " *niwa-side-permission*")))
-    (unwind-protect
-        (let ((entry (niwa-permission--one-shot-prompt-entry
-                      '(:kind permission :mutation-p t) side-buffer)))
-          (should (eq side-buffer (plist-get entry :data-buffer)))
-          (should (plist-get entry :once-only))
-          (should-not (plist-member entry :shared-workspace-active-p)))
-      (kill-buffer side-buffer))))
-
 (niwa-deftest niwa-permission--checker-args ()
   ,test
   (test)

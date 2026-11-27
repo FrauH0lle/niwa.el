@@ -80,7 +80,10 @@
 ;; `niwa-permission-queue'
 (declare-function niwa-permission-request "niwa-permission-queue"
                   (entry &optional session))
+(declare-function niwa-permission-queue-entry "niwa-permission-queue"
+                  (entry &optional one-shot-p data-buffer))
 (autoload 'niwa-permission-request "niwa-permission-queue")
+(autoload 'niwa-permission-queue-entry "niwa-permission-queue")
 
 ;; `niwa-permission-persistence'
 (declare-function niwa-permission-persistence-load-resource-grants
@@ -112,10 +115,6 @@
 (declare-function niwa-permission--invocation-context
                   "niwa-permissions" (&rest keys))
 (declare-function niwa-permission--normalize-outcome
-                  "niwa-permissions" (outcome))
-(declare-function niwa-permission--one-shot-prompt-entry
-                  "niwa-permissions" (entry &optional data-buffer))
-(declare-function niwa-permission--one-shot-prompt-outcome
                   "niwa-permissions" (outcome))
 (declare-function niwa-permission-decision-raw-outcome
                   "niwa-permissions" (decision))
@@ -291,26 +290,17 @@ Fall back to direct queue admission for callers outside the tool pipeline."
                 (if (memq outcome '(allow-session always-allow))
                     'allow-once
                   outcome)))))))
-  (when (plist-get permission-context :one-shot-mutations-p)
-    (let ((callback (plist-get entry :callback)))
-      (setq entry
-            (niwa-permission--one-shot-prompt-entry
-             entry (plist-get permission-context :buffer)))
-      (setq entry
-            (plist-put
-             entry :callback
-             (lambda (outcome)
-               (funcall callback
-                        (niwa-permission--one-shot-prompt-outcome
-                         outcome)))))))
   (when-let* ((guard (plist-get permission-context :async-guard)))
     (setq entry (plist-put entry :callback
                            (funcall guard (plist-get entry :callback)))))
   (if-let* ((request (plist-get permission-context :permission-request)))
+      ;; The tool request boundary builds the one-shot entry itself.
       (funcall request entry session (plist-get entry :callback))
-    (if session
-        (niwa-permission-request entry session)
-      (niwa-permission-request entry))))
+    (niwa-permission-request
+     (niwa-permission-queue-entry
+      entry (plist-get permission-context :one-shot-mutations-p)
+      (plist-get permission-context :buffer))
+     session)))
 
 (defun niwa-tool-exec-permission--permission-decision-result
     (metadata-p outcome via &rest props)

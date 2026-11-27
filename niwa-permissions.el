@@ -236,18 +236,6 @@ EXPLICIT takes precedence when non-nil."
   (or explicit
       (and request (niwa-request-one-shot-mutations-p request))))
 
-(defun niwa-permission--one-shot-prompt-entry (entry &optional data-buffer)
-  "Return one-time permission ENTRY owned by DATA-BUFFER."
-  (let ((entry (copy-sequence entry)))
-    (dolist (pair '((:once-only . t)
-                    (:include-always . nil)
-                    (:remember-authority-cell . nil)
-                    (:reusable-operation-p . nil)))
-      (setq entry (plist-put entry (car pair) (cdr pair))))
-    (when data-buffer
-      (setq entry (plist-put entry :data-buffer data-buffer)))
-    entry))
-
 (defun niwa-permission--one-shot-prompt-outcome (outcome)
   "Collapse reusable permission OUTCOME to its one-time equivalent."
   (pcase outcome

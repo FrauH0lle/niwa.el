@@ -1162,7 +1162,8 @@
                 (setf (niwa-session-permission-mode session) 'edits)
                 (niwa-permission-add-session-resource-grant session source 'read)
                 (should (eq (nth 3 scenario)
-                            (niwa-permission-queue--reevaluate entry)))))))
+                            (niwa-permission-queue--reevaluate
+                             (niwa-permission-queue-entry entry))))))))
       (delete-directory root t))))
 
 (niwa-deftest niwa-permission-queue--attribution-origin

@@ -469,13 +469,8 @@ JUSTIFICATION, when non-blank, supplies the reason directly."
   "Return confinement warnings that stay visible on ENTRY's folded card.
 Live Eval and full escalation have unrestricted effects whichever card
 kind requests them, including generic hook cards."
-  (let* ((kind (plist-get entry :kind))
-         (args (plist-get entry :args))
-         (live-p
-          (pcase kind
-            ('eval (equal (or (plist-get entry :mode) "live") "live"))
-            ('generic (and (equal (plist-get entry :tool-name) "Eval")
-                           (not (member (plist-get args :mode) '("fresh" "sandbox")))))))
+  (let* ((args (plist-get entry :args))
+         (live-p (eq (plist-get entry :eval-mode) 'live))
          (escalated-p
           (or (eq (plist-get entry :sandbox-permissions) 'require-escalated)
               (equal (plist-get args :sandbox_permissions) "require_escalated"))))
@@ -536,6 +531,7 @@ workspace approval would store."
               ('changed "evidence changed during review")
               ('missing-intent "no bounded user intent was available")
               ('disabled "automatic review was disabled")
+              ('invalid-eval "the Eval arguments are invalid")
               (_ "reviewer unavailable or its reply was invalid")))))
 
 (defun niwa-permission--format-cause (entry)

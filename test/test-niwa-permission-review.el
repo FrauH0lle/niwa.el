@@ -64,8 +64,9 @@
                   (let* ((session (niwa-session--create
                                    :permission-mode 'edits
                                    :working-directory temporary-file-directory))
-                         (entry (list :kind 'eval :session session :mode "live"
-                                      :expression "(+ 1 2)" :justification "Cold check"))
+                         (entry (niwa-permission-queue-entry
+                                 (list :kind 'eval :session session :mode "live"
+                                       :expression "(+ 1 2)" :justification "Cold check")))
                          (evidence (niwa-permission-review--evidence entry)))
                     (unless (eq 'live-emacs
                                 (plist-get (plist-get evidence :confinement) :execution))
@@ -161,7 +162,8 @@
                    :permission-mode 'edits
                    :permission-rules '(("Eval" :action deny))))
          (context (niwa-permission-review--context
-                   (list :kind 'eval :session session :expression "(+ 1 2)"))))
+                   (niwa-permission-queue-entry
+                    (list :kind 'eval :session session :expression "(+ 1 2)")))))
     (should (eq 'edits (plist-get context :mode)))
     (should (equal "(+ 1 2)" (plist-get context :pattern)))
     (should (eq 'deny (plist-get (plist-get context :early-decision) :outcome))))
@@ -177,8 +179,9 @@
   :doc "Plan denies every Eval mode before execution permission"
   (dolist (mode '("live" "fresh" "sandbox"))
     (let ((context (niwa-permission-review--context
-                    (list :kind 'eval :mode mode :args (list :mode mode :expression "t")
-                          :session (niwa-session--create :plan-mode t :permission-mode 'full-auto)))))
+                    (niwa-permission-queue-entry
+                     (list :kind 'eval :mode mode :args (list :mode mode :expression "t")
+                           :session (niwa-session--create :plan-mode t :permission-mode 'full-auto))))))
       (should (eq 'deny (plist-get (plist-get context :early-decision) :outcome))))))
 
 (niwa-deftest niwa-permission-review--evidence ()
@@ -188,8 +191,9 @@
   (let* ((session (niwa-session--create
                    :permission-mode 'edits :working-directory temporary-file-directory))
          (evidence (niwa-permission-review--evidence
-                    (list :kind 'eval :session session :mode "live"
-                          :expression "(+ 1 2)" :permission-via 'mode))))
+                    (niwa-permission-queue-entry
+                     (list :kind 'eval :session session :mode "live"
+                           :expression "(+ 1 2)" :permission-via 'mode)))))
     (should (eq 'live-emacs (plist-get (plist-get evidence :confinement) :execution)))
     (should (eq 'unrestricted (plist-get (plist-get evidence :confinement) :filesystem)))
     (should (equal "(+ 1 2)" (plist-get (plist-get evidence :operation) :expression)))
@@ -200,8 +204,9 @@
                    :permission-mode 'edits :execution-target target
                    :working-directory temporary-file-directory))
          (evidence (niwa-permission-review--evidence
-                    (list :kind 'eval :session session :mode "live"
-                          :expression "(+ 1 2)"))))
+                    (niwa-permission-queue-entry
+                     (list :kind 'eval :session session :mode "live"
+                           :expression "(+ 1 2)")))))
     (should (equal (list :kind 'live-emacs :host (system-name))
                    (plist-get evidence :execution-target)))
     (should (equal (niwa-execution-target-identity target)
@@ -212,9 +217,10 @@
                    :permission-mode 'edits :working-directory temporary-file-directory
                    :permission-rules (copy-tree rules)))
          (niwa-permission-rules nil)
-         (entry (list :kind 'bash :session session :command "git fetch origin"
-                      :requested-additional-permissions '(:network t)
-                      :permission-via 'sandbox-network))
+         (entry (niwa-permission-queue-entry
+                 (list :kind 'bash :session session :command "git fetch origin"
+                       :requested-additional-permissions '(:network t)
+                       :permission-via 'sandbox-network)))
          (before (niwa-permission-queue--reevaluate entry))
          (evidence (niwa-permission-review--evidence entry))
          (candidate (car (plist-get (plist-get evidence :saved-rule-candidates) :candidates))))
@@ -227,8 +233,9 @@
   (dolist (mode '(ask edits full-auto))
     (let* ((session (niwa-session--create :permission-mode mode :sandbox-mode 'off
                                             :working-directory temporary-file-directory))
-           (entry (list :kind 'eval :session session :mode "sandbox" :eval-mode 'sandbox
-                        :origin "/root/worker" :expression "t"))
+           (entry (niwa-permission-queue-entry
+                   (list :kind 'eval :session session :mode "sandbox" :eval-mode 'sandbox
+                         :origin "/root/worker" :expression "t")))
            (age 10.0) evidence)
       (cl-letf (((symbol-function 'niwa-eval-sandbox-status)
                  (lambda (actual owner)
@@ -239,9 +246,11 @@
         (should (eq 'sandbox (plist-get evidence :eval-mode)))
         (should-not (string-match-p
                      "Live Eval" (niwa-permission--execution-warnings
-                                  '(:kind generic :tool-name "Eval" :args (:mode "sandbox")))))
+                                  (niwa-permission-queue-entry
+                                   '(:kind generic :tool-name "Eval" :args (:mode "sandbox"))))))
         (should (equal "sandbox" (plist-get (niwa-permission-queue--log-props
-                                             '(:kind generic :tool-name "Eval" :args (:mode "sandbox")))
+                                             (niwa-permission-queue-entry
+                                              '(:kind generic :tool-name "Eval" :args (:mode "sandbox"))))
                                             :eval-mode)))
         (should (equal (niwa-sandbox-pending-facts nil nil 'required temporary-file-directory)
                        (plist-get evidence :confinement)))

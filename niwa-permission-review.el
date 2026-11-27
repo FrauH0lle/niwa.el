@@ -38,7 +38,8 @@
 (declare-function niwa-tool-exec-permission-default-directory "niwa-tool-exec-permission" ())
 (declare-function niwa-tool-exec-permission-effective-sandbox-request "niwa-tool-exec-permission"
                   (args tool-name operation &optional eval-mode permission-context))
-(declare-function niwa-tool-exec-permission-eval-mode "niwa-tool-exec-permission" (args))
+(autoload 'niwa-tool-exec-permission-default-directory "niwa-tool-exec-permission")
+(autoload 'niwa-tool-exec-permission-effective-sandbox-request "niwa-tool-exec-permission")
 
 ;;;###autoload
 (defcustom niwa-permission-reviewer 'user
@@ -141,9 +142,7 @@ authorization.  The result explicitly records omitted older turns."
 (defun niwa-permission-review--context (entry)
   "Resolve fresh deterministic permission facts for ENTRY."
   (let* ((session (plist-get entry :session))
-         (kind (plist-get entry :kind))
-         (tool (or (plist-get entry :tool-name)
-                   (pcase kind ('bash "Bash") ('eval "Eval"))))
+         (tool (plist-get entry :tool-name))
          (key (plist-get entry :specifier-key))
          (value (plist-get entry :specifier-value))
          (context
@@ -312,8 +311,7 @@ The returned value is data for the reviewer, never trusted system policy."
          (execution-p (member tool '("Bash" "Eval")))
          (args (or (plist-get entry :args)
                    (list :mode (plist-get entry :mode) :reset (plist-get entry :reset))))
-         (eval-mode (and (equal tool "Eval")
-                         (niwa-tool-exec-permission-eval-mode args)))
+         (eval-mode (plist-get entry :eval-mode))
          (live-p (eq eval-mode 'live))
          (sandbox-p (eq eval-mode 'sandbox))
          (owner (or (plist-get entry :origin)

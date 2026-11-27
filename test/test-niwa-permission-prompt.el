@@ -629,8 +629,8 @@
                        (lambda (&optional buffer)
                          (and (eq buffer side-buffer) parent-active))))
               (setq entry
-                    (niwa-permission--one-shot-prompt-entry
-                     '(:mutation-p t) side-buffer))
+                    (niwa-permission-queue-entry
+                     '(:mutation-p t) t side-buffer))
               (setq parent-active t)
               (cl-letf
                   (((symbol-function 'niwa--prompt-block-face)
@@ -773,16 +773,16 @@
                    (:kind eval)
                    (:kind generic :tool-name "Eval" :args (:expression "(+ 1 2)"))))
     (should (string-match-p "Live Eval runs inside this Emacs"
-                            (niwa-permission--execution-warnings entry))))
+                            (niwa-permission--execution-warnings (niwa-permission-queue-entry entry)))))
   (dolist (entry '((:kind eval :mode "fresh")
                    (:kind generic :tool-name "Eval" :args (:mode "fresh"))
                    (:kind bash)))
-    (should (string-empty-p (niwa-permission--execution-warnings entry))))
+    (should (string-empty-p (niwa-permission--execution-warnings (niwa-permission-queue-entry entry)))))
   (dolist (entry '((:kind sandbox :sandbox-permissions require-escalated)
                    (:kind generic :tool-name "Bash"
                     :args (:sandbox_permissions "require_escalated"))))
     (should (string-match-p "confinement are all disabled"
-                            (niwa-permission--execution-warnings entry))))
+                            (niwa-permission--execution-warnings (niwa-permission-queue-entry entry)))))
   (should (string-match-p "protected" (niwa-permission--execution-warnings
                                        '(:kind generic :protected-path t)))))
 
