@@ -49,6 +49,9 @@
 (defun niwa-sleep--set-inhibit (symbol value)
   "Set SYMBOL to VALUE and apply it to the current work at once."
   (set-default symbol value)
+  ;; The wake-up horizon timer exists only while inhibition is on.
+  (when (featurep 'niwa-schedule)
+    (niwa-schedule--arm-sleep-horizon))
   (if value
       (niwa-sleep-update)
     (niwa-sleep-stop)))

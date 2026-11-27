@@ -13,6 +13,7 @@
 (require 'niwa-transport)
 (require 'niwa-turn)
 (require 'niwa-sandbox)
+(require 'niwa-session-persistence)
 (require 'niwa-schedule)
 (require 'niwa-collaboration)
 (require 'niwa-execution-test-helpers
@@ -417,6 +418,64 @@ Registry corrupt"
     (let ((niwa-sleep-inhibit t) (niwa-schedule--closed nil))
       (niwa-schedule--arm-sleep-horizon)
       (should-not niwa-schedule--horizon-timer))))
+
+(niwa-deftest niwa-sleep-inhibit-horizon-toggle ()
+  ,test
+  (test)
+  :doc "toggling inhibition arms then cancels the horizon timer for a pending wake-up"
+  (let* ((now 1000000.0)
+         (niwa-schedule-clock (lambda () now))
+         (niwa-schedule--buffers nil)
+         (niwa-schedule--workspaces nil)
+         (niwa-schedule--retrying nil)
+         (niwa-schedule--horizon-timer nil)
+         (niwa-sleep-inhibit nil)
+         (niwa-sleep-wake-up-horizon (* 6 3600))
+         (niwa-schedule--closed (list (cons "/tmp/s" (+ now (* 8 3600))))))
+    (cl-letf (((symbol-function 'niwa-sleep-update) #'ignore))
+      (unwind-protect
+          (progn
+            (customize-set-variable 'niwa-sleep-inhibit t)
+            (should (timerp niwa-schedule--horizon-timer))
+            (customize-set-variable 'niwa-sleep-inhibit nil)
+            (should-not niwa-schedule--horizon-timer))
+        (setq niwa-sleep-inhibit nil)
+        (when (timerp niwa-schedule--horizon-timer)
+          (cancel-timer niwa-schedule--horizon-timer))))))
+
+(niwa-deftest niwa-schedule-reopen-retry-sleep ()
+  ,test
+  (test)
+  :doc "a reopen retry never holds sleep; verified recovery within the horizon does"
+  (let* ((now 1000000.0)
+         (niwa-schedule-clock (lambda () now))
+         (niwa-schedule--buffers nil)
+         (niwa-schedule--workspaces nil)
+         (niwa-schedule--retrying nil)
+         (niwa-schedule--closed nil)
+         (niwa--warn-once-table (make-hash-table :test #'equal))
+         (stored (- now 10))
+         diagnostics)
+    (cl-letf (((symbol-function 'niwa-schedule--stored-due)
+               (lambda (_directory) stored))
+              ((symbol-function 'niwa-schedule--open-p) #'ignore)
+              ((symbol-function 'niwa-session-persistence-restore)
+               (lambda (_directory) (error "Store unreadable"))))
+      (niwa-test--with-captured-diagnostics diagnostics
+        (dotimes (_ 3)
+          (let ((entry (car niwa-schedule--closed)))
+            (setq niwa-schedule--closed (delq entry niwa-schedule--closed))
+            (niwa-schedule--wake-closed "/tmp/s" now))
+          (should (= 1 (length niwa-schedule--closed)))
+          (should-not (niwa-schedule-sleep-reasons 86400))))
+      ;; Recovery: the store reads and the wake-up is 30 minutes away.
+      (setq stored (+ now 1800))
+      (let ((entry (car niwa-schedule--closed)))
+        (setq niwa-schedule--closed (delq entry niwa-schedule--closed))
+        (niwa-schedule--wake-closed "/tmp/s" now))
+      (should-not niwa-schedule--retrying)
+      (should (niwa-schedule-sleep-reasons 3600))
+      (should-not (niwa-schedule-sleep-reasons 600)))))
 
 (provide 'test-niwa-sleep)
 ;;; test-niwa-sleep.el ends here

@@ -18,6 +18,7 @@
 (require 'niwa-recovery)
 (require 'niwa-schedule)
 (require 'niwa-session-artifacts)
+(require 'niwa-sleep)
 (require 'niwa-session-durability)
 (require 'niwa-structs)
 (require 'niwa-tools)
@@ -498,6 +499,30 @@ after which the stub drains the pending request context like admission does."
       (should-not (niwa-schedule-test--timers))
       (delete-directory root t)
       (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-schedule-sleep-horizon-production ()
+  ,test
+  (test)
+  :doc "creating and cancelling a live wake-up arms then clears the horizon timer"
+  (niwa-schedule-test--with-session
+    (let ((niwa-sleep-inhibit t)
+          (niwa-sleep-wake-up-horizon 3600)
+          (horizon-timers
+           (lambda ()
+             (cl-remove-if-not
+              (lambda (timer) (eq (timer--function timer) #'niwa-sleep-update))
+              timer-list))))
+      (cl-letf (((symbol-function 'niwa-sleep-update) #'ignore))
+        (should-not (funcall horizon-timers))
+        (let ((entry (niwa-schedule-create session data-buf "2h" "later")))
+          (should (timerp niwa-schedule--horizon-timer))
+          (should (= 1 (length (funcall horizon-timers))))
+          (should-not (niwa-schedule-sleep-reasons 3600))
+          (should (niwa-schedule-sleep-reasons 7200))
+          (niwa-schedule-cancel session data-buf (plist-get entry :id)))
+        (should-not niwa-schedule--horizon-timer)
+        (should-not (funcall horizon-timers))
+        (should-not (niwa-schedule-sleep-reasons 86400))))))
 
 (provide 'test-niwa-schedule)
 ;;; test-niwa-schedule.el ends here

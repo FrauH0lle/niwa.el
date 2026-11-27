@@ -150,6 +150,10 @@ DUE is the clock second their earliest schedule needs attention.")
 (defvar niwa-schedule--timer nil
   "The one timer armed for the earliest pending wake-up, or nil.")
 
+(defvar niwa-schedule--retrying nil
+  "Closed-session directories whose queued time is a reopen retry.
+A retry is not a verified wake-up time, so it never holds system sleep.")
+
 (defvar niwa-schedule--horizon-timer nil
   "One-shot timer for the earliest wake-up entering the sleep horizon, or nil.")
 
@@ -829,6 +833,7 @@ propagates."
 (defun niwa-schedule--forget-closed (directory)
   "Stop scheduling closed session DIRECTORY."
   (let ((key (niwa-schedule--directory-key directory)))
+    (setq niwa-schedule--retrying (delete key niwa-schedule--retrying))
     (setq niwa-schedule--closed
           (cl-remove key niwa-schedule--closed :key #'car :test #'equal))))
 
@@ -871,6 +876,7 @@ Indexed workspaces' schedules are restored by the same rule."
 (defun niwa-schedule--wake-closed (directory now)
   "Reopen closed session DIRECTORY without a window when it is due at NOW.
 Once open, the session schedules and fires its own wake-ups."
+  (setq niwa-schedule--retrying (delete directory niwa-schedule--retrying))
   (condition-case err
       (let ((due (or (niwa-schedule--stored-due directory)
                      (niwa-schedule--prune directory))))
@@ -893,6 +899,7 @@ Once open, the session schedules and fires its own wake-ups."
     (error
      (push (cons directory (+ now niwa-schedule-retry-delay))
            niwa-schedule--closed)
+     (push directory niwa-schedule--retrying)
      (niwa-diagnostic-warning
       'global 'niwa
       (format "Session %s could not be reopened for a wake-up (%s); retrying in %ds"
@@ -958,8 +965,10 @@ A buffer following a session whose lease another client holds never fires."
 
 (defun niwa-schedule--session-due ()
   "Return the earliest due time of any session wake-up, or nil.
-Workspace schedules are excluded."
-  (when-let* ((dues (append (mapcar #'cdr niwa-schedule--closed)
+Workspace schedules and closed-session reopen retries are excluded."
+  (when-let* ((dues (append (cl-loop for (directory . due) in niwa-schedule--closed
+                                     unless (member directory niwa-schedule--retrying)
+                                     collect due)
                             (delq nil (mapcar #'niwa-schedule--earliest
                                               niwa-schedule--buffers)))))
     (apply #'min dues)))
