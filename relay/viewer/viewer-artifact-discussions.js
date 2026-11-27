@@ -899,7 +899,7 @@ function createArtifactDiscussionController(options) {
   let queued = [];
   let stored = [];            // the host store's discussions for view.name
   const pending = new Map();  // discussionId -> local discussion awaiting the store
-  const drafts = new Map();   // sidebar key -> {text, toAssistant}
+  const drafts = new Map();   // sidebar key -> {text, toAssistant, submission}
   let requestSequence = 0;
   const inflight = new Map(); // reqId -> {resolve, reject}
 
@@ -911,7 +911,7 @@ function createArtifactDiscussionController(options) {
   let historyFailed = false;
   let conversationDecision = null;
   const HISTORY_POLL_MS = 5000;
-  const historyTimers = typeof setTimeout === 'function';
+  const hasTimers = typeof setTimeout === 'function';
 
   function stopHistory() {
     historyGeneration++;
@@ -970,7 +970,7 @@ function createArtifactDiscussionController(options) {
       historyFailed = true;
       sidebar.notice(`Item history unavailable: ${error.message}`, true);
     } finally {
-      if (generation === historyGeneration && view.frame && historyTimers) {
+      if (generation === historyGeneration && view.frame && hasTimers) {
         historyTimer = setTimeout(() => {
           historyTimer = null;
           fetchHistory(discussionId, generation);
@@ -1068,8 +1068,9 @@ function createArtifactDiscussionController(options) {
         inflight.delete(reqId);
         reject(error);
       };
-      if (entry.history && historyTimers) entry.timer = setTimeout(
-        () => fail(new Error('The host did not answer; retrying.')), 15000);
+      if (hasTimers) entry.timer = setTimeout(() => fail(new Error(entry.history
+        ? 'The host did not answer; retrying.'
+        : 'The host did not answer. Check the discussion before trying again.')), 15000);
       inflight.set(reqId, entry);
       try {
         Promise.resolve(send(Object.assign({t: 'discussion', reqId}, fields))).then(ok => {
@@ -1258,13 +1259,23 @@ function createArtifactDiscussionController(options) {
     if (text === null || !view.id || (alone && !view.draft)) return false;
     sidebar.notice(toAssistant ? 'Posting and sending…' : 'Posting…');
     try {
+      const draft = drafts.get(key);
+      let submission = draft?.submission;
+      // The host may have stored the message even when its reply was lost.
+      if (!submission || submission.text !== text || submission.toAssistant !== toAssistant
+          || (alone && submission.target !== view.draft.anchor)) {
+        submission = {item: view.id, text, toAssistant, messageId: newId()};
+        if (alone) Object.assign(submission, {action: 'post', discussionId: newId(),
+          target: view.draft.anchor, context: view.draft.context});
+        else if (key === GENERAL) Object.assign(submission, {action: 'post', target: {kind: 'whole'}});
+        else Object.assign(submission, {action: 'reply', discussionId: key});
+        drafts.set(key, {...draft, submission});
+      }
+      await request(submission);
       if (key === NEW) {
-        const draft = view.draft;
-        const discussionId = newId();
-        await request({action: 'post', item: view.id, discussionId, messageId: newId(), text,
-                       target: draft.anchor, context: draft.context, toAssistant});
+        const discussionId = submission.discussionId;
         if (!stored.some(discussion => discussion && discussion.id === discussionId)) {
-          pending.set(discussionId, {id: discussionId, name: view.name, anchor: draft.anchor,
+          pending.set(discussionId, {id: discussionId, name: view.name, anchor: submission.target,
                                      resolved: false, toAssistant,
                                      messages: [{id: 'local', actor: 'You', text, alone: !text}]});
         }
@@ -1274,12 +1285,6 @@ function createArtifactDiscussionController(options) {
         sidebar.notice('');
         return discussionId;
       }
-      // The first message about the whole artifact starts its discussion.
-      await request(key === GENERAL
-        ? {action: 'post', item: view.id, target: {kind: 'whole'}, messageId: newId(),
-           text, toAssistant}
-        : {action: 'reply', item: view.id, discussionId: key, messageId: newId(),
-           text, toAssistant});
       drafts.delete(key);
       sidebar.notice('');
       return undefined;

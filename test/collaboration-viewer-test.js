@@ -1952,8 +1952,9 @@ async function main() {
   const explicitGeneratedName = hello.name === 'Clever Cat' ? 'Brave Badger' : 'Clever Cat';
   for (const [value, expected, chosen] of [
     ['  Roland55  ', 'Roland55', 'Roland55'],
+    ['\u061cليلى\u200f', 'ليلى', 'ليلى'],
     [explicitGeneratedName, explicitGeneratedName, explicitGeneratedName],
-    ['   ', hello.name, undefined],
+    [' \u2068\u2069 ', hello.name, undefined],
   ]) {
     const before = first.sent.length;
     chooseName(value);
@@ -2364,6 +2365,8 @@ async function main() {
   nodes['new-session-button'].dispatch('click');
   nodes['new-session-name'].value = 'second';
   nodes['new-session'].close('create');
+  await waitFor(() => /second · waiting for the host/.test(textOf(nodes.invites)),
+                'second request sent before the host replies');
   await deliver({t: 'new-session', reqId: 2, ok: false, name: 'second',
                  message: 'The host declined'});
   assert.equal(nodes.invites.children.length, 2);

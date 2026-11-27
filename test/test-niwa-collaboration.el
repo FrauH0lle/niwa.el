@@ -121,6 +121,8 @@
   (progn
     (should (equal "guest" (niwa-collaboration--sanitize-guest-name nil)))
     (should (equal "guest" (niwa-collaboration--sanitize-guest-name "  ")))
+    (should (equal "guest" (niwa-collaboration--sanitize-guest-name "\u2068\u2069")))
+    (should (equal "ليلى" (niwa-collaboration--sanitize-guest-name "\u061cليلى\u200f")))
     (should (equal "a b" (niwa-collaboration--sanitize-guest-name
                           "a\n\t\rb")))
     (should (= niwa-collaboration--max-guest-name-chars

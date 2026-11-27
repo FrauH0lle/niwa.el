@@ -4,6 +4,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const test = require('node:test');
 const {Element, element, load, textOf} = require('./collaboration-viewer-dom');
 
 const ids = ['new-session-button', 'new-session', 'new-session-form',
@@ -35,7 +36,7 @@ function secretOf(seed, bytes) {
 
 const store = new Map();
 
-function build(tierBytes, seed, models = [], roomId = 'here') {
+function build(tierBytes, seed, models = [], roomId = 'here', deliver = () => true) {
   store.clear();
   if (seed) store.set('niwa-rooms', JSON.stringify(seed));
   const nodes = Object.fromEntries(ids.map(id => [id, new Element('div')]));
@@ -53,7 +54,7 @@ function build(tierBytes, seed, models = [], roomId = 'here') {
     },
     navigator: {clipboard: {writeText: async text => { copied.push(text); }}},
   };
-  const context = {window, document, console, localStorage: window.localStorage};
+  const context = {window, document, console, btoa, localStorage: window.localStorage};
   load('relay/viewer/attachments.js', context);
   load('relay/viewer/viewer-session.js', context);
   const sent = [];
@@ -62,7 +63,10 @@ function build(tierBytes, seed, models = [], roomId = 'here') {
   const state = {mode: 'ask', owner: tierBytes === 64, connected: true, turnCount: 2, models};
   const controller = window.niwaSessionView.create({
     state,
-    send: frame => (frame.t === 'session-models' ? modelRequests : sent).push(frame),
+    send: async frame => {
+      (frame.t === 'session-models' ? modelRequests : sent).push(frame);
+      return deliver(frame);
+    },
     el: (tag, className, text) => element(document, tag, className, text),
     encode: base64urlEncode,
     decode: base64urlDecode,
@@ -236,45 +240,84 @@ const ownerSeed = [{room: 'other', name: 'flow', secret: secretOf(2, 64),
   assert.equal(JSON.parse(store.get('niwa-rooms')).length, 3);
 }
 
-// A refusal is news, not a room: it shows, and it is not kept.
-{
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+for (const fork of [false, true]) {
+  test(`unsent ${fork ? 'fork' : 'new session'} can be retried`, async () => {
+    let accepted = false;
+    const {controller, nodes, state, notices, sent} = build(64, null, [], 'here', () => accepted);
+    const sheet = nodes['new-session'];
+    controller.openNewSession();
+    nodes['new-session-name'].value = 'design';
+    nodes['new-session-prompt'].value = 'my draft';
+    if (!fork) nodes['new-session-prompt'].dispatch('paste', {clipboardData: {items: [
+      {kind: 'file', getAsFile: () => new File(['draft'], 'draft.txt')},
+    ]}});
+    const submit = () => fork ? controller.fork('fp-1') : sheet.close('create');
+    state.connected = false;
+    submit();
+    await tick();
+    if (!fork) assert.equal(nodes['new-session-prompt'].value, 'my draft');
+    assert.deepEqual(cards(nodes), []);
+    assert.deepEqual(sent, []);
+    state.connected = true;
+    submit(); // The socket can still go away while sealing the request.
+    await tick();
+    assert.deepEqual(cards(nodes), []);
+    assert.match(fork ? notices.at(-1) : nodes['new-session-lede'].textContent, /not sent/);
+    assert.equal(sheet.open, true);
+    assert.equal(nodes['new-session-prompt'].value, 'my draft');
+    assert.equal(nodes['new-session-name'].value, 'design');
+    accepted = true;
+    submit();
+    await tick();
+    assert.equal(sent.length, 2);
+    assert.match(cards(nodes)[0], /waiting for the host/);
+    if (!fork) {
+      assert.equal(nodes['new-session-prompt'].value, '');
+      assert.equal(sent[1].images[0].data, btoa('draft'));
+    }
+  });
+}
+
+test('A refusal is news, not a room: it shows, and it is not kept', async () => {
   const {controller, nodes} = build(64);
   nodes['new-session-button'].dispatch('click');
   nodes['new-session-name'].value = 'flow';
   nodes['new-session-prompt'].value = '';
   nodes['new-session'].close('create');
+  await tick();
   controller.showResult({reqId: 1, ok: false, name: 'flow',
                          message: 'The host declined'});
   assert.deepEqual(cards(nodes), ['flow · refused']);
   assert.deepEqual(rooms(nodes), []);
   assert.equal(store.get('niwa-rooms'), undefined);
-}
+});
 
-// A second request refused while the first waits settles its own notice.
-{
+test('A second request refused while the first waits settles its own notice', async () => {
   const {controller, nodes, sent} = build(48);
   nodes['new-session-button'].dispatch('click');
   nodes['new-session-name'].value = 'same name';
   nodes['new-session-prompt'].value = '';
   nodes['new-session'].close('create');
+  await tick();
   nodes['new-session-name'].value = 'same_name';
   nodes['new-session'].close('create');
+  await tick();
   assert.equal(sent[1].name, 'same_name');
   controller.showResult({reqId: 2, ok: false, name: 'same_name',
                          message: 'Another request is still waiting'});
   assert.deepEqual(cards(nodes),
                    ['same_name · waiting for the host', 'same_name · refused']);
-}
+});
 
-// A name is optional: without one the host names the session, and the
-// room is kept under the name the host reports. A typed name still needs
-// a letter or digit.
-{
+test('The host names sessions without a usable typed name', async () => {
   const {controller, nodes, sent} = build(64);
   nodes['new-session-button'].dispatch('click');
   nodes['new-session-name'].value = '   ';
   nodes['new-session-prompt'].value = 'Draw the pipeline';
   nodes['new-session'].close('create');
+  await tick();
   assert.equal(sent.length, 1);
   assert.equal('name' in sent[0], false);
   assert.equal(sent[0].prompt, 'Draw the pipeline');
@@ -285,22 +328,23 @@ const ownerSeed = [{room: 'other', name: 'flow', secret: secretOf(2, 64),
   assert.deepEqual(rooms(nodes), ['2026-10-05T17-00-abc']);
   nodes['new-session-name'].value = '///';
   nodes['new-session'].close('create');
+  await tick();
   assert.equal(sent.length, 2, 'an unusable name still submits as an unnamed session, like the host');
   assert.equal('name' in sent[1], false);
-}
+});
 
-// A lost peer cannot receive approval; reconnect must not leave a permanent wait.
-{
+test('A lost peer cannot receive approval; reconnect must not leave a permanent wait', async () => {
   const {controller, nodes} = build(48);
   nodes['new-session-name'].value = 'waiting';
   nodes['new-session-prompt'].value = '';
   nodes['new-session'].close('create');
+  await tick();
   controller.disconnected();
   assert.match(cards(nodes)[0], /interrupted/);
   assert.match(textOf(nodes.invites), /not replayed|Ask again/);
   const actions = nodes.invites.children[0].children.at(-1);
   assert.equal(textOf(actions.children.at(-1)), 'Dismiss');
-}
+});
 
 // A lobby keeps itself among the rooms, so the rooms it opens list it;
 // the tab standing in it does not.
@@ -401,9 +445,7 @@ const ownerSeed = [{room: 'other', name: 'flow', secret: secretOf(2, 64),
 
 console.log('viewer session controller passed');
 
-// The picked model travels with the request; Default leaves it to the
-// host, and a host that offers none shows no picker at all.
-{
+test('Only an explicitly picked model travels with the request', async () => {
   const {nodes, sent} = build(64, null, ['Codex:gpt-6-astra']);
   nodes['new-session-button'].dispatch('click');
   assert.equal(nodes['new-session-model'].hidden, false);
@@ -412,6 +454,7 @@ console.log('viewer session controller passed');
   nodes['new-session-prompt'].value = '';
   nodes['new-session-model'].value = 'Codex:gpt-6-astra';
   nodes['new-session'].close('create');
+  await tick();
   nodes['new-session-button'].dispatch('click');
   // The choice survives reopening while the host still offers it.
   assert.equal(nodes['new-session-model'].value, 'Codex:gpt-6-astra');
@@ -419,9 +462,10 @@ console.log('viewer session controller passed');
   nodes['new-session-prompt'].value = '';
   nodes['new-session-model'].value = '';
   nodes['new-session'].close('create');
+  await tick();
   assert.equal(sent[0].model, 'Codex:gpt-6-astra');
   assert.equal('model' in sent[1], false);
-}
+});
 {
   const {nodes, sent} = build(64);
   nodes['new-session-model'].value = 'Codex:gpt-6-astra';
@@ -434,10 +478,7 @@ console.log('viewer session controller passed');
   assert.equal('model' in sent[0], false);
 }
 
-// Reasoning effort follows the picked model: each model offers its own
-// declared efforts, and Default offers none because its model is only
-// known once the host applies its preset.
-{
+test('Reasoning effort follows the picked model', async () => {
   const {controller, nodes, sent} = build(64, null, ['Codex:gpt-6-astra', 'Plain:old']);
   nodes['new-session-button'].dispatch('click');
   controller.showModels(['Codex:gpt-6-astra', 'Plain:old'],
@@ -460,6 +501,7 @@ console.log('viewer session controller passed');
   nodes['new-session-name'].value = 'deep';
   nodes['new-session-prompt'].value = '';
   nodes['new-session'].close('create');
+  await tick();
   assert.equal(sent[0].model, 'Codex:gpt-6-astra');
   assert.equal(sent[0].effort, 'high');
   // Default effort sends none.
@@ -467,8 +509,9 @@ console.log('viewer session controller passed');
   nodes['new-session-effort'].value = '';
   nodes['new-session-name'].value = 'plain';
   nodes['new-session'].close('create');
+  await tick();
   assert.equal('effort' in sent[1], false);
-}
+});
 
 // History actions stay owner-only and connected, and Rewind confirms its scope.
 for (const tier of [32, 48, 64]) {

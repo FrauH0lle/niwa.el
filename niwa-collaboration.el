@@ -618,7 +618,10 @@ Signal `user-error' when the configured value is not a ws origin."
   "Return a bounded, control-character-free display NAME.
 The name is display-only everywhere and never enters model context."
   (let* ((name (if (stringp name) name ""))
-         (clean (replace-regexp-in-string "[[:cntrl:]]+" " " name))
+         ;; Unicode Bidi_Control marks are formatting, not name characters.
+         (clean (replace-regexp-in-string
+                 "[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]" "" name))
+         (clean (replace-regexp-in-string "[[:cntrl:]]+" " " clean))
          (clean (string-trim clean)))
     (cond ((string-empty-p clean) "guest")
           ((> (length clean) niwa-collaboration--max-guest-name-chars)

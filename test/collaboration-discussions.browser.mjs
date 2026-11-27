@@ -82,6 +82,7 @@ async function setup(page) {
     // A small stand-in for the host's discussion store: it answers each
     // action and broadcasts the stored list, as the host does.
     window.store = [];
+    window.enqueues = 0;
     window.failNext = null;
     const answer = frame => {
       const reply = {t: 'discussion', reqId: frame.reqId};
@@ -95,13 +96,17 @@ async function setup(page) {
       } else if (frame.action === 'history') {
         reply.conversation = [];
         reply.conversationDecision = window.decision || null;
-      } else if (frame.action === 'post') {
-        const id = frame.target.kind === 'whole' ? 'general' : frame.discussionId;
-        const known = window.store.find(d => d.id === id);
-        if (known) known.messages.push(message());
-        else window.store.push({id, target: frame.target, quote: '', messages: [message()], resolved: false});
-      } else if (frame.action === 'reply') {
-        window.store.find(d => d.id === frame.discussionId).messages.push(message());
+      } else if (frame.action === 'post' || frame.action === 'reply') {
+        const id = frame.target?.kind === 'whole' ? 'general' : frame.discussionId;
+        let thread = window.store.find(d => d.id === id);
+        if (!thread && frame.action === 'post') {
+          thread = {id, target: frame.target, quote: '', messages: [], resolved: false};
+          window.store.push(thread);
+        }
+        if (!thread.messages.some(m => m.id === frame.messageId)) {
+          thread.messages.push(message());
+          if (frame.toAssistant) window.enqueues++;
+        }
       } else if (frame.action === 'resolve') {
         window.store.find(d => d.id === frame.discussionId).resolved = frame.resolved;
       }
@@ -109,7 +114,7 @@ async function setup(page) {
         window.controller.stored({item: 'artifact:schema.html',
                                   discussions: JSON.parse(JSON.stringify(window.store))});
       }
-      window.controller.handle(reply);
+      if (frame.action !== window.unanswered) window.controller.handle(reply);
     };
     const $ = id => document.getElementById(id);
     window.controller = window.niwaArtifactDiscussions.create({
@@ -510,6 +515,59 @@ test('artifact discussions: pick, send, marker thread, box, selection, relocatio
     await browser.close();
   }
 });
+
+for (const kind of ['whole', 'anchored', 'reply']) {
+  test(`an unanswered ${kind} submission retries without duplicating work`, async () => {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await setup(page);
+      await page.evaluate(html => window.show(html, 'tool-1'), ARTIFACT);
+      const frame = await artifactFrame(page);
+      if (kind === 'whole') {
+        await page.click('#artifact-discussions');
+        await page.click('#artifact-side .ds-item.general');
+      } else {
+        await commentMode(page);
+        const r = await inPage(page, frame, await wordRect(frame, 'share'));
+        await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+      }
+      if (kind === 'reply') {
+        await page.fill(`${fresh} .ds-input`, 'First message');
+        await page.uncheck(`${fresh} .ds-choice input`);
+        await start(page);
+        await page.waitForSelector(`${fresh} .ds-message >> text=First message`);
+        await page.check(`${fresh} .ds-choice input`);
+      }
+      await page.fill(`${fresh} .ds-input`, 'Shorten the intro');
+      const action = kind === 'reply' ? 'reply' : 'post';
+      await page.evaluate(action => { window.unanswered = action; }, action);
+      await page.clock.install();
+      await start(page);
+      assert.equal(await page.isDisabled(`${fresh} .ds-send`), true);
+      await page.clock.fastForward(16000);
+      assert.equal(await page.isDisabled(`${fresh} .ds-send`), false);
+      assert.equal(await page.inputValue(`${fresh} .ds-input`), 'Shorten the intro');
+      assert.match(await page.textContent('#artifact-side'), /host did not answer/i);
+      assert.equal(await page.evaluate(() => window.enqueues), 1);
+      const posts = await actions(page, action);
+      assert.equal(posts.length, 1);
+      await page.evaluate(reqId => {
+        window.controller.handle({t: 'discussion', reqId});
+        window.unanswered = null;
+      }, posts[0].reqId);
+      await start(page);
+      await page.waitForSelector(`${fresh} .ds-message >> text=Shorten the intro`);
+      await page.waitForFunction(() => document.querySelector('.ds-input').value === '');
+      const [, retry] = await actions(page, action);
+      assert.notEqual(retry.reqId, posts[0].reqId);
+      assert.equal(await page.evaluate(() => window.enqueues), 1);
+      assert.equal(await page.evaluate(() => window.store.length), 1);
+      const messages = page.locator(`${fresh} .ds-message`).filter({hasText: 'Shorten the intro'});
+      assert.equal(await messages.count(), 1);
+    } finally { await browser.close(); }
+  });
+}
 
 test('the whole artifact keeps its answers apart and a draft through streaming', async () => {
   const browser = await chromium.launch();

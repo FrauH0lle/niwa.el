@@ -504,7 +504,9 @@ tab is closed, the next visit is someone new. **Use a random name** drops a
 chosen name and gives every open tab the same new random one; saving an empty
 name returns to the random one. Each change sends a sealed `set-name` frame to
 update the host's registered guest, and an open editor labels its laser
-pointer with it. Names are labels, not identities or unique handles.
+pointer with it. The viewer and host remove Unicode bidirectional formatting
+controls from guest names; ordinary right-to-left letters are preserved.
+Names are labels, not identities or unique handles.
 The guest's independent browser ID continues to identify its queued work.
 
 ### Who else is here

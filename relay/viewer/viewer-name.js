@@ -37,7 +37,8 @@
     return `${adjectives[picks[1] % adjectives.length]} ${animals[picks[2] % animals.length]}`;
   }
 
-  const clean = value => (typeof value === 'string' ? value.trim().slice(0, MAX) : '');
+  const clean = value => (typeof value === 'string'
+    ? value.replace(/\p{Bidi_Control}/gu, '').trim().slice(0, MAX) : '');
   function read(storage, key) {
     try { return clean(storage.getItem(key)); }
     catch (_error) { return ''; }

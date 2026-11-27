@@ -178,7 +178,10 @@
 
     // NOTE replaces the dialog's lede; PROMPT, when given, starts the
     // first prompt, as asking about a project file does.
+    let submitting = false;
     function open(note, prompt) {
+      if (submitting) return;
+      sheet.returnValue = '';
       if (typeof prompt === 'string') promptInput.value = prompt;
       showModels();
       send({t: 'session-models'});
@@ -234,7 +237,9 @@
 
     // An empty name leaves naming to the host, which titles the session
     // from its first prompt; a typed name without a letter or digit is also unnamed.
-    function submitRequest() {
+    async function submitRequest() {
+      if (submitting) return;
+      submitting = true;
       const typed = nameInput.value.trim();
       const sanitized = typed.replace(/[^A-Za-z0-9_-]/g, '_');
       const name = /[A-Za-z0-9]/.test(sanitized) ? sanitized : '';
@@ -245,18 +250,22 @@
       if (frame.model && !effortInput.hidden && effortInput.value) {
         frame.effort = effortInput.value;
       }
-      const request = () => {
-        const attached = files.items();
-        if (attached.length) {
-          frame.images = files.frame(attached);
-          frame.prompt ||= 'See the attached file.';
-        }
-        files.clear();
-        send(frame);
-      };
       // A file still being read goes with the request it was added to.
-      if (files.busy()) files.settled().then(request);
-      else request();
+      if (files.busy()) await files.settled();
+      const attached = files.items();
+      if (attached.length) {
+        frame.images = files.frame(attached);
+        frame.prompt ||= 'See the attached file.';
+      }
+      const sent = await sendRequest(frame);
+      submitting = false;
+      if (!sent) {
+        lede.textContent = notSent;
+        sheet.returnValue = '';
+        sheet.showModal();
+        return;
+      }
+      files.clear();
       notices.push({reqId, name: name || 'New session', status: 'waiting'});
       nameInput.value = '';
       promptInput.value = '';
@@ -264,11 +273,19 @@
       render();
     }
 
+    const notSent = 'Request not sent. Check your connection and try again.';
+    function sendRequest(frame) {
+      return state.connected && send(frame).catch(() => false);
+    }
+
     // A fork settles through the same reply and notice as a new session.
-    function fork(forkPoint) {
+    async function fork(forkPoint) {
       if (!state.owner || typeof forkPoint !== 'string' || !forkPoint) return;
       const reqId = ++requestSequence;
-      send({t: 'fork', reqId, forkPoint});
+      if (!await sendRequest({t: 'fork', reqId, forkPoint})) {
+        notice(notSent);
+        return;
+      }
       notices.push({reqId, name: 'Fork', status: 'waiting'});
       render();
     }
