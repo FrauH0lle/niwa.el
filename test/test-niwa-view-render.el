@@ -13,6 +13,7 @@
 (require 'niwa-agent-conversation)
 (require 'niwa-notes)
 (require 'niwa-persistence)
+(require 'niwa-prompt-index)
 (require 'niwa-view)
 (require 'niwa-view-agent)
 (require 'niwa-view-audit)

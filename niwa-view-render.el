@@ -1909,29 +1909,6 @@ Returns nil (verbatim) when no data buffer is attached, so
               ((buffer-live-p data-buffer)))
     (buffer-local-value 'major-mode data-buffer)))
 
-(defun niwa-view-collapse-by-height-p (body)
-  "Return non-nil when BODY should render collapsed by default.
-
-Compares BODY's line count against the current window's height scaled
-by `niwa-inline-preview-threshold'.  When the threshold is <= 0
-always collapse; when no window is attached (batch callers, no view
-displayed) never collapse so output remains inspectable.
-
-Intended for tool renderers to compute their `:initially-collapsed-p'
-flag without duplicating the heuristic."
-  (let* ((lines (if (stringp body)
-                    (length (split-string body "\n"))
-                  0))
-         (window (get-buffer-window (current-buffer)))
-         (height (and window (window-height window)))
-         (threshold (if (boundp 'niwa-inline-preview-threshold)
-                        niwa-inline-preview-threshold
-                      0.8)))
-    (cond
-     ((<= threshold 0) t)
-     ((null height) nil)
-     (t (> lines (* height threshold))))))
-
 (defun niwa-view--queue-origin-fingerprint (queue)
   "Return the ORIGIN values in QUEUE for render cache invalidation."
   (mapcar (lambda (entry)

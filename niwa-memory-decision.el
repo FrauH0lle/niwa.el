@@ -256,31 +256,8 @@ release.  Return the published decision metadata."
          (error "Accepted decision publication changed"))
        (let* ((accepted (plist-get decision :accepted))
               (prepared (plist-get accepted :prepared))
-              (review (plist-get accepted :review))
-              (journal (niwa-journal-store-directory root))
-              (path (file-name-concat journal (niwa-journal-store--filename review 'consolidation)))
-              (text (niwa-journal-store--encode review nil 'consolidation))
-              (observed (car (niwa-session-control-fs-run-program
-                              (list (list :op 'read :optional t :coding 'utf-8-unix :path path))))))
-         (unless (and (eq (plist-get observed :status) 'ok)
-                      (equal (plist-get observed :value) text))
-           ;; Public review text is derived from this authenticated bundle.
-           ;; The immutable publisher only creates absent records; repair a
-           ;; changed projection under mutation ownership before calling it.
-           ;; Fence repair against settlement/takeover under their target lock.
-           ;; The byte check also refuses changes since the observation.
-           (when (eq (plist-get observed :status) 'ok)
-             (dolist (result (niwa-session-control-fs-run-program
-                             (list (list :op 'verify :path (niwa-journal-claim--path mutation nil)
-                                         :content (json-serialize (niwa-journal-claim--record mutation)))
-                                   (list :op 'absent :path (niwa-journal-claim--path mutation t))
-                                   (list :op 'before-time :path (plist-get mutation :directory)
-                                         :content (number-to-string (plist-get mutation :expires-at)))
-                                   (list :op 'verify-hash :path path
-                                         :content (secure-hash 'sha256 (plist-get observed :value)))
-                                   (list :op 'write :path path :content text :coding 'utf-8-unix))
-                             (plist-get mutation :directory)))
-               (niwa-session-control-fs-program-value result)))
+              (review (plist-get accepted :review)))
+         (when (niwa-journal-store-repair-review root review mutation)
            (niwa-memory-store--publish-owned workspace accepted mutation))
          (niwa-memory-store--assert-owned mutation)
          (let ((published (niwa-journal-store-publish-decision root (plist-get decision :metadata)))

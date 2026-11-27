@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'niwa-prompt-index)
 (require 'niwa-session-publication-test-helpers
          (file-name-concat (file-name-directory
                             (or load-file-name buffer-file-name))

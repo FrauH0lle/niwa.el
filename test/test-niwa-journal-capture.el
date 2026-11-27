@@ -541,7 +541,7 @@
               (should (equal gptel-max-tokens (plist-get policy :max-tokens)))
               (should (eq t (plist-get policy :stream))))))))))
 
-(niwa-deftest niwa-journal-capture--read ()
+(niwa-deftest niwa-journal-capture-read ()
   ,test
   (test)
   :doc "capture metadata admits clear and idle while rejecting triggers outside the closed vocabulary"
@@ -551,7 +551,7 @@
      (let* ((workspace (niwa-session-workspace session))
             (capture (car (niwa-journal-capture-list workspace)))
             (id (plist-get capture :id))
-            (path (niwa-journal-capture--file workspace id "capture.json"))
+            (path (niwa-journal-capture-file workspace id "capture.json"))
             (original (niwa-session-control-fs-read-file path)))
        (unwind-protect
            (dolist (trigger '("clear" "compaction" "session-end" "idle" "manual" "CLEAR"))
@@ -561,8 +561,8 @@
                (if (member trigger '("clear" "compaction" "session-end" "idle"))
                    (should (eq (intern trigger)
                                (plist-get (niwa-journal-capture--metadata
-                                           (niwa-journal-capture--read workspace id)) :trigger)))
-                 (should-error (niwa-journal-capture--read workspace id)))))
+                                           (niwa-journal-capture-read workspace id)) :trigger)))
+                 (should-error (niwa-journal-capture-read workspace id)))))
          (write-region original nil path nil 'silent)))))
 
   :doc "capture decoding preserves absent and large limits and rejects malformed limits"
@@ -572,7 +572,7 @@
      (let* ((workspace (niwa-session-workspace session))
             (capture (car (niwa-journal-capture-list workspace)))
             (id (plist-get capture :id))
-            (path (niwa-journal-capture--file workspace id "capture.json"))
+            (path (niwa-journal-capture-file workspace id "capture.json"))
             (original (niwa-session-control-fs-read-file path)))
        (unwind-protect
            (dolist (limit '(:null 700 16000 0 -1 "4000"))
@@ -581,9 +581,9 @@
                (write-region (json-serialize record) nil path nil 'silent)
                (if (memq limit '(:null 700 16000))
                    (should (equal (unless (eq limit :null) limit)
-                                  (plist-get (plist-get (niwa-journal-capture--read workspace id)
+                                  (plist-get (plist-get (niwa-journal-capture-read workspace id)
                                                         :policy) :max-tokens)))
-                 (should-error (niwa-journal-capture--read workspace id)))))
+                 (should-error (niwa-journal-capture-read workspace id)))))
          (write-region original nil path nil 'silent)))))
 
   :doc "rejects malformed provenance and missing or unknown descriptor/policy fields"
@@ -620,10 +620,10 @@
              (let ((record (json-parse-string original)))
                (funcall mutation record)
                (write-region (json-serialize record) nil path nil 'silent)
-               (should-error (niwa-journal-capture--read workspace id))
+               (should-error (niwa-journal-capture-read workspace id))
                (should (niwa-journal-pins-present-p (niwa-session-save-path session)))))
          (write-region original nil path nil 'silent))
-       (should (equal id (plist-get (niwa-journal-capture--read workspace id) :id)))))))
+       (should (equal id (plist-get (niwa-journal-capture-read workspace id) :id)))))))
 
 (niwa-deftest niwa-journal-capture/v0.6.0-migration ()
   ,test
@@ -634,7 +634,7 @@
      (niwa-test-journal-capture--turn session buffer "Request" "Completed result")
      (let* ((workspace (niwa-session-workspace session))
             (id (plist-get (car (niwa-journal-capture-list workspace)) :id))
-            (path (niwa-journal-capture--file workspace id "capture.json"))
+            (path (niwa-journal-capture-file workspace id "capture.json"))
             (journal (niwa-journal-store-state-directory
                       (niwa-journal-store-directory (niwa-workspace-root workspace))))
             (text (niwa-session-control-fs-read-file path))
@@ -652,11 +652,11 @@
          (string-replace (format "\"head\":\"%s\"" head)
                          (format "\"head\":\"%s\"" old-head) text))
         nil path nil 'silent)
-       (should-error (niwa-journal-capture--read workspace id))
+       (should-error (niwa-journal-capture-read workspace id))
        (dolist (write (niwa-migrate-workspace--capture-writes journal))
          (niwa-migrate--replace (car write) (cdr write)))
        (should (equal text (niwa-session-control-fs-read-file path)))
-       (should (equal id (plist-get (niwa-journal-capture--read workspace id) :id)))
+       (should (equal id (plist-get (niwa-journal-capture-read workspace id) :id)))
        (should-not (niwa-migrate-workspace--capture-writes journal))))))
 
 (niwa-deftest niwa-journal-capture/v0.7.0-migration ()
@@ -734,7 +734,7 @@
          (should (= 1 (length (niwa-journal-capture-list workspace t))))
          (should (< calls 10)))
        ;; A retirement with retained bytes still needs pin-release recovery.
-       (niwa-session-control-fs-create-file (niwa-journal-capture--file workspace id "retired") "interrupted")
+       (niwa-session-control-fs-create-file (niwa-journal-capture-file workspace id "retired") "interrupted")
        (should-not (niwa-journal-capture-list workspace))
        (should (= 1 (length (niwa-journal-capture-list workspace t)))))))
 
@@ -781,10 +781,10 @@
          (should (niwa-journal-capture--pending-p workspace id))
          (should-not (niwa-journal-capture--closed-p workspace id)))
        (niwa-session-control-fs-create-file
-        (niwa-journal-capture--file workspace id "discard.json") "{}")
+        (niwa-journal-capture-file workspace id "discard.json") "{}")
        (should (niwa-journal-capture--closed-p workspace id))
        (niwa-session-control-fs-create-file
-        (niwa-journal-capture--file workspace id "retired") "done")
+        (niwa-journal-capture-file workspace id "retired") "done")
        (should-not (niwa-journal-capture--pending-p workspace id))))))
 
 (provide 'test-niwa-journal-capture)

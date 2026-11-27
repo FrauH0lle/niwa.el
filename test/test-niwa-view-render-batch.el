@@ -10,6 +10,7 @@
           (file-name-directory
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
+(require 'niwa-prompt-index)
 (require 'niwa-view)
 (require 'niwa-view-render)
 

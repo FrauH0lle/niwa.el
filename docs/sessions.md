@@ -192,7 +192,7 @@ are independent of that ID. Unnamed sessions initially display the ID, including
 Conversation and Worktree forks. Chooser labels include IDs so repeated titles
 remain distinguishable.
 
-First/latest user-message previews use the canonical transcript prompt index
+First/latest user-message previews use the transcript prompt index in `niwa-prompt-index.el`
 for both live saves and restore repair publications. Harness mailbox deliveries
 (MAIL, RESULT, execution and monitor events) are structural transcript spans,
 not authored prompts, even though providers receive them in the user role.

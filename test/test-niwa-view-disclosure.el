@@ -34,6 +34,26 @@ The current buffer is the owning view."
     (with-current-buffer (niwa-view-composer-buffer view)
       (- (point) (niwa-view-composer-draft-start view)))))
 
+(niwa-deftest niwa-view-toggle-section/kind-dispatch ()
+  ,test
+  (test)
+  :doc "restore and TAB handle a specialized row even when its toggle returns nil"
+  (dolist (row '((hook-context niwa-view-render-toggle-hook-context)
+                 (hook-audit niwa-view-audit-toggle-hook-audit)
+                 (user-input-summary niwa-view-render-toggle-user-input)))
+    (with-temp-buffer
+      (insert (propertize "row" 'niwa-view-type (car row) 'niwa-view-source '(1 . 4)
+                          'niwa-view-source-key '(row)))
+      (goto-char (point-min))
+      (let ((calls 0))
+        (cl-letf (((symbol-function (cadr row)) (lambda () (cl-incf calls) nil))
+                  ((symbol-function 'niwa-view-disclosure--collapse-now)
+                   (lambda (&rest _) (ert-fail "specialized row reached generic fold"))))
+          (niwa-view-toggle-section)
+          (should (= calls 1))
+          (niwa-view-disclosure-restore-state (point-min) (point-max) '(((row) . t)))
+          (should (= calls 2)))))))
+
 (niwa-deftest niwa-view-disclosure-indent-text ()
   ,test
   (test)

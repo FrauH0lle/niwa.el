@@ -62,7 +62,7 @@
                       ((and claim (not outcome)
                             (< (niwa-session-control-fs-target-time (plist-get claim :directory))
                                (plist-get claim :expires-at))) 'running)
-                      ((not (niwa-journal-capture--marked-p workspace id "ready"))
+                      ((not (niwa-journal-capture-marked-p workspace id "ready"))
                        (setq detail "Checkpoint publication is incomplete; recovery must verify source ownership")
                        'recovery)
                       ((not (niwa-journal-capture-trigger workspace capture)) 'checkpoint)
@@ -74,7 +74,7 @@
                       (t 'pending)))
                (when (and (eq status 'recovery) (not (plist-get capture :unreadable)))
                  (condition-case unavailable
-                     (niwa-journal-capture--source-directory workspace capture)
+                     (niwa-journal-capture-source-directory workspace capture)
                    (error (setq detail (error-message-string unavailable)))))
                (when (and (not detail) outcome
                           (memq (plist-get outcome :status) '(failed cancelled)))
@@ -85,7 +85,7 @@
        (cl-loop for capture in captures
                 for retired in (niwa-session-control-fs-paths-exist
                                 (mapcar (lambda (capture)
-                                          (niwa-journal-capture--file
+                                          (niwa-journal-capture-file
                                            workspace (plist-get capture :id) "retired"))
                                         captures))
                 unless retired collect capture)))))

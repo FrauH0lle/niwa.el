@@ -163,6 +163,14 @@ OBSERVATION is a native read result from this operation's batch, as for
       (error "Journal outcome does not belong to this claim"))
     outcome))
 
+(defun niwa-journal-claim-live-operations (token)
+  "Return control operations fencing a write under TOKEN's directory lock."
+  (list (list :op 'verify :path (niwa-journal-claim--path token nil)
+              :content (json-serialize (niwa-journal-claim--record token)))
+        (list :op 'absent :path (niwa-journal-claim--path token t))
+        (list :op 'before-time :path (plist-get token :directory)
+              :content (number-to-string (plist-get token :expires-at)))))
+
 (defun niwa-journal-claim--finish (token status payload &optional owner)
   "Exclusively settle TOKEN with STATUS and PAYLOAD.
 OWNER, when supplied, must still hold the exact claim-directory flock.

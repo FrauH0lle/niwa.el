@@ -84,22 +84,22 @@ Disabling capture preserves existing entries, pending work, and evidence pins."
   (unless (niwa-journal-store-id-p id) (error "Invalid journal capture identity"))
   (file-name-concat (niwa-journal-store-state-directory (niwa-journal-store-directory (niwa-workspace-root workspace))) "captures" id))
 
-(defun niwa-journal-capture--file (workspace id name)
+(defun niwa-journal-capture-file (workspace id name)
   "Return private capture file NAME for capture ID in WORKSPACE.
 NAME is one of the closed marker spellings: capture.json holds the frozen
 descriptor, ready and retired mark eligibility, seal.json and discard.json
 record the trigger or omission, and attempts holds the request claims."
   (file-name-concat (niwa-journal-capture--directory workspace id) name))
 
-(defun niwa-journal-capture--marked-p (workspace id name)
+(defun niwa-journal-capture-marked-p (workspace id name)
   "Return non-nil when capture ID in WORKSPACE has marker file NAME."
-  (niwa-session-control-fs-path-exists-p (niwa-journal-capture--file workspace id name)))
+  (niwa-session-control-fs-path-exists-p (niwa-journal-capture-file workspace id name)))
 
 (defun niwa-journal-capture--markers (workspace id names)
   "Return, in NAMES order, whether capture ID in WORKSPACE has each marker.
 One target program answers them all."
   (niwa-session-control-fs-paths-exist
-   (mapcar (lambda (name) (niwa-journal-capture--file workspace id name))
+   (mapcar (lambda (name) (niwa-journal-capture-file workspace id name))
            names)))
 
 (defun niwa-journal-capture--closed-p (workspace id)
@@ -115,7 +115,7 @@ One target program answers them all."
 (defun niwa-journal-capture--write-seal (workspace id trigger)
   "Record TRIGGER as the seal of capture ID in WORKSPACE, keeping any first seal."
   (niwa-session-control-fs-create-file
-   (niwa-journal-capture--file workspace id "seal.json")
+   (niwa-journal-capture-file workspace id "seal.json")
    (json-serialize (list :capture-id id :trigger (symbol-name trigger)))))
 
 (defun niwa-journal-capture--retire (workspace capture reason)
@@ -123,10 +123,10 @@ One target program answers them all."
 Release the source pin first, then write the retired marker and drop the raw
 evidence bundle; accepted output is never deleted here."
   (let ((id (plist-get capture :id)))
-    (niwa-journal-pins-release (niwa-journal-capture--source-directory workspace capture) id)
-    (niwa-session-control-fs-create-file (niwa-journal-capture--file workspace id "retired") reason)
+    (niwa-journal-pins-release (niwa-journal-capture-source-directory workspace capture) id)
+    (niwa-session-control-fs-create-file (niwa-journal-capture-file workspace id "retired") reason)
     (condition-case nil
-        (niwa-session-control-fs-delete-file (niwa-journal-capture--file workspace id "capture.json"))
+        (niwa-session-control-fs-delete-file (niwa-journal-capture-file workspace id "capture.json"))
       (niwa-session-control-fs-absent nil))))
 
 (defun niwa-journal-capture--metadata (record)
@@ -138,10 +138,10 @@ evidence bundle; accepted output is never deleted here."
 
 (defun niwa-journal-capture--read-operation (workspace id)
   "Return the bounded control operation reading capture ID in WORKSPACE."
-  (list :op 'read :path (niwa-journal-capture--file workspace id "capture.json")
+  (list :op 'read :path (niwa-journal-capture-file workspace id "capture.json")
         :coding 'utf-8-unix :max-bytes (1+ niwa-journal-store--entry-max-bytes)))
 
-(defun niwa-journal-capture--read (workspace id &optional observation)
+(defun niwa-journal-capture-read (workspace id &optional observation)
   "Read and validate WORKSPACE's immutable capture ID, or nil if absent.
 OBSERVATION is the result of `niwa-journal-capture--read-operation' from
 the caller's own program, used instead of a fresh read."
@@ -260,7 +260,7 @@ for every marker.  Observations belong only to this call."
                                              (list :optional t)))
                                    selected)))
          do (push (condition-case err
-                      (or (niwa-journal-capture--read workspace id read)
+                      (or (niwa-journal-capture-read workspace id read)
                           (error "Ready journal capture has no descriptor"))
                     (error (list :id id :unreadable t :error (error-message-string err))))
                   records))))
@@ -270,7 +270,7 @@ for every marker.  Observations belong only to this call."
 
 (defun niwa-journal-capture-evidence (workspace capture)
   "Read and verify frozen evidence for CAPTURE in WORKSPACE."
-  (let ((record (or (niwa-journal-capture--read workspace (plist-get capture :id))
+  (let ((record (or (niwa-journal-capture-read workspace (plist-get capture :id))
                     (error "Journal capture descriptor is missing")))
         texts)
     (dolist (field '((:evidence . :evidence-sha256) (:notes . :notes-sha256)))
@@ -290,7 +290,7 @@ another checkpoint."
       (let* ((id (plist-get capture :id))
              (seal (json-parse-string
                     (niwa-session-control-fs-read-file
-                     (niwa-journal-capture--file workspace id "seal.json")
+                     (niwa-journal-capture-file workspace id "seal.json")
                      'utf-8-unix 1025)
                     :object-type 'plist)))
         (let ((trigger (intern-soft (plist-get seal :trigger))))
@@ -348,7 +348,7 @@ scheduler itself declines work while exit inhibits scheduling."
       (when (equal (plist-get (plist-get capture :metadata) :session)
                    (niwa-session-session-id session))
         (when (and (equal source (niwa-session-control-fs-physical-path
-                                  (niwa-journal-capture--source-directory workspace capture)))
+                                  (niwa-journal-capture-source-directory workspace capture)))
                    (niwa-journal-capture--pending-p workspace (plist-get capture :id)))
           (niwa-journal-capture-evidence workspace capture)
           (niwa-journal-capture--write-seal workspace (plist-get capture :id) trigger)
@@ -385,7 +385,7 @@ work before the compaction."
                   turns)))))
     (sort turns (lambda (left right) (< (plist-get left :number) (plist-get right :number))))))
 
-(defun niwa-journal-capture--source-directory (workspace capture)
+(defun niwa-journal-capture-source-directory (workspace capture)
   "Resolve CAPTURE's original source directory from WORKSPACE's target.
 Client-local evidence never silently rebinds to another client."
   (if (equal (plist-get capture :source-kind) "target")
@@ -400,14 +400,14 @@ Client-local evidence never silently rebinds to another client."
 Return non-nil only when the ready marker was newly created."
   (unless (equal (niwa-session-control-fs-physical-path session-dir)
                  (niwa-session-control-fs-physical-path
-                  (niwa-journal-capture--source-directory workspace capture)))
+                  (niwa-journal-capture-source-directory workspace capture)))
     (error "Journal capture does not belong to the owned source session"))
   (niwa-journal-pins-retain
    session-dir
    (plist-get capture :id)
    (and (plist-get capture :head) (list (plist-get capture :head))))
   (niwa-session-control-fs-create-file
-   (niwa-journal-capture--file workspace (plist-get capture :id) "ready")
+   (niwa-journal-capture-file workspace (plist-get capture :id) "ready")
    "ready\n"))
 
 (defun niwa-journal-capture--freeze-policy ()
@@ -457,7 +457,7 @@ are read, so a worker needs no source mutation authority."
                    pending
                    (niwa-session-control-fs-paths-exist
                     (mapcar (lambda (capture)
-                              (niwa-journal-capture--file
+                              (niwa-journal-capture-file
                                workspace (plist-get capture :id) "seal.json"))
                             pending)))))
          (turns (cl-remove-if
@@ -467,7 +467,7 @@ are read, so a worker needs no source mutation authority."
       (let* ((ids (mapcar (lambda (turn) (plist-get turn :id)) turns))
              (id (niwa-journal-capture--identity (niwa-session-session-id session) ids)))
         (unless (niwa-journal-capture--closed-p workspace id)
-          (let* ((capture (niwa-journal-capture--read workspace id))
+          (let* ((capture (niwa-journal-capture-read workspace id))
                  (new (null capture)))
             (unless capture
               (let* ((projection (niwa-journal-evidence-turns session turns))
@@ -529,8 +529,8 @@ are read, so a worker needs no source mutation authority."
               (error "Capture exceeds its storage limit"))
             (niwa-session-control-fs-make-directory (niwa-journal-capture--directory workspace id) t)
             (niwa-session-control-fs-create-file
-             (niwa-journal-capture--file workspace id "capture.json") text))
-          (setq capture (niwa-journal-capture--read workspace id)))
+             (niwa-journal-capture-file workspace id "capture.json") text))
+          (setq capture (niwa-journal-capture-read workspace id)))
         (when (niwa-journal-capture--ready workspace capture (niwa-session-save-path session))
           (niwa-telemetry-record
            session 'journal-capture-queued :capture-id id :trigger 'checkpoint
@@ -541,18 +541,18 @@ are read, so a worker needs no source mutation authority."
                      (equal (plist-get (plist-get old :metadata) :session)
                             (niwa-session-session-id session))
                      (equal (niwa-session-control-fs-physical-path
-                             (niwa-journal-capture--source-directory workspace old))
+                             (niwa-journal-capture-source-directory workspace old))
                             (niwa-session-control-fs-physical-path
                              (niwa-session-save-path session)))
                      (cl-every (lambda (turn-id) (member turn-id ids))
                                (plist-get (plist-get old :metadata) :turn-ids))
                      (not (niwa-session-control-fs-path-exists-p
-                           (niwa-journal-capture--file workspace (plist-get old :id) "seal.json"))))
+                           (niwa-journal-capture-file workspace (plist-get old :id) "seal.json"))))
             (niwa-session-control-fs-create-file
-             (niwa-journal-capture--file workspace (plist-get old :id) "retired")
+             (niwa-journal-capture-file workspace (plist-get old :id) "retired")
              (format "superseded by %s\n" id))
             (niwa-journal-pins-release
-             (niwa-journal-capture--source-directory workspace old) (plist-get old :id))))
+             (niwa-journal-capture-source-directory workspace old) (plist-get old :id))))
         capture))))
 
 (defun niwa-journal-capture--checkpoint-owned (session)

@@ -117,7 +117,7 @@ Run PREPARE with the live session, buffer and capture before closing."
        (should (equal (plist-get capture :id) (plist-get digest :capture-id)))
        (should (equal niwa-test-session-discard--digest (plist-get digest :body))))
      (should-not (file-exists-p
-                  (niwa-journal-capture--file workspace (plist-get capture :id) "discard.json")))
+                  (niwa-journal-capture-file workspace (plist-get capture :id) "discard.json")))
      (should-not (file-exists-p (plist-get entry :save-path))))
    (lambda (session buffer capture)
      (niwa-journal-capture-seal session buffer 'session-end)
@@ -227,7 +227,7 @@ Run PREPARE with the live session, buffer and capture before closing."
        (should-not (file-exists-p bytes))
        (should-not (niwa-session-recovery-read directory))
        (should-not (niwa-journal-pins-present-p directory))
-       (should (file-regular-p (niwa-journal-capture--file workspace (plist-get capture :id) "discard.json")))
+       (should (file-regular-p (niwa-journal-capture-file workspace (plist-get capture :id) "discard.json")))
        (should (memq (plist-get (niwa-session-durability-cleanup-assessment directory) :state)
                      '(available expired)))
        (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
@@ -255,7 +255,7 @@ Run PREPARE with the live session, buffer and capture before closing."
        (should-not (file-exists-p (plist-get recovery :marker)))
        (should-not (file-exists-p (plist-get recovery :directory)))
        (should-not (niwa-journal-pins-present-p directory))
-       (should (file-regular-p (niwa-journal-capture--file workspace (plist-get capture :id) "discard.json")))))
+       (should (file-regular-p (niwa-journal-capture-file workspace (plist-get capture :id) "discard.json")))))
    (lambda (session _buffer _capture)
      (niwa-test-session-discard--install-recovery session)))
 

@@ -90,11 +90,11 @@
 (declare-function niwa-hooks-flush-log "niwa-hooks" (session))
 
 ;; `niwa-journal-capture'
-(declare-function niwa-journal-capture--read "niwa-journal-capture" (workspace id &optional observation))
+(declare-function niwa-journal-capture-read "niwa-journal-capture" (workspace id &optional observation))
 (declare-function niwa-journal-capture-seal-and-schedule "niwa-journal-capture"
                   (session buffer trigger &optional captures))
 (autoload 'niwa-journal-capture-seal-and-schedule "niwa-journal-capture")
-(autoload 'niwa-journal-capture--read "niwa-journal-capture")
+(autoload 'niwa-journal-capture-read "niwa-journal-capture")
 
 
 ;; `niwa-journal-pins'
@@ -2898,7 +2898,7 @@ through their owners before deletion; failure may retain approved omissions."
                (dolist (proof (cdr (niwa-journal-pins-observe directory)))
 		 (when (eq 'verify (plist-get proof :op))
                    (let* ((id (file-name-base (plist-get proof :path)))
-                          (capture (niwa-journal-capture--read workspace id)))
+                          (capture (niwa-journal-capture-read workspace id)))
                      (unless (and capture
                                   (equal (niwa-session-session-id session)
 					 (plist-get (plist-get capture :metadata) :session)))

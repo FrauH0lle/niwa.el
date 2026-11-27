@@ -490,6 +490,17 @@ override a better default, such as a new group staying open over an open row."
   "Return non-nil when sections of STATE-TYPE render collapsed by default."
   (not (memq state-type '(response turn-summary thinking-summary))))
 
+(defun niwa-view-disclosure--toggle-kind (vtype collapsed)
+  "Toggle a specialized VTYPE at point and return non-nil when handled.
+COLLAPSED is the current turn state."
+  (pcase vtype
+    ((or 'turn-header 'turn-summary) (niwa-view-render-toggle-turn collapsed) t)
+    ('mailbox-delivery (niwa-view-disclosure--toggle-mailbox) t)
+    ('hook-context (niwa-view-render-toggle-hook-context) t)
+    ('hook-audit (niwa-view-audit-toggle-hook-audit) t)
+    ('tool-child (niwa-view-render-toggle-child-call) t)
+    ('user-input-summary (niwa-view-render-toggle-user-input) t)))
+
 (defun niwa-view-disclosure-restore-state (from to states)
   "Toggle sections in FROM..TO so collapse state matches STATES.
 STATES is an alist from `niwa-view-disclosure-capture-state'.
@@ -532,18 +543,7 @@ knows the freshly rendered span was rewritten after insertion."
                       (setq toggled t)
                       (goto-char pos)
                       (cond
-                       ((memq vtype '(turn-header turn-summary))
-                        (niwa-view-render-toggle-turn collapsed))
-                       ((eq vtype 'mailbox-delivery)
-                        (niwa-view-disclosure--toggle-mailbox))
-                       ((eq vtype 'hook-context)
-                        (niwa-view-render-toggle-hook-context))
-                       ((eq vtype 'hook-audit)
-                        (niwa-view-audit-toggle-hook-audit))
-                       ((eq vtype 'tool-child)
-                        (niwa-view-render-toggle-child-call))
-                       ((eq vtype 'user-input-summary)
-                        (niwa-view-render-toggle-user-input))
+                       ((niwa-view-disclosure--toggle-kind vtype collapsed))
                        ((cdr entry)
                         (niwa-view-disclosure--collapse-now source vtype))
                        (t
@@ -699,18 +699,7 @@ not draw."
        source vtype (not collapsed)
        (lambda ()
          (cond
-          ((memq vtype '(turn-header turn-summary))
-           (niwa-view-render-toggle-turn collapsed))
-          ((eq vtype 'mailbox-delivery)
-           (niwa-view-disclosure--toggle-mailbox))
-          ((eq vtype 'hook-context)
-           (niwa-view-render-toggle-hook-context))
-          ((eq vtype 'hook-audit)
-           (niwa-view-audit-toggle-hook-audit))
-          ((eq vtype 'tool-child)
-           (niwa-view-render-toggle-child-call))
-          ((eq vtype 'user-input-summary)
-           (niwa-view-render-toggle-user-input))
+          ((niwa-view-disclosure--toggle-kind vtype collapsed))
           ((and source
                 (memq vtype niwa-view-disclosure--collapsible-vtypes))
            (if collapsed

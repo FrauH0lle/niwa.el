@@ -491,6 +491,30 @@ does not acquire capture ownership; the caller must hold its claim."
     (niwa-journal-store--record-coverage root entry)
     entry))
 
+(autoload 'niwa-journal-claim-live-operations "niwa-journal-claim")
+
+(defun niwa-journal-store-repair-review (root review mutation)
+  "Repair ROOT's changed REVIEW under MUTATION.  Return nil if already exact.
+Return non-nil for absent or repaired reviews so the caller finishes ordinary
+publication, including its private evidence checks and pin releases."
+  (let* ((journal (niwa-journal-store-directory root))
+         (path (file-name-concat journal (niwa-journal-store--filename review 'consolidation)))
+         (text (niwa-journal-store--encode review nil 'consolidation))
+         (observed (car (niwa-session-control-fs-run-program
+                         (list (list :op 'read :optional t :coding 'utf-8-unix :path path))))))
+    (unless (and (eq (plist-get observed :status) 'ok) (equal (plist-get observed :value) text))
+      (when (eq (plist-get observed :status) 'ok)
+        (unless (equal (plist-get mutation :directory) (niwa-journal-store-claim-directory journal 'mutation))
+          (error "Review repair requires this journal's mutation claim"))
+        (dolist (result (niwa-session-control-fs-run-program
+                         (append (niwa-journal-claim-live-operations mutation)
+                                 (list (list :op 'verify-hash :path path
+                                             :content (secure-hash 'sha256 (plist-get observed :value)))
+                                       (list :op 'write :path path :content text :coding 'utf-8-unix)))
+                         (plist-get mutation :directory)))
+          (niwa-session-control-fs-program-value result)))
+      t)))
+
 (defun niwa-journal-store-publish-review (root metadata)
   "Publish immutable completed-review METADATA in workspace ROOT.
 The caller must already have accepted ownership settlement and durably stored

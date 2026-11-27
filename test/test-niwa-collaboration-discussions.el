@@ -745,6 +745,24 @@ answers in DATA-BUF."
   "Return the discussions the host stores for WORKSPACE's item ID."
   (append (plist-get (niwa-shared-editing--read workspace id) :discussions) nil))
 
+(niwa-deftest niwa-collaboration-discussions-perform ()
+  ,test
+  (test)
+  :doc "refuses blank whole-item posts and replies on both stores, even when asking"
+  (cl-flet ((check (room guest item)
+              (dolist (action '("post" "reply"))
+                (let ((reply (niwa-test--shared-act
+                              room guest (niwa-test--discussion-post
+                                          :item item :action action :discussionId "general"
+                                          :target '(:kind "whole") :text "   "))))
+                  (should (equal (plist-get reply :error) "A message is required"))))))
+    (niwa-test--with-discussion-room
+      (check room guest "tool-1")
+      (should-not (niwa-test--discussions workspace "schema")))
+    (niwa-test--with-shared-discussion-room
+      (check room guest (concat "artifact:" board))
+      (should-not (niwa-test--shared-discussions workspace board)))))
+
 (niwa-deftest niwa-collaboration-discussions--shared-perform ()
   ,test
   (test)

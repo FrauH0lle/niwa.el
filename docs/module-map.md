@@ -213,6 +213,7 @@ Chat / view
   niwa-session-codec.el    closed session sidecar codec and validation
   niwa-session-checkpoint.el committed root projection, conversation consumption, and deferred ToolCall retirement
   niwa-session-artifacts.el  paths, artifacts, snapshots, and segment writes
+  niwa-prompt-index.el     authored prompt previews, turn positions, and fork points
   niwa-session-bounds.el   writer-scoped incremental gptel response bounds
   niwa-artifact-store.el   workspace artifact store: metadata, versions, attachment, conversations
   niwa-artifact-lease.el   cross-Emacs leases on store whiteboards and documents

@@ -25,8 +25,8 @@
   "Freeze an explicit discard payload for WORKSPACE's capture ID.
 ORIGINAL-SOURCE is required only when the source descriptor is unreadable.
 A matching source pin must be present and valid before accepting the omission."
-  (let* ((capture (ignore-errors (niwa-journal-capture--read workspace id)))
-         (source (if capture (niwa-journal-capture--source-directory workspace capture)
+  (let* ((capture (ignore-errors (niwa-journal-capture-read workspace id)))
+         (source (if capture (niwa-journal-capture-source-directory workspace capture)
                    (or original-source (signal 'niwa-journal-discard-source-required nil))))
          (remote (file-remote-p source)))
     (when (and capture original-source
@@ -71,7 +71,7 @@ Malformed cancelled payloads fail closed so corruption cannot reopen a discard."
 Persist the omission before releasing its pin.  Repetition is harmless, and
 an interrupted release retains enough origin information for later recovery."
   (unless (niwa-session-control-fs-create-or-verify
-           (niwa-journal-capture--file workspace (plist-get record :capture-id) "discard.json")
+           (niwa-journal-capture-file workspace (plist-get record :capture-id) "discard.json")
            (json-serialize record))
     (error "Conflicting journal discard record"))
   (niwa-journal-capture--retire workspace (append (list :id (plist-get record :capture-id)) record)

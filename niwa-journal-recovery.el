@@ -18,7 +18,7 @@
   "Repair and seal abandoned CAPTURE in WORKSPACE under source authority."
   (let* ((metadata (plist-get capture :metadata))
          (id (plist-get capture :id))
-         (source (niwa-journal-capture--source-directory workspace capture))
+         (source (niwa-journal-capture-source-directory workspace capture))
          (mode (niwa-session-codec-authority-mode-for-path source))
          (session-id (plist-get metadata :session))
          (operation
@@ -52,12 +52,12 @@ Verify the successor's retained coverage before releasing an interrupted pin.
 Delete the old raw bundle only after pin release; retain the retirement marker."
   (let* ((id (plist-get capture :id))
          (retired (niwa-session-control-fs-read-file
-                   (niwa-journal-capture--file workspace id "retired") 'utf-8-unix 257)))
+                   (niwa-journal-capture-file workspace id "retired") 'utf-8-unix 257)))
     (when (and (not (plist-get capture :unreadable))
                (string-match (concat "\\`superseded by \\(" niwa-journal-store-hash-regexp "\\)\n\\'")
                              retired))
       (let* ((successor-id (match-string 1 retired))
-             (successor (niwa-journal-capture--read workspace successor-id))
+             (successor (niwa-journal-capture-read workspace successor-id))
              (metadata (or (plist-get successor :metadata)
                            (niwa-journal-store-entry-for-capture entries successor-id)))
              (old (plist-get capture :metadata)))
@@ -66,9 +66,9 @@ Delete the old raw bundle only after pin release; retain the retirement marker."
                      (cl-every (lambda (turn) (member turn (plist-get metadata :turn-ids)))
                                (plist-get old :turn-ids))
                      (or (null successor)
-                         (and (equal (niwa-journal-capture--source-directory workspace capture)
-                                     (niwa-journal-capture--source-directory workspace successor))
-                              (niwa-journal-capture--marked-p workspace successor-id "ready"))))
+                         (and (equal (niwa-journal-capture-source-directory workspace capture)
+                                     (niwa-journal-capture-source-directory workspace successor))
+                              (niwa-journal-capture-marked-p workspace successor-id "ready"))))
           (error "Superseding journal coverage is unavailable"))
         (niwa-journal-capture--retire workspace capture retired)
         t))))
@@ -90,7 +90,7 @@ remain pending; one failure does not prevent unrelated captures from recovering.
                        (list :id id :status
                              (cond
                               ((niwa-journal-process--recover workspace capture entries) 'completed)
-                              ((niwa-journal-capture--marked-p workspace id "retired")
+                              ((niwa-journal-capture-marked-p workspace id "retired")
                                (niwa-journal-recovery--retire-superseded workspace capture entries)
                                'retired)
                               ((plist-get capture :unreadable) (error "%s" (plist-get capture :error)))

@@ -1441,7 +1441,6 @@ Useful commands:
 
 | Custom Variable                            | Variable Description                                                     |
 |--------------------------------------------|--------------------------------------------------------------------------|
-| `niwa-inline-preview-threshold`         | Ratio of chat buffer height to use for inline preview threshold.         |
 | `niwa-permission-rules`                 | Unified permission rules (path / pattern / domain / name specifiers).    |
 | `niwa-permission-mode`                  | Default permission mode (`ask` / `edits` / `full-auto`).                  |
 | `niwa-sandbox-mode`                     | Child confinement (`best-effort` / `required` / `off`).                   |

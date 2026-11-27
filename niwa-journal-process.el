@@ -151,7 +151,7 @@ BUSY-MESSAGE as a user error, or return nil without it."
 
 (defun niwa-journal-process--attempts (workspace capture)
   "Return the private attempt claim directory for CAPTURE in WORKSPACE."
-  (niwa-journal-capture--file workspace (plist-get capture :id) "attempts"))
+  (niwa-journal-capture-file workspace (plist-get capture :id) "attempts"))
 
 (defun niwa-journal-process--metadata (workspace capture)
   "Return frozen public metadata for CAPTURE with its authoritative seal."
@@ -204,7 +204,7 @@ admit replacement inference.  USAGE carries available provider token counts."
 (defun niwa-journal-process--policy (workspace capture)
   "Resolve CAPTURE's frozen selection without substituting another provider.
 WORKSPACE is used to verify that client-owned evidence remains available."
-  (niwa-journal-capture--source-directory workspace capture)
+  (niwa-journal-capture-source-directory workspace capture)
   (let* ((frozen (plist-get capture :policy))
          (provider (plist-get frozen :provider)))
     (unless provider
@@ -345,17 +345,17 @@ original source and must contain its matching valid pin."
        (let* ((attempts (niwa-journal-process--attempts workspace (list :id id)))
               (outcome (cdr (niwa-journal-claim-current-settlement attempts)))
               (discard (niwa-journal-discard-accepted outcome id))
-              (capture (ignore-errors (niwa-journal-capture--read workspace id))))
+              (capture (ignore-errors (niwa-journal-capture-read workspace id))))
          (cond
           (discard (niwa-journal-discard-complete workspace discard))
-          ((niwa-journal-capture--marked-p workspace id "retired")
+          ((niwa-journal-capture-marked-p workspace id "retired")
            (or (niwa-journal-store-entry-for-capture
                 (niwa-journal-store-entries (niwa-workspace-root workspace)) id)
                (niwa-diagnostic-user-error (niwa-diagnostic-scope workspace) "Journal capture is no longer pending")))
           ((eq 'completed (plist-get outcome :status))
            (unless capture (niwa-diagnostic-user-error (niwa-diagnostic-scope workspace) "Restore the capture descriptor to recover its accepted result"))
            (niwa-journal-process--recover workspace capture nil))
-          ((not (niwa-journal-capture--marked-p workspace id "ready"))
+          ((not (niwa-journal-capture-marked-p workspace id "ready"))
            (niwa-diagnostic-user-error (niwa-diagnostic-scope workspace) "Journal capture is no longer pending"))
           (t
            (let* ((payload (niwa-journal-discard-prepare workspace id original-source))
@@ -481,7 +481,7 @@ Newly exhausted captures listed in PREPARED are reported first."
               (unless (and (not (gethash key niwa-journal-process--running))
                            (niwa-journal-claim-owned-p admission claim))
                 (error "Digest preparation no longer owns its claims"))
-              (let ((capture (or (niwa-journal-capture--read
+              (let ((capture (or (niwa-journal-capture-read
                                   workspace (plist-get prepared :capture-id))
                                  (error "Prepared journal capture is missing"))))
                 (setq state (list :key key :workspace workspace :capture capture

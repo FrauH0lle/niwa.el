@@ -57,6 +57,17 @@
                 (error "Artifact resolution did not load its publication owner"))
               (unless (featurep 'niwa-utilities)
                 (error "Artifacts did not load Utilities"))))
+           (prompt-index
+            (progn
+              (require 'niwa-prompt-index)
+              (with-temp-buffer
+                (insert "cold prompt")
+                (unless (equal "cold prompt"
+                               (plist-get (car (niwa-session-artifacts-collect-prompts
+                                                (current-buffer))) :preview))
+                  (error "Prompt index did not project the user message")))
+              (when (featurep 'niwa-session-artifacts)
+                (error "Prompt projection loaded session artifacts"))))
            (codec
             (progn
               (require 'niwa-session-codec)

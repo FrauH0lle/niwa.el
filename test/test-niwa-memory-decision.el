@@ -100,6 +100,16 @@
     (should injected)
     (should (equal text (niwa-session-control-fs-read-file file)))
     (should-not (file-exists-p pin)))
+  :doc "a live consolidation claim cannot repair the journal's review"
+  (let* ((file (file-name-concat (niwa-journal-store-directory root) (plist-get review :file)))
+         (other (niwa-journal-claim-acquire (niwa-memory-store--claim-directory workspace) 180)))
+    (should other)
+    (unwind-protect
+        (progn
+          (write-region "Damaged projection" nil file nil 'silent)
+          (should-error (niwa-journal-store-repair-review root (plist-get accepted :review) other))
+          (should (equal "Damaged projection" (niwa-session-control-fs-read-file file))))
+      (niwa-journal-claim-settle other 'cancelled "")))
   :doc "review repair refuses a second byte change and retains the accepted decision and digest pin"
   (let* ((file (file-name-concat (niwa-journal-store-directory root) (plist-get review :file)))
          (pin (niwa-memory-store--pin workspace pass (plist-get digest :id)))

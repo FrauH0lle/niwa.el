@@ -23,6 +23,7 @@
 (require 'niwa-compact-evidence)
 (require 'niwa-collaboration)
 (require 'niwa-journal-evidence)
+(require 'niwa-prompt-index)
 (require 'niwa-session-artifacts)
 (require 'niwa-session-durability)
 (require 'niwa-session-publication)

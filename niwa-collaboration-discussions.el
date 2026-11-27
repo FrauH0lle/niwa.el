@@ -710,6 +710,28 @@ the host checks them against the stored target."
    (t (append (list :kind "objects" :selection (or (plist-get args :selection) []))
               (when (plist-get args :region) (list :region (plist-get args :region)))))))
 
+(defun niwa-collaboration-discussions--post-fields (args whole to-assistant)
+  "Validate post ARGS for a WHOLE item or selection, optionally TO-ASSISTANT.
+Return the discussion id, message id, text and selection-alone flag."
+  (let* ((message-id (niwa-collaboration-discussions--identity
+                      (plist-get args :messageId) "message"))
+         (id (if whole niwa-collaboration-discussions-general-id
+               (niwa-collaboration-discussions--identity
+                (plist-get args :discussionId) "discussion")))
+         (text (niwa-collaboration-discussions--text (plist-get args :text)))
+         (alone (and (not text) to-assistant (not whole))))
+    (unless (or text alone)
+      (error (if whole "A message is required"
+               "A message is required, or send the selection to the assistant")))
+    (list id message-id text alone)))
+
+(defun niwa-collaboration-discussions--reply-fields (args)
+  "Return the discussion id, message id and required text for reply ARGS."
+  (list (or (plist-get args :discussionId) (error "Name the discussion to reply to"))
+        (niwa-collaboration-discussions--identity (plist-get args :messageId) "message")
+        (or (niwa-collaboration-discussions--text (plist-get args :text))
+            (error "A message is required"))))
+
 (defun niwa-collaboration-discussions--shared-perform
     (room guest item args authorize callback)
   "Perform discussion ARGS on whiteboard or document ITEM; call CALLBACK.
@@ -745,19 +767,11 @@ AUTHORIZE, when non-nil, must still permit the operation."
                      (list :item (plist-get item :item)
                            :discussions (or (plist-get result :discussions) [])))))))
       ("post"
-       (let* ((target (niwa-collaboration-discussions--shared-target
-                       (plist-get args :target)))
-              (whole (equal (plist-get target :kind) "whole"))
-              (message-id (niwa-collaboration-discussions--identity
-                           (plist-get args :messageId) "message"))
-              (id (if whole niwa-collaboration-discussions-general-id
-                    (niwa-collaboration-discussions--identity
-                     (plist-get args :discussionId) "discussion")))
-              (text (niwa-collaboration-discussions--text (plist-get args :text)))
-              (alone (and (not text) to-assistant (not whole))))
-         (unless (or text alone)
-           (error (if whole "A message is required"
-                    "A message is required, or send the selection to the assistant")))
+       (pcase-let* ((target (niwa-collaboration-discussions--shared-target
+                             (plist-get args :target)))
+                    (whole (equal (plist-get target :kind) "whole"))
+                    (`(,id ,message-id ,text ,alone)
+                     (niwa-collaboration-discussions--post-fields args whole to-assistant)))
          (niwa-collaboration-discussions--shared-call
           item (append (list :action "discussion-post" :discussionId id :messageId message-id
                              :target target :text (or text "") :alone (if alone t :json-false)
@@ -766,11 +780,7 @@ AUTHORIZE, when non-nil, must still permit the operation."
                          (list :expected (plist-get args :expected))))
           authorize (funcall then-ask id message-id target))))
       ("reply"
-       (let ((id (or (plist-get args :discussionId) (error "Name the discussion to reply to")))
-             (message-id (niwa-collaboration-discussions--identity
-                          (plist-get args :messageId) "message"))
-             (text (or (niwa-collaboration-discussions--text (plist-get args :text))
-                       (error "A message is required"))))
+       (pcase-let ((`(,id ,message-id ,text) (niwa-collaboration-discussions--reply-fields args)))
          (niwa-collaboration-discussions--shared-call
           item (list :action "discussion-reply" :discussionId id :messageId message-id
                      :text text :opId message-id :actor actor)
@@ -839,19 +849,11 @@ AUTHORIZE, when non-nil, must still permit the operation."
 (defun niwa-collaboration-discussions--post (room guest item args)
   "Start or continue a discussion of ITEM as ARGS ask; return reply fields.
 A whole-item target adds to the item's general discussion."
-  (let* ((target (niwa-collaboration-discussions--target item (plist-get args :target)))
-         (whole (equal (plist-get target :kind) "whole"))
-         (to-assistant (eq (plist-get args :toAssistant) t))
-         (message-id (niwa-collaboration-discussions--identity
-                      (plist-get args :messageId) "message"))
-         (id (if whole niwa-collaboration-discussions-general-id
-               (niwa-collaboration-discussions--identity
-                (plist-get args :discussionId) "discussion")))
-         (text (niwa-collaboration-discussions--text (plist-get args :text)))
-         (alone (and (not text) to-assistant (not whole))))
-    (unless (or text alone)
-      (error (if whole "A message is required"
-               "A message is required, or send the selection to the assistant")))
+  (pcase-let* ((target (niwa-collaboration-discussions--target item (plist-get args :target)))
+               (whole (equal (plist-get target :kind) "whole"))
+               (to-assistant (eq (plist-get args :toAssistant) t))
+               (`(,id ,message-id ,text ,alone)
+                (niwa-collaboration-discussions--post-fields args whole to-assistant)))
     (let* ((discussions (niwa-collaboration-discussions--load item))
            (existing (niwa-collaboration-discussions--find discussions id))
            (message (niwa-collaboration-discussions--message guest message-id text alone))
@@ -909,17 +911,13 @@ this action just stored that message."
 
 (defun niwa-collaboration-discussions--reply (room guest item args)
   "Add a message to an existing discussion of ITEM as ARGS ask."
-  (let* ((id (or (plist-get args :discussionId) (error "Name the discussion to reply to")))
-         (message-id (niwa-collaboration-discussions--identity
-                      (plist-get args :messageId) "message"))
-         (text (or (niwa-collaboration-discussions--text (plist-get args :text))
-                   (error "A message is required")))
-         (discussions (niwa-collaboration-discussions--load item))
-         (discussion (or (niwa-collaboration-discussions--find discussions id)
-                         (error "That discussion no longer exists")))
-         (updated (niwa-collaboration-discussions--append
-                   discussion (niwa-collaboration-discussions--message
-                               guest message-id text nil))))
+  (pcase-let* ((`(,id ,message-id ,text) (niwa-collaboration-discussions--reply-fields args))
+               (discussions (niwa-collaboration-discussions--load item))
+               (discussion (or (niwa-collaboration-discussions--find discussions id)
+                               (error "That discussion no longer exists")))
+               (updated (niwa-collaboration-discussions--append
+                         discussion (niwa-collaboration-discussions--message
+                                     guest message-id text nil))))
     (unless (eq updated discussion)
       (setq discussions (niwa-collaboration-discussions--replace discussions updated))
       (niwa-collaboration-discussions--save item discussions))
