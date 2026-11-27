@@ -104,6 +104,7 @@
 (require 'niwa-mention-bindings)
 (require 'niwa-view-path)
 (require 'niwa-view-table)
+(require 'niwa-view-thumbnail)
 (require 'text-property-search)
 
 (defun niwa-view--normalize-local-file-uri-path (path)
@@ -583,7 +584,8 @@ sizing or when WINDOW is not live."
                (niwa-session-artifacts-read-artifact
                 (car target) (cdr target) t)
                nil t :max-width max-width)
-            (create-image path nil nil :max-width max-width))
+            (or (ignore-errors (niwa-view-thumbnail-image path max-width))
+                (create-image path nil nil :max-width max-width)))
         (error nil)))))
 
 (defvar-local niwa-view--image-layout-width nil

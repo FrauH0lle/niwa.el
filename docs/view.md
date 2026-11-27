@@ -2450,6 +2450,21 @@ Markdown rendering adds small view-only affordances:
   (default 300) or a float in (0, 1] meaning a fraction of the
   displaying window's pixel width; ratio-sized images retain their path,
   ratio, and measured width and are re-scaled by the realignment job below;
+  a local PNG, JPEG or WebP much wider than its preview is shown, once ImageMagick's
+  `magick` has shrunk it asynchronously, from a thumbnail at the identical
+  displayed size; the click target stays the original. Thumbnails live in a
+  session-private directory under `XDG_RUNTIME_DIR` (0700, files 0600, named
+  by a digest of path, size, mtime, width bucket and converter) that is deleted
+  when the session ends. The format comes from the file's signature, not its
+  extension; the converter reads it only through that format's coder, may use
+  no other coder or delegate, and writes PNG. Thumbnails keep Emacs's own
+  orientation: its JPEG loader ignores EXIF orientation, so no auto-orient is
+  applied. GIF keeps its full-size preview: proving a GIF single-frame
+  needs a whole-file scan, and offset frames need canvas compositing.
+  Remote files, artifacts, other formats, animated WebP,
+  formats Emacs or `magick` cannot handle here, sources `max-image-size`
+  would reject, and any failure keep the full-size preview;
+  a finished conversion only replaces previews still showing that original;
 - canonical pipe tables (two or more consecutive `|...|` rows outside
   fenced blocks and linkify-exempt text) are rendered by
   `niwa-view-table.el` as aligned box-drawing rows after the link and
