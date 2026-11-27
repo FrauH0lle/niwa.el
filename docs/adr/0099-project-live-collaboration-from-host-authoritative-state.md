@@ -63,13 +63,18 @@ input is typed data checked by the native validator, not a remote minibuffer.
 If full plan disclosure exceeds the card's wire budget, acceptance remains in
 Emacs and the browser offers feedback only with an explicit full-review notice.
 Truncation cannot become approval of instructions the browser did not disclose.
-Save, Rewind, edit, Worktree Fork, lease transfer, publication, and
-execution-target changes remain host operations. Two owner-authorized
-exceptions exist. Accepting an offered Worktree plan is one. The other is a
+Save, file Rewind, edit, Worktree Fork, lease transfer, publication, and
+execution-target changes remain host operations. Owner links have three
+exceptions. Accepting an offered Worktree plan is one. Another is a
 Conversation Fork at a settled assistant response, which the projection names by
 its stable fork point. The host runs the native fork transaction with its
 admission checks, leaves the source session unchanged, and performs each request
 id at most once per admitted connection. Retries receive the recorded outcome.
+The third is a conversation history action: a conversation-only Rewind after a
+settled assistant response, named by its fork point and run through the ordinary
+Rewind transaction without a file plan, so working files are left alone; or a
+retry of a retained failed turn by its exact request identity. The browser
+confirms before sending, and the host validates without opening a prompt.
 Every guest frame is bound to its connection by a host challenge and a rising
 sequence number, so a relay cannot replay recorded frames on that connection or
 another.
@@ -190,6 +195,17 @@ browser push routing exposes endpoints. Bearer links authorize their holders,
 not named people; projected secrets and locally retained credentials remain
 within that deliberate sharing boundary. Untrusted artifact scripts must not
 inherit the viewer origin that holds decrypted content and credentials.
+
+Room-wide facts (status, agent roster, background work, tasks and Goal) are
+broadcast only when they change, so a joining guest must be sent each current
+one explicitly. Each fact keeps its own change check and the hello sequence
+lists them explicitly. A shared fact table for both was rejected as a
+preventive change with no reproduced drift. Only three of the checks are
+identical, while status re-sends recovery state when it changes and background
+work ignores terminal ages when detecting change. Publication and hello also
+differ in order and per-step error containment. Instead, a reconnect test
+covers every latched room fact, including explicitly empty ones, and grows
+with each new latched fact.
 
 ## Decision history
 
@@ -340,6 +356,13 @@ The following changes belong to ADR 0099 unless another ID is named.
   connection. A failed room start had also left the published child's buffer
   live; the host now discards the live child but keeps the saved fork for the
   owner who asked for it.
+- **Owner history actions (recorded 2026-11-27):** after the Conversation Fork,
+  owner links gained conversation-only Rewind and failed-turn retry. This record
+  still listed Rewind as host-only with two exceptions until a sweep review
+  compared it with `niwa-collaboration--handle-history-action` and the
+  collaboration manual. Conversation-only Rewind keeps the earlier reason for
+  leaving file Rewind in Emacs, because it never changes working files. Emacs
+  Redo can restore the discarded conversation.
 - **Connection-bound guest frames, 2026-11-14:** the per-connection request-id
   ledger stopped repeats only within one connection. An audit and an ERT
   reproduction showed that a relay recording an owner's `hello` and a
