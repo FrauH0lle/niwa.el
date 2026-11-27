@@ -761,17 +761,10 @@ value's shape themselves."
       (error nil))))
 
 (defun niwa--write-private-data-file (path value)
-  "Write VALUE readably to the data file PATH, readable only by this user.
-Missing directories are created.  An existing file is replaced, since
-file modes apply when a file is created."
-  (make-directory (file-name-directory path) t)
-  (when (file-exists-p path)
-    (delete-file path))
-  (with-file-modes #o600
-    (with-temp-file path
-      (let ((print-length nil)
-            (print-level nil))
-        (prin1 value (current-buffer))))))
+  "Atomically write VALUE readably to PATH, readable only by this user."
+  (let ((print-length nil)
+        (print-level nil))
+    (niwa--write-file-atomically path (prin1-to-string value) nil #o600)))
 
 
 ;;

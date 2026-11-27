@@ -566,6 +566,64 @@ parent session's room, reached through the side data buffer's parent."
           (base64-decode-string padded)
         (error nil)))))
 
+(defun niwa-collaboration--read-credentials (path &optional owner)
+  "Return the valid room credentials stored at PATH, or nil.
+When OWNER is non-nil, also require and return the owner token."
+  (when-let* ((stored (niwa--read-data-file path))
+              ((proper-list-p stored))
+              (room-id (plist-get stored :room-id))
+              ((stringp room-id))
+              ((string-match-p "\\`[A-Za-z0-9_-]\\{10,64\\}\\'" room-id))
+              (key (niwa-collaboration--base64url-decode
+                    (plist-get stored :key)))
+              (write-token (niwa-collaboration--base64url-decode
+                            (plist-get stored :write-token)))
+              ((= 32 (length key)))
+              ((= 16 (length write-token))))
+    (let ((credentials (list :room-id room-id :key key :write-token write-token)))
+      (if (not owner) credentials
+        (when-let* ((token (niwa-collaboration--base64url-decode
+                            (plist-get stored :owner-token)))
+                    ((= 16 (length token))))
+          (append credentials (list :owner-token token)))))))
+
+(defun niwa-collaboration--credentials (path &optional owner rotate)
+  "Read credentials at PATH or mint them.  ROTATE forces fresh credentials.
+Include an owner token only for rooms with OWNER access."
+  (or (and (not rotate) (niwa-collaboration--read-credentials path owner))
+      (let* ((room-id (niwa-collaboration--base64url (niwa-collaboration--random-bytes 16)))
+             (key (niwa-collaboration--random-bytes 32))
+             (write-token (niwa-collaboration--random-bytes 16))
+             (owner-token (and owner (niwa-collaboration--random-bytes 16))))
+        (niwa--write-private-data-file
+         path (append (list :room-id room-id :key (niwa-collaboration--base64url key)
+                            :write-token (niwa-collaboration--base64url write-token))
+                      (and owner (list :owner-token (niwa-collaboration--base64url owner-token)))))
+        (append (list :room-id room-id :key key :write-token write-token)
+                (and owner (list :owner-token owner-token))))))
+
+(defun niwa-collaboration--recorded-roots (path)
+  "Return the workspace roots stored at PATH, or nil for an unreadable record."
+  (let ((stored (niwa--read-data-file path)))
+    (when (proper-list-p stored)
+      (seq-filter #'stringp stored))))
+
+(defun niwa-collaboration--record-root (path root running kind)
+  "Record whether ROOT should restart in PATH.  KIND labels write errors."
+  (let* ((roots (niwa-collaboration--recorded-roots path))
+         (updated (if running
+                      (if (member root roots) roots (append roots (list root)))
+                    (remove root roots))))
+    (unless (equal updated roots)
+      (condition-case err
+          (if updated (niwa--write-private-data-file path updated)
+            (delete-file path))
+        (error
+         (niwa-diagnostic-warning
+          root 'niwa
+          (format "Could not record the %s of %s for the next start: %s"
+                  kind root (error-message-string err))))))))
+
 (defun niwa-collaboration--links
     (web-origin room-id key write-token owner-token)
   "Return the view, full and owner links for ROOM-ID at WEB-ORIGIN.

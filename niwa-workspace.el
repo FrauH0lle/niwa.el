@@ -313,6 +313,16 @@ registry, creating one lazily if needed."
                (name (when name-fn (funcall name-fn id))))
           (niwa-workspace-get-or-create type id root name)))))))
 
+(defun niwa-workspace-for-directory (directory)
+  "Return the workspace DIRECTORY belongs to, or signal `user-error'."
+  (let ((dir (file-name-as-directory (expand-file-name directory))))
+    (unless (file-directory-p dir)
+      (user-error "%s is not a directory" dir))
+    (or (with-temp-buffer
+          (setq default-directory dir)
+          (niwa-workspace))
+        (user-error "No niwa workspace at %s" dir))))
+
 (defun niwa-workspace-current ()
   "Return the current buffer's workspace for a command, or signal `user-error'."
   (or (niwa-workspace) (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "No niwa workspace here")))

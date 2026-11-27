@@ -288,7 +288,8 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
   (niwa-collaboration-lobby-test--with-root root
     (let* ((workspace (niwa-collaboration-lobby-test--workspace root))
            (path (niwa-collaboration-lobby--credentials-path workspace))
-           (first (niwa-collaboration-lobby--credentials workspace)))
+           (first (let ((print-length 7))
+                    (niwa-collaboration-lobby--credentials workspace))))
       (should (equal (file-name-concat root ".niwa/" "lobby") path))
       (should (= #o600 (file-modes path)))
       (should (= 32 (length (plist-get first :key))))
@@ -862,9 +863,9 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
       (should (= 1234 (plist-get lobby :last-guest-departure))))
     (should (= 0 (hash-table-count guests)))))
 
-(niwa-deftest niwa-collaboration-lobby--workspace
+(niwa-deftest niwa-workspace-for-directory
   (:doc "refuses a directory that does not exist")
-  (should-error (niwa-collaboration-lobby--workspace
+  (should-error (niwa-workspace-for-directory
                  "/nonexistent/niwa-lobby/")
                 :type 'user-error))
 
@@ -888,7 +889,7 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
           (workspace (niwa-collaboration-lobby-test--workspace root))
           (sleep-updates 0)
           opened stopped announced)
-      (cl-letf (((symbol-function 'niwa-collaboration-lobby--workspace)
+      (cl-letf (((symbol-function 'niwa-workspace-for-directory)
                  (lambda (_directory) workspace))
                 ((symbol-function 'niwa-sleep-update)
                  (lambda () (cl-incf sleep-updates)))
@@ -1002,7 +1003,8 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
       (cl-letf (((symbol-function 'niwa-collaboration--transport-stop)
                  (lambda (transport) (push transport stopped))))
         (dolist (root '("/a/" "/b/"))
-          (niwa-collaboration-lobby--set-intended root t)
+          (let ((print-length 1))
+            (niwa-collaboration-lobby--set-intended root t))
           (puthash root
                    (niwa-collaboration-lobby-test--lobby
                     (niwa-collaboration-lobby-test--workspace root)
@@ -1150,7 +1152,7 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
           (workspace (niwa-collaboration-lobby-test--workspace root)))
       (cl-letf (((symbol-function 'niwa-workspace)
                  (lambda (&optional _buffer) workspace))
-                ((symbol-function 'niwa-collaboration-lobby--workspace)
+                ((symbol-function 'niwa-workspace-for-directory)
                  (lambda (_directory) workspace))
                 ((symbol-function 'niwa-collaboration--transport-open)
                  (lambda (url &rest _) (list :url url)))
@@ -1185,7 +1187,7 @@ MESSAGE, when non-nil, is the refusal the guest must receive."
           presented opened)
       (cl-letf (((symbol-function 'niwa-workspace)
                  (lambda (&optional _buffer) workspace))
-                ((symbol-function 'niwa-collaboration-lobby--workspace)
+                ((symbol-function 'niwa-workspace-for-directory)
                  (lambda (_directory) workspace))
                 ((symbol-function 'niwa-collaboration--transport-open)
                  (lambda (url &rest _) (push url opened) (list :url url)))

@@ -199,57 +199,14 @@
   "Return the valid lobby credentials stored at PATH, or nil.
 The result is a plist of `:room-id' and the unibyte `:key',
 `:write-token' and `:owner-token'."
-  (when-let* (((file-readable-p path))
-              (stored (condition-case nil
-                          (with-temp-buffer
-                            (insert-file-contents path)
-                            (read (current-buffer)))
-                        (error nil)))
-              ((proper-list-p stored))
-              (room-id (plist-get stored :room-id))
-              ((stringp room-id))
-              ((string-match-p "\\`[A-Za-z0-9_-]\\{10,64\\}\\'" room-id))
-              (key (niwa-collaboration--base64url-decode
-                    (plist-get stored :key)))
-              (write-token (niwa-collaboration--base64url-decode
-                            (plist-get stored :write-token)))
-              (owner-token (niwa-collaboration--base64url-decode
-                            (plist-get stored :owner-token)))
-              ((= 32 (length key)))
-              ((= 16 (length write-token)))
-              ((= 16 (length owner-token))))
-    (list :room-id room-id :key key
-          :write-token write-token :owner-token owner-token)))
+  (niwa-collaboration--read-credentials path t))
 
 (defun niwa-collaboration-lobby--credentials (workspace &optional rotate)
   "Return WORKSPACE's lobby credentials, creating them when needed.
 Missing or unreadable credentials are generated and stored, readable
 only by this user.  ROTATE replaces stored ones, which revokes every
 link made from them."
-  (let ((path (niwa-collaboration-lobby--credentials-path workspace)))
-    (or (and (not rotate)
-             (niwa-collaboration-lobby--read-credentials path))
-        (let ((credentials
-               (list :room-id (niwa-collaboration--base64url
-                               (niwa-collaboration--random-bytes 16))
-                     :key (niwa-collaboration--random-bytes 32)
-                     :write-token (niwa-collaboration--random-bytes 16)
-                     :owner-token (niwa-collaboration--random-bytes 16))))
-          (make-directory (file-name-directory path) t)
-          ;; The modes apply on creation only, so an old file goes first.
-          (when (file-exists-p path)
-            (delete-file path))
-          (with-file-modes #o600
-            (with-temp-file path
-              (prin1 (list :room-id (plist-get credentials :room-id)
-                           :key (niwa-collaboration--base64url
-                                 (plist-get credentials :key))
-                           :write-token (niwa-collaboration--base64url
-                                         (plist-get credentials :write-token))
-                           :owner-token (niwa-collaboration--base64url
-                                         (plist-get credentials :owner-token)))
-                     (current-buffer))))
-          credentials))))
+  (niwa-collaboration--credentials (niwa-collaboration-lobby--credentials-path workspace) t rotate))
 
 
 ;;
@@ -340,37 +297,14 @@ If its damaged file cannot be quarantined privately, nil disables mutations."
 (defun niwa-collaboration-lobby--intended ()
   "Return the workspace roots whose lobbies should be running.
 An unreadable or malformed record yields nil."
-  (let ((path (niwa-collaboration-lobby--intent-path)))
-    (when-let* (((file-readable-p path))
-                (stored (condition-case nil
-                            (with-temp-buffer
-                              (insert-file-contents path)
-                              (read (current-buffer)))
-                          (error nil)))
-                ((proper-list-p stored)))
-      (seq-filter #'stringp stored))))
+  (niwa-collaboration--recorded-roots (niwa-collaboration-lobby--intent-path)))
 
 (defun niwa-collaboration-lobby--set-intended (root running)
   "Record whether the lobby of workspace ROOT is RUNNING.
 A recorded lobby is restarted when Emacs next starts.  A record that
 cannot be written is reported, since the lobby itself is unaffected."
-  (let* ((roots (niwa-collaboration-lobby--intended))
-         (updated (if running
-                      (if (member root roots) roots (append roots (list root)))
-                    (remove root roots)))
-         (path (niwa-collaboration-lobby--intent-path)))
-    (unless (equal updated roots)
-      (condition-case err
-          (if (null updated)
-              (delete-file path)
-            (make-directory (file-name-directory path) t)
-            (with-temp-file path
-              (prin1 updated (current-buffer))))
-        (error
-         (niwa-diagnostic-warning
-          root 'niwa
-          (format "Could not record the lobby of %s for the next start: %s"
-                  root (error-message-string err))))))))
+  (niwa-collaboration--record-root
+   (niwa-collaboration-lobby--intent-path) root running "lobby"))
 
 (defun niwa-collaboration-lobby-restore ()
   "Restart the lobbies that were running when Emacs last exited.
@@ -904,16 +838,6 @@ rejoins with a fresh hello after a drop."
 It is read from memory, so status displays may call it freely."
   (and workspace (niwa-collaboration-lobby--find workspace) t))
 
-(defun niwa-collaboration-lobby--workspace (directory)
-  "Return the workspace DIRECTORY belongs to, or signal `user-error'."
-  (let ((dir (file-name-as-directory (expand-file-name directory))))
-    (unless (file-directory-p dir)
-      (user-error "%s is not a directory" dir))
-    (or (with-temp-buffer
-          (setq default-directory dir)
-          (niwa-workspace))
-        (user-error "No niwa workspace at %s" dir))))
-
 (defun niwa-collaboration-lobby-start (directory)
   "Start the lobby for DIRECTORY's workspace and return it.
 Return the live lobby when one is already running.  The returned plist
@@ -930,7 +854,7 @@ until it is stopped."
   (require 'niwa-collaboration-transport)
   (unless (require 'websocket nil t)
     (user-error "Collaboration requires the 'websocket' package; install it first"))
-  (let* ((workspace (niwa-collaboration-lobby--workspace directory))
+  (let* ((workspace (niwa-workspace-for-directory directory))
          (root (niwa-workspace-root workspace)))
     (or (niwa-collaboration-lobby--find workspace)
         (let* ((origins (niwa-collaboration--relay-origins))

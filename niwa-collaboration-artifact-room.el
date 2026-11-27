@@ -102,41 +102,12 @@
 ;;
 ;;; Credentials
 
-(defun niwa-collaboration-artifact-room--read-credentials (path)
-  "Return the valid artifact room credentials stored at PATH, or nil.
-The result is a plist of `:room-id' and the unibyte `:key' and
-`:write-token'."
-  (when-let* ((stored (niwa--read-data-file path))
-              ((proper-list-p stored))
-              (room-id (plist-get stored :room-id))
-              ((stringp room-id))
-              ((string-match-p "\\`[A-Za-z0-9_-]\\{10,64\\}\\'" room-id))
-              (key (niwa-collaboration--base64url-decode
-                    (plist-get stored :key)))
-              (write-token (niwa-collaboration--base64url-decode
-                            (plist-get stored :write-token)))
-              ((= 32 (length key)))
-              ((= 16 (length write-token))))
-    (list :room-id room-id :key key :write-token write-token)))
-
 (defun niwa-collaboration-artifact-room--credentials (workspace id)
   "Return the credentials of WORKSPACE's artifact ID, minting them if needed.
 Missing or unreadable credentials are generated and stored readable only
 by this user; existing ones are returned unchanged, so sharing again
 keeps every link working."
-  (let ((path (niwa-artifact-store-link-path workspace id)))
-    (or (niwa-collaboration-artifact-room--read-credentials path)
-        (let ((credentials
-               (list :room-id (niwa-collaboration--base64url
-                               (niwa-collaboration--random-bytes 16))
-                     :key (niwa-collaboration--random-bytes 32)
-                     :write-token (niwa-collaboration--random-bytes 16))))
-          (niwa--write-private-data-file
-           path (list :room-id (plist-get credentials :room-id)
-                      :key (niwa-collaboration--base64url (plist-get credentials :key))
-                      :write-token (niwa-collaboration--base64url
-                                    (plist-get credentials :write-token))))
-          credentials))))
+  (niwa-collaboration--credentials (niwa-artifact-store-link-path workspace id)))
 
 (defun niwa-collaboration-artifact-room--links (web-origin credentials)
   "Return the view and edit links of CREDENTIALS at WEB-ORIGIN.
@@ -160,31 +131,15 @@ link's secret is the view link's followed by the write token."
 (defun niwa-collaboration-artifact-room--recorded ()
   "Return the workspace roots recorded to have shared artifacts.
 An unreadable or malformed record yields nil."
-  (let ((stored (niwa--read-data-file
-                 (niwa-collaboration-artifact-room--record-path))))
-    (when (proper-list-p stored)
-      (seq-filter #'stringp stored))))
+  (niwa-collaboration--recorded-roots (niwa-collaboration-artifact-room--record-path)))
 
 (defun niwa-collaboration-artifact-room--set-recorded (root shared)
   "Record whether workspace ROOT has SHARED artifacts.
 A recorded root's shared artifacts are shared again when niwa next
 starts.  A record that cannot be written is reported, since sharing
 itself is unaffected."
-  (let* ((roots (niwa-collaboration-artifact-room--recorded))
-         (updated (if shared
-                      (if (member root roots) roots (append roots (list root)))
-                    (remove root roots)))
-         (path (niwa-collaboration-artifact-room--record-path)))
-    (unless (equal updated roots)
-      (condition-case err
-          (if (null updated)
-              (delete-file path)
-            (niwa--write-private-data-file path updated))
-        (error
-         (niwa-diagnostic-warning
-          root 'niwa
-          (format "Could not record the shared artifacts of %s for the next start: %s"
-                  root (error-message-string err))))))))
+  (niwa-collaboration--record-root
+   (niwa-collaboration-artifact-room--record-path) root shared "shared artifacts"))
 
 (defun niwa-collaboration-artifact-room--shared-ids (workspace)
   "Return the ids of WORKSPACE's artifacts that hold valid credentials."
@@ -194,7 +149,7 @@ itself is unaffected."
        (lambda (id)
          (and (niwa-artifact-store-id-p id)
               (niwa-artifact-store-meta workspace id)
-              (niwa-collaboration-artifact-room--read-credentials
+              (niwa-collaboration--read-credentials
                (niwa-artifact-store-link-path workspace id))))
        (directory-files state nil "\\`[A-Za-z0-9_-]+\\'")))))
 
@@ -220,7 +175,7 @@ stays recorded for the next start."
                 (niwa-diagnostic-warning
                  root 'niwa (format "Shared artifacts of %s forgotten: the directory is gone"
                                   root)))
-            (let* ((workspace (niwa-collaboration-artifact-room--workspace root))
+            (let* ((workspace (niwa-workspace-for-directory root))
                    (ids (niwa-collaboration-artifact-room--shared-ids workspace)))
               (unless ids
                 (niwa-collaboration-artifact-room--set-recorded root nil))
@@ -876,16 +831,6 @@ room's working stretch."
 ;;
 ;;; Lifecycle
 
-(defun niwa-collaboration-artifact-room--workspace (directory)
-  "Return the workspace DIRECTORY belongs to, or signal `user-error'."
-  (let ((dir (file-name-as-directory (expand-file-name directory))))
-    (unless (file-directory-p dir)
-      (user-error "%s is not a directory" dir))
-    (or (with-temp-buffer
-          (setq default-directory dir)
-          (niwa-workspace))
-        (user-error "No niwa workspace at %s" dir))))
-
 (defconst niwa-collaboration-artifact-room--kinds '(whiteboard document html)
   "Kinds of artifact that can be shared through an artifact link.")
 
@@ -1058,7 +1003,7 @@ the form WEB-ORIGIN/#ROOM-ID.SECRET that reach only this artifact.
 Sharing an artifact that is already shared returns its existing links.
 An Emacs daemon shares this way, for example through emacsclient."
   (niwa-collaboration-artifact-room-sharing
-   (niwa-collaboration-artifact-room--workspace directory) id 'share))
+   (niwa-workspace-for-directory directory) id 'share))
 
 ;;;###autoload
 (defun niwa-collaboration-artifact-room-revoke (directory id)
@@ -1068,7 +1013,7 @@ artifact's links stop working for good.  Sharing it again mints new
 ones.  An Emacs daemon revokes this way, for example through
 emacsclient."
   (niwa-collaboration-artifact-room-sharing
-   (niwa-collaboration-artifact-room--workspace directory) id 'revoke))
+   (niwa-workspace-for-directory directory) id 'revoke))
 
 ;;;###autoload
 (defun niwa-collaboration-artifact-room-rotate (directory id)
@@ -1077,7 +1022,7 @@ This revokes the old links, as `niwa-collaboration-artifact-room-revoke'
 does, and shares the artifact again.  The result is a plist of
 `:link-view' and `:link-edit'."
   (niwa-collaboration-artifact-room-sharing
-   (niwa-collaboration-artifact-room--workspace directory) id 'rotate))
+   (niwa-workspace-for-directory directory) id 'rotate))
 
 (defconst niwa-collaboration-artifact-room--links-buffer
   "*niwa artifact links*"

@@ -721,6 +721,27 @@ every byte and error.  Other files are read normally."
           (niwa--write-private-data-file path '("/c"))
           (should (= #o600 (file-modes path)))
           (should (equal '("/c") (niwa--read-data-file path))))
+      (delete-directory directory t)))
+
+  :doc "a failed replacement preserves the private record byte for byte"
+  (let* ((directory (make-temp-file "niwa-private-record-" t))
+         (path (file-name-concat directory "record.eld"))
+         staging-mode)
+    (unwind-protect
+        (progn
+          (with-file-modes #o600 (with-temp-file path (insert "(old)\n")))
+          (cl-letf (((symbol-function 'write-region)
+                     (lambda (_start _end file &rest _)
+                       (setq staging-mode (file-modes file))
+                       (signal 'file-error '("Disk full")))))
+            (should-error (niwa--write-private-data-file path '(new)) :type 'file-error))
+          (should (equal "(old)\n" (with-temp-buffer
+                                     (insert-file-contents-literally path)
+                                     (buffer-string))))
+          (should (= #o600 (file-modes path)))
+          (should (= #o600 staging-mode))
+          (should (equal '("record.eld")
+                         (directory-files directory nil directory-files-no-dot-files-regexp))))
       (delete-directory directory t))))
 
 (niwa-deftest niwa--read-data-file ()

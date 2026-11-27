@@ -1552,7 +1552,7 @@ or lobby plist and the stub relay's port."
            room)
       (cl-letf (((symbol-function 'niwa-sleep-update) #'ignore)
                 ((symbol-function 'niwa-collaboration--announce-lobby) #'ignore)
-                ((symbol-function 'niwa-collaboration-lobby--workspace)
+                ((symbol-function 'niwa-workspace-for-directory)
                  (lambda (_directory) workspace))
                 ;; A room's hello also sends the transcript snapshot, which
                 ;; this bare room has none of; admission is what matters.
