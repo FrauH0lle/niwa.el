@@ -9,6 +9,7 @@
 ;;; Code:
 
 (require 'niwa-report)
+(require 'niwa-theme-faces)
 
 (eval-when-compile
   (require 'cl-lib)
@@ -87,13 +88,7 @@
 
 (defun niwa-tools-list--status-cell (state)
   "Return the propertized table status cell for STATE."
-  (let ((label (symbol-name state)))
-    (propertize
-     label 'face
-     (pcase state
-       ('active 'success)
-       ('discoverable 'shadow)
-       (_ 'default)))))
+  (niwa-state-cell (symbol-name state)))
 
 (defun niwa-tools-list--item-id (item)
   "Return stable tabulated row id for ITEM."

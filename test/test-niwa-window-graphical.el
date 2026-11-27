@@ -19,6 +19,7 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
 (require 'niwa-note-frame)
+(require 'niwa-permission-prompt)
 (require 'niwa-menu)
 (require 'niwa-recovery)
 (require 'niwa-report)
@@ -27,6 +28,7 @@
 (require 'niwa-theme-faces)
 (require 'niwa-view)
 (require 'niwa-view-composer)
+(require 'niwa-view-interaction)
 (require 'niwa-view-pair)
 (require 'niwa-window)
 (require 'transient)
@@ -460,5 +462,65 @@ body height and composer draft."
         (set-face-attribute 'default parent :foreground (nth 0 saved)
                             :background (nth 1 saved))
         (run-hook-with-args 'enable-theme-functions 'border-test)))))
+;; Batch Emacs resolves colours through the terminal map, so the contrast of
+;; a rendered card can only be measured on a display.
+(niwa-deftest niwa-view-panel-dim ()
+  ,test
+  (test)
+  :doc "dim text on a permission card clears the contrast floor against the card"
+  (progn
+    (skip-unless (display-graphic-p))
+    (let ((saved (list (face-attribute 'default :foreground)
+                       (face-attribute 'default :background)
+                       (face-attribute 'shadow :foreground))))
+      (unwind-protect
+          ;; Default foreground, background and `shadow' of the stock light
+          ;; theme, modus-vivendi and doom-one.
+          (pcase-dolist (`(,theme ,foreground ,background ,shadow)
+                         '((default "#000000" "#ffffff" "#7f7f7f")
+                           (modus-vivendi "#ffffff" "#000000" "#989898")
+                           (doom-one "#bbc2cf" "#282c34" "#5b6268")))
+            (ert-info ((format "Theme colours: %s" theme))
+              (set-face-attribute 'default nil :foreground foreground
+                                  :background background)
+              (set-face-attribute 'shadow nil :foreground shadow)
+              (run-hook-with-args 'enable-theme-functions 'panel-dim-test)
+              (niwa-view-test--with-buffers
+                (let (body)
+                  (cl-letf* ((register
+                              (symbol-function 'niwa-view--interaction-register))
+                             ((symbol-function 'niwa-view--interaction-register)
+                              (lambda (descriptor)
+                                (setq body (plist-get descriptor :body))
+                                (funcall register descriptor))))
+                    (with-current-buffer data-buf
+                      (niwa-permission-prompt-render
+                       (list :kind 'bash :origin "/root" :command "rm -rf build"
+                             :command-class 'dangerous
+                             :permission-mode-effective 'ask :permission-via 'mode)
+                       "/root" #'ignore 1)))
+                  (let ((panel (face-background 'niwa-view-panel nil t))
+                        (plain (face-foreground 'niwa-view-dim nil t)))
+                    ;; The action labels and the dimmed explanation.
+                    (dolist (text '("allow once" "deny session"
+                                    "Session/permanent allow is disabled"))
+                      (let* ((faces (ensure-list
+                                     (get-text-property (string-search text body)
+                                                        'font-lock-face body)))
+                             (label (face-foreground (car faces) nil t)))
+                        (should (memq 'niwa-view-panel-dim faces))
+                        (should (memq 'niwa-view-panel faces))
+                        (should (>= (niwa--contrast label panel)
+                                    niwa-muted-contrast))))
+                    ;; Control: the off-card dim colour is what failed on the
+                    ;; panel wherever the theme's shadow is near the floor.
+                    (unless (eq theme 'modus-vivendi)
+                      (should (< (niwa--contrast plain panel)
+                                 niwa-muted-contrast))))))))
+        (set-face-attribute 'default nil :foreground (nth 0 saved)
+                            :background (nth 1 saved))
+        (set-face-attribute 'shadow nil :foreground (nth 2 saved))
+        (run-hook-with-args 'enable-theme-functions 'panel-dim-test)))))
+
 (provide 'test-niwa-window-graphical)
 ;;; test-niwa-window-graphical.el ends here

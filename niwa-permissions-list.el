@@ -194,8 +194,10 @@ SCOPE `built-in' lists every built-in variable in NAME as one row."
   (list (niwa-permissions-list--label item)
         (vector
          (propertize (format "%s" (plist-get item :scope))
+                     ;; Wider authority reads heavier; `warning' as a text
+                     ;; colour is 2.3:1 on the stock light theme.
                      'face (if (memq (plist-get item :scope) '(workspace global))
-                               'warning
+                               'bold
                              'default))
          (format "%s" (plist-get item :kind))
          (format "%s" (plist-get item :access))

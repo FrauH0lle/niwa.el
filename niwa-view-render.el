@@ -2201,13 +2201,19 @@ every row."
                           "children"))
                 details))
         (setq details (nreverse details)))
-      (niwa-view--operation-line
-       (if notep "\u25c7" "!")
-       face
-       "Sandbox:"
-       (string-join details " · ")
-       nil
-       'niwa-view-tool-metadata))))
+      (let ((line (niwa-view--operation-line
+                   (if notep "\u25c7" "!")
+                   face
+                   "Sandbox:"
+                   (string-join details " · ")
+                   nil
+                   'niwa-view-tool-metadata)))
+        ;; A note annotates the call above it and must not read louder
+        ;; than that call; a warning keeps its full-contrast detail.
+        (when notep
+          (put-text-property 0 (length line)
+                             'font-lock-face 'niwa-view-tool-metadata line))
+        line))))
 
 (defun niwa-view--sandbox-unconfined-p (summary)
   "Return non-nil when sandbox SUMMARY says the call ran without confinement.

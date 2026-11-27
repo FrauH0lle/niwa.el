@@ -1749,7 +1749,7 @@
                               (eq (plist-get fragment :id) 'agents))
                             fragments))
       (should (string-match-p
-               (concat "\\` ─── background work · 1 agent · 2 commands \\[-\\] ─+\n"
+               (concat "\\`─── background work · 1 agent · 2 commands \\[-\\] ─+\n"
                        "  ▸ Running   agent    /root/child\n"
                        "  ▸ Running   bash     make test\n"
                        "  ▸ Running   bash     make lint · /root/child\n"

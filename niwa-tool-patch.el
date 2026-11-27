@@ -28,6 +28,7 @@
 (require 'niwa-file-state)
 (require 'niwa-pin)
 (require 'niwa-resource)
+(require 'niwa-theme-faces)
 (require 'niwa-utilities)
 
 ;; `diff'
@@ -1570,28 +1571,34 @@ Line counts include selected changes only.  The plist carries
     (_ 'font-lock-function-name-face)))
 
 (defface niwa-patch-review-added
-  '((((class color) (background light))
-     :inherit diff-added :background "#e2f5e2" :extend t)
-    (((class color) (background dark))
-     :inherit diff-added :background "#2c3a2c" :extend t)
-    (t :inherit diff-added :extend t))
+  '((t :inherit diff-added :extend t))
   "Face for added lines in an ApplyPatch review.
-Foreground comes from the theme's `diff-added'; the explicit background
-guarantees a whole-line tint even for themes that style diffs with
-foreground colors only."
+Foreground comes from the theme's `diff-added'.  `niwa--derive-theme-faces'
+keeps that face's background when it is visible and blends one from its
+colour otherwise, so themes that style diffs with foreground colours
+only still get a whole-line tint."
   :group 'niwa)
 
 (defface niwa-patch-review-removed
-  '((((class color) (background light))
-     :inherit diff-removed :background "#fbe9e9" :extend t)
-    (((class color) (background dark))
-     :inherit diff-removed :background "#3d2c2c" :extend t)
-    (t :inherit diff-removed :extend t))
+  '((t :inherit diff-removed :extend t))
   "Face for removed lines in an ApplyPatch review.
-Foreground comes from the theme's `diff-removed'; the explicit
-background guarantees a whole-line tint even for themes that style
-diffs with foreground colors only."
+Derived like `niwa-patch-review-added', from `diff-removed'."
   :group 'niwa)
+
+(pcase-dolist (`(,face ,diff ,fallback)
+               '((niwa-patch-review-added diff-added success)
+                 (niwa-patch-review-removed diff-removed error)))
+  (niwa--derive-theme-face
+   face
+   (lambda (foreground background)
+     (list :background
+           (niwa--panel-background
+            ;; `diff-mode' may not be loaded when the theme changes.
+            (and (facep diff) (face-background diff nil t))
+            (or (and (facep diff) (face-foreground diff nil t))
+                (face-foreground fallback nil t)
+                foreground)
+            background 0.15)))))
 
 (with-eval-after-load 'magit-diff
   ;; Magit's diff faces are usually themed more carefully than diff-mode's;

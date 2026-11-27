@@ -423,9 +423,10 @@
                             "Instructions None"))
               (should (string-match-p text body)))
             (should
+             ;; The card's gutter carries the frame colour.
              (memq 'niwa-view-plan-mode
-                   (flatten-tree
-                    (get-text-property 1 'font-lock-face body))))
+                   (get-text-property
+                    0 'face (get-text-property 1 'line-prefix body))))
             (should
              (memq 'niwa-test-block-bg
                    (flatten-tree

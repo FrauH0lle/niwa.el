@@ -145,7 +145,7 @@ Without NOTE, restore this session's hint during note conversation setup."
                  (niwa-notes-open (niwa-session-workspace session)))))
              (hint (propertize
                     (if waiting "C-c C-z close · C-c C-a apply · C-c C-g merge"
-                      "C-c C-z close") 'face 'shadow)))
+                      "C-c C-z close") 'face 'niwa-view-dim)))
         (with-current-buffer view
           (unless (equal hint niwa-view--input-hint)
             (setq-local niwa-view--input-hint hint)

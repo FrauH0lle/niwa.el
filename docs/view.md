@@ -1771,7 +1771,7 @@ narrower fringeless one its last column. With no window the selected window's
 width, fringeless, applies.
 
 ```text
- ─── background work · 1 blocked · 2 agents · 1 command · 1 monitor [-] ──
+─── background work · 1 blocked · 2 agents · 1 command · 1 monitor [-] ──
   ▸ Blocked   agent    /root/reviewer · 1m 05s · waiting for permission
   ▸ Running   agent    /root/counter · 35s · opus:medium
   ▸ Running   bash     Run test suite · 14m 07s
@@ -2009,13 +2009,34 @@ choreography during mutation, uniform composer/point/window preservation,
 reconciliation, stale-region recovery, collapse, and navigation. Producers
 retain their domain text and actions.
 
-Separator rules use a common width, four columns less than the narrowest window
-displaying the view, with a ten-column minimum. A rule sized for the widest
+Separator rules start at column 0 and use a common width, one column less than
+the narrowest window displaying the view, with a ten-column minimum, so they
+line up with the turn rule above them. A rule sized for the widest
 window wrapped onto three rows in a narrower split. Labels are truncated when
 necessary to leave room for the rule, including in narrow windows. If truncation
 would hide the background-work panel's `[+]`/`[-]` control, it replaces the
 rule's leading three dashes so the control remains clickable without changing
 the width.
+
+### Theme-derived faces
+
+`niwa-theme-faces.el` blends the view's quiet colours from the active theme and
+reapplies them when the theme changes; nothing is computed during redisplay.
+Secondary text (metadata, hints, labels) inherits `niwa-view-dim`, which is
+the theme's `shadow` wherever that clears `niwa-muted-contrast` and a muted
+foreground otherwise. Folded content keeps the dimmer `niwa-view-muted`. Cards
+such as permission prompts use `niwa-view-panel`; dim text inside a card uses
+`niwa-view-panel-dim`, derived against the panel instead of the default
+background. Code blocks and patch
+review tints keep the theme's own background when it is visible and get a
+blended one when it is not. Status colours (`warning`, `error`, `success`)
+mark a glyph, a gutter or a one-word state, not sentences: `warning` text is
+2.3:1 on the stock light theme. A user or theme setting on any of these faces
+wins over the derivation.
+
+Interaction cards (permission, plan, control transfer) add no rows of their
+own: a gutter bar in the card's colour marks each row, and key hints share one
+format, `KEY label · KEY label`, from `niwa--prompt-keys`.
 
 ### Composer anchoring
 
@@ -2776,7 +2797,7 @@ I'll work on the changes.
 
   Agent: verifier -- review spinner layout [running · 1 call]
 
- ─── background work · 1 agent [-] ──────────────────────────────
+─── background work · 1 agent [-] ──────────────────────────────
   ▸ Running   agent    /root/verifier · opus:high
   [Manage]
 
@@ -2813,7 +2834,7 @@ I'll update the docs, run the focused checks, and ask before any risky action.
   Agent: explorer -- audit zone terminology [running · 3 calls]
   Agent: verifier -- check spinner ordering [blocked · waiting]
 
- ─── background work · 1 blocked · 2 agents [-] ─────────────────
+─── background work · 1 blocked · 2 agents [-] ─────────────────
   ▸ Blocked   agent    /root/verifier · waiting for permission
   ▸ Running   agent    /root/explorer · opus:medium
   [Manage]

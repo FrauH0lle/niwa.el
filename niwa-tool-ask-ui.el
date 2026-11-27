@@ -36,6 +36,8 @@
 (defvar niwa--prompt-overlays)
 (autoload 'niwa--prompt--data-buffer "niwa-interaction-prompt")
 (autoload 'niwa--prompt--register-canceller "niwa-interaction-prompt")
+(declare-function niwa--prompt-keys "niwa-interaction-prompt" (hints))
+(autoload 'niwa--prompt-keys "niwa-interaction-prompt")
 (autoload 'niwa--prompt--settle "niwa-interaction-prompt")
 (autoload 'niwa--prompt-announce "niwa-interaction-prompt")
 (autoload 'niwa--prompt-attribution-line "niwa-interaction-prompt")
@@ -156,10 +158,6 @@ and is deliberately not reused here."
                   (propertize niwa-tool-ask-ui--recommended-suffix
                               'font-lock-face 'success)))
       label)))
-
-(defun niwa-tool-ask-ui--key (key)
-  "Return KEY with a quiet, unboxed emphasis."
-  (propertize key 'font-lock-face 'default))
 
 
 ;;
@@ -965,15 +963,15 @@ Question jumps are only advertised when there is another question."
   (let ((text
          (concat
           "  "
-          (niwa-tool-ask-ui--key "n/p") " move  "
-          (when (> (niwa-tool-ask-ui--state-count state) 1)
-            (concat (niwa-tool-ask-ui--key "TAB") " question  "))
-          (niwa-tool-ask-ui--key "1-9") " focus  "
-          (niwa-tool-ask-ui--key "RET") " choose/toggle  "
-          (niwa-tool-ask-ui--key "c") " custom  "
-          (niwa-tool-ask-ui--key "C-c C-c") " submit  "
-          (niwa-tool-ask-ui--key "q") " cancel\n")))
-    (add-face-text-property 0 (length text) 'shadow t text)
+          (niwa--prompt-keys
+           (list '("n/p" . "move")
+                 (when (> (niwa-tool-ask-ui--state-count state) 1)
+                   '("TAB" . "question"))
+                 '("1-9" . "focus") '("RET" . "choose/toggle")
+                 '("c" . "custom") '("C-c C-c" . "submit") '("q" . "cancel")))
+          "\n")))
+    ;; The form focuses its first entry, not the hint row's RET.
+    (put-text-property 0 (length text) 'niwa-prompt-focus nil text)
     ;; Narrow windows wrap the hints; keep them under the first one.
     (propertize text 'wrap-prefix "  ")))
 

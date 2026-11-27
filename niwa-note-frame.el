@@ -241,13 +241,14 @@ already shows -- session name, workspace root, execution target, preset
        (propertize "◆ " 'face 'niwa-view-note-scope)
        (propertize (or id "note")
                    'face 'niwa-view-note-scope)
-       (propertize " · " 'face 'shadow)
-       (propertize (or state "idle") 'face 'shadow)
-       (propertize " · " 'face 'shadow)
-       (propertize (or model "model none") 'face 'shadow)
-       (propertize (format " · %d tool%s · C-c C-z close"
-                           tools (if (= tools 1) "" "s"))
-                   'face 'shadow)))))
+       (propertize " · " 'face 'niwa-view-dim)
+       (propertize (or state "idle") 'face 'niwa-view-dim)
+       (propertize " · " 'face 'niwa-view-dim)
+       (propertize (or model "model none") 'face 'niwa-view-dim)
+       ;; The close key is stated once, on the composer's hint row, which
+       ;; is also there when the conversation is not in this frame.
+       (propertize (format " · %d tool%s" tools (if (= tools 1) "" "s"))
+                   'face 'niwa-view-dim)))))
 
 
 ;;

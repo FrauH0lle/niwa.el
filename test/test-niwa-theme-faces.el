@@ -77,6 +77,113 @@ from it is meaningless."
       (should (< (niwa--contrast dim "#282c34")
                  (niwa--contrast bright "#282c34"))))))
 
+(niwa-deftest niwa--dim-color ()
+  ,test
+  (test)
+  :doc "replaces a shadow below the contrast floor with one that clears it"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    ;; doom-one: the theme's own shadow is the failing control.
+    (let ((dim (niwa--dim-color "#5b6268" "#bbc2cf" "#282c34")))
+      (should (< (niwa--contrast "#5b6268" "#282c34") niwa-muted-contrast))
+      (should (>= (niwa--contrast dim "#282c34") niwa-muted-contrast))))
+  :doc "keeps a shadow that already clears the floor"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    ;; modus-vivendi and the stock light theme.
+    (should-not (niwa--dim-color "#989898" "#ffffff" "#000000"))
+    (should-not (niwa--dim-color "#7f7f7f" "#000000" "#ffffff")))
+  :doc "derives a colour when the theme has no shadow colour"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    (should (>= (niwa--contrast (niwa--dim-color nil "#bbc2cf" "#282c34")
+                                "#282c34")
+                niwa-muted-contrast))))
+
+(niwa-deftest niwa--panel-background ()
+  ,test
+  (test)
+  :doc "keeps a themed background that is visible"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    (should (equal "#1e1e1e"
+                   (niwa--panel-background "#1e1e1e" "#ffffff" "#000000"))))
+  :doc "blends a visible one when the theme has none or a faint one"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    (dolist (theme '((nil "#000000" "#ffffff")          ; default: unset
+                     ("#23272e" "#bbc2cf" "#282c34")    ; doom-one: 1.07:1
+                     (nil "#ffffff" "#000000")))
+      (pcase-let* ((`(,themed ,foreground ,background) theme)
+                   (panel (niwa--panel-background themed foreground background)))
+        (when themed
+          (should (< (niwa--contrast themed background) 1.1)))
+        (should (< 1.1 (niwa--contrast panel background) 1.5)))))
+  :doc "follows the intensity"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    (should (< (niwa--contrast (niwa--panel-background nil "#98be65" "#282c34" 0.06)
+                               "#282c34")
+               (niwa--contrast (niwa--panel-background nil "#98be65" "#282c34" 0.15)
+                               "#282c34")))))
+
+(niwa-deftest niwa-state-cell ()
+  ,test
+  (test)
+  :doc "faces a state by what it asks of the user, whatever its case"
+  (pcase-dolist (`(,label . ,face)
+                 '(("Running" . success) ("active" . success)
+                   ("Blocked" . bold) ("paused" . bold) ("missing" . bold)
+                   ("failed" . error)
+                   ("Queued" . niwa-view-dim) ("discoverable" . niwa-view-dim)))
+    (let ((cell (niwa-state-cell label)))
+      (should (equal label cell))
+      (should (eq face (get-text-property 0 'face cell)))))
+  :doc "never colours a state as warning text"
+  (dolist (label '("Blocked" "Waiting" "Stopping" "paused" "pending" "stale"))
+    (should-not (eq 'warning (get-text-property 0 'face (niwa-state-cell label))))))
+
+(niwa-deftest niwa-view-panel-dim
+  (:vars ((default-background (face-attribute 'default :background nil))
+          (default-foreground (face-attribute 'default :foreground nil))
+          (shadow-foreground (face-attribute 'shadow :foreground nil))
+          (niwa--theme-derived-faces
+           (list (assq 'niwa-view-panel-dim niwa--theme-derived-faces))))
+   :before-each
+   (progn
+     (set-face-attribute 'default nil
+                         :foreground "#bbc2cf" :background "#282c34")
+     (set-face-attribute 'shadow nil :foreground "#5b6268"))
+   :after-each
+   (progn
+     (set-face-attribute 'default nil
+                         :foreground default-foreground
+                         :background default-background)
+     (set-face-attribute 'shadow nil :foreground shadow-foreground)
+     (put 'niwa-view-panel 'customized-face nil)
+     (set-face-attribute 'niwa-view-panel nil :background 'unspecified)
+     (set-face-attribute 'niwa-view-panel-dim nil :foreground 'unspecified)))
+  ,test
+  (test)
+  :doc "measures against a panel background the user customized"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    (let ((custom "#4a4f58"))
+      (put 'niwa-view-panel 'customized-face `((t :background ,custom)))
+      (set-face-attribute 'niwa-view-panel nil :background custom)
+      (niwa--derive-theme-faces)
+      ;; Control: the colour derived for the blended panel fails on this one.
+      (should (< (niwa--contrast
+                  (niwa--dim-color
+                   "#5b6268" "#bbc2cf"
+                   (niwa--panel-background nil "#bbc2cf" "#282c34"))
+                  custom)
+                 niwa-muted-contrast))
+      (should (>= (niwa--contrast
+                   (face-attribute 'niwa-view-panel-dim :foreground nil)
+                   custom)
+                  niwa-muted-contrast))))
+  :doc "measures against the blended panel otherwise"
+  (test-niwa-theme-faces--with-gui-colors 16777216
+    (niwa--derive-theme-faces)
+    (should (equal (niwa--dim-color
+                    "#5b6268" "#bbc2cf"
+                    (niwa--panel-background nil "#bbc2cf" "#282c34"))
+                   (face-attribute 'niwa-view-panel-dim :foreground nil)))))
+
 (niwa-deftest niwa--face-user-styled-p
   (:after-each
    (progn

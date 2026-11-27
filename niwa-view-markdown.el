@@ -985,6 +985,9 @@ waits for the click, so a redraw does no target I/O."
                (niwa-view--source-block-font-lock-face face)))
             (setq pos next)))))))
 
+(define-button-type 'niwa-view-code-block-copy
+  'face 'niwa-view-source-block-language)
+
 (defun niwa-view--decorate-code-blocks-in-range (start end)
   "Render fenced Markdown code blocks as source panels in START..END."
   (let ((inhibit-read-only t))
@@ -1021,9 +1024,9 @@ waits for the click, so a redraw does no target I/O."
                (panel-padding-line (propertize "\n"
                                                 'font-lock-face
                                                 'niwa-view-source-block))
-               (header (concat label
-                               panel-padding-line
-                               panel-padding-line)))
+               ;; One tinted newline closes the label row, so the panel is
+               ;; a rectangle with the code directly under its label.
+               (header (concat label panel-padding-line)))
           (goto-char body-start)
           (insert header)
           (when carried
@@ -1036,6 +1039,10 @@ waits for the click, so a redraw does no target I/O."
            'follow-link t
            'help-echo "Copy code block"
            'niwa-view-code-block-range (cons body-start content-end)
+           ;; The default button type's face is `button', which wins
+           ;; wherever the face properties are not applied and cuts the
+           ;; panel background out of the label.
+           :type 'niwa-view-code-block-copy
            'font-lock-face 'niwa-view-source-block-language
            'mouse-face 'highlight
            'pointer 'hand)

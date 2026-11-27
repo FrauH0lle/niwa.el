@@ -14,6 +14,8 @@
 
 (eval-when-compile
   (require 'cl-lib))
+;; The card's panel and dim faces.
+(require 'niwa-theme-faces)
 
 ;; `niwa-turn'
 (declare-function niwa-current-origin "niwa-turn" ())
@@ -226,16 +228,23 @@ set on materialized interaction-zone descriptor text."
       (niwa--prompt--settle overlay (cons 'feedback feedback)))))
 
 (defun niwa--prompt-framed-body (content face)
-  "Return CONTENT inside the standard interaction prompt frame.
-FACE is inherited by the top and bottom rule lines."
-  (let ((body
-         (concat
-          "\n"
-          (propertize "\n" 'font-lock-face
-                      `(:inherit ,face :underline t :extend t))
-          content
-          (propertize "\n" 'font-lock-face
-                      `(:inherit ,face :underline t :extend t)))))
+  "Return CONTENT as a standard interaction prompt card.
+A gutter bar in FACE marks every row, wrapped ones included, and the
+theme-derived panel tint sets the card apart.  The card adds no rows of
+its own: a prompt should cost what its content costs."
+  (let* ((body (concat content))
+         (bar (propertize "▎ " 'face (list face (niwa--prompt-block-face)))))
+    (add-text-properties 0 (length body)
+                         (list 'line-prefix bar 'wrap-prefix bar) body)
+    ;; Dim text is derived against the default background; on the panel
+    ;; it needs the face derived against the panel.
+    (let ((pos 0) next)
+      (while pos
+        (setq next (next-single-property-change pos 'font-lock-face body))
+        (when (eq 'niwa-view-dim (get-text-property pos 'font-lock-face body))
+          (put-text-property pos (or next (length body))
+                             'font-lock-face 'niwa-view-panel-dim body))
+        (setq pos next)))
     (font-lock-append-text-property
      0 (length body) 'font-lock-face (niwa--prompt-block-face) body)
     body))
@@ -245,13 +254,22 @@ FACE is inherited by the top and bottom rule lines."
   (cond
    ((derived-mode-p 'org-mode) 'org-block)
    ((derived-mode-p 'markdown-mode) 'markdown-code-face)
-   (t `(:background ,(face-attribute 'mode-line-inactive :background)
-         :extend t))))
+   (t 'niwa-view-panel)))
 
 (defun niwa--prompt-key (key)
   "Return propertized KEY for prompt key-help rows."
   (propertize key 'font-lock-face 'help-key-binding
               'niwa-prompt-focus (equal key "RET")))
+
+(defun niwa--prompt-keys (hints)
+  "Return one key-help row for HINTS, a list of (KEY . LABEL) or nil.
+Every prompt states its keys the same way: the key in `help-key-binding',
+its label dimmed, entries separated by a middle dot."
+  (mapconcat (lambda (hint)
+               (concat (niwa--prompt-key (car hint)) " "
+                       (propertize (cdr hint) 'font-lock-face 'niwa-view-dim)))
+             (delq nil (copy-sequence hints))
+             (propertize " · " 'font-lock-face 'niwa-view-dim)))
 
 (defun niwa--prompt-attribution-line (origin)
   "Return a standard attribution line for canonical ORIGIN."
@@ -292,20 +310,14 @@ only owner-link guests."
          (body
           (niwa--prompt-framed-body
            (concat
-            (propertize (format "%s\n" title)
-                        'font-lock-face '(:inherit bold :inherit warning))
+            (propertize (format "%s\n" title) 'font-lock-face 'bold)
             (niwa--prompt-attribution-line origin)
-            "\n"
             content
-            "\n\n"
-            (propertize (format "%s\n\n" question) 'font-lock-face 'bold)
-            (propertize "Keys: " 'font-lock-face 'help-key-binding)
-            (niwa--prompt-key "RET")
-            " approve  "
-            (niwa--prompt-key "d")
-            " deny  "
-            (niwa--prompt-key "f")
-            " feedback\n")
+            "\n"
+            (propertize (format "%s\n" question) 'font-lock-face 'bold)
+            (niwa--prompt-keys
+             '(("RET" . "approve") ("d" . "deny") ("f" . "feedback")))
+            "\n")
            'warning))
          (keymap
           (define-keymap

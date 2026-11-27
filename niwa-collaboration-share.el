@@ -51,7 +51,13 @@ and walks away with write authority."
          ;; the code, never the share.
          (code (condition-case error-data
                    (if (fboundp 'qrencode)
-                       (propertize (qrencode link) 'face '(:height 1.6))
+                       ;; Scanners need dark modules on a light ground, so this is
+                       ;; the one fixed colour pair: under a dark theme the
+                       ;; code came out inverted.  `qrencode' supplies the
+                       ;; quiet zone, which the white ground makes visible.
+                       (propertize (qrencode link)
+                                   'face '(:height 1.6 :foreground "black"
+                                           :background "white"))
                      (error "QR encoder unavailable"))
                  (error
                   (propertize
@@ -59,9 +65,9 @@ and walks away with write authority."
                            (error-message-string error-data))
                    'face 'shadow)))))
     (concat
-     (propertize (format "* Share: %s\n\n" (plist-get room :session-label))
+     (propertize (format "Share: %s\n\n" (plist-get room :session-label))
                  'face 'outline-1)
-     (propertize "** Access\n\n" 'face 'outline-2)
+     (propertize "Access\n\n" 'face 'outline-2)
      (pcase which
        ('owner
         (propertize
@@ -77,10 +83,10 @@ and walks away with write authority."
      "\n"
      ;; Scaled so a phone camera resolves the half-block modules from a
      ;; normal viewing distance.
-     (propertize "** Scan\n\n" 'face 'outline-2)
+     (propertize "Scan\n\n" 'face 'outline-2)
      code
      "\n\n"
-     (propertize "** Link\n\n" 'face 'outline-2)
+     (propertize "Link\n\n" 'face 'outline-2)
      link
      "\n\n"
      (propertize
@@ -90,7 +96,7 @@ and walks away with write authority."
               "  ·  c copy view  ·  f copy full  ·  o copy owner"
               "  ·  q close\n"
               "Links are bearer credentials; treat them like secrets.")
-      'face 'shadow))))
+      'face 'niwa-view-dim))))
 
 (defun niwa-collaboration--share-next-tier (which)
   "Return the tier shown after WHICH when cycling the share buffer."

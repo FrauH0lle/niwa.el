@@ -18,6 +18,7 @@
 ;;; Code:
 
 (require 'niwa-report)
+(require 'niwa-theme-faces)
 
 (eval-when-compile
   (require 'cl-lib)
@@ -221,7 +222,7 @@ Artifacts shared through artifact links are marked `:shared'."
     (if (plist-get item :attached) "✓" "")
     (niwa-cockpit-number-cell (number-to-string (plist-get item :versions))
                                  (plist-get item :versions))
-    (if (plist-get item :missing) "missing"
+    (if (plist-get item :missing) (niwa-state-cell "missing")
       (format-time-string "%Y-%m-%d %H:%M" (plist-get item :modified)))
     (let ((size (or (plist-get item :size) 0)))
       (niwa-cockpit-number-cell (file-size-human-readable size) size))

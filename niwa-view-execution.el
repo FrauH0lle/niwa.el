@@ -1089,7 +1089,7 @@ panel's collapse toggle, `[-]' or `[+]' when COLLAPSED."
     ;; A narrow rule may clip the label.  Keep the toggle reachable by
     ;; replacing the rule's leading dashes.
     (unless (string-search toggle header)
-      (setq header (concat (substring header 0 1) toggle (substring header 4))))
+      (setq header (concat toggle (substring header 3))))
     (when-let* ((label (and (> blocked 0) (format "%d blocked" blocked)))
                 (start (string-search label header)))
       (add-text-properties start (+ start (length label))

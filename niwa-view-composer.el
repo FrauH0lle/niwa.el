@@ -664,8 +664,10 @@ their distinct labels."
     (setq niwa-composer--attention attention
           niwa-composer--attention-button
           (when attention
-            (propertize (concat " ⚠ " attention " ")
-                        'face 'warning
+            ;; Only the glyph is coloured: `warning' as a text colour is
+            ;; 2.3:1 on the stock light theme.
+            (propertize (concat (propertize " ⚠ " 'face 'warning)
+                                (propertize (concat attention " ") 'face 'bold))
                         'mouse-face 'highlight
                         'help-echo "mouse-1 or C-c C-j: visit the next pending card"
                         'local-map niwa-view--rail-attention-map)))))

@@ -370,8 +370,15 @@ durable publication for state that cannot have changed in between.")
   :group 'niwa)
 
 (defface niwa-view-header
-  '((t :inherit (bold shadow) :overline t :extend t))
+  '((t :inherit (bold niwa-view-dim) :overline t :extend t))
   "Face for the session header at the top of the view buffer."
+  :group 'niwa)
+
+(defface niwa-view-header-link
+  '((t :inherit link :underline nil :weight normal))
+  "Face for clickable status items in the view's header line.
+The link colour and the mouse highlight mark them as controls; a row of
+underlined items read louder than the transcript below it."
   :group 'niwa)
 
 (defface niwa-view-user-header
@@ -431,7 +438,7 @@ on the same row."
   :group 'niwa)
 
 (defface niwa-view-tool-metadata
-  '((t :inherit shadow))
+  '((t :inherit niwa-view-dim))
   "Face for line counts and secondary metadata in summaries."
   :group 'niwa)
 
@@ -487,8 +494,19 @@ on the same row."
 
 (defface niwa-view-source-block
   '((t :inherit org-block :foreground unspecified :extend t))
-  "Face for rendered Markdown source block panels."
+  "Face for rendered Markdown source block panels.
+`niwa--derive-theme-faces' keeps the theme's `org-block' background
+when it is visible and blends one otherwise: stock Emacs gives
+`org-block' none, so a code block had no panel at all."
   :group 'niwa)
+
+(niwa--derive-theme-face
+ 'niwa-view-source-block
+ (lambda (foreground background)
+   (list :background (niwa--panel-background
+                      (and (facep 'org-block)
+                           (face-background 'org-block nil t))
+                      foreground background))))
 
 (defface niwa-view-source-block-language
   '((t :inherit (italic font-lock-type-face niwa-view-source-block)))
@@ -496,7 +514,7 @@ on the same row."
   :group 'niwa)
 
 (defface niwa-view-spinner
-  '((t :inherit (bold font-lock-comment-face)))
+  '((t :inherit (bold niwa-view-dim)))
   "Face for the spinner status line."
   :group 'niwa)
 
@@ -527,7 +545,7 @@ rule inside a turn stays lighter than the rule that closes it."
    (list :overline (niwa--tint background foreground 0.15))))
 
 (defface niwa-view-input-prompt
-  '((t :inherit shadow :weight bold))
+  '((t :inherit niwa-view-dim :weight bold))
   "Face for the read-only `> ' prompt in the input zone."
   :group 'niwa)
 
@@ -552,12 +570,12 @@ rule inside a turn stays lighter than the rule that closes it."
   :group 'niwa)
 
 (defface niwa-view-zone-separator
-  '((t :inherit shadow))
+  '((t :inherit niwa-view-dim))
   "Face for status / interaction zone separator lines."
   :group 'niwa)
 
 (defface niwa-view-ephemeral
-  '((t :inherit shadow))
+  '((t :inherit niwa-view-dim))
   "Face for ephemeral progress, such as spinners and running tool markers."
   :group 'niwa)
 
@@ -1136,7 +1154,7 @@ not cancelled.  Native providers manage their own automatic compaction."
                     (niwa-menu-open area))))
     (define-key map [tab-line mouse-1] command)
     (propertize label
-                'face 'link
+                'face 'niwa-view-header-link
                 'mouse-face 'highlight
                 'help-echo help
                 'local-map map
@@ -1406,7 +1424,9 @@ When ARCHIVE is non-nil, POSITION is a source position in that segment."
        (if (string-search "%" text)
            (replace-regexp-in-string "%" "%%" text t t)
          text)
-       'face 'link 'mouse-face 'highlight
+       ;; The prompt is content, not a control: plain header text that
+       ;; highlights under the mouse.
+       'mouse-face 'highlight
        'help-echo "Jump to this prompt"
        'niwa-view-pinned-target (cons archive position)
        'local-map niwa-view--pinned-prompt-map))))
@@ -1477,7 +1497,7 @@ text layout changes: size, wrapping, text scale, line spacing or font."
                              (+ (string-width label)
                                 niwa-view-sticky-prompt-max-width))
                       window-width)))
-        (concat (propertize label 'face 'shadow)
+        (concat (propertize label 'face 'niwa-view-dim)
                 (niwa-view--pinned-prompt-button
                  (if local (cdr pinned) (plist-get pinned :preview))
                  (if local (car pinned) (plist-get pinned :pos))
@@ -1573,21 +1593,22 @@ when one of them changes."
                                          'face 'warning))
                         (when compaction
                           (if (eq compaction 'provider)
-                              (propertize "compact provider" 'face 'shadow
+                              (propertize "compact provider" 'face 'niwa-view-dim
                                           'help-echo "Automatic compaction is managed by the provider")
                             (let ((map (make-sparse-keymap)))
                               (define-key map [tab-line mouse-1]
                                           #'niwa-view-toggle-auto-compaction)
                               (propertize
                                (format "compact %s" compaction)
-                               'face 'link 'mouse-face 'highlight 'local-map map
+                               'face 'niwa-view-header-link
+                               'mouse-face 'highlight 'local-map map
                                'help-echo "Toggle automatic compaction for this open session"))))
                         (niwa-view--status-strip-button
                          mode 'mode "Open mode cockpit")
                         (propertize
                          state 'face (if (string= state "running")
                                          'success
-                                       'shadow))
+                                       'niwa-view-dim))
                         (and goal
                              (niwa-view--status-strip-button
                               (format "Goal %s · %d turns" goal-status goal-turns)
@@ -2125,9 +2146,11 @@ issue, so a stale control cannot dismiss a later failure with the same id."
 
 (defun niwa-view--zone-separator (label)
   "Return a propertized zone separator line for LABEL.
-Format: ` ─── LABEL ─── ' followed by enough box-drawing dashes
-to reach four columns less than `niwa-view-zone-width', the narrowest
-window displaying this buffer, then a trailing newline.  A rule sized
+Format: `─── LABEL ' followed by enough box-drawing dashes to reach
+one column less than `niwa-view-zone-width', the narrowest window
+displaying this buffer, then a trailing newline.  It starts at column 0
+and ends with the turn rule above it, so the view has one rule
+geometry; the spare column keeps the rule from wrapping.  A rule sized
 for a wider window wrapped onto two or three rows in a narrower one.
 The minimum width is ten columns; labels are truncated when necessary
 so all rules use the same width.
@@ -2139,8 +2162,8 @@ constructing composite count labels via concatenation.
 The returned string carries `niwa-view-zone-separator' face on
 the dash runs and inherits the same face on the label text so
 tweaks via `customize-face' apply uniformly."
-  (let* ((target-width (max 10 (- (niwa-view-zone-width) 4)))
-         (pre " ─── ")
+  (let* ((target-width (max 10 (- (niwa-view-zone-width) 1)))
+         (pre "─── ")
          (post " ")
          (label-budget (- target-width (string-width pre) (string-width post) 3))
          (decorated-label

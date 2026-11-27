@@ -78,7 +78,7 @@
                          "background work · 1 agent · 2 commands [-]"
                          "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界"))
           (let ((rule (niwa-view--zone-separator label)))
-            (should (= (max 10 (- width 4))
+            (should (= (max 10 (- width 1))
                        (string-width (string-trim-right rule))))
             (should (string-suffix-p "\n" rule))
             (when (>= width 120)
@@ -90,7 +90,7 @@
                (lambda (&rest _) '(narrow wide)))
               ((symbol-function 'window-body-width)
                (lambda (&optional window &rest _) (if (eq window 'wide) 120 40))))
-      (should (= 36 (string-width
+      (should (= 39 (string-width
                       (string-trim-right
                        (niwa-view--zone-separator "tasks"))))))))
 

@@ -1308,7 +1308,87 @@
     (setq major-mode 'markdown-mode)
     (should (eq 'markdown-code-face (niwa--prompt-block-face)))
     (fundamental-mode)
-    (should (plist-get (niwa--prompt-block-face) :extend))))
+    ;; Elsewhere the theme-derived panel, never a chrome face such as
+    ;; `mode-line-inactive', which made the title 1.9:1 on stock Emacs.
+    (should (eq 'niwa-view-panel (niwa--prompt-block-face)))
+    (should (eq t (face-attribute 'niwa-view-panel :extend)))))
+
+(niwa-deftest niwa--prompt-keys ()
+  ,test
+  (test)
+  :doc "joins keys and labels with middle dots and skips absent entries"
+  (should (equal "RET allow once · d deny"
+                 (substring-no-properties
+                  (niwa--prompt-keys '(("RET" . "allow once") nil
+                                       ("d" . "deny"))))))
+  :doc "shows keys in the help face, dims labels and focuses RET"
+  (let ((row (niwa--prompt-keys '(("RET" . "allow once") ("d" . "deny")))))
+    (should (eq 'help-key-binding (get-text-property 0 'font-lock-face row)))
+    (should (get-text-property 0 'niwa-prompt-focus row))
+    (should (eq 'niwa-view-dim (get-text-property 4 'font-lock-face row)))
+    (should-not (get-text-property (string-search "d deny" row)
+                                   'niwa-prompt-focus row))))
+
+(niwa-deftest niwa--prompt-framed-body ()
+  ,test
+  (test)
+  :doc "adds no rows: the card costs what its content costs"
+  (let ((content "Title\nCommand: ls\nRET allow once\n"))
+    (should (equal content
+                   (substring-no-properties
+                    (niwa--prompt-framed-body content 'warning)))))
+  :doc "marks every row with a gutter in the given face"
+  (let* ((body (niwa--prompt-framed-body "one\ntwo\n" 'error))
+         (bar (get-text-property 4 'line-prefix body)))
+    (should (equal "▎ " (substring-no-properties bar)))
+    (should (memq 'error (get-text-property 0 'face bar)))
+    (should (equal bar (get-text-property 4 'wrap-prefix body)))
+    (should-not (text-property-any 0 (length body) 'line-prefix nil body))))
+
+(niwa-deftest niwa-permission--card-gap ()
+  ,test
+  (test)
+  :doc "a one-line command costs three rows locally; the guest text keeps its gaps"
+  (niwa-view-test--with-buffers
+    (let ((entry (list :kind 'bash :origin "/root" :command "git status"
+                       :command-class 'safe :permission-mode-effective 'ask
+                       :permission-via 'mode))
+          body)
+      (cl-letf* ((register (symbol-function 'niwa-view--interaction-register))
+                 ((symbol-function 'niwa-view--interaction-register)
+                  (lambda (descriptor)
+                    (setq body (plist-get descriptor :body))
+                    (funcall register descriptor))))
+        (with-current-buffer data-buf
+          (niwa-permission-prompt-render entry "/root" #'ignore 1)))
+      (should (equal '("Bash Command Execution Request" "Command: git status")
+                     (butlast (split-string (substring-no-properties body)
+                                            "\n" t))))
+      (should (= 3 (length (split-string (substring-no-properties body) "\n" t))))
+      ;; No blank row anywhere in the local card.
+      (should-not (string-search "\n\n" (substring-no-properties body)))
+      ;; The guest descriptor is a different surface and keeps its layout.
+      (should (string-search
+               "Request\n\nCommand: git status"
+               (niwa-queue--entry-metadata-get entry :remote-body)))))
+  :doc "a dangerous card colours its gutter as an error, a safe one as a warning"
+  (dolist (case '((dangerous . error) (safe . warning)))
+    (niwa-view-test--with-buffers
+      (let (body)
+        (cl-letf* ((register (symbol-function 'niwa-view--interaction-register))
+                   ((symbol-function 'niwa-view--interaction-register)
+                    (lambda (descriptor)
+                      (setq body (plist-get descriptor :body))
+                      (funcall register descriptor))))
+          (with-current-buffer data-buf
+            (niwa-permission-prompt-render
+             (list :kind 'bash :origin "/root" :command "rm -rf build"
+                   :command-class (car case) :permission-mode-effective 'ask
+                   :permission-via 'mode)
+             "/root" #'ignore 1)))
+        (should (memq (cdr case)
+                      (get-text-property
+                       0 'face (get-text-property 0 'line-prefix body))))))))
 
 (provide 'test-niwa-permission-prompt)
 

@@ -9,6 +9,7 @@
 ;;; Code:
 
 (require 'tabulated-list)
+(require 'niwa-theme-faces)
 (require 'niwa-notes)
 (require 'niwa-persistence)
 (require 'niwa-window)
@@ -57,6 +58,12 @@ window."
   (setq-local revert-buffer-function (lambda (&rest _) (niwa-notes-list-refresh)))
   (tabulated-list-init-header))
 
+(defun niwa-notes-list--state-cell (text)
+  "Return state TEXT faced by its leading state word."
+  (propertize text 'face
+              (get-text-property
+               0 'face (niwa-state-cell (car (split-string text "[; ]"))))))
+
 (defun niwa-notes-list--entry (note)
   "Return the tabulated-list row for NOTE's snapshot."
   (let ((props (plist-get note :properties)))
@@ -70,7 +77,8 @@ window."
            (niwa-notes--author-name (plist-get props 'niwa-note-author))
            (replace-regexp-in-string "[\n\r\t]+" " "
                                      (or (plist-get props 'niwa-note-text) ""))
-           (format "%s%s%s" (or (plist-get note :closed-reason)
+           (niwa-notes-list--state-cell
+            (format "%s%s%s" (or (plist-get note :closed-reason)
                                (if (eq 'taken (niwa-notes-attention-state props))
                                    (if (niwa-note-watching-p props niwa-notes-list--workspace)
                                        "taken; Buddy watches"
@@ -79,7 +87,7 @@ window."
                    (if (and (eq 'taken (plist-get props 'niwa-note-state))
                             (not (niwa-note-watching-p props niwa-notes-list--workspace)))
                        "; paused" "")
-                   (if (plist-get note :source-missing) "; source missing" ""))
+                   (if (plist-get note :source-missing) "; source missing" "")))
            (mapconcat #'symbol-name (plist-get props 'niwa-note-tags) ", ")))))
 
 (defun niwa-notes-list--closed-entries (_workspace)
@@ -128,7 +136,8 @@ window."
                       notes)))
           (setq entries
                 (append entries
-                        (list (list group (vector "" (capitalize (symbol-name group))
+                        (list (list group (vector "" (propertize (capitalize (symbol-name group))
+                                                            'face 'bold)
                                                 "" "" "" "")))
                         (mapcar #'niwa-notes-list--entry members)))))
       (setq niwa-notes-list--open-entries entries

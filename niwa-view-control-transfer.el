@@ -15,7 +15,7 @@
 ;; `niwa-interaction-prompt'
 (declare-function niwa--prompt-framed-body
                   "niwa-interaction-prompt" (content face))
-(declare-function niwa--prompt-key "niwa-interaction-prompt" (key))
+(declare-function niwa--prompt-keys "niwa-interaction-prompt" (hints))
 
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-save
@@ -448,19 +448,13 @@ this view follows."
      (concat
       (propertize (plist-get descriptor :title)
                   'font-lock-face
-                  (if attention
-                      '(:inherit warning :weight bold)
-                    '(:inherit niwa-view-header :weight bold)))
+                  ;; The gutter carries the attention colour.
+                  (if attention 'bold '(:inherit niwa-view-header :weight bold)))
       "\n"
       (when detail
-        (concat (propertize detail 'font-lock-face 'shadow) "\n"))
+        (concat (propertize detail 'font-lock-face 'niwa-view-dim) "\n"))
       (when keys
-        (concat
-         (mapconcat (lambda (entry)
-                      (concat (niwa--prompt-key (car entry))
-                              " " (cdr entry)))
-                    keys "   ")
-         "\n")))
+        (concat (niwa--prompt-keys keys) "\n")))
      (if attention 'warning 'shadow))))
 
 (defvar-keymap niwa-view--control-transfer-status-map

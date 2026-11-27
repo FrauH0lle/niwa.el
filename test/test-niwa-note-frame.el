@@ -388,7 +388,9 @@ its own parent"
             (let ((header (substring-no-properties (niwa-note-frame--header))))
               (should (string-search "Note 1234" header))
               (should (string-search "tool" header))
-              (should (string-search "C-c C-z close" header))))
+              ;; The composer's hint row states the close key; the narrow
+              ;; header does not repeat it.
+              (should-not (string-search "C-c C-z" header))))
         (when (buffer-live-p source) (kill-buffer source))))))
 
 (niwa-deftest niwa-note-frame--display-in-parent

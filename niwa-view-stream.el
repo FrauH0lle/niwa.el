@@ -702,13 +702,18 @@ Only activity is animated; FRAME selects its display palette."
                                   hint)
                         (truncate-string-to-width "⚠ C-c C-j" available
                                                   nil nil "…"))))
-              (propertize text
-                          'face 'warning
-                          'mouse-face 'highlight
-                          'keymap niwa-view--rail-attention-map
-                          'help-echo (concat attention "; C-c C-j to visit")
-                          'niwa-view-zone-activate
-                          #'niwa-view-jump-to-interaction)))))
+              (setq text
+                    (propertize text
+                                'face 'bold
+                                'mouse-face 'highlight
+                                'keymap niwa-view--rail-attention-map
+                                'help-echo (concat attention "; C-c C-j to visit")
+                                'niwa-view-zone-activate
+                                #'niwa-view-jump-to-interaction))
+              ;; Only the glyph is coloured; `warning' text is 2.3:1 on
+              ;; the stock light theme.
+              (put-text-property 0 1 'face 'warning text)
+              text))))
     (when notice
       (setq badge (concat badge separator notice)
             room (- width (string-width badge))))

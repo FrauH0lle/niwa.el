@@ -37,6 +37,8 @@
                   "niwa-interaction-prompt" (body face))
 (declare-function niwa--prompt-key
                   "niwa-interaction-prompt" (key))
+(declare-function niwa--prompt-keys
+                  "niwa-interaction-prompt" (hints))
 (defvar niwa--prompt-overlays)
 
 (autoload 'niwa--prompt--data-buffer "niwa-interaction-prompt")
@@ -47,6 +49,7 @@
 (autoload 'niwa--prompt-attribution-line "niwa-interaction-prompt")
 (autoload 'niwa--prompt-framed-body "niwa-interaction-prompt")
 (autoload 'niwa--prompt-key "niwa-interaction-prompt")
+(autoload 'niwa--prompt-keys "niwa-interaction-prompt")
 
 ;; `niwa-permission-queue'
 (declare-function niwa-permission-absence-deadline
@@ -382,7 +385,7 @@ prompt without one is returned whole."
      ((niwa-queue--entry-metadata-get entry :expanded)
       (concat text "\n"
               (niwa--prompt-key "TAB")
-              (propertize " to collapse" 'font-lock-face 'shadow)))
+              (propertize " to collapse" 'font-lock-face 'niwa-view-dim)))
      (t
       (let* ((head (if (and line-limit (> (length lines) line-limit))
                        (string-join (seq-take lines line-limit) "\n")
@@ -391,13 +394,13 @@ prompt without one is returned whole."
                        (substring head 0 char-limit)
                      head)))
         (concat head
-                (propertize "..." 'font-lock-face 'shadow)
+                (propertize "..." 'font-lock-face 'niwa-view-dim)
                 "\n"
                 (propertize (format "%d more characters, "
                                     (- (length text) (length head)))
-                            'font-lock-face 'shadow)
+                            'font-lock-face 'niwa-view-dim)
                 (niwa--prompt-key "TAB")
-                (propertize " to expand" 'font-lock-face 'shadow)))))
+                (propertize " to expand" 'font-lock-face 'niwa-view-dim)))))
      'command)))
 
 (defun niwa-permission--prompt-toggle-expand ()
@@ -423,25 +426,24 @@ session allow.  ONCE-ONLY hides every session-scoped choice.  TOGGLE is
     content
     (niwa-permission--anchor
      (concat
-      (propertize "Keys: " 'font-lock-face 'help-key-binding)
-      (niwa--prompt-key "RET")
-      " allow once  "
-      (unless (or suppress-allow-session once-only)
-        (concat (niwa--prompt-key "s") " remember for session  "))
-      (when (and include-always (not once-only))
-        (concat (niwa--prompt-key "A") " remember in workspace  "))
-      (niwa--prompt-key "d")
-      " deny  "
-      (unless once-only
-        (concat (niwa--prompt-key "D") " deny session  "))
-      (niwa--prompt-key "f")
-      " feedback"
-      (pcase toggle
-        ('collapsed (concat "  " (niwa--prompt-key "TAB") " details"))
-        ('expanded (concat "  " (niwa--prompt-key "TAB") " fewer details")))
+      (niwa--prompt-keys
+       (list '("RET" . "allow once")
+             (unless (or suppress-allow-session once-only)
+               '("s" . "remember for session"))
+             (when (and include-always (not once-only))
+               '("A" . "remember in workspace"))
+             '("d" . "deny")
+             (unless once-only '("D" . "deny session"))
+             '("f" . "feedback")
+             (pcase toggle
+               ('collapsed '("TAB" . "details"))
+               ('expanded '("TAB" . "fewer details")))))
       "\n")
      'keys))
-   'warning))
+   ;; A dangerous card's title marks the whole card.
+   (if (text-property-any 0 (length content) 'niwa-prompt-danger t content)
+       'error
+     'warning)))
 
 (defun niwa-permission--expanded-p (entry)
   "Return non-nil when ENTRY's card shows its details locally.
@@ -455,7 +457,7 @@ JUSTIFICATION, when non-blank, supplies the reason directly."
                              (not (string-empty-p (string-trim justification))))
                         (string-trim justification)
                       (niwa-permission-queue-justification entry))))
-    (concat (propertize "Model's reason: " 'font-lock-face 'font-lock-escape-face)
+    (concat (propertize "Model's reason: " 'font-lock-face 'bold)
             (propertize text 'font-lock-face 'italic)
             "\n")))
 
@@ -495,7 +497,7 @@ kind requests them, including generic hook cards."
           (mapcar (lambda (grant) (niwa-permission--resource-label entry grant))
                   (niwa-permission--prompt-resources entry)))))
     (when items
-      (concat (propertize "Scope: " 'font-lock-face 'font-lock-escape-face)
+      (concat (propertize "Scope: " 'font-lock-face 'bold)
               (propertize (string-join items ", ") 'font-lock-face 'font-lock-constant-face)
               "\n"))))
 
@@ -517,7 +519,7 @@ workspace approval would store."
              (mapcar (lambda (grant) (concat (funcall label grant) " independently"))
                      (plist-get selection :resource-grants)))))
       (concat (propertize "Session/workspace approval remembers: "
-                          'font-lock-face 'font-lock-escape-face)
+                          'font-lock-face 'bold)
               (if items (string-join items ", ") "nothing")
               "\n"))))
 
@@ -587,8 +589,13 @@ workspace approval would store."
                        (expanded-p 'expanded)
                        ((or (not (string-empty-p details))
                             (and remote-body
-                                 (not (equal remote-body
-                                             (substring-no-properties content)))))
+                                 ;; The guest text keeps blank rows the
+                                 ;; local card drops; they hide nothing.
+                                 (not (equal (replace-regexp-in-string
+                                              "\n\n+" "\n" remote-body)
+                                             (replace-regexp-in-string
+                                              "\n\n+" "\n"
+                                              (substring-no-properties content))))))
                         'collapsed))))
          (content (concat content expiry-line
                           (and (or (null entry) expanded-p)
@@ -717,7 +724,7 @@ workspace approval would store."
                    'font-lock-face '(:inherit bold))
        (propertize
         "[x] already granted · [ ] granted by this approval\n"
-        'font-lock-face 'font-lock-comment-face)
+        'font-lock-face 'niwa-view-dim)
        (format "[%s] Command\n"
                (if (plist-get entry :operation-pending-p) " " "x"))
        (when (plist-get requested :network)
@@ -815,13 +822,21 @@ SUPPRESS-ALLOW-SESSION and ONCE-ONLY follow
    suppress-allow-session once-only))
 
 (defun niwa-permission--card-title (text &optional face)
-  "Return card title TEXT with FACE, which defaults to `warning'."
-  (propertize (concat text "\n")
-              'font-lock-face (list :inherit 'bold :inherit (or face 'warning))))
+  "Return card title TEXT; FACE `error' marks a dangerous card.
+The title is bold in the default foreground: `warning' as a text colour is
+1.9:1 on the stock light theme.  The card's gutter carries the colour."
+  (propertize (concat text "\n") 'font-lock-face 'bold
+              'niwa-prompt-danger (eq face 'error)))
+
+(defun niwa-permission--card-gap (remote-p)
+  "Return the blank row after a card's title, for the guest card only.
+REMOTE-P selects the guest descriptor, whose text is unchanged; the local
+card spends no row on it."
+  (if remote-p "\n" ""))
 
 (defun niwa-permission--card-field (label value &optional face)
   "Return a card line for LABEL and VALUE, using FACE for VALUE."
-  (concat (propertize label 'font-lock-face 'font-lock-escape-face)
+  (concat (propertize label 'font-lock-face 'bold)
           (propertize (format "%s" value)
                       'font-lock-face (or face 'font-lock-constant-face))
           "\n"))
@@ -844,11 +859,11 @@ the shared permission prompt contract."
   (let* ((path (and path (niwa-permission--display-path entry path)))
          (once-only (and entry (plist-get entry :once-only)))
          (build
-          (lambda (_remote-p)
+          (lambda (remote-p)
             (concat
              (niwa-permission--card-title "Permission Request")
              (niwa--prompt-attribution-line origin)
-             "\n"
+             (niwa-permission--card-gap remote-p)
              (niwa-permission--card-field "Tool: " tool-name)
              (when path
                (concat
@@ -859,7 +874,7 @@ the shared permission prompt contract."
              (niwa-permission--format-scope entry)
              (niwa-permission--format-remember-summary entry)
              (niwa-permission--execution-warnings entry)
-             "\n"))))
+             (niwa-permission--card-gap remote-p)))))
     (niwa-permission--prompt-async-card
      build (and include-always (not once-only)) cont count entry
      once-only once-only)))
@@ -891,9 +906,9 @@ the shared permission prompt contract."
                       (if dangerous " — DANGEROUS" ""))
               (if dangerous 'error 'warning))
              (niwa--prompt-attribution-line origin)
-             "\n"
+             (niwa-permission--card-gap remote-p)
              (niwa-permission--format-justification entry)
-             (propertize "Command: " 'font-lock-face 'font-lock-escape-face)
+             (propertize "Command: " 'font-lock-face 'bold)
              (if remote-p
                  faced-command
                (niwa-permission--elide
@@ -918,17 +933,17 @@ the shared permission prompt contract."
                 (when rule-creating-disabled-p
                   (propertize
                    "Session/permanent allow is disabled for dynamic dangerous commands.\n"
-                   'font-lock-face 'font-lock-comment-face))))
+                   'font-lock-face 'niwa-view-dim))))
              (when unparseable
                (concat
                 (niwa-permission--warning
                  "Command contains unsupported or dynamic shell syntax.")
                 (propertize
                  "Session/permanent allow is disabled for complex Bash commands.\n"
-                 'font-lock-face 'font-lock-comment-face)))
+                 'font-lock-face 'niwa-view-dim)))
              (niwa-permission--execution-warnings entry)
              (niwa-permission--card-details entry remote-p)
-             "\n"))))
+             (niwa-permission--card-gap remote-p)))))
     (niwa-permission--prompt-async-card
      build (and include-always (not rule-creating-disabled-p))
      cont count entry rule-creating-disabled-p once-only)))
@@ -946,15 +961,15 @@ in the remote descriptor; ENTRY supplies execution mode and remembering scope."
             (concat
              (niwa-permission--card-title "Elisp Evaluation Request")
              (niwa--prompt-attribution-line origin)
-             "\n"
-             (propertize "Mode: " 'font-lock-face 'font-lock-escape-face)
+             (niwa-permission--card-gap remote-p)
+             (propertize "Mode: " 'font-lock-face 'bold)
              mode
              (when (equal mode "live")
                (format " (inherently unconfined; preserve_ui: %s)"
                        (if preserve-ui "true" "false")))
              "\n"
              (niwa-permission--format-justification entry)
-             (propertize "Expression:\n" 'font-lock-face 'font-lock-escape-face)
+             (propertize "Expression:\n" 'font-lock-face 'bold)
              (if remote-p
                  faced-expr
                (niwa-permission--elide
@@ -964,7 +979,7 @@ in the remote descriptor; ENTRY supplies execution mode and remembering scope."
              (niwa-permission--format-remember-summary entry)
              (niwa-permission--execution-warnings entry)
              (niwa-permission--card-details entry remote-p)
-             "\n"))))
+             (niwa-permission--card-gap remote-p)))))
     (niwa-permission--prompt-async-card
      build (plist-get entry :include-always) cont count entry
      (not (plist-get entry :remember-authority-cell))
@@ -993,10 +1008,10 @@ ENTRY follow the shared permission prompt contract."
                   "Full Execution Escalation Request"
                 "Invocation Authority Request"))
              (niwa--prompt-attribution-line origin)
-             "\n"
+             (niwa-permission--card-gap remote-p)
              (niwa-permission--card-field "Tool: " tool-name)
              (niwa-permission--format-justification entry justification)
-             (propertize "Request: " 'font-lock-face 'font-lock-escape-face)
+             (propertize "Request: " 'font-lock-face 'bold)
              (if remote-p
                  faced-detail
                (niwa-permission--elide
@@ -1014,14 +1029,14 @@ ENTRY follow the shared permission prompt contract."
                     "Approval grants every unchecked capability to this invocation. "
                     "Checked authority is already available; other resources and "
                     "the selected process confinement remain unchanged.\n")
-                   'font-lock-face 'font-lock-comment-face))
+                   'font-lock-face 'niwa-view-dim))
                 (when full-rule-disabled-p
                   (propertize
                    (concat
                     "Reusable allow is disabled for this request. Author a "
                     "qualified rule deliberately if recurring authority is needed.\n")
-                   'font-lock-face 'font-lock-comment-face))))
-             "\n"))))
+                   'font-lock-face 'niwa-view-dim))))
+             (niwa-permission--card-gap remote-p)))))
     (niwa-permission--prompt-async-card
      build
      (and (not once-only)
@@ -1044,19 +1059,20 @@ run prompt as `:card-text' and an optional `:card-warning'.  ORIGIN, CONT and
 COUNT follow the shared permission prompt contract.  Standing authority is
 approved once per creation or change, so nothing is offered to remember."
   (niwa-permission--prompt-async-card
-   (lambda (_remote-p)
+   (lambda (remote-p)
      (concat
       (niwa-permission--card-title (plist-get entry :card-title))
       (niwa--prompt-attribution-line origin)
-      "\n"
+      (niwa-permission--card-gap remote-p)
       (when-let* ((warning (plist-get entry :card-warning)))
         (niwa-permission--warning warning))
       (mapconcat (lambda (field)
                    (niwa-permission--card-field (concat (car field) ": ") (cdr field)))
                  (plist-get entry :card-fields) "")
-      (propertize "Prompt:\n" 'font-lock-face 'font-lock-escape-face)
+      (propertize "Prompt:\n" 'font-lock-face 'bold)
       (propertize (plist-get entry :card-text) 'font-lock-face 'font-lock-string-face)
-      "\n\n"))
+      "\n"
+      (niwa-permission--card-gap remote-p)))
    nil cont count entry t t))
 
 (provide 'niwa-permission-prompt)

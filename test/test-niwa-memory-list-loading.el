@@ -286,7 +286,7 @@
       (let* ((header (niwa-memory-list--header nil context))
              (count (string-search "(1)" header)))
         (should (string-prefix-p "Candidates (1) | Memories" header))
-        (should (eq 'warning (get-text-property count 'face header)))
+        (should (eq 'bold (get-text-property count 'face header)))
         (should (commandp (lookup-key (get-text-property count 'local-map header) [tab-line mouse-1]))))
       ;; Known counts keep Memories history-free until a proposal view is shown.
       (niwa-memory-list-refresh)

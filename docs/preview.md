@@ -34,7 +34,8 @@ and `-` lines, new-file numbers for `+` lines, computed per review by
 `niwa-tool-patch-annotate-line-numbers` against the captured baseline —
 plus whole-line background tints (`niwa-patch-review-added/-removed`,
 which inherit `diff-added`/`diff-removed`, or magit's diff faces once
-`magit-diff` is loaded). Deselected changes render dimmed without tint.
+`magit-diff` is loaded; where the theme gives those no visible background,
+one is blended from their colour). Deselected changes render dimmed without tint.
 Every tally (header, file rows, primary button) counts selected changes
 only and updates live.
 

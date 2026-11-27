@@ -445,7 +445,13 @@
                  (rule (list :overline (face-foreground 'niwa-composer-rule nil t)))
                  (pending (get-text-property (string-search "1 question" header) 'face header))
                  (more (get-text-property (string-search " more" header) 'face header)))
-            (should (member 'warning pending))
+            ;; The glyph carries the colour; the count is bold, since
+            ;; `warning' text is 2.3:1 on the stock light theme.
+            (should (member 'warning
+                            (get-text-property (string-search "⚠" header)
+                                               'face header)))
+            (should (member 'bold pending))
+            (should-not (member 'warning pending))
             (should (member 'shadow more))
             (should (member rule pending))
             (should (member rule more))))

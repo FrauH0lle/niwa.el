@@ -9,6 +9,7 @@
 ;;; Code:
 
 (require 'niwa-cockpit)
+(require 'niwa-theme-faces)
 (require 'niwa-report)
 (require 'niwa-workspace)
 
@@ -35,7 +36,8 @@
 (defun niwa-schedules-list--entry (job _context)
   "Return JOB's tabulated entry."
   (list (plist-get job :id)
-        (vector (plist-get job :name) (symbol-name (plist-get job :status))
+        (vector (plist-get job :name)
+                (niwa-state-cell (symbol-name (plist-get job :status)))
                 (niwa-schedules-list--time (plist-get job :due))
                 (niwa-schedule-timing-label (plist-get job :timing)))))
 
@@ -94,7 +96,7 @@
                              'tabulated-list-id (cons id 'heading))
                             (cl-loop for wake in (plist-get group :entries) collect
                                      (list (cons id (plist-get wake :id))
-                                           (vector (plist-get wake :id) "pending"
+                                           (vector (plist-get wake :id) (niwa-state-cell "pending")
                                                    (niwa-schedules-list--time (plist-get wake :due))
                                                    (string-join (split-string (plist-get wake :note)) " ")))))))))
 

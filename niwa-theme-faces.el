@@ -61,6 +61,24 @@ answer: there is no room below it."
                return color)
       foreground))
 
+(defun niwa--dim-color (shadow foreground background)
+  "Return a readable replacement for SHADOW, or nil when SHADOW is readable.
+SHADOW is the theme's `shadow' foreground.  A theme that keeps it above
+`niwa-muted-contrast' against BACKGROUND keeps its own colour; one that
+does not (2.3:1 on doom-one) gets FOREGROUND muted to the target."
+  (unless (and shadow
+               (>= (niwa--contrast shadow background) niwa-muted-contrast))
+    (niwa--muted-color foreground background)))
+
+(defun niwa--panel-background (themed accent background &optional intensity)
+  "Return a panel background that is visible against BACKGROUND.
+THEMED is the theme's own background for the panel; it is kept when it
+clears 1.1:1.  Otherwise BACKGROUND is tinted toward ACCENT by INTENSITY,
+0.08 by default, which lands near the table stripe on every theme."
+  (if (and (stringp themed) (>= (niwa--contrast themed background) 1.1))
+      themed
+    (niwa--tint background accent (or intensity 0.08))))
+
 (defun niwa--face-user-styled-p (face)
   "Return non-nil when FACE carries a user or theme spec to defer to."
   (or (get face 'customized-face)
@@ -89,6 +107,69 @@ DERIVE is called with the default face\='s foreground and background and
 returns a plist of attributes for FACE."
   (setf (alist-get face niwa--theme-derived-faces) derive)
   (niwa--derive-theme-faces))
+
+(defface niwa-view-dim
+  '((t :inherit shadow))
+  "Secondary text that must stay readable: metadata, hints and labels.
+It is the theme's `shadow' wherever that clears `niwa-muted-contrast';
+elsewhere `niwa--derive-theme-faces' replaces the foreground.  Rules and
+borders, which are not text, keep `shadow' itself."
+  :group 'niwa)
+
+(niwa--derive-theme-face
+ 'niwa-view-dim
+ (lambda (foreground background)
+   (list :foreground (or (niwa--dim-color (face-foreground 'shadow nil t)
+                                           foreground background)
+                         'unspecified))))
+
+(defface niwa-view-panel
+  '((t :extend t))
+  "Background of a card set apart from the transcript, such as a prompt.
+The background is blended from the active theme by
+`niwa--derive-theme-faces'."
+  :group 'niwa)
+
+(niwa--derive-theme-face
+ 'niwa-view-panel
+ (lambda (foreground background)
+   (list :background (niwa--panel-background nil foreground background))))
+
+(defun niwa-state-cell (label)
+  "Return state LABEL for a list row, faced by what the state asks of you.
+Work in progress is `success', a state waiting on something is bold, a
+failure is `error', and anything settled or idle is dimmed, so a list's
+State column can be read without reading it."
+  (propertize
+   label 'face
+   (pcase (downcase label)
+     ((or "running" "watching" "active" "ready" "working") 'success)
+     ((or "blocked" "waiting" "stopping" "paused" "pending" "missing" "stale")
+      'bold)
+     ((or "failed" "error") 'error)
+     (_ 'niwa-view-dim))))
+
+(defface niwa-view-panel-dim
+  '((t :inherit niwa-view-dim))
+  "Secondary text on a `niwa-view-panel' card.
+`niwa-view-dim' is measured against the default background; on the
+panel's tint the same colour falls under `niwa-muted-contrast' (3.2:1 on
+doom-one).  This face is derived against the panel instead, and
+`niwa--prompt-framed-body' substitutes it for dim text inside a card."
+  :group 'niwa)
+
+(niwa--derive-theme-face
+ 'niwa-view-panel-dim
+ (lambda (foreground background)
+   (list :foreground
+         (or (niwa--dim-color
+              (face-foreground 'shadow nil t) foreground
+              ;; A panel the user or a theme styled is left alone by the
+              ;; derivation, so measure against the background it has.
+              (or (and (niwa--face-user-styled-p 'niwa-view-panel)
+                       (face-background 'niwa-view-panel nil t))
+                  (niwa--panel-background nil foreground background)))
+             'unspecified))))
 
 ;; Themes reset frame attributes, so the blends have to be rewritten after
 ;; every change; a daemon has no measurable frame until one is created.

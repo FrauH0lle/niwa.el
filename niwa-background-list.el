@@ -12,6 +12,7 @@
 ;;; Code:
 
 (require 'niwa-report)
+(require 'niwa-theme-faces)
 
 (eval-when-compile
   (require 'cl-lib)
@@ -183,7 +184,8 @@
     (let ((seconds (max 0 (- (plist-get item :due) (niwa-schedule-now))))
           (pending (eq 'pending (plist-get item :status))))
       (list (plist-get item :id)
-            (vector "wake-up" (capitalize (symbol-name (plist-get item :status)))
+            (vector "wake-up" (niwa-state-cell
+                               (capitalize (symbol-name (plist-get item :status))))
                     (niwa--truncate-display
                      (replace-regexp-in-string "[\n\r\t]+" " " (plist-get item :note))
                      40 "…")
@@ -196,7 +198,7 @@
    ((eq (plist-get item :kind) 'sandbox)
     (let ((age (- (float-time) (plist-get item :started-at))))
       (list (plist-get item :id)
-            (vector "sandbox" "Idle" "Persistent Eval" (plist-get item :owner)
+            (vector "sandbox" (niwa-state-cell "Idle") "Persistent Eval" (plist-get item :owner)
                     (niwa-cockpit-number-cell (niwa--duration-label age) age)
                     (format "%s features" (plist-get item :features))))))
    ((niwa-background-list--agent-p item)
@@ -204,7 +206,7 @@
         (list (plist-get item :id)
               (vector
                "agent"
-               (niwa-background-list--agent-state item)
+               (niwa-state-cell (niwa-background-list--agent-state item))
                (plist-get item :path)
                (or (plist-get item :parent-path) "")
                (niwa-cockpit-number-cell
@@ -222,7 +224,7 @@
        (plist-get item :id)
        (vector
         (symbol-name (or (plist-get item :kind) 'bash))
-        (niwa-background-list--execution-state item)
+        (niwa-state-cell (niwa-background-list--execution-state item))
         (niwa--truncate-display
          (or (plist-get item :description) (plist-get item :command)
              (and (eq (plist-get item :kind) 'eval) "Eval") "") 40 "…")

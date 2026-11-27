@@ -563,7 +563,7 @@ REUSED contains display-only rows of unchanged, entirely terminal passes."
            (when-let* (((eq view 'candidates))
                        (count (niwa-memory-list--candidate-count context))
                        ((> count 0)))
-             (propertize (format " (%d)" count) 'face 'warning 'local-map map 'mouse-face 'highlight)))))
+             (propertize (format " (%d)" count) 'face 'bold 'local-map map 'mouse-face 'highlight)))))
       '(candidates memories history) " | ")
      (cond (niwa-memory-list--error (format "    Scan failed: %s (g retries)" niwa-memory-list--error))
            (niwa-memory-list--job "    Loading history...")

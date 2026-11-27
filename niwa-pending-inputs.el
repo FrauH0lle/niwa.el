@@ -66,6 +66,8 @@
 (declare-function niwa-cockpit-setup-tabulated-surface
                   "niwa-cockpit" (surface))
 (defvar niwa-cockpit--context)
+(declare-function niwa--prompt-keys "niwa-interaction-prompt" (hints))
+(autoload 'niwa--prompt-keys "niwa-interaction-prompt")
 (declare-function niwa-cockpit-surface-context
                   "niwa-cockpit" (&optional surface))
 (declare-function niwa-cockpit-surface-refresh
@@ -536,7 +538,7 @@ because the detail body already shows it."
               lines)))
     (when (> (length entries) 3)
       (push (format "  %d more" (- (length entries) 3)) lines))
-    (concat "\n" label "\n"
+    (concat "\n" (propertize label 'font-lock-face 'bold) "\n"
             (string-join (nreverse lines) "\n")
             "\n")))
 
@@ -547,13 +549,22 @@ because the detail body already shows it."
           session (append (seq-take (niwa-session-pending-steering session) 3)
                           (seq-take (niwa-session-pending-follow-ups session) 3)))))
     (concat
-     "\nC-c C-w retract newest"
-     (when (and (buffer-live-p niwa--data-buffer)
-                (not (niwa-turn-busy-p niwa--data-buffer)))
-       " · C-c C-r resume")
-     " · d/DEL drop row\n"
+     "\n"
+     (niwa--prompt-keys
+      (list '("C-c C-w" . "retract newest")
+            (when (and (buffer-live-p niwa--data-buffer)
+                       (not (niwa-turn-busy-p niwa--data-buffer)))
+              '("C-c C-r" . "resume"))
+            '("d/DEL" . "drop row")))
+     "\n"
      (when (niwa-session-pending-input-failure-paused session)
-       "\nPending-input delivery stopped after turn failure; review required\n")
+       ;; A stopped queue must not read like the key hints above it.
+       (concat
+        "\n" (propertize "⚠ " 'font-lock-face 'warning)
+        (propertize
+         "Pending-input delivery stopped after turn failure; review required"
+         'font-lock-face 'bold)
+        "\n"))
      (when (niwa-session-pending-input-paused session)
        (if (and (not (niwa-turn-busy-p niwa--data-buffer))
                 (not (niwa-pending-inputs-cockpit-holds-p session)))

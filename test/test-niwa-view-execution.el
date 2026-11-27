@@ -133,7 +133,7 @@ mouse events in them, which later interactive calls would read."
     (niwa-view-zone-set-collapse-state niwa-view-execution--collapse-key t)
     (let ((fragment (niwa-view-execution-fragment session)))
       (should (plist-get fragment :collapsed))
-      (should (string-match-p "\\` ─── background work · 1 command \\[\\+\\] ─+\n\\'"
+      (should (string-match-p "\\`─── background work · 1 command \\[\\+\\] ─+\n\\'"
                               (substring-no-properties (plist-get fragment :body))))))
   :doc "rows are newest first; a blocking agent keeps its place, children follow parents"
   (niwa-view-execution-test--with-view
@@ -158,7 +158,7 @@ mouse events in them, which later interactive calls would read."
       (let ((text (substring-no-properties
                    (plist-get (niwa-view-execution-fragment session) :body))))
         (should (string-prefix-p
-                 " ─── background work · 1 blocked · 3 agents · 1 command · 1 monitor [-] ─"
+                 "─── background work · 1 blocked · 3 agents · 1 command · 1 monitor [-] ─"
                  text))
         (should (string-search
                  (concat "  ▸ Running   bash     Run tests · 30s · /root/counter\n"
@@ -391,10 +391,10 @@ mouse events in them, which later interactive calls would read."
                             (niwa-view-execution-test--at "background work")
                             (string-width (buffer-substring-no-properties
                                            (line-beginning-position) (line-end-position)))))))
-        (should (= (- (window-body-width) 4) (funcall rule-width)))
+        (should (= (- (window-body-width) 1) (funcall rule-width)))
         (split-window-right 40)
         (niwa-view-zone--on-window-change (selected-window))
-        (should (= (- (niwa-view-zone-width) 4) (funcall rule-width)))
+        (should (= (- (niwa-view-zone-width) 1) (funcall rule-width)))
         (should (equal "> draft\nsecond line" (niwa-view-composer-draft-text))))))
   :doc "a finished inspected execution keeps its place among the rows"
   (niwa-view-execution-test--with-view
@@ -660,7 +660,7 @@ mouse events in them, which later interactive calls would read."
   :doc "blank suffix and header margins are inert, Manage is explicit"
   (niwa-view-execution-test--with-view
     (niwa-view--render-status)
-    (niwa-view-execution-test--at " ─── background work")
+    (niwa-view-execution-test--at "─── background work")
     (should-not (get-text-property (point) 'niwa-view-zone-activate))
     (niwa-view-execution-test--at "  ▸ Running")
     (forward-line 2)
@@ -699,7 +699,7 @@ mouse events in them, which later interactive calls would read."
     (let* ((header (niwa-view-execution--header
                     session nil '((:kind bash) (:kind monitor) (:kind monitor)) nil))
            (toggle (string-search "[-]" header)))
-      (should (string-prefix-p " ─── background work · 1 command · 2 monitors [-] ─"
+      (should (string-prefix-p "─── background work · 1 command · 2 monitors [-] ─"
                                header))
       (should (eq 'niwa-view-zone-separator (get-text-property 1 'font-lock-face header)))
       (should (eq 'link (get-text-property toggle 'font-lock-face header)))
@@ -709,15 +709,15 @@ mouse events in them, which later interactive calls would read."
     (let* ((header (niwa-view-execution--header
                     session '((:status blocked) (:status running)) nil t))
            (blocked (string-search "1 blocked" header)))
-      (should (string-prefix-p " ─── background work · 1 blocked · 2 agents [+] ─" header))
+      (should (string-prefix-p "─── background work · 1 blocked · 2 agents [+] ─" header))
       (should (eq 'niwa-view-tool-warning
                   (get-text-property blocked 'font-lock-face header)))))
   :doc "a clipped narrow rule keeps the toggle reachable"
   (niwa-view-execution-test--with-view
     (cl-letf (((symbol-function 'niwa-view--zone-separator)
-               (lambda (_) " ─── background w… ─\n")))
+               (lambda (_) "─── background w… ─\n")))
       (let ((header (niwa-view-execution--header session nil nil nil)))
-        (should (equal " [-] background w… ─\n" (substring-no-properties header)))
+        (should (equal "[-] background w… ─\n" (substring-no-properties header)))
         (should (get-text-property 1 'niwa-view-zone-activate header))))))
 
 (niwa-deftest niwa-view-execution--mouse-press ()
@@ -1094,7 +1094,7 @@ mouse events in them, which later interactive calls would read."
   (niwa-view-execution-test--with-view
     (niwa-view--render-status)
     (dolist (collapsed '(t nil))
-      (niwa-view-execution-test--at " ─── background work")
+      (niwa-view-execution-test--at "─── background work")
       (call-interactively (key-binding (kbd "TAB")))
       (should (eq collapsed (niwa-view-zone-collapse-state
                              niwa-view-execution--collapse-key)))

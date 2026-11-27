@@ -90,7 +90,7 @@
     (insert "before\n```elisp\n(+ 1 2)\n```\nafter\n")
     (niwa-view--decorate-code-blocks-in-range (point-min) (point-max))
     (let ((text (buffer-substring-no-properties (point-min) (point-max))))
-      (should (equal "before\nelisp ⧉\n\n(+ 1 2)\n\nafter\n" text))
+      (should (equal "before\nelisp ⧉\n(+ 1 2)\n\nafter\n" text))
       (should-not (string-match-p "```" text))
       (should (string-match-p "elisp ⧉" text))
       (should (string-match-p (regexp-quote "(+ 1 2)") text)))
@@ -126,7 +126,7 @@
   (with-temp-buffer
     (insert "~~~elisp\n(+ 1 2)\n~~~\n")
     (niwa-view--decorate-code-blocks-in-range (point-min) (point-max))
-    (should (equal "elisp ⧉\n\n(+ 1 2)\n\n"
+    (should (equal "elisp ⧉\n(+ 1 2)\n\n"
                    (buffer-substring-no-properties
                     (point-min) (point-max)))))
 
@@ -170,7 +170,7 @@
   (with-temp-buffer
     (insert "```text\n```\n```text\nnext\n```\n")
     (niwa-view--decorate-code-blocks-in-range (point-min) (point-max))
-    (should (string-prefix-p "text ⧉\n\n\ntext ⧉"
+    (should (string-prefix-p "text ⧉\n\ntext ⧉"
                              (buffer-substring-no-properties
                               (point-min) (point-max))))
     (goto-char (point-min))

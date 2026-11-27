@@ -17,6 +17,7 @@
 (require 'subr-x)
 (require 'niwa-structs)
 (require 'niwa-turn)
+(require 'niwa-theme-faces)
 (require 'niwa-utilities)
 
 ;; `gptel-request'
@@ -70,7 +71,7 @@
   :group 'niwa)
 
 (defface niwa-tool-task-completed
-  '((t :inherit shadow))
+  '((t :inherit niwa-view-dim))
   "Face for completed task rows.
 The check glyph and the `done' section already mark these rows, so the
 face stays quiet rather than striking a whole section through."
