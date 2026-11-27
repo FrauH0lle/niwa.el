@@ -88,11 +88,13 @@
 (defun niwa-tool-web--same-origin-p (from target)
   "Return non-nil when TARGET keeps FROM's host and port.
 The scheme must match too, except an http to https upgrade between the
-default ports.  The host is compared by name, never resolved."
+default ports.  The host is compared by name, never resolved, and exactly:
+url.el already lowercases it, and case folding would equate distinct DNS
+names such as σ and ς."
   (let ((from (url-generic-parse-url from))
         (target (url-generic-parse-url target)))
     (and (not (string-empty-p (or (url-host from) "")))
-         (string-equal-ignore-case (url-host from) (or (url-host target) ""))
+         (equal (url-host from) (url-host target))
          (or (and (equal (url-type from) (url-type target))
                   (eql (url-port from) (url-port target)))
              (and (equal (url-type from) "http") (eql (url-port from) 80)
@@ -114,9 +116,8 @@ CALLBACK receives (VALUE ERROR), where ERROR is nil on success or an
 error string.  Only http and https URLs are retrieved.
 
 Redirects are followed here, at most `niwa-tool-web--max-redirects'.
-A same-origin redirect (`niwa-tool-web--same-origin-p') is followed.
-Otherwise REDIRECT, called
-with the redirecting and the target URL, returns `follow', or
+REDIRECT, called on every redirect with the redirecting and the target
+URL, returns `follow', or
 \(result . TEXT) or (error . TEXT) to settle with TEXT instead.
 Without REDIRECT, every redirect is followed.  ACCEPT, when non-nil,
 is the Accept header of every request.
@@ -170,10 +171,7 @@ and response buffers.  Cleanup precedes delivery, exactly once."
                  (finish nil (format "Too many redirects (more than %d)"
                                      niwa-tool-web--max-redirects))
                (cl-incf redirects)
-               (pcase (if (or (null redirect)
-                              (niwa-tool-web--same-origin-p from target))
-                          'follow
-                        (funcall redirect from target))
+               (pcase (if redirect (funcall redirect from target) 'follow)
                  ('follow (request target method data headers))
                  (`(result . ,text) (finish text nil))
                  (`(error . ,text) (finish nil text))
@@ -432,18 +430,22 @@ terms to the query and filter the returned results."
 
 (defun niwa-tool-web--redirect-decision (buffer from target)
   "Return how WebFetch handles a redirect from FROM to TARGET.
-A target denied under BUFFER's permission policy is an error; any other
-is handed back to the model, whose WebFetch call on it gets the ordinary
-permission check.  Nothing is followed: a host name approved here could
-resolve to another peer at connect time, so the redirect never connects."
+A target denied under BUFFER's current permission policy is an error,
+even on the same origin.  Otherwise a same-origin target
+\(`niwa-tool-web--same-origin-p') is followed and any other is handed
+back to the model, whose WebFetch call on it gets the ordinary permission
+check: a host name approved here could resolve to another peer at
+connect time, so a cross-origin redirect never connects."
   (let ((host (niwa-tool-web--url-host from)))
-    (if (eq 'deny (niwa-tool-permission-decide-now
-                   "WebFetch" (list :url target) buffer 'redirect))
-        (cons 'error (format "Redirect from %s to %s blocked: the target \
-host is denied by permission rules" host target))
-      (cons 'result (format "REDIRECT: %s redirects to %s.  Redirects to \
+    (cond
+     ((eq 'deny (niwa-tool-permission-decide-now
+                 "WebFetch" (list :url target) buffer 'redirect))
+      (cons 'error (format "Redirect from %s to %s blocked: the target \
+host is denied by permission rules" host target)))
+     ((niwa-tool-web--same-origin-p from target) 'follow)
+     (t (cons 'result (format "REDIRECT: %s redirects to %s.  Redirects to \
 another host or port are not followed; call WebFetch with url=%S to \
-continue." host target target)))))
+continue." host target target))))))
 
 (defvar niwa-tool-web--accept "text/markdown, text/html;q=0.9, */*;q=0.8"
   "Accept header of WebFetch requests; servers able to send markdown do.")

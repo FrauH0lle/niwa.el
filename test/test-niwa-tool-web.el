@@ -470,7 +470,7 @@ the requested timeout budget but remove the race with connection/redirect I/O."
         (should-not (with-current-buffer buffer
                       (bound-and-true-p url-callback-arguments))))))
 
-  :doc "asks REDIRECT about a cross-host hop that follows a same-host hop"
+  :doc "asks REDIRECT about every hop, the same-host one included"
   (let (calls)
     (niwa-test-http
      (lambda (request)
@@ -483,8 +483,11 @@ the requested timeout budget but remove the race with connection/redirect I/O."
                        (concat base "/first") #'ignore
                        :redirect (lambda (from target)
                                    (push (list from target) calls)
-                                   '(result . "handed back")))))
-       (should (equal (list (list (concat base "/second") "http://other.invalid/page"))
+                                   (if (niwa-tool-web--same-origin-p from target)
+                                       'follow
+                                     '(result . "handed back"))))))
+       (should (equal (list (list (concat base "/second") "http://other.invalid/page")
+                            (list (concat base "/first") (concat base "/second")))
                       calls)))))
 
   :doc "a REDIRECT error settles as an error"
@@ -603,7 +606,32 @@ the requested timeout budget but remove the race with connection/redirect I/O."
                     (should (equal (list location nil)
                                    (list location b-requests))))))))))
         (should (equal (if (eq expected 'followed) 2 1)
-                       (length a-requests)))))))
+                       (length a-requests))))))
+
+  :doc "a same-origin redirect to a host denied in flight reaches nothing"
+  (let ((niwa-permission-rules nil) (niwa-hook-rules nil)
+        (niwa-permission-log-enabled nil)
+        (session (niwa-session--create
+                  :name "in-flight" :permission-mode 'ask
+                  :permission-rules '(("WebFetch" :action allow))))
+        requests)
+    (niwa-test-http
+     (lambda (request)
+       (push request requests)
+       ;; The policy changes while the first response is in flight.
+       (setf (niwa-session-permission-rules session)
+             '(("WebFetch" :domain "127.0.0.1" :action deny)))
+       '("302 Found" "Location: /final\r\n" ""))
+     (lambda (base)
+       (with-temp-buffer
+         (setq-local niwa--session session)
+         (let ((result (test-niwa-tool-web--call
+                        "WebFetch" (list :url (concat base "/start")))))
+           (accept-process-output nil 0.2)
+           (should (eq 'error (plist-get result :handler-status)))
+           (should (string-search "denied by permission rules"
+                                  (plist-get result :result)))
+           (should (equal 1 (length requests)))))))))
 
 (niwa-deftest niwa-tool-web--same-origin-p ()
   ,test
@@ -629,7 +657,18 @@ the requested timeout budget but remove the race with connection/redirect I/O."
          ("http://127.0.0.1:8080/" "http://localhost:8080/" nil)
          ("http://127.0.0.1:8080/" "http://2130706433:8080/" nil)
          ("https://a.org/" "ftp://a.org/" nil)
-         ("https://a.org/" "https:///nohost" nil)))
+         ("https://a.org/" "https:///nohost" nil)
+         ;; Hosts compare exactly after url.el lowercases them; spellings that
+         ;; only case-insensitive comparison equates are distinct DNS names.
+         ("http://σ.org/" "http://Σ.org/" t)
+         ("http://σ.org/" "http://ς.org/" nil)
+         ("http://ς.org/" "http://σ.org/" nil)
+         ("http://µ.org/" "http://μ.org/" nil)
+         ("http://β.org/" "http://ϐ.org/" nil)
+         ("http://θ.org/" "http://ϑ.org/" nil)
+         ("http://φ.org/" "http://ϕ.org/" nil)
+         ("http://ι.org/" "http://ͅ.org/" nil)
+         ("http://straße.de/" "http://STRASSE.de/" nil)))
     (should (equal (list from target expected)
                    (list from target
                          (and (niwa-tool-web--same-origin-p from target) t))))))
@@ -660,6 +699,10 @@ the requested timeout budget but remove the race with connection/redirect I/O."
           (should (equal '(error . "Redirect from a.org to https://denied.org/x blocked: the target host is denied by permission rules")
                          (niwa-tool-web--redirect-decision
                           buffer "https://a.org/" "https://denied.org/x")))
+          (should (eq 'follow (niwa-tool-web--redirect-decision
+                               buffer "https://a.org/" "https://a.org/y")))
+          (should (eq 'error (car (niwa-tool-web--redirect-decision
+                                   buffer "https://denied.org/" "https://denied.org/y"))))
           (should (equal '(result . "REDIRECT: a.org redirects to https://asked.org/x.  Redirects to another host or port are not followed; call WebFetch with url=\"https://asked.org/x\" to continue.")
                          (niwa-tool-web--redirect-decision
                           buffer "https://a.org/" "https://asked.org/x")))))))
