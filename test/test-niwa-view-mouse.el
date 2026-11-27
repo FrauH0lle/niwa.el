@@ -18,6 +18,7 @@
 (require 'niwa-view-agent)
 (require 'niwa-view-composer)
 (require 'niwa-view-execution)
+(require 'niwa-view-interaction)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
 
@@ -126,7 +127,8 @@ UPDATE, like input already queued by the display backend."
                (needle ,needle)
                (redraw ,redraw)
                (queued ,queued)
-               (operation ,operation))
+               (operation ,operation)
+               held-text old-start activated obsolete)
           (setq-local niwa--session session)
           (with-current-buffer data-buf (setq-local niwa--session session))
           (niwa-view-test--insert-composer-draft draft)
@@ -155,20 +157,98 @@ UPDATE, like input already queued by the display backend."
                  (niwa-view-mouse-test--target needle)
                  (lambda ()
                    (with-current-buffer view-buf
-                     (if (eq operation 'tick)
-                         (progn
-                           (setq clock 1001.0)
-                           (niwa-view--spinner-tick))
-                       (niwa-view-test--insert-data data-buf " Additional chunk." 'response)
-                       (niwa-view--render-stream-update data-buf))))
+                     (pcase operation
+                       ('tick (setq clock 1001.0) (niwa-view--spinner-tick))
+                       ('elapsed (setq clock 1001.0) (niwa-view-execution-tick))
+                       ((or 'tick-stop 'stop-tick)
+                        (should (niwa-view-stream-in-flight-turn-start-position))
+                        (setq clock 1001.0)
+                        (when (eq operation 'tick-stop) (niwa-view--spinner-tick))
+                        (niwa-view-stream-stop)
+                        (when (eq operation 'stop-tick) (niwa-view--spinner-tick))
+                        (niwa-view--full-rerender))
+                       ((or 'status 'chrome-begin)
+                        (setq executions
+                              (cons '(:execution-id "second" :owner "/root" :yielded t
+                                      :state running :description "Added row" :started-at 999.0)
+                                    executions))
+                        (niwa-view--render-status)
+                        (when (eq operation 'chrome-begin)
+                          (niwa-view--interaction-register
+                           (list :kind 'preview :id 'preview :body "Held control"
+                                 :keymap (define-keymap "RET" (lambda () (interactive)
+                                                               (setq activated t)))))
+                          (niwa-view-render-mutate 'live (lambda () (setq obsolete t)))
+                          (niwa-view-stream-begin-turn
+                           (niwa-view--history-insertion-marker)
+                           (with-current-buffer data-buf (point-max)))))
+                       ('interaction
+                        (niwa-view--interaction-register
+                         '(:kind preview :id preview :body "Added interaction")))
+                       ((or 'held-begin 'nested-begin)
+                        (setq old-start (marker-position (niwa-view--history-insertion-marker)))
+                        (let ((begin
+                               (lambda ()
+                                 ;; Replacement retains earlier mandatory cleanup.
+                                 (niwa-view-render-mutate
+                                  'previous #'ignore nil
+                                  (lambda ()
+                                    (save-excursion
+                                      (goto-char (niwa-view--history-insertion-marker))
+                                      (let ((inhibit-read-only t))
+                                        (insert-before-markers "Moved boundary\n")))))
+                                 (niwa-view-stream-begin-turn
+                                  old-start (with-current-buffer data-buf (point-max))))))
+                          (if (eq operation 'held-begin) (funcall begin)
+                            (niwa-view-render-mutate 'outer begin))))
+                       ('stream
+                        (niwa-view-test--insert-data data-buf " Additional chunk." 'response)
+                        (niwa-view--render-stream-update data-buf)))
+                     (setq held-text (buffer-substring-no-properties (point-min) (point-max)))))
                  redraw queued)
                 (should (eq target-window (selected-window)))
                 (should (= (niwa-view-mouse-test--target needle) (point))))
-              (if (eq operation 'tick)
-                  (should (string-search "1m 00s" (buffer-string)))
-		(should (string-search "Additional chunk." (buffer-string))))
+              (let ((expected (pcase operation
+                                ((or 'tick 'elapsed 'tick-stop 'stop-tick) "1m 00s")
+                                ('stream "Additional chunk.")
+                                ('interaction "Added interaction")
+                                ((or 'held-begin 'nested-begin) "Moved boundary")
+                                ((or 'status 'chrome-begin) "2 commands"))))
+                (should-not (string-search expected held-text))
+                (should (string-search expected (buffer-string))))
+              (when (eq operation 'chrome-begin)
+                (should-not obsolete)
+                (should-not (string-search "Held control" held-text))
+                (save-excursion
+                  (goto-char (niwa-view-mouse-test--target "Held control"))
+                  (call-interactively (key-binding (kbd "RET"))))
+                (should activated))
+              (when old-start
+                (should (< old-start (niwa-view--history-insertion-marker)))
+                (should (= (niwa-view--history-insertion-marker)
+                           (niwa-view-stream-in-flight-turn-start-position))))
+              (when (memq operation '(tick-stop stop-tick))
+                (should-not (niwa-view-stream-in-flight-turn-start-position))
+                (setq clock 1002.0)
+                (niwa-view--spinner-tick)
+                (should (string-search "1m 01s" (buffer-string)))
+                (should-not (niwa-view-stream-in-flight-turn-start-position)))
               (should (equal draft (niwa-view--input-text)))))))))
   (needle redraw queued operation)
+  :doc "regression: idle status redraw holds through the release"
+  "An assistant response." t t 'status
+  :doc "regression: idle interaction materialization holds through the release"
+  "An assistant response." t t 'interaction
+  :doc "preserved: direct execution elapsed refresh holds through the release"
+  "An assistant response." t t 'elapsed
+  :doc "regression: held begin-turn uses the boundary moved by earlier cleanup"
+  "An assistant response." t t 'held-begin
+  :doc "preserved: nested begin-turn uses the boundary moved by earlier cleanup"
+  "An assistant response." t t 'nested-begin
+  :doc "preserved: tick then stop survives a queued replacement without reviving the turn"
+  "An assistant response." t t 'tick-stop
+  :doc "preserved: stop then tick survives a queued replacement without losing background elapsed"
+  "An assistant response." t t 'stop-tick
   :doc "composer click, stale geometry, release resolved after update"
   "click composer target" nil nil 'tick
   :doc "composer click, fresh geometry, release resolved after update"
@@ -204,7 +284,9 @@ UPDATE, like input already queued by the display backend."
   :doc "tool click, stale geometry, queued release across stream chunk"
   "mouse-tool-target.el" nil t 'stream
   :doc "tool click, fresh geometry, queued release across stream chunk"
-  "mouse-tool-target.el" t t 'stream)
+  "mouse-tool-target.el" t t 'stream
+  :doc "regression: replacing the turn retains held status and actionable interaction"
+  "An assistant response." nil t 'chrome-begin)
 
 (defun niwa-view-mouse-test--wait (predicate)
   "Run real timers until PREDICATE succeeds, with a progress watchdog."
@@ -576,6 +658,43 @@ With MOTION, deliver a movement event before the release."
   (kind)
   :doc "A history focus click retains its pixel viewport across full catch-up" 'full
   :doc "A history focus click retains its pixel viewport across incremental catch-up" 'incremental)
+
+(niwa-deftest niwa-view-animation-rail-during-click
+  (:doc "A held click preserves immediate frames and now also admits semantic rail ticks.")
+  (save-window-excursion
+    (skip-unless (display-graphic-p))
+    (require 'niwa-view-native)
+    (delete-other-windows)
+    (niwa-view-test--with-buffers
+      (niwa-view-test--insert-data data-buf "Click this prompt\n\n" nil)
+      (switch-to-buffer view-buf)
+      (let ((niwa-view-spinner-style 'ascii)
+            (niwa-view-spinner-power-policy 'full)
+            (niwa-view-native-enabled nil)
+            (phase 0.0) (elapsed "11s") frame semantic)
+        (cl-letf (((symbol-function 'niwa-view--animation-seconds) (lambda () phase))
+                  ((symbol-function 'niwa-view--spinner-elapsed-label) (lambda () elapsed))
+                  ((symbol-function 'frame-focus-state) (lambda (&optional _) t)))
+          (niwa-view--full-rerender)
+          (niwa-view-composer-display (selected-window))
+          (niwa-view--start-spinner "Working...")
+          (redisplay t)
+          (should (string-search "- Working..." (niwa-view-test--rail-text)))
+          (should (string-search "11s" (niwa-view-test--rail-text)))
+          (niwa-view-mouse-test--click
+           (niwa-view-mouse-test--target "Click this prompt")
+           (lambda ()
+             (setq phase 0.25 niwa-view--spinner-last-second (floor (float-time)))
+             (niwa-view--spinner-tick)
+             (setq frame (niwa-view-test--rail-text))
+             (setq elapsed "12s" niwa-view--spinner-last-second nil)
+             (niwa-view--spinner-tick)
+             (setq semantic (niwa-view-test--rail-text)))
+           t nil)
+          (should (= (point) (niwa-view-mouse-test--target "Click this prompt")))
+          (should (string-search "\\ Working..." frame))
+          (should (string-search "11s" frame))
+          (should (string-search "12s" semantic)))))))
 
 (provide 'test-niwa-view-mouse)
 ;;; test-niwa-view-mouse.el ends here

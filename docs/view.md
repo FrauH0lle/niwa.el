@@ -302,9 +302,10 @@ includes commands such as Evil's that read the release inside `track-mouse`,
 as well as built-in drag tracking that spans press and release commands. Requeued
 releases handed back to the command loop keep the hold until their command runs.
 Mouse events contain numeric character positions; rewriting text above them
-between press and release otherwise places point at the old offset. Semantic
-elapsed ticks use the same hold; decorative frames can still update without
-changing character positions. A two-second one-shot deadline drains held writes
+between press and release otherwise places point at the old offset. Status,
+interaction and execution elapsed rows use the same hold. The composer's
+fixed cells can show new elapsed values and decorative frames immediately:
+neither moves text. A two-second one-shot deadline drains held writes
 if release is lost outside Emacs, so a stale gesture cannot freeze the view.
 Expiry identifies the built-in drag by its terminal start event and single-command
 tracking by its initiating command event, so a later gesture can hold writes again.

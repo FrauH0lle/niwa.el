@@ -722,6 +722,7 @@ fold to a later turn starting at the same data position.")
   "Initialize transcript-rendering state in the current view buffer."
   (niwa-view-render--invalidate-live-tail)
   (niwa-view-render-cancel-batch)
+  (add-hook 'kill-buffer-hook #'niwa-view-render--discard-mouse-writes -90 t)
   (add-hook 'kill-buffer-hook #'niwa-view-render-cancel-batch nil t)
   (add-hook 'kill-buffer-hook #'niwa-view-render--invalidate-live-tail nil t)
   ;; Loading the mode also registers its grammars in
@@ -4574,6 +4575,13 @@ the initiating command event throughout its nested input loop."
     (remove-hook 'post-command-hook niwa-view-render--mouse-resume-hook)
     (setq niwa-view-render--mouse-resume-hook nil)))
 
+(defun niwa-view-render--discard-mouse-writes ()
+  "Invalidate held projections before teardown can drain them."
+  (cl-incf niwa-view-render--generation)
+  (setq niwa-view-render--expired-mouse-gesture (niwa-view-render--mouse-gesture))
+  (when niwa-view-render--mouse-resume-hook
+    (niwa-view-render--resume-after-mouse (current-buffer))))
+
 (defun niwa-view-render--queued-mouse-release-p ()
   "Return non-nil if a tracked command handed its release back to input."
   (seq-some
@@ -4607,8 +4615,7 @@ A two-second deadline bounds the hold if release is lost outside Emacs."
             (lambda () (niwa-view-render--resume-after-mouse buffer)))
       (setq niwa-view-render--mouse-resume-timer
             (run-at-time 2 nil #'niwa-view-render--resume-after-mouse buffer t)))
-    (add-hook 'post-command-hook niwa-view-render--mouse-resume-hook)
-    (add-hook 'kill-buffer-hook #'niwa-view-render--cancel-mouse-resume nil t)))
+    (add-hook 'post-command-hook niwa-view-render--mouse-resume-hook)))
 
 (defun niwa-view-render-terminal ()
   "Invalidate incremental work for the current turn, without changing text."
@@ -4617,9 +4624,11 @@ A two-second deadline bounds the hold if release is lost outside Emacs."
 
 (defun niwa-view-render-mutate (key function &optional replacement cleanup)
   "Run FUNCTION as this view's sole projection writer.
-Nested requests coalesce by KEY and run after the active writer unwinds.
+Every projection write takes ownership.  KEY coalesces nested requests;
+it never exempts writes from ownership or the mouse hold.
 They carry the displayed source identity, never saved view coordinates.
 REPLACEMENT invalidates queued work from the previous source or turn.
+A new turn retains status and interaction redraws for the same source.
 Optional CLEANUP must run even if replacement invalidates FUNCTION.
 Any mouse tracking defers writes until release: queued mouse events carry
 numeric buffer positions that cannot follow a length-changing projection.
@@ -4631,8 +4640,16 @@ operations call their owned implementations rather than entering here again."
     ;; Discard obsolete projection, not its mandatory terminal release.
     ;; Releases stay ahead of the replacement so they cannot clear its state.
     (setq niwa-view-render--pending
-          (cl-remove-if-not (lambda (entry) (nth 4 entry))
-                            niwa-view-render--pending)))
+          (cl-remove-if-not
+           (lambda (entry)
+             ;; Beginning a turn does not rebuild these view-owned zones.
+             ;; Their thunks read current state; the source check still applies.
+             (or (and (eq key 'begin-turn)
+                      (memq (car entry) '(status interaction))
+                      (= (nth 1 entry) (1- niwa-view-render--generation))
+                      (setf (nth 1 entry) niwa-view-render--generation))
+                 (nth 4 entry)))
+           niwa-view-render--pending)))
   (let ((entry (list key niwa-view-render--generation
                      (niwa-view-segments-display-buffer) function cleanup)))
     (if (or niwa-view-render--owner (niwa-view-render--mouse-held-p))

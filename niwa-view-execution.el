@@ -79,10 +79,8 @@
 (autoload 'niwa-view-audit-show-result "niwa-view-audit" nil t)
 
 ;; `niwa-view-render'
-(declare-function niwa-view-render--mouse-held-p "niwa-view-render" ())
 (declare-function niwa-view-render-mutate
                   "niwa-view-render" (key function &optional replacement cleanup))
-(defvar niwa-view-render--owner)
 
 ;; `niwa-view-stream'
 (declare-function niwa-view--animation-target-visible-p
@@ -815,8 +813,8 @@ the metadata is cut."
                   niwa-view-execution--elapsed-targets))
           (setq pos next))))))
 
-(defun niwa-view-execution-tick ()
-  "Refresh visible elapsed rows without collecting work or rebuilding status."
+(defun niwa-view-execution-tick (&optional key)
+  "Submit a refresh of visible elapsed rows, coalesced under KEY."
   (let ((refresh
          (lambda ()
            (dolist (target niwa-view-execution--elapsed-targets)
@@ -843,9 +841,7 @@ the metadata is cut."
                         (set-marker (car target) start)
                         (set-marker (cdr target) (point))))
                     (cons start end)))))))))
-    (if (or niwa-view-render--owner (niwa-view-render--mouse-held-p))
-        (niwa-view-render-mutate 'background-elapsed refresh)
-      (funcall refresh))))
+    (niwa-view-render-mutate (or key 'background-elapsed) refresh)))
 
 (defun niwa-view-execution--control-lines (controls &optional finished)
   "Lay out CONTROLS as explicit one-screen-row lines.

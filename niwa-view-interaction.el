@@ -117,7 +117,6 @@
                   (&optional data-buf start end))
 (declare-function niwa-view-render-mutate
                   "niwa-view-render" (key function &optional replacement cleanup))
-(defvar niwa-view-render--owner)
 
 ;; `niwa-view-stream'
 (declare-function niwa-view--start-spinner-timer "niwa-view-stream" (&optional resumed))
@@ -710,13 +709,11 @@ Only the selected visitor can return to its saved draft caret."
 
 (defun niwa-view--interaction-render ()
   "Render interaction-zone fragments and descriptor callback overlays.
-Coalesce materialization until an active projection writer finishes;
-descriptor registration and callback ownership remain immediate."
+Only materialization is deferred; descriptor registration remains immediate."
   (unless niwa-view--interaction-render-suppressed
-    (if (and (derived-mode-p 'niwa-view-mode)
-             (bound-and-true-p niwa-view-render--owner))
-        (niwa-view-render-mutate
-         'interaction #'niwa-view--interaction-render-now)
+    (if (derived-mode-p 'niwa-view-mode)
+        (niwa-view-render-mutate 'interaction #'niwa-view--interaction-render-now)
+      ;; Isolated interaction buffers have no transcript projection.
       (niwa-view--interaction-render-now))))
 
 (defun niwa-view--interaction-render-now (&optional visits)

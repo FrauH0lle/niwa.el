@@ -16,8 +16,9 @@ During any mouse tracking, projection writes coalesce until the gesture's comman
 finishes. This includes `track-mouse` input loops, such as Evil's, that consume
 the release inside the press command, not just built-in multi-command drag
 tracking. A temporary global command hook also handles release in a
-different buffer and is removed on view teardown. Semantic elapsed updates share
-the hold. A release requeued by a tracking command retains the hold until its
+different buffer and is removed on view teardown. Execution elapsed rows share
+the hold; fixed-cell composer presentation does not. A release requeued by a
+tracking command retains the hold until its
 own command finishes, rather than letting a write invalidate its numeric position.
 A two-second one-shot deadline drains writes if release is lost;
 that expired gesture cannot rearm the hold. Built-in drag identity comes from
@@ -217,9 +218,13 @@ collapsed tool parsing also has its separate staged preparation lifecycle.
 Transcript writers also share per-view mutation ownership: nested projection,
 terminal, disclosure, and agent-refresh work coalesces rather than mutating
 captured view coordinates recursively. Source replacement retires obsolete
-intent, but not required terminal cleanup. Status and interaction materialization
-requested inside a projection joins that ownership queue, while descriptor
-registration and pause state remain immediate. Idle chrome-only redraws do not
+intent, but not required terminal cleanup. Beginning a turn in the same view
+preserves pending status and interaction redraws: they read current session
+state, not the replaced turn. Every projection write takes ownership,
+including idle status and interaction materialization. Callers submit writes
+without inspecting ownership or gesture state. Keys coalesce work; they do not
+exempt writes from ownership or tracking. Descriptor registration and pause
+state remain immediate. Idle chrome-only redraws do not
 force pending history batches to complete. History-boundary recovery is bounded
 by the input prompt, even when a pasted draft retains transcript properties.
 Markdown fontification reuses a quiet

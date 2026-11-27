@@ -276,7 +276,6 @@
 (declare-function niwa-view-toggle-transcript "niwa-view-render" ())
 (declare-function niwa-view--user-turn-text
                   "niwa-view-render" (segments data-buf))
-(defvar niwa-view-render--owner)
 
 ;; `niwa-view-segments'
 (declare-function niwa-view-historical-segment-p
@@ -2090,14 +2089,9 @@ issue, so a stale control cannot dismiss a later failure with the same id."
     (nreverse fragments)))
 
 (defun niwa-view--render-status (&optional data-buf)
-  "Render task, execution, and aggregate agent status for DATA-BUF.
-Coalesce materialization until an active projection writer finishes;
-idle status redraws remain immediate."
-  (if (and (derived-mode-p 'niwa-view-mode)
-           (bound-and-true-p niwa-view-render--owner))
-      (niwa-view-render-mutate
-       'status (lambda () (niwa-view--render-status-now data-buf)))
-    (niwa-view--render-status-now data-buf)))
+  "Submit task, execution, and aggregate agent status for DATA-BUF."
+  (niwa-view-render-mutate
+   'status (lambda () (niwa-view--render-status-now data-buf))))
 
 (defun niwa-view--render-status-now (&optional data-buf)
   "Materialize DATA-BUF's status without reentering a projection writer."

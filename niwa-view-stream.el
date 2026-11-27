@@ -133,13 +133,11 @@
                   "niwa-view-audit" (record before))
 
 ;; `niwa-view-render'
-(declare-function niwa-view-render--mouse-held-p "niwa-view-render" ())
 (declare-function niwa-view-render-mutate
                   "niwa-view-render" (key function &optional replacement cleanup))
 (declare-function niwa-view-render-terminal "niwa-view-render" ())
 (declare-function niwa-view-render--settle-now
                   "niwa-view-render" (data-buf start end))
-(defvar niwa-view-render--owner)
 (defvar niwa-view-render--terminal-p)
 (declare-function niwa-view--append-request-summary
                   "niwa-view-render" (data-buf start))
@@ -1378,26 +1376,19 @@ animation or elapsed timer remains to notice the new colors."
 
 (defun niwa-view--spinner-tick ()
   "Update display spans; reconcile semantic metadata at most once a second."
-  ;; A queued release carries a raw position from before any text rewrite.
-  ;; Keep its second unconsumed, then catch up through the bounded mouse hold.
-  (if (and (not niwa-view-render--owner)
-           (niwa-view-render--mouse-held-p))
-      (niwa-view-render-mutate 'elapsed-tick #'niwa-view--spinner-tick)
-    (let ((second (floor (float-time))))
-      (unless (eql second niwa-view--spinner-last-second)
-        (setq niwa-view--spinner-last-second second)
-        (niwa-view-animation-check-colors)
-        (when (niwa-view--background-metadata-visible-p)
-          (niwa-view-execution-tick))
-        (when (and niwa-view--spinner-status
-                   (or (niwa-view--animation-target-visible-p
-                        niwa-view--spinner-label-target
-                        'niwa-view-spinner-frame)
-                       (niwa-view--spinner-metadata-visible-p)))
-          (niwa-view--render-request-progress))
-        ;; Theme/face changes can turn a color bank into a glyph fallback (or
-        ;; back).  Re-evaluate the actual cadence only on this semantic tick.
-        (niwa-view--start-spinner-timer))))
+  (let ((second (floor (float-time))))
+    (unless (eql second niwa-view--spinner-last-second)
+      (setq niwa-view--spinner-last-second second)
+      (niwa-view-animation-check-colors)
+      (when (niwa-view--background-metadata-visible-p)
+        (niwa-view-execution-tick 'elapsed-tick))
+      (when (and niwa-view--spinner-status
+                 (or (niwa-view--animation-target-visible-p
+                      niwa-view--spinner-label-target 'niwa-view-spinner-frame)
+                     (niwa-view--spinner-metadata-visible-p)))
+        (niwa-view--render-request-progress))
+      ;; A theme change can switch a color bank to a glyph fallback or back.
+      (niwa-view--start-spinner-timer)))
   (let ((seconds (niwa-view--animation-seconds))
         (moving (not (niwa-view--animation-frozen-p)))
         (was-modified (buffer-modified-p))
@@ -2230,17 +2221,18 @@ redraw, leaves them behind.  Only the in-flight turn can hold them."
 (defun niwa-view-stream-begin-turn (view-start data-start &optional no-progress)
   "Begin an active streamed turn at VIEW-START and DATA-START.
 When NO-PROGRESS is non-nil, record no active progress state."
-  (let ((view-start (unless niwa-view-render--owner view-start))
-        (data-start (copy-marker data-start)))
-    (niwa-view-render-mutate
-     'begin-turn
-     (lambda ()
-       (niwa-view-stream--stop-now)
-       (setq niwa-view-render--terminal-p nil)
-       (niwa-view-stream--begin-turn-now
-        (or view-start (niwa-view--history-insertion-marker))
-        data-start no-progress))
-     t)))
+  (let ((data-start (copy-marker data-start)))
+    (unwind-protect
+        (niwa-view-render-mutate
+         'begin-turn
+         (lambda ()
+           (niwa-view-stream--stop-now)
+           (setq niwa-view-render--terminal-p nil)
+           (niwa-view-stream--begin-turn-now
+            (or view-start (niwa-view--history-insertion-marker))
+            data-start no-progress))
+         t)
+      (setq view-start nil))))
 
 (defun niwa-view-stream--begin-turn-now (view-start data-start no-progress)
   "Anchor VIEW-START and DATA-START while holding projection ownership.

@@ -563,8 +563,6 @@ mouse events in them, which later interactive calls would read."
                  (niwa-view--render-status)
                  (should niwa-view-execution--reflow-pending)
                  (should (= 7 (length niwa-view-execution--shown)))))
-              (should-not niwa-view-render--owner)
-              (should-not niwa-view-render--pending)
               (should-not niwa-view-execution--reflow-pending)
               (should niwa-view-execution--hovering)
               (should (string-search "▾ Running   bash     cmd 1" (buffer-string)))
@@ -576,6 +574,8 @@ mouse events in them, which later interactive calls would read."
               (setf (plist-get (nth 2 (car niwa-view-execution--held)) :release-at) 0.0)
               (niwa-view--render-status)
               (should (string-search "· Ended     bash     cmd 2" (buffer-string)))
+              (niwa-view-execution-test--activate "[Show all ")
+              (should (string-search "[Show fewer]" (buffer-string)))
               (should (equal "> draft\nsecond line" (niwa-view-composer-draft-text))))
           (niwa-view-execution--cancel-release)))))
   :doc "Show all supersedes a queued Show fewer through the still-rendered control"

@@ -550,8 +550,8 @@ SEGMENT.  RESPONSE-BOUND-LENGTH may simulate a stale persisted response end."
     (should (= 2 (niwa-view-segments-current-number)))
     (should (string-search "Archived answer two" (buffer-string)))
     (should-not (string-search "Live answer" (buffer-string)))
-    (should-not niwa-view-render--owner)
     (niwa-view-return-to-latest-segment)
+    (should (string-search "Live answer" (buffer-string)))
     (should (equal "> draft\nsecond line" (niwa-view-composer-draft-text)))
     (should (= 4 (niwa-view-segments-test--draft-offset))))
 
@@ -577,9 +577,10 @@ SEGMENT.  RESPONSE-BOUND-LENGTH may simulate a stale persisted response end."
     (should (eq data-buf (niwa-view-segments-display-buffer)))
     (should (string-search "Live answer" (buffer-string)))
     (should-not (string-search "Archived answer" (buffer-string)))
-    (should-not niwa-view-render--owner)
     (should (equal "> draft\nsecond line" (niwa-view-composer-draft-text)))
-    (should (= 4 (niwa-view-segments-test--draft-offset)))))
+    (should (= 4 (niwa-view-segments-test--draft-offset)))
+    (niwa-view-go-to-segment 2)
+    (should (string-search "Archived answer two" (buffer-string)))))
 
 (niwa-deftest niwa-view-segments/fileless-agent-has-no-parent-history ()
   ,test

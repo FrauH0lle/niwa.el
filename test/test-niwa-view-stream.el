@@ -414,8 +414,9 @@ render would see once gptel has written the batch."
     (let ((data-start (with-current-buffer data-buf
                         (copy-marker (point-max) nil))))
       (with-current-buffer view-buf
-        (let ((view-start (copy-marker (niwa-view--history-insertion-marker) nil)))
+        (let ((view-start (copy-marker (point-min) nil)))
           (niwa-view-stream-begin-turn view-start data-start)
+          (should (= view-start (niwa-view-stream-in-flight-turn-start-position)))
           (should (markerp niwa-view--in-flight-turn-start))
           (should (markerp niwa-view--data-turn-start))
           (should-not (eq view-start niwa-view--in-flight-turn-start))
@@ -1340,15 +1341,18 @@ turn's later text, live and after reconstruction."
 (niwa-deftest niwa-view--spinner-tick ()
   ,test
   (test)
-  :doc "an owned elapsed callback cannot requeue itself during mouse tracking"
+  :doc "preserved: a nested semantic tick finishes once without replaying on drain"
   (niwa-view-stream-test--with-buffers
     (with-current-buffer view-buf
       (setq niwa-view--spinner-last-second nil)
-      (let ((niwa-view-render--owner t)
-            (track-mouse 'drag-tracking))
-        (niwa-view--spinner-tick))
-      (should (numberp niwa-view--spinner-last-second))
-      (should-not niwa-view-render--pending)))
+      (let ((ticks 0)
+            (tick (symbol-function 'niwa-view--spinner-tick)))
+        (cl-letf (((symbol-function 'niwa-view--spinner-tick)
+                   (lambda () (cl-incf ticks) (funcall tick))))
+          (niwa-view-render-mutate
+           'outer (lambda () (track-mouse (niwa-view--spinner-tick))))
+          (should (numberp niwa-view--spinner-last-second))
+          (should (= 1 ticks))))))
   :doc "progress ticks preserve selection without reactivating mark hooks"
   (dolist (active '(nil t))
     (niwa-view-stream-test--with-buffers
