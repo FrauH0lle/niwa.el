@@ -739,7 +739,16 @@ changing what was authored, so these never decide a conflict.")
 
 (defun niwa-instruction-store-path (workspace)
   "Return WORKSPACE's instruction store file."
+  (file-name-concat (niwa-workspace-state-dir workspace) "state" "instructions.eld"))
+
+(defun niwa-instruction-store--legacy-path (workspace)
+  "Return WORKSPACE's store file before `state/', which older clients write."
   (file-name-concat (niwa-workspace-state-dir workspace) "instructions.eld"))
+
+(defun niwa-instruction-store--legacy-base-path (workspace)
+  "Return the legacy record WORKSPACE last adopted, the next adoption's base."
+  (file-name-concat (niwa-workspace-state-dir workspace)
+                    "state" "instructions-legacy.eld"))
 
 (defun niwa-instruction-store--applicable-p (workspace)
   "Return non-nil when WORKSPACE keeps its instructions in a store.
@@ -825,22 +834,155 @@ or `corrupt'."
      (concat (prin1-to-string data) "\n"))
    'utf-8-unix))
 
-(defun niwa-instruction-store--read (workspace)
+(defun niwa-instruction-store--decoded (result workspace)
+  "Return the observation for program read RESULT of WORKSPACE's store bytes."
+  (if (eq (plist-get result :status) 'absent)
+      (list :status 'absent)
+    (let ((bytes (niwa-session-control-fs-program-value result)))
+      (append (list :hash (secure-hash 'sha256 bytes))
+              (niwa-instruction-store--decode bytes workspace)))))
+
+(defun niwa-instruction-store--read (workspace &optional no-adopt)
   "Observe WORKSPACE's store.
 Return (:status STATUS :hash HASH :data DATA :reason TEXT).  STATUS is
 `absent', `ok', `unsupported' or `corrupt'; HASH is the SHA-256 of the
-bytes read, the precondition a later write names."
+bytes read, the precondition a later write names.  The same program reads
+a legacy store an older client wrote; unless NO-ADOPT, it is adopted first."
   (if (not (file-directory-p (niwa-workspace-state-dir workspace)))
       (list :status 'absent)
-    (let ((result (car (niwa-session-control-fs-run-program
-                        (list (list :op 'read
-                                    :path (niwa-instruction-store-path workspace)
-                                    :coding 'no-conversion :optional t))))))
-      (if (eq (plist-get result :status) 'absent)
-          (list :status 'absent)
-        (let ((bytes (niwa-session-control-fs-program-value result)))
-          (append (list :hash (secure-hash 'sha256 bytes))
-                  (niwa-instruction-store--decode bytes workspace)))))))
+    (let* ((results (niwa-session-control-fs-run-program
+                     (mapcar (lambda (path)
+                               (list :op 'read :path path
+                                     :coding 'no-conversion :optional t))
+                             (list (niwa-instruction-store-path workspace)
+                                   (niwa-instruction-store--legacy-path workspace)
+                                   (niwa-instruction-store--legacy-base-path
+                                    workspace)))))
+           (observation (niwa-instruction-store--decoded (car results) workspace)))
+      (if (and (not no-adopt)
+               (not (eq (plist-get (nth 1 results) :status) 'absent))
+               (niwa-instruction-store--adopt-legacy
+                workspace observation (nth 1 results) (nth 2 results)))
+          (niwa-instruction-store--read workspace t)
+        observation))))
+
+(defun niwa-instruction-store--sanitize (record theirs)
+  "Return (RECORD . DROPPED) with legacy RECORD's permission modes made safe.
+Confined children could write the legacy file, so it must not raise a
+note conversation's permission mode.  A note THEIRS holds takes THEIRS's
+mode; any other keeps only a mode no higher than the default
+`niwa-permission-mode'.  DROPPED counts the legacy modes not imported."
+  (let ((modes (make-hash-table :test #'equal))
+        (ranks '(ask edits full-auto))
+        (dropped 0))
+    (dolist (entry (plist-get theirs :files))
+      (dolist (instruction (plist-get (cdr entry) :instructions))
+        (puthash (niwa-instruction-store--instruction-uuid instruction)
+                 (list (plist-get (plist-get (plist-get instruction :properties)
+                                             'niwa-note-settings)
+                                  :permission-mode))
+                 modes)))
+    (dolist (entry (plist-get record :files) (cons record dropped))
+      (dolist (instruction (plist-get (cdr entry) :instructions))
+        (let* ((props (plist-get instruction :properties))
+               (settings (plist-get props 'niwa-note-settings))
+               (old (plist-get settings :permission-mode))
+               (known (gethash (niwa-instruction-store--instruction-uuid instruction)
+                               modes))
+               (mode (if known
+                         (car known)
+                       (and (memq old ranks)
+                              (<= (cl-position old ranks)
+                                  (or (cl-position
+                                       (and (boundp 'niwa-permission-mode)
+                                            (default-toplevel-value 'niwa-permission-mode))
+                                       ranks)
+                                      0))
+                            old))))
+          (unless (equal old mode)
+            (when old (cl-incf dropped))
+            (plist-put instruction :properties
+                       (plist-put (copy-sequence props) 'niwa-note-settings
+                                  (if mode
+                                      (plist-put (copy-sequence settings)
+                                                 :permission-mode mode)
+                                    (niwa-instruction-store--without
+                                     settings '(:permission-mode)))))))))))
+
+(defun niwa-instruction-store--adopt-legacy (workspace current legacy base)
+  "Move WORKSPACE's LEGACY store into CURRENT; return non-nil once adopted.
+CURRENT is the store observation; LEGACY and BASE are program reads of the
+legacy file and of the legacy record last adopted.  Nothing proves who
+wrote LEGACY, so both are first made safe, see
+`niwa-instruction-store--sanitize'.  The first adoption takes LEGACY whole;
+a legacy file that reappears comes from an older client, and its changes
+since BASE merge through the store's conflict handling.  A concurrent
+change leaves the legacy file for the next read."
+  (let ((old (niwa-instruction-store--decoded legacy workspace))
+        (base (niwa-instruction-store--decoded base workspace))
+        (path (niwa-instruction-store-path workspace))
+        (legacy-path (niwa-instruction-store--legacy-path workspace)))
+    (if (not (eq (plist-get old :status) 'ok))
+        (progn
+          (niwa-instruction-store--warn
+           workspace 'legacy
+           (format "Older instruction store %s was left in place: %s"
+                   legacy-path (plist-get old :reason)))
+          nil)
+      (unless (memq (plist-get current :status) '(ok absent))
+        (niwa-instruction-store--unreadable workspace current))
+      (let* ((first (and (eq (plist-get current :status) 'absent)
+                         (not (eq (plist-get base :status) 'ok))))
+             (theirs (or (plist-get current :data)
+                         (list :format niwa-instruction-store-format-version
+                               :ids nil :files nil :rewinds nil)))
+             ;; Made safe before merging, so a mode alone is never a change.
+             (sanitized (niwa-instruction-store--sanitize (plist-get old :data) theirs))
+             (merge (unless first
+                      (niwa-instruction-store--merge
+                       (and (plist-get base :data)
+                            (car (niwa-instruction-store--sanitize
+                                  (plist-get base :data) theirs)))
+                       (car sanitized) theirs)))
+             (results
+              (niwa-session-control-fs-run-program
+               (list (list :op 'make-directory
+                           :path (directory-file-name (file-name-directory path))
+                           :optional t)
+                     (if (plist-get current :hash)
+                         (list :op 'verify-hash :path path
+                               :content (plist-get current :hash))
+                       (list :op 'absent :path path))
+                     (list :op 'verify-hash :path legacy-path
+                           :content (plist-get old :hash))
+                     ;; Record, then base, then removal: after a crash at
+                     ;; any point the next read merges the same legacy
+                     ;; changes again, and they are already in the record.
+                     (list :op 'write :path path
+                           :content (niwa-instruction-store--print
+                                     (if first (car sanitized) (plist-get merge :data)))
+                           :coding 'no-conversion)
+                     (list :op 'write
+                           :path (niwa-instruction-store--legacy-base-path workspace)
+                           :content (niwa-session-control-fs-program-value legacy)
+                           :coding 'no-conversion)
+                     (list :op 'delete-file :path legacy-path))
+               (niwa-instruction-store--lock-directory workspace))))
+        (unless (cl-some (lambda (result)
+                           (memq (plist-get result :status) '(mismatch absent conflict)))
+                         (seq-take (cdr results) 2))
+          (mapc #'niwa-session-control-fs-program-value (nthcdr 3 results))
+          (niwa-instruction-store--report-refused workspace (plist-get merge :refused))
+          (when (> (cdr sanitized) 0)
+            (niwa-instruction-store--warn
+             workspace 'legacy-modes
+             (format (concat "Moving notes into .niwa/state/ did not import %d note "
+                             "permission mode%s from the older store; set %s again in "
+                             "the note settings if you meant %s")
+                     (cdr sanitized) (if (= 1 (cdr sanitized)) "" "s")
+                     (if (= 1 (cdr sanitized)) "it" "them")
+                     (if (= 1 (cdr sanitized)) "it" "them"))))
+          t)))))
 
 (defun niwa-instruction-store-note-session-ids (workspace)
   "Return WORKSPACE's retained note session IDs, or t when uncertain.
@@ -889,14 +1031,18 @@ nil when the store changed since EXPECTED was observed."
   (let* ((path (niwa-instruction-store-path workspace))
          (bytes (niwa-instruction-store--print data))
          (results (niwa-session-control-fs-run-program
-                   (list (if expected
+                   ;; The precondition needs the `state/' parent to exist.
+                   (list (list :op 'make-directory
+                               :path (directory-file-name (file-name-directory path))
+                               :optional t)
+                         (if expected
                              (list :op 'verify-hash :path path :content expected)
                            (list :op 'absent :path path))
                          (list :op 'write :path path :content bytes
                                :coding 'no-conversion))
                    (niwa-instruction-store--lock-directory workspace))))
-    (unless (memq (plist-get (car results) :status) '(mismatch absent conflict))
-      (mapc #'niwa-session-control-fs-program-value results)
+    (unless (memq (plist-get (nth 1 results) :status) '(mismatch absent conflict))
+      (mapc #'niwa-session-control-fs-program-value (cdr results))
       (secure-hash 'sha256 bytes))))
 
 (defun niwa-instruction-store--serialize (workspace)
@@ -1493,12 +1639,19 @@ An unreadable store signals without clearing or writing."
 
 (defun niwa-instruction-store--current-hash (workspace)
   "Return the hash of WORKSPACE's store bytes, or nil when it is absent.
-The bytes are hashed on the execution target and never transferred."
-  (condition-case nil
-      (plist-get (niwa-session-control-fs-file-hash
-                  (niwa-instruction-store-path workspace))
-                 :sha256)
-    (niwa-session-control-fs-absent nil)))
+The bytes are hashed on the execution target and never transferred.  A
+legacy store from an older client also returns nil, so it is read and
+adopted rather than reported current."
+  (pcase-let ((`(,legacy ,hash)
+               (niwa-session-control-fs-run-program
+                (list (list :op 'path-exists-p
+                            :path (niwa-instruction-store--legacy-path workspace)
+                            :optional t)
+                      (list :op 'file-hash :path (niwa-instruction-store-path workspace)
+                            :optional t)))))
+    (and (eq (plist-get legacy :status) 'absent)
+         (eq (plist-get hash :status) 'ok)
+         (plist-get (niwa-session-control-fs-program-value hash) :sha256))))
 
 (defun niwa-instruction-store--memory-empty-p (workspace)
   "Return non-nil when WORKSPACE holds no instructions in memory."

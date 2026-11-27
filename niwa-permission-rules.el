@@ -120,11 +120,22 @@ Example:
     ("**/.niwa/artifacts/.state/**" . read-only)
     ;; A stored schedule selects its runs' permission mode.
     ("**/.niwa/schedules/**" . read-only)
+    ;; So does a session sidecar on resume.  Derives from
+    ;; `niwa-sessions-directory' when niwa loads; its default is relative
+    ;; to each workspace root.
+    ,@(let ((dir (or (bound-and-true-p niwa-sessions-directory) ".niwa/sessions")))
+        (mapcar (lambda (dir)
+                  (cons (file-name-concat dir "**" "session.meta.eld") 'read-only))
+                (if (file-name-absolute-p dir)
+                    (delete-dups (list (expand-file-name dir) (file-truename dir)))
+                  (list (concat "**/" (directory-file-name dir))))))
+    ;; niwa's local authority-bearing state: note settings carry a
+    ;; permission mode, plugin state hook consent.  The top level of
+    ;; `.niwa/' holds trust-gated project configuration and stays writable.
+    ("**/.niwa/state/**" . read-only)
     ("**/.niwa/leases/**" . read-only)
-    ;; Existing stores that grant authority: an agent edit must not raise
-    ;; its own.  User stores derive from `niwa-user-dir' when niwa loads.
-    ("**/.niwa/permissions.eld" . read-only)
-    ("**/.niwa/plugins.eld" . read-only)
+    ;; User stores that grant authority: an agent edit must not raise its
+    ;; own.  They derive from `niwa-user-dir' when niwa loads.
     ;; Remote global permissions live in the target user's ~/.niwa/.
     ("~/.niwa/permissions.eld" . read-only)
     ,@(mapcan (lambda (dir)

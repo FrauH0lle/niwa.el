@@ -387,7 +387,8 @@ rerender."
   "Directory where session persistence files live.
 
 Relative paths resolve against the workspace root at save time;
-absolute paths are used as-is."
+absolute paths are used as-is.  The default of `niwa-protected-paths'
+derives from it when niwa loads, so set it first."
   :type 'directory
   :group 'niwa)
 

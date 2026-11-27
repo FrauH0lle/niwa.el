@@ -48,7 +48,7 @@
                   "niwa-plugin-registry" (plugin &optional workspace))
 (declare-function niwa-plugins-transfer-state-entry
                   "niwa-plugin-registry"
-                  (old-name new-name plist &optional workspace))
+                  (old-name new-name root &optional workspace))
 (declare-function niwa-hooks-invalidate-config "niwa-hooks" ())
 
 ;;; Git install/update
@@ -156,9 +156,7 @@ into each other's staging tree or delete it on the way out."
   "Update installed plugin NAME with git pull.
 Preserve plugin state in WORKSPACE."
   (if-let* ((plugin (niwa-plugins-find name workspace)))
-      (let* ((root (niwa-plugin-root plugin))
-             (previous-state (niwa-plugins-state-entry
-                              plugin workspace)))
+      (let ((root (niwa-plugin-root plugin)))
         (if (not (niwa-plugins--managed-root-p root))
             (format "Plugin %s is not managed by niwa; update %s manually."
                     name root)
@@ -179,7 +177,7 @@ Preserve plugin state in WORKSPACE."
                     (niwa-plugins-transfer-state-entry
                      (niwa-plugin-name plugin)
                      updated-name
-                     previous-state
+                     root
                      workspace)
                     (if (niwa-plugins-hooks-stale-p updated workspace)
                         (format (concat "Updated plugin %s. "

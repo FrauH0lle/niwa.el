@@ -131,21 +131,30 @@ Indexed remote roots are read once in the background, never in this hook."
        (key (niwa-notes-activation--present file key))
        ((file-remote-p file nil 'never) (niwa-notes-activation--remote-visit file))
        (t
-        (when-let* ((located (locate-dominating-file
-                             (file-name-directory file) ".niwa/instructions.eld"))
-                    ;; `locate-dominating-file' may abbreviate a HOME root.
-                    (root (expand-file-name located)))
-          (unless (niwa-notes-activation--cached-key file root)
-            (when-let* ((data
-                         ;; A load hint only; persistence validates the record.
-                         (condition-case nil
-                             (with-temp-buffer
-                               (insert-file-contents
-                                (file-name-concat root ".niwa/instructions.eld"))
-                               (read (current-buffer)))
-                           (error nil)))
-                        ((plist-get data :files)))
-              (niwa-notes-activation--present file nil root)))))))))
+        (let (store)
+          (when-let* ((located (locate-dominating-file
+                                (file-name-directory file)
+                                ;; The legacy name until an older client's
+                                ;; store is adopted into `state/'.
+                                (lambda (directory)
+                                  (setq store
+                                        (seq-find #'file-exists-p
+                                                  (list (expand-file-name
+                                                         ".niwa/state/instructions.eld" directory)
+                                                        (expand-file-name
+                                                         ".niwa/instructions.eld" directory)))))))
+                      ;; `locate-dominating-file' may abbreviate a HOME root.
+                      (root (expand-file-name located)))
+            (unless (niwa-notes-activation--cached-key file root)
+              (when-let* ((data
+                           ;; A load hint only; persistence validates the record.
+                           (condition-case nil
+                               (with-temp-buffer
+                                 (insert-file-contents store)
+                                 (read (current-buffer)))
+                             (error nil)))
+                          ((plist-get data :files)))
+                (niwa-notes-activation--present file nil root))))))))))
 
 ;;;###autoload
 (define-minor-mode niwa-notes-global-mode

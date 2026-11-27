@@ -121,7 +121,7 @@ Notes are not structs; see the instruction store below.
 - `niwa--instruction-states`: workspace-keyed instruction alists and ID state
   for notes, the recently-closed list, and display-number state. The note is
   the only instruction type: marked code with optional text, kept in the
-  workspace instruction store (`.niwa/instructions.eld`, format 2). Its
+  workspace instruction store (`.niwa/state/instructions.eld`, format 2). Its
   overlay properties carry the author (user, agent, or Buddy), tags, state
   (unsent, sent, or taken), the note conversation's session id once sent, and at
   most one waiting prepared change. Note context reaches a prompt only when the
@@ -918,12 +918,16 @@ See [`address-to-resource.md`](address-to-resource.md) and
 
 ## Generated workspace state
 
-`.niwa/state/` contains internal journal records (`journal/`), target write
-coordination (`memory-write/`), clipboard images (`media/`), Git evidence packages
+`.niwa/state/` contains the note store (`instructions.eld`), plugin activation
+and hook consent (`plugins.eld`), internal journal records (`journal/`), target
+write coordination (`memory-write/`), shared-note extraction state
+(`shared-notes/`), clipboard images (`media/`), Git evidence packages
 (`review-packages/`), workspace telemetry (`diagnostics/`), and plugin runtime data
 (`plugin-data/`). The common parent is ignored by Git. This is persistent state,
 not a disposable cache: journal recovery and target write coordination retain
-their own cleanup rules, and plugins own their runtime data.
+their own cleanup rules, and plugins own their runtime data. niwa writes it from
+Emacs, so confinement mounts it read-only except `plugin-data/`
+([permissions](permissions.md)).
 
 The workspace cleanup opportunity, throttled to once an hour, also collects
 generated clipboard/guest PNGs and review packages older than seven days, up to

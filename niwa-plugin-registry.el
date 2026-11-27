@@ -12,6 +12,19 @@
 (require 'subr-x)
 (require 'niwa-structs)
 
+(declare-function niwa-session-control-fs-run-program
+                  "niwa-session-control-fs" (operations &optional lock-directory))
+(declare-function niwa-session-control-fs-program-value
+                  "niwa-session-control-fs" (result))
+(declare-function niwa-session-control-fs-make-directory
+                  "niwa-session-control-fs" (path &optional parents))
+(declare-function niwa-session-control-fs-physical-path
+                  "niwa-session-control-fs" (path))
+(autoload 'niwa-session-control-fs-run-program "niwa-session-control-fs")
+(autoload 'niwa-session-control-fs-program-value "niwa-session-control-fs")
+(autoload 'niwa-session-control-fs-make-directory "niwa-session-control-fs")
+(autoload 'niwa-session-control-fs-physical-path "niwa-session-control-fs")
+
 ;; `niwa-cockpit'
 (declare-function niwa-cockpit-context-session
                   "niwa-cockpit" (&optional context))
@@ -126,7 +139,12 @@ plugin.  The cockpit's \"Check for updates\" action ignores this setting."
   "Return the persistent plugin state file for WORKSPACE.
 Return nil when WORKSPACE is nil."
   (when workspace
-    (file-name-concat (niwa-workspace-state-dir workspace) "plugins.eld")))
+    (file-name-concat (niwa-workspace-state-dir workspace) "state" "plugins.eld")))
+
+(defun niwa-plugins--project-state-file (workspace)
+  "Return WORKSPACE's top-level plugin state file.
+A project may track it; older clients write it as their only state file."
+  (file-name-concat (niwa-workspace-state-dir workspace) "plugins.eld"))
 
 (defun niwa-plugins--workspace-plugins-dir (workspace resource-dir)
   "Return WORKSPACE plugin directory under RESOURCE-DIR."
@@ -388,17 +406,140 @@ Items include usable plugin manifests and visible metadata errors."
 ;;
 ;;; Persistent state
 
+(defconst niwa-plugins--consent-keys
+  '(:hooks-enabled :hooks-fingerprint :hooks-scripts)
+  "Plugin state keys that enable executable hooks or approve their scripts.
+Only the state file under `state/' supplies them: the top level of `.niwa/'
+is writable to confined children and may be tracked.")
+
+(defun niwa-plugins--parse-state (text)
+  "Return the plugin state alist TEXT holds, or nil when it is unreadable."
+  (condition-case nil
+      (let* ((read-eval nil)
+             (state (car (read-from-string text))))
+        (and (listp state) state))
+    (error nil)))
+
+(defun niwa-plugins--read-file (file)
+  "Return the plugin state alist in FILE, or nil."
+  (when (file-readable-p file)
+    (niwa-plugins--parse-state
+     (with-temp-buffer (insert-file-contents file) (buffer-string)))))
+
+(defun niwa-plugins--keys (plist &optional consent)
+  "Return PLIST's hook consent keys when CONSENT, else its other keys."
+  (cl-loop for (key value) on plist by #'cddr
+           when (eq (and consent t) (and (memq key niwa-plugins--consent-keys) t))
+           append (list key value)))
+
+(defun niwa-plugins--with-consent (activation local)
+  "Return ACTIVATION entries with hook consent taken from LOCAL only."
+  (mapcar (lambda (entry)
+            (cons (car entry)
+                  (append (niwa-plugins--keys (cdr entry))
+                          (niwa-plugins--keys (cdr (assoc (car entry) local)) t))))
+          activation))
+
+(defvar niwa-plugins--tracked-cache (make-hash-table :test #'equal)
+  "Whether Git tracks a project plugin file, by path and modification time.")
+
+(defun niwa-plugins--tracked-p (workspace file)
+  "Return non-nil when Git tracks WORKSPACE's project plugin FILE."
+  ;; shortcut: keyed by FILE's modification time, so staging or untracking
+  ;; an unchanged file is seen at its next change; key on the index if needed.
+  (let ((key (list file (file-attribute-modification-time (file-attributes file)))))
+    (pcase (gethash key niwa-plugins--tracked-cache 'unknown)
+      ('unknown
+       (puthash key
+                (let ((default-directory
+                       (file-name-as-directory (niwa-workspace-root workspace))))
+                  (eq 0 (ignore-errors
+                          (process-file "git" nil nil nil "ls-files" "--error-unmatch"
+                                        "--" (file-local-name file)))))
+                niwa-plugins--tracked-cache))
+      (known known))))
+
+(defun niwa-plugins--merge-legacy (base legacy local)
+  "Return LOCAL with LEGACY's activation changes since BASE, never consent."
+  (let ((result (copy-tree local)))
+    (dolist (name (delete-dups (mapcar #'car (append base legacy))) result)
+      (let ((old (assoc name legacy)))
+        (unless (equal (niwa-plugins--keys (cdr old))
+                       (niwa-plugins--keys (cdr (assoc name base))))
+          (let ((consent (niwa-plugins--keys (cdr (assoc name result)) t)))
+            (setq result (assoc-delete-all name result))
+            (when old
+              (setq result (append result
+                                   (list (cons name (append (niwa-plugins--keys (cdr old))
+                                                            consent))))))))))))
+
+(defun niwa-plugins--adopt-legacy (workspace)
+  "Move WORKSPACE's untracked top-level plugin state into `state/'.
+Nothing proves who wrote it, so its activation changes since the last
+adopted file apply, but never its hook consent: the user consents once
+more.  A concurrent change leaves the file for the next read."
+  (let* ((legacy (niwa-plugins--project-state-file workspace))
+         (local (niwa-plugins-state-file workspace))
+         (base (file-name-concat (file-name-directory local) "plugins-legacy.eld"))
+         (reads (niwa-session-control-fs-run-program
+                 (mapcar (lambda (path)
+                           (list :op 'read :path path :coding 'no-conversion :optional t))
+                         (list legacy local base))))
+         (bytes (mapcar (lambda (result)
+                          (and (eq (plist-get result :status) 'ok)
+                               (niwa-session-control-fs-program-value result)))
+                        reads))
+         (state (mapcar (lambda (data)
+                          (and data (niwa-plugins--parse-state
+                                     (decode-coding-string data 'utf-8-unix))))
+                        bytes)))
+    (when (car state)
+      (let ((results
+             (niwa-session-control-fs-run-program
+              (list (list :op 'make-directory
+                          :path (directory-file-name (file-name-directory local))
+                          :optional t)
+                    (if (nth 1 bytes)
+                        (list :op 'verify-hash :path local
+                              :content (secure-hash 'sha256 (nth 1 bytes)))
+                      (list :op 'absent :path local))
+                    (list :op 'verify-hash :path legacy
+                          :content (secure-hash 'sha256 (car bytes)))
+                    ;; State, then base, then removal: after a crash at any
+                    ;; point the next read merges the same changes again.
+                    (list :op 'write :path local
+                          :content (niwa-plugins--state-text
+                                    (niwa-plugins--merge-legacy
+                                     (nth 2 state) (car state) (nth 1 state)))
+                          :coding 'utf-8-unix)
+                    (list :op 'write :path base :content (car bytes)
+                          :coding 'no-conversion)
+                    (list :op 'delete-file :path legacy))
+              (niwa-plugins--lock-directory workspace))))
+        (unless (cl-some (lambda (result)
+                           (memq (plist-get result :status) '(mismatch absent conflict)))
+                         (seq-take (cdr results) 2))
+          (mapc #'niwa-session-control-fs-program-value (nthcdr 3 results))
+          t)))))
+
 (defun niwa-plugins--read-state (&optional workspace)
-  "Read persistent plugin state for WORKSPACE."
-  (when-let* ((file (niwa-plugins-state-file workspace))
-              ((file-readable-p file)))
-    (condition-case nil
-        (with-temp-buffer
-          (insert-file-contents file)
-          (let ((read-eval nil))
-            (let ((state (read (current-buffer))))
-              (and (listp state) state))))
-      (error nil))))
+  "Read persistent plugin state for WORKSPACE.
+A tracked top-level file supplies activation, and the file under
+`state/' only hook consent.  An untracked one is an older client's
+and is adopted first; until that succeeds it lists plugins without
+enabling hooks."
+  (when workspace
+    (let ((project (niwa-plugins--project-state-file workspace))
+          (local (niwa-plugins-state-file workspace)))
+      (cond
+       ((not (file-exists-p project)) (niwa-plugins--read-file local))
+       ((niwa-plugins--tracked-p workspace project)
+        (niwa-plugins--with-consent (niwa-plugins--read-file project)
+                                    (niwa-plugins--read-file local)))
+       ((ignore-errors (niwa-plugins--adopt-legacy workspace))
+        (niwa-plugins--read-file local))
+       (t (or (niwa-plugins--read-file local)
+              (niwa-plugins--with-consent (niwa-plugins--read-file project) nil)))))))
 
 (defun niwa-plugins--state-session (workspace)
   "Return the live session authorized to mutate WORKSPACE plugin state."
@@ -419,27 +560,134 @@ Items include usable plugin manifests and visible metadata errors."
     (pp state (current-buffer))
     (buffer-string)))
 
-(defun niwa-plugins--write-state (state &optional workspace)
-  "Persist plugin STATE for WORKSPACE and invalidate the hook memo."
-  (let* ((file (or (niwa-plugins-state-file workspace)
-                   (error "No workspace for plugin state")))
-         (content (niwa-plugins--state-text state)))
-    (if (file-remote-p file)
+(defun niwa-plugins--lock-directory (workspace)
+  "Return the lock serializing WORKSPACE's plugin state writers.
+The project permission store's writers hold the same `.niwa/' lock."
+  (niwa-session-control-fs-physical-path
+   (directory-file-name (niwa-workspace-state-dir workspace))))
+
+(defun niwa-plugins--try-update (workspace function local project)
+  "Apply FUNCTION once to WORKSPACE's stored plugin state.
+Return non-nil when the result was written.
+LOCAL is the state file; PROJECT, when non-nil, the tracked activation file.
+The write proves the bytes read are unchanged: locally in one program under
+the `.niwa/' lock, remotely just before the lease-checked publication."
+  (let* ((files (delq nil (list local project)))
+         (bytes (mapcar (lambda (result)
+                          (and (eq (plist-get result :status) 'ok)
+                               (niwa-session-control-fs-program-value result)))
+                        (niwa-session-control-fs-run-program
+                         (mapcar (lambda (file)
+                                   (list :op 'read :path file :coding 'no-conversion
+                                         :optional t))
+                                 files))))
+         (parsed (mapcar (lambda (data)
+                           (and data (niwa-plugins--parse-state
+                                      (decode-coding-string data 'utf-8-unix))))
+                         bytes))
+         (activation (lambda (state)
+                       (mapcar (lambda (entry)
+                                 (cons (car entry) (niwa-plugins--keys (cdr entry))))
+                               state)))
+         (new (funcall function
+                       (copy-tree (if project
+                                      (niwa-plugins--with-consent (nth 1 parsed) (car parsed))
+                                    (car parsed)))))
+         (writes
+          (cons (cons local
+                      (niwa-plugins--state-text
+                       (if project
+                           (cl-loop for (name . plist) in new
+                                    for consent = (niwa-plugins--keys plist t)
+                                    when consent collect (cons name consent))
+                         new)))
+                ;; Unchanged tracked activation is not rewritten.
+                (and project
+                     (not (equal (funcall activation new)
+                                 (funcall activation (nth 1 parsed))))
+                     (list (cons project (niwa-plugins--state-text
+                                          (funcall activation new)))))))
+         (program
+          (cons (list :op 'make-directory
+                      :path (directory-file-name (file-name-directory local))
+                      :optional t)
+                (cl-loop for file in files for data in bytes
+                         collect (if data
+                                     (list :op 'verify-hash :path file
+                                           :content (secure-hash 'sha256 data))
+                                   (list :op 'absent :path file)))))
+         (proved (lambda (results)
+                   (not (cl-some (lambda (result)
+                                   (memq (plist-get result :status)
+                                         '(mismatch absent conflict)))
+                                 (seq-take (cdr results) (length files)))))))
+    (if (file-remote-p local)
+        ;; shortcut: publication takes no lock and has no precondition, so the
+        ;; proof precedes the synchronous, lease-checked write, as the project
+        ;; permission store's remote writes do; a write in between still races.
         (let ((session (or (niwa-plugins--state-session workspace)
-                           (user-error
-                            "Remote plugin state requires its live session"))))
-          (niwa-session-artifacts-publish-text
-           session file content 'utf-8-unix))
-      ;; The file is the whole record of every plugin's activation and
-      ;; hook consent, and `niwa-plugins--read-state' reads a
-      ;; truncated file as nil, so a write that died in place would
-      ;; silently disable everything.
-      (niwa--write-file-atomically file content))
+                           (user-error "Remote plugin state requires its live session"))))
+          ;; Read-only probes, so nothing is written before publication,
+          ;; which also creates a missing `state/'.
+          (when (cl-every
+                 (lambda (pair)
+                   (eq (plist-get (cdr pair) :status) (if (car pair) 'ok 'absent)))
+                 (cl-mapcar
+                  #'cons bytes
+                  (niwa-session-control-fs-run-program
+                   (cl-loop for file in files for data in bytes
+                            collect (if data
+                                        (list :op 'verify-hash :path file :optional t
+                                              :content (secure-hash 'sha256 data))
+                                      (list :op 'path-exists-p :path file :optional t))))))
+            (dolist (write writes t)
+              (niwa-session-artifacts-publish-text
+               session (car write) (cdr write) 'utf-8-unix))))
+      ;; Each file is a whole record, read as nil when truncated, so the
+      ;; program's rename-into-place write matters.
+      (let ((results (niwa-session-control-fs-run-program
+                      (append program
+                              (mapcar (lambda (write)
+                                        (list :op 'write :path (car write)
+                                              :content (cdr write) :coding 'utf-8-unix))
+                                      writes))
+                      (niwa-plugins--lock-directory workspace))))
+        (when (funcall proved results)
+          (mapc #'niwa-session-control-fs-program-value
+                (nthcdr (1+ (length files)) results))
+          t)))))
+
+(defun niwa-plugins--change-state (workspace function)
+  "Apply FUNCTION to WORKSPACE's plugin state alist and persist the result.
+The state is read once and written only if unchanged since.  On a conflict
+FUNCTION applies again to what is stored now, up to three times, so a
+concurrent adoption or consent change survives.  With a tracked top-level
+file, activation goes there and hook consent stays under `state/'."
+  (let ((local (or (niwa-plugins-state-file workspace)
+                   (error "No workspace for plugin state")))
+        (project (niwa-plugins--project-state-file workspace)))
+    ;; Adopts an untracked legacy file first, so it is not written around.
+    (niwa-plugins--read-state workspace)
+    ;; A local program pins parents and locks `.niwa/', so both must exist.
+    ;; Remote writes create nothing before publication.
+    (unless (file-remote-p local)
+      (niwa-session-control-fs-make-directory
+       (directory-file-name (file-name-directory local)) t))
+    (let ((project (and (file-exists-p project)
+                        (niwa-plugins--tracked-p workspace project)
+                        project)))
+      (unless (cl-loop repeat 3
+                       thereis (niwa-plugins--try-update workspace function local project))
+        (user-error "Plugin state changed during each of three attempts; try again")))
     ;; Enablement and consent decide which plugin hooks resolve, so every
     ;; state write leaves the memoized hook configuration stale.  Guarded
     ;; rather than required: hooks depends on plugins, not the other way.
     (when (fboundp 'niwa-hooks-invalidate-config)
       (niwa-hooks-invalidate-config))))
+
+(defun niwa-plugins--write-state (state &optional workspace)
+  "Replace WORKSPACE's plugin state with STATE."
+  (niwa-plugins--change-state workspace (lambda (_) state)))
 
 (defun niwa-plugins--state-plist (name &optional workspace)
   "Return persisted state plist for plugin NAME in WORKSPACE."
@@ -572,42 +820,57 @@ Relative identities are requalified through the live WORKSPACE root."
    (niwa-plugin-hooks plugin)))
 
 (defun niwa-plugins--write-state-entry (name plist &optional workspace)
-  "Persist plugin NAME state PLIST for WORKSPACE."
-  (let* ((state (copy-tree (niwa-plugins--read-state workspace)))
-         (entry (assoc name state)))
-    (if entry
-        (setcdr entry plist)
-      (push (cons name plist) state))
-    (niwa-plugins--write-state
-     (sort state (lambda (a b) (string< (car a) (car b))))
-     workspace)))
+  "Persist plugin NAME state PLIST for WORKSPACE, leaving other entries."
+  (niwa-plugins--change-state
+   workspace
+   (lambda (state)
+     (sort (cons (cons name plist) (assoc-delete-all name state))
+           (lambda (a b) (string< (car a) (car b)))))))
 
 (defun niwa-plugins-remove-state-for-source
     (name root &optional workspace)
   "Remove NAME state only when it points at source ROOT."
-  (when-let* ((state (niwa-plugins--read-state workspace))
-              (entry (assoc name state))
+  (when-let* ((entry (assoc name (niwa-plugins--read-state workspace)))
               ((niwa-plugins-same-root-p
-                root
-                (plist-get (cdr entry) :source-root)
-                workspace)))
-    (niwa-plugins--write-state
-     (cl-remove name (copy-tree state)
-                :key #'car
-                :test #'equal)
-     workspace)))
+                root (plist-get (cdr entry) :source-root) workspace)))
+    (niwa-plugins--change-state
+     workspace
+     (lambda (state)
+       (let ((entry (assoc name state)))
+         (if (and entry (niwa-plugins-same-root-p
+                         root (plist-get (cdr entry) :source-root) workspace))
+             (assoc-delete-all name state)
+           state))))))
 
 (defun niwa-plugins-transfer-state-entry
-    (old-name new-name plist &optional workspace)
-  "Move plugin state PLIST from OLD-NAME to NEW-NAME in WORKSPACE."
-  (let (state)
-    (dolist (entry (copy-tree (niwa-plugins--read-state workspace)))
-      (unless (member (car entry) (list old-name new-name))
-        (push entry state)))
-    (push (cons new-name plist) state)
-    (niwa-plugins--write-state
-     (sort state (lambda (a b) (string< (car a) (car b))))
-     workspace)))
+    (old-name new-name root &optional workspace)
+  "Move OLD-NAME's state to NEW-NAME in WORKSPACE if it belongs to ROOT.
+The entry moves as stored when written, so a change made meanwhile, such
+as a hook revocation during an update, survives."
+  (let ((source (niwa-plugins-source-root root workspace)))
+    (niwa-plugins--change-state
+     workspace
+     (lambda (state)
+       (let ((entry (assoc old-name state)))
+         (if (not (and entry
+                       (or (null (plist-get (cdr entry) :source-root))
+                           (niwa-plugins-same-root-p
+                            root (plist-get (cdr entry) :source-root) workspace))))
+             state
+           (sort (cons (cons new-name (plist-put (copy-sequence (cdr entry))
+                                                 :source-root source))
+                       (assoc-delete-all new-name (assoc-delete-all old-name state)))
+                 (lambda (a b) (string< (car a) (car b))))))))))
+
+(defun niwa-plugins--change-entry (name workspace function)
+  "Replace NAME's state in WORKSPACE with FUNCTION of the stored entry.
+FUNCTION receives a copy of the entry read inside the write, or nil."
+  (niwa-plugins--change-state
+   workspace
+   (lambda (state)
+     (sort (cons (cons name (funcall function (copy-sequence (cdr (assoc name state)))))
+                 (assoc-delete-all name state))
+           (lambda (a b) (string< (car a) (car b)))))))
 
 (defun niwa-plugins-enabled (&optional workspace)
   "Return installed plugins enabled in WORKSPACE."
@@ -789,29 +1052,46 @@ fingerprint and script hashes."
      workspace)))
 
 (defun niwa-plugins-enable-hooks (plugin-name &optional workspace)
-  "Persist hooks as enabled for PLUGIN-NAME in WORKSPACE."
+  "Persist hooks as enabled for PLUGIN-NAME in WORKSPACE.
+Return non-nil only when the consent landed on the plugin it was given for."
   (when-let* ((plugin (niwa-plugins-find plugin-name workspace)))
     (when-let* (((niwa-plugin-hooks plugin))
                 ((niwa-plugins-enabled-p plugin workspace))
-                (consent (niwa-plugins--ensure-hook-consent plugin workspace)))
-      (niwa-plugins--write-enabled-state plugin consent workspace)
-      t)))
+                (consent (niwa-plugins--ensure-hook-consent plugin workspace))
+                (root (niwa-plugin-root plugin)))
+      (let (applied)
+        ;; Only while still enabled from this source: a disable or a source
+        ;; switch meanwhile wins, and the consent is not reported as given.
+        (niwa-plugins--change-entry
+         plugin-name workspace
+         (lambda (entry)
+           (setq applied (and (plist-get entry :enabled)
+                              (niwa-plugins-same-root-p
+                               root (plist-get entry :source-root) workspace)))
+           (if (not applied)
+               entry
+             (let ((fingerprint (plist-get consent :fingerprint)))
+               (thread-first entry
+                             (plist-put :hooks-enabled (and fingerprint t))
+                             (plist-put :hooks-fingerprint fingerprint)
+                             (plist-put :hooks-scripts
+                                        (and fingerprint (plist-get consent :scripts))))))))
+        applied))))
 
 (defun niwa-plugins-disable-hooks (plugin-name &optional workspace)
   "Persist hooks as disabled for PLUGIN-NAME in WORKSPACE."
-  (let* ((plugin (niwa-plugins-find plugin-name workspace))
-         (state (copy-sequence (or (niwa-plugins--state-plist
-                                    plugin-name workspace)
-                                   '(:enabled nil :hooks-enabled nil)))))
-    (when plugin
-      (setq state
-            (plist-put state
-                       :source-root
-                       (niwa-plugins-source-root
-                        (niwa-plugin-root plugin)
-                        workspace))))
-    (setq state (plist-put state :hooks-enabled nil))
-    (niwa-plugins--write-state-entry plugin-name state workspace)))
+  (let ((root (when-let* ((plugin (niwa-plugins-find plugin-name workspace)))
+                (niwa-plugin-root plugin))))
+    ;; Only the hook flag changes, on the entry as stored when written, and
+    ;; only while it still names this source: never rewrite :source-root.
+    (niwa-plugins--change-entry
+     plugin-name workspace
+     (lambda (entry)
+       (if (and entry root (plist-get entry :source-root)
+                (not (niwa-plugins-same-root-p
+                      root (plist-get entry :source-root) workspace)))
+           entry
+         (plist-put entry :hooks-enabled nil))))))
 
 
 ;;

@@ -16,6 +16,7 @@
 (require 'niwa-structs)
 (require 'niwa-tool-registry)
 (require 'niwa-agents)
+(defvar niwa-sessions-directory)
 (require 'niwa-reminders)
 (require 'niwa-plan)
 (require 'niwa-plan-mode)
@@ -381,6 +382,44 @@
                    "ApplyPatch" :tool-struct tool :path (car case)
                    :mode 'edits :workspace-root "/project")
                   (cadr case)))))
+  :doc "Edits asks before rewriting a session sidecar or niwa's local state"
+  (let ((niwa-permission-rules nil)
+        (niwa-protected-paths
+         (eval (car (get 'niwa-protected-paths 'standard-value)) t))
+        (tool (niwa-tool--create
+               :name "ApplyPatch" :groups '(edit reviewed-edit))))
+    ;; Each restores authority: a mode on resume or in a note conversation,
+    ;; hook consent for a plugin.
+    (dolist (case '(("/project/.niwa/sessions/2026-11-27T10-00-abc/session.meta.eld" ask)
+                    ("/project/.niwa/state/instructions.eld" ask)
+                    ("/project/.niwa/state/plugins.eld" ask)
+                    ;; Trust-gated project configuration stays writable.
+                    ("/project/.niwa/permissions.eld" allow)
+                    ("/project/.niwa/plugins.eld" allow)
+                    ("/project/.niwa/hooks.json" allow)
+                    ;; Controls: the session plan and tool output stay automatic.
+                    ("/project/.niwa/sessions/2026-11-27T10-00-abc/local/plans/current.md" allow)
+                    ("/project/.niwa/sessions/2026-11-27T10-00-abc/tool-results/x.log" allow)))
+      (should (eq (niwa-check-permission
+                   "ApplyPatch" :tool-struct tool :path (car case)
+                   :mode 'edits :workspace-root "/project")
+                  (cadr case)))))
+  :doc "an absolute sessions directory protects its sidecars by both spellings"
+  (let* ((real (make-temp-file "niwa-sessions-real-" t))
+         (link (concat real "-link")))
+    (unwind-protect
+        (progn
+          (make-symbolic-link real link)
+          (let* ((niwa-sessions-directory link)
+                 (niwa-protected-paths
+                  (eval (car (get 'niwa-protected-paths 'standard-value)) t)))
+            (dolist (dir (list link real))
+              (should (niwa-permission-rules-path-protected-p
+                       (file-name-concat dir "S" "session.meta.eld"))))
+            (should-not (niwa-permission-rules-path-protected-p
+                         (file-name-concat real "S" "local" "plans" "current.md")))))
+      (delete-file link)
+      (delete-directory real t)))
   :doc "reviewed edits use review inside roots and retain outside path rules"
   (let ((niwa-protected-paths nil)
         (tool (niwa-tool--create
@@ -416,8 +455,7 @@
          (tool (niwa-tool--create
                 :name "ApplyPatch" :groups '(edit reviewed-edit)))
          (home (expand-file-name "~/")))
-    (dolist (case `(("/project" "/project/.niwa/permissions.eld")
-                    ("/project" "/project/.niwa/plugins.eld")
+    (dolist (case `(("/project" "/project/.niwa/state/plugins.eld")
                     ("/project" "/project/.git/config")
                     ,@(mapcar (lambda (name)
                                 (list "/srv/" (concat niwa-user-dir name)))

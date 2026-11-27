@@ -154,7 +154,7 @@ Rewind neither copy nor roll them back. See
 operation retries, and native exports.
 
 Notes likewise live in the workspace's instruction store,
-`<workspace>/.niwa/instructions.eld`
+`<workspace>/.niwa/state/instructions.eld`
 ([ADR 0130](adr/0130-keep-instructions-in-a-workspace-store.md)). A session
 writes no instruction snapshots; the `instructions/` files of sessions saved by
 older versions are ignored.

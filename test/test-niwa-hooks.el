@@ -16,6 +16,7 @@
 (require 'niwa-hooks)
 (require 'niwa-plugins)
 (require 'niwa-plugin-lifecycle)
+(require 'niwa-session-control-fs)
 (require 'niwa-agent-control)
 (require 'niwa-execution-target)
 (require 'niwa-session-durability)
@@ -1651,6 +1652,175 @@ Return the words the hook scripts logged to ROOT's log file."
         (delete-directory root t)
         (delete-directory user-dir t)))))
 
+(niwa-deftest niwa-hooks-effective-rules/plugin-same-entry-races
+  (:doc "an update or hook disable paused across a revocation or disable keeps it")
+  (let* ((root (make-temp-file "niwa-hooks-plugin-race-ws" t))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-plugin-race-user" t)))
+         (plugin-root (file-name-as-directory
+                       (file-name-concat user-dir ".agents" "plugins" "repo")))
+         (hooks-file (file-name-concat plugin-root "hooks" "hooks.json"))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory
+          (file-name-concat user-dir ".agents" "plugins"))
+         (run (symbol-function 'niwa-session-control-fs-run-program)))
+    (cl-labels ((plugin-commands ()
+                  (delq nil
+                        (mapcar (lambda (handler)
+                                  (and (eq 'plugin (plist-get handler :source))
+                                       (plist-get handler :command)))
+                                (niwa-hooks--matching-handlers
+                                 'PreToolUse '(:tool-name "Bash")
+                                 (niwa-hooks-effective-rules session workspace)))))
+                (enable ()
+                  (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+                    (niwa-plugins-enable "demo" workspace))
+                  (should (equal '("echo v1") (plugin-commands)))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory hooks-file) t)
+            (with-temp-file hooks-file
+              (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\","
+                      "\"hooks\":[{\"type\":\"command\",\"command\":\"echo v1\"}]}]}}"))
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-root "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (enable)
+            ;; The user revokes the hooks while the update's pull runs; the
+            ;; pull leaves the hooks, and so their fingerprint, unchanged.
+            (let ((niwa-plugins-git-executor
+                   (lambda (_dir _args)
+                     (niwa-plugins-disable-hooks "demo" workspace)
+                     (list 0 ""))))
+              (should (equal "Updated plugin demo." (niwa-plugins-update "demo" workspace))))
+            (should-not (plugin-commands))
+            ;; A hook disable paused after its read while the whole plugin
+            ;; is disabled leaves it disabled.
+            (enable)
+            (let (paused)
+              (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                         (lambda (operations &rest args)
+                           (prog1 (apply run operations args)
+                             (when (and (not paused)
+                                        (cl-every (lambda (op) (eq 'read (plist-get op :op)))
+                                                  operations)
+                                        (equal (niwa-plugins-state-file workspace)
+                                               (plist-get (car operations) :path)))
+                               (setq paused t)
+                               (niwa-plugins-disable "demo" workspace))))))
+                (niwa-plugins-disable-hooks "demo" workspace))
+              (should paused))
+            (should-not (niwa-plugins-enabled-p (niwa-plugins-find "demo" workspace)
+                                                workspace))
+            (should-not (plugin-commands))
+            ;; Another client switches "demo" to source B while a hook toggle
+            ;; for source A is paused: B keeps its own state and source.
+            (let ((b (file-name-as-directory (file-name-concat user-dir "other-demo")))
+                  (entry (lambda () (niwa-plugins--state-plist "demo" workspace))))
+              (cl-flet ((paused (toggle switch)
+                          (let (paused)
+                            (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                                       (lambda (operations &rest args)
+                                         (prog1 (apply run operations args)
+                                           (when (and (not paused)
+                                                      (cl-every (lambda (op) (eq 'read (plist-get op :op)))
+                                                                operations)
+                                                      (equal (niwa-plugins-state-file workspace)
+                                                             (plist-get (car operations) :path)))
+                                             (setq paused t)
+                                             (niwa-plugins--write-state-entry
+                                              "demo" (list :enabled t :source-root b
+                                                           :hooks-enabled switch)
+                                              workspace))))))
+                              (prog1 (funcall toggle) (should paused))))))
+                ;; A's consent must not land on B, nor be reported.
+                (enable)
+                (niwa-plugins-disable-hooks "demo" workspace)
+                (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+                  (should-not (paused (lambda () (niwa-plugins-enable-hooks "demo" workspace))
+                                      nil)))
+                (should (equal (list :enabled t :source-root b :hooks-enabled nil)
+                               (funcall entry)))
+                (should-not (plugin-commands))
+                ;; A's hook disable must not bring A back as the source.
+                (enable)
+                (paused (lambda () (niwa-plugins-disable-hooks "demo" workspace)) t)
+                (should (equal (list :enabled t :source-root b :hooks-enabled t)
+                               (funcall entry)))
+                (should-not (plugin-commands)))))
+        (delete-directory root t)
+        (delete-directory user-dir t)))))
+
+(niwa-deftest niwa-hooks-run-event/plugin-script-consent-top-level
+  (:doc "script hashes in a top-level plugins.eld never approve changed scripts")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-plugin-forged-ws" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-plugin-forged-user" t)))
+         (plugin-root (file-name-as-directory
+                       (file-name-concat user-dir ".agents" "plugins" "repo")))
+         (script (file-name-concat plugin-root "hooks" "a.sh"))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory
+          (file-name-concat user-dir ".agents" "plugins"))
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil)
+         (default-directory root))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (cl-labels ((write-script (version)
+                  (with-temp-file script
+                    (insert (format "#!/bin/sh\ncat >/dev/null\necho a%s >> log\n" version)))
+                  (set-file-modes script #o755))
+                (forge ()
+                  ;; A committer writes the changed script's real hashes.
+                  (let ((plugin (niwa-plugins-find "demo" workspace))
+                        (stored (niwa-plugins--state-plist "demo" workspace)))
+                    (write-region
+                     (niwa-plugins--state-text
+                      (list (list "demo" :enabled t
+                                  :source-root (plist-get stored :source-root)
+                                  :hooks-enabled t
+                                  :hooks-fingerprint (plist-get stored :hooks-fingerprint)
+                                  :hooks-scripts (niwa-plugins--hook-script-hashes plugin))))
+                     nil (niwa-plugins--project-state-file workspace) nil 'silent)
+                    (niwa-hooks-invalidate-config)))
+                (git (&rest args)
+                  (should (eq 0 (apply #'call-process "git" nil nil nil
+                                       "-c" "user.name=t" "-c" "user.email=t@t" args)))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory script) t)
+            (write-script "1")
+            (with-temp-file (file-name-concat plugin-root "hooks" "hooks.json")
+              (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":"
+                      "[{\"type\":\"command\",\"command\":\"sh ${CLAUDE_PLUGIN_ROOT}/hooks/a.sh\"}]}]}}"))
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-root "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (should (niwa-plugins-enable "demo" workspace)))
+            (should (equal '("a1") (niwa-hooks-test--run-logged root session workspace)))
+            (write-script "2")
+            ;; A legacy file reappearing with the new hashes is adopted
+            ;; without them.
+            (forge)
+            (niwa-test--with-captured-diagnostics nil
+              (should-not (niwa-hooks-test--run-logged root session workspace)))
+            (should-not (file-exists-p (niwa-plugins--project-state-file workspace)))
+            ;; A tracked file supplies activation, never script approval.
+            (forge)
+            (write-region ".niwa/state/\nlog\n" nil ".gitignore" nil 'silent)
+            (git "init" "-q")
+            (git "add" ".gitignore" ".niwa/plugins.eld")
+            (git "commit" "-q" "-m" "plugins")
+            (niwa-test--with-captured-diagnostics nil
+              (should-not (niwa-hooks-test--run-logged root session workspace)))
+            (should (file-exists-p (niwa-plugins--project-state-file workspace))))
+        (delete-directory root t)
+        (delete-directory user-dir t)))))
+
 (niwa-deftest niwa-hooks-run-event/plugin-script-consent
   (:doc "runs a plugin hook script only while its consented content is unchanged")
   (let* ((root (file-name-as-directory
@@ -1739,8 +1909,8 @@ Return the words the hook scripts logged to ROOT's log file."
             ;; ... and so does one between an unprompted check and its write.
             (write-script "a.sh" "3")
             (require 'niwa-plugin-registry)
-            (let ((write (symbol-function 'niwa-plugins--write-state-entry)))
-              (cl-letf (((symbol-function 'niwa-plugins--write-state-entry)
+            (let ((write (symbol-function 'niwa-plugins--change-entry)))
+              (cl-letf (((symbol-function 'niwa-plugins--change-entry)
                          (lambda (&rest args)
                            (write-script "a.sh" "5")
                            (apply write args))))

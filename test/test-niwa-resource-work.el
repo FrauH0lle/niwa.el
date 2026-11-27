@@ -167,6 +167,36 @@
 (niwa-deftest niwa-tool-patch-prepare-resources/shared-memory ()
   ,test
   (test)
+  :doc "a memory write stays automatic in Edits under the default protected paths"
+  (let* ((root (make-temp-file "niwa-memory-write-" t))
+         (workspace (niwa-workspace--create :root root))
+         (session (niwa-session--create :workspace workspace))
+         (niwa-memory-dirs '(".niwa/memory"))
+         (niwa-protected-paths
+          (eval (car (get 'niwa-protected-paths 'standard-value)) t))
+         (niwa-resource-attempts-cell (list nil)))
+    (unwind-protect
+        (with-temp-buffer
+          (setq-local niwa--session session default-directory (file-name-as-directory root))
+          (let* ((proposal
+                  (niwa-tool-patch-prepare-resources
+                   (niwa-tool-patch-parse
+                    "*** Begin Patch\n*** Add File: memory://local-niwa/lesson.md\n+Remember this\n*** End Patch")))
+                 (physical (plist-get (car (plist-get proposal :operations)) :permission-path))
+                 (facts (niwa-permission--preflight
+                         "ApplyPatch" :tool-struct (niwa-tool-ensure "ApplyPatch")
+                         :path physical :workspace-root root :mode 'edits)))
+            (should (equal (file-name-concat root ".niwa/memory/lesson.md") physical))
+            (should-not (plist-get facts :protected-path-p))
+            (should (eq 'allow (plist-get (niwa-permission--resource-decision facts)
+                                          :outcome)))
+            (niwa-tool-patch--materialize-resources proposal)
+            (niwa-change-commit (niwa-tool-patch-planned-changes proposal))
+            (should (equal "Remember this\n"
+                           (with-temp-buffer (insert-file-contents physical)
+                                             (buffer-string))))))
+      (niwa-resource-discard-attempts (car niwa-resource-attempts-cell))
+      (delete-directory root t)))
   :doc "creates, updates, moves and deletes memory and shared files with native patches"
   (let* ((root (make-temp-file "niwa-work-patches-" t))
          (workspace (niwa-workspace--create :root root))

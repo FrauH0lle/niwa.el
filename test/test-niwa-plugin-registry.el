@@ -12,6 +12,8 @@
 (require 'niwa-cockpit)
 (require 'niwa-execution-target)
 (require 'niwa-plugin-registry)
+(require 'niwa-session-artifacts)
+(require 'niwa-session-control-fs)
 (require 'niwa-session-durability)
 (require 'niwa-session-persistence)
 (require 'niwa-structs)
@@ -324,7 +326,7 @@
           (niwa-plugins--write-state '(("demo" :enabled t)) workspace)
           (should (equal '("plugins.eld")
                          (directory-files
-                          (niwa-workspace-state-dir workspace) nil
+                          (file-name-directory (niwa-plugins-state-file workspace)) nil
                           directory-files-no-dot-files-regexp))))
       (delete-directory root t)))
 
@@ -628,7 +630,165 @@
     (with-temp-file (niwa-plugins-state-file workspace)
       (insert "#.(setq niwa-plugins-test--read-eval-ran t)"))
     (should-not (niwa-plugins--read-state workspace))
-    (should-not niwa-plugins-test--read-eval-ran)))
+    (should-not niwa-plugins-test--read-eval-ran))
+  :doc "adopts an older client's top-level state, never its hook consent"
+  ;; Killed after the state, then after the base: the next read completes
+  ;; the adoption without losing the legacy activation.
+  (dolist (crash '(nil 4 5))
+    (ert-info ((format "crash after %S operations" crash))
+      (let ((project (niwa-plugins--project-state-file workspace))
+            (demo '("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f"))
+            (adopt
+             (lambda ()
+               (when crash
+                 (let ((run (symbol-function 'niwa-session-control-fs-run-program)))
+                   (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                              (lambda (operations &rest args)
+                                (if (not (cl-find 'delete-file operations
+                                                  :key (lambda (op) (plist-get op :op))))
+                                    (apply run operations args)
+                                  (apply run (seq-take operations crash) args)
+                                  (error "Killed")))))
+                     (niwa-plugins--read-state workspace))))
+               (niwa-plugins--read-state workspace))))
+        (delete-directory (file-name-concat workspace-root ".niwa") t)
+        (make-directory (file-name-directory project) t)
+        (write-region (niwa-plugins--state-text (list demo)) nil project nil 'silent)
+        ;; Even the first adoption cannot prove who wrote the file: the
+        ;; plugin stays enabled, and the user consents to its hooks again.
+        (should (equal '(("demo" :enabled t)) (funcall adopt)))
+        (should-not (file-exists-p project))
+        (should (equal '(("demo" :enabled t)) (niwa-plugins-test--read-state workspace)))
+        ;; An older client rewrites it, or anything that can write `.niwa/'.
+        (write-region (niwa-plugins--state-text
+                       (list demo '("evil" :enabled t :hooks-enabled t
+                                    :hooks-fingerprint "x")))
+                      nil project nil 'silent)
+        (should (equal '(("demo" :enabled t) ("evil" :enabled t)) (funcall adopt)))
+        (should-not (file-exists-p project)))))
+  :doc "a state write racing an adoption is kept, under the shared .niwa lock"
+  (let ((project (niwa-plugins--project-state-file workspace))
+        (run (symbol-function 'niwa-session-control-fs-run-program))
+        (key (lambda (op) (plist-get op :op)))
+        locks raced)
+    (make-directory (file-name-directory project) t)
+    (write-region (niwa-plugins--state-text '(("old" :enabled t))) nil project nil 'silent)
+    (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+               (lambda (operations &optional lock)
+                 (when (cl-find 'write operations :key key)
+                   (push lock locks))
+                 (when (and (not raced) (cl-find 'delete-file operations :key key))
+                   (setq raced t)
+                   ;; Another writer commits after the adoption read the state.
+                   (niwa-plugins--write-state-entry "mine" '(:enabled t) workspace))
+                 (funcall run operations lock))))
+      ;; The stale adoption is refused; nothing is lost.
+      (niwa-plugins--read-state workspace)
+      (should (equal '(("mine" :enabled t) ("old" :enabled t))
+                     (sort (niwa-plugins--read-state workspace)
+                           (lambda (a b) (string< (car a) (car b)))))))
+    (should-not (file-exists-p project))
+    ;; Adoption and writers hold the lock project permission writes hold.
+    (should (equal (list (niwa-plugins--lock-directory workspace))
+                   (delete-dups locks))))
+  :doc "a writer paused after its read keeps a revocation or adoption it missed"
+  (dolist (meanwhile '(revoke adopt))
+    (let ((run (symbol-function 'niwa-session-control-fs-run-program))
+          (local (niwa-plugins-state-file workspace))
+          paused)
+      (delete-directory (file-name-concat workspace-root ".niwa") t)
+      (niwa-plugins--write-state
+       '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f")) workspace)
+      (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                 (lambda (operations &rest args)
+                   (prog1 (apply run operations args)
+                     ;; The writer's read of the state, once.
+                     (when (and (not paused)
+                                (cl-every (lambda (op) (eq 'read (plist-get op :op)))
+                                          operations)
+                                (equal local (plist-get (car operations) :path)))
+                       (setq paused t)
+                       (pcase meanwhile
+                         ;; The user revokes DEMO's hooks.
+                         ('revoke
+                          (niwa-plugins--write-state-entry
+                           "demo" '(:enabled t :hooks-enabled nil) workspace))
+                         ;; An older client writes, and a read adopts it.
+                         ('adopt
+                          (write-region (niwa-plugins--state-text '(("evil" :enabled t)))
+                                        nil (niwa-plugins--project-state-file workspace)
+                                        nil 'silent)
+                          (niwa-plugins--read-state workspace))))))))
+        (niwa-plugins--write-state-entry "x" '(:enabled t) workspace))
+      (should paused)
+      (let ((state (niwa-plugins--read-state workspace)))
+        (should (equal '(:enabled t) (cdr (assoc "x" state))))
+        (if (eq meanwhile 'adopt)
+            (should (equal '(:enabled t :hooks-enabled t :hooks-fingerprint "f")
+                           (cdr (assoc "demo" state))))
+          ;; The revocation stays revoked.
+          (should (equal '(:enabled t :hooks-enabled nil)
+                         (cdr (assoc "demo" state))))))
+      (should-not (file-exists-p (niwa-plugins--project-state-file workspace)))))
+  :doc "a remote writer paused after its read keeps a revocation it missed"
+  (niwa-test--with-local-shell-tramp '("plugin-cas")
+    (let* ((local-root (file-name-as-directory (make-temp-file "niwa-plugins-remote-cas-" t)))
+           (workspace (niwa-plugins-test--workspace
+                       (format "/niwamock:plugin-cas:%s" local-root)))
+           (file (niwa-plugins-state-file workspace))
+           (run (symbol-function 'niwa-session-control-fs-run-program))
+           paused)
+      (unwind-protect
+          ;; The lease-checked publication itself, which also creates a
+          ;; missing parent, is not under test.
+          (cl-letf (((symbol-function 'niwa-plugins--state-session) (lambda (_) 'session))
+                    ((symbol-function 'niwa-session-artifacts-publish-text)
+                     (lambda (_session path content _coding)
+                       (make-directory (file-name-directory path) t)
+                       (write-region content nil path nil 'silent))))
+            (niwa-plugins--write-state
+             '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f")) workspace)
+            (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                       (lambda (operations &rest args)
+                         (prog1 (apply run operations args)
+                           (when (and (not paused)
+                                      (cl-every (lambda (op) (eq 'read (plist-get op :op)))
+                                                operations)
+                                      (equal file (plist-get (car operations) :path)))
+                             (setq paused t)
+                             (niwa-plugins--write-state-entry
+                              "demo" '(:enabled t :hooks-enabled nil) workspace))))))
+              (niwa-plugins--write-state-entry "x" '(:enabled t) workspace))
+            (should paused)
+            (should (equal '(("demo" :enabled t :hooks-enabled nil) ("x" :enabled t))
+                           (niwa-plugins--read-state workspace))))
+        (delete-directory local-root t))))
+  :doc "a tracked top-level file lists plugins; hook consent stays local"
+  (let* ((project (niwa-plugins--project-state-file workspace))
+         (default-directory workspace-root)
+         (git (lambda (&rest args)
+                (should (eq 0 (apply #'process-file "git" nil nil nil
+                                     "-c" "user.name=t" "-c" "user.email=t@t" args)))))
+         bytes)
+    (make-directory (file-name-directory project) t)
+    (write-region (niwa-plugins--state-text
+                   '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "forged")))
+                  nil project nil 'silent)
+    (funcall git "init" "-q")
+    (funcall git "add" ".niwa/plugins.eld")
+    (funcall git "commit" "-q" "-m" "plugins")
+    (setq bytes (with-temp-buffer (insert-file-contents-literally project) (buffer-string)))
+    (should (equal '(("demo" :enabled t)) (niwa-plugins--read-state workspace)))
+    (should (file-exists-p project))
+    ;; Consent is recorded locally; unchanged activation is not rewritten.
+    (niwa-plugins--write-state
+     '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f")) workspace)
+    (should (equal bytes (with-temp-buffer (insert-file-contents-literally project)
+                                           (buffer-string))))
+    (should (equal '(("demo" :hooks-enabled t :hooks-fingerprint "f"))
+                   (niwa-plugins-test--read-state workspace)))
+    (should (equal '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f"))
+                   (niwa-plugins--read-state workspace)))))
 
 (niwa-deftest niwa-plugins-plugin-data-dir
   (:vars* ((workspace-root (file-name-as-directory

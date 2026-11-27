@@ -108,18 +108,37 @@ discovered from workspace `.niwa/plugins/`, workspace
 `~/.agents/plugins/`, then `niwa-plugin-extra-roots`. Plugin
 activation is workspace-scoped: plugins are inactive by default in each
 project until enabled, and the state is stored in that workspace's
-`.niwa/plugins.eld`. Activating a plugin enables all implemented plugin
+`.niwa/state/plugins.eld`. Activating a plugin enables all implemented plugin
 components for that workspace; plugins with executable hooks require a
 concise consent summary before those hooks are enabled. The summary shows
 the plugin identity/source, exposed skills, each executable hook handler's
 event and matcher, and the workspace plugin data directory rather than dumping
 the full manifest.
 
+Hook consent is honoured only from `.niwa/state/plugins.eld`, which confined
+children cannot write. A project may track a top-level `.niwa/plugins.eld` to
+share its activation set: niwa then reads which plugins are enabled from it
+and writes activation changes back to it, but keeps hook consent in
+`state/`, so a tracked file can list plugins and never enable their hooks.
+An untracked top-level `.niwa/plugins.eld` is where older versions kept the
+state. niwa moves it into `state/` on the next read, keeping which plugins
+are enabled but not their hook consent: nothing proves who last wrote that
+file, so hooks wait for one new consent. If an older client writes it again,
+its activation changes since the last adopted file are merged in, again
+without hook consent. The adoption writes the new state before it records
+the adopted file and removes the old one, so an interrupted adoption repeats
+on the next read without losing changes.
+
 Every plugin-state write replaces the file through a rename, so an
 interrupted write leaves the previous activations and hook consent intact
 rather than a truncated file, which the reader would treat as no state at
-all.  Two Emacs instances writing the same workspace still resolve
-last-writer-wins on the whole file, not per entry.
+all. Every change, such as enabling a plugin or revoking hook consent, reads
+the state once, applies itself, and writes only if what it read is
+unchanged; otherwise it applies again to what is stored now, at most three
+times, then asks the user to retry. A concurrent adoption, consent change or
+second Emacs therefore never brings back an entry another writer changed. A
+local write and an adoption also hold the workspace's `.niwa/` lock, the one
+project permission writes hold.
 
 For a remote workspace, plugin-state mutations additionally require the
 live session's lease and use the same disclosed, serialized publication

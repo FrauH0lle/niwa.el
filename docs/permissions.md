@@ -287,17 +287,44 @@ and validation. These directory boundaries cover future artifact ids and missing
 bookkeeping files too. Authored files under `.niwa/artifacts/ID/` stay writable,
 including file creation and atomic replacement.
 Stores that grant authority are read-only too, so an agent cannot raise its
-own: the workspace `.niwa/permissions.eld` and `.niwa/plugins.eld`; under
-`niwa-user-dir`, `permissions.eld`, `trusted-hooks.eld` and
+own: under `niwa-user-dir`, `permissions.eld`, `trusted-hooks.eld` and
 `hooks.el`/`hooks.json`; `~/.agents/hooks.el`/`hooks.json`; and a remote
 target's `~/.niwa/permissions.eld`. The user-level entries derive from
 `niwa-user-dir` when niwa loads, so set it first. Changing these stores through
-tools asks in Edits. The guarantee covers rewriting *existing* stores only. A
-confined child sees an existing store read-only, but an absent one is not a
-mount target, so a confined command can create a missing `permissions.eld` or
-`plugins.eld` in a writable workspace. A created `permissions.eld` cannot
-widen authority: until the user trusts it (see
-[Project store trust](#project-store-trust)), only its deny and ask rules apply.
+tools asks in Edits. Stores that restore a permission mode are protected the
+same way: each `session.meta.eld` under `niwa-sessions-directory` (mode, rules
+and grants on resume, including a takeover from another machine) and
+`.niwa/schedules/`. niwa's local authority-bearing state lives in
+`.niwa/state/`, which is read-only as a whole: the note store
+`instructions.eld` (a note conversation's settings), the plugin state
+`plugins.eld` (the only source of hook consent), and niwa's journal, memory
+write coordination, media, diagnostics and review packages, all written from
+Emacs. Plugin runtime data, `state/plugin-data/`, stays writable to confined
+commands, though a tool edit there still asks. niwa writes all of these stores
+itself. The session sidecar entry derives from `niwa-sessions-directory` when
+niwa loads.
+
+Confinement protects these stores by directory, because niwa replaces a store
+by rename and a rename detaches a single-file mount from a child that is still
+running. A confined child sees `state/`, `schedules/`, `leases/` and the whole
+sessions directory read-only, wherever `niwa-sessions-directory` puts it, so it
+can neither rewrite a store after niwa replaces it nor create a missing one.
+The top level of `.niwa/` stays writable: it holds project configuration that
+is tracked and trust-gated, such as `hooks.json` and `permissions.eld`, so a
+confined `git checkout`, `pull` or `rebase` can update it. A project
+`permissions.eld` cannot widen authority until the user trusts it (see
+[Project store trust](#project-store-trust)), and a tracked `plugins.eld` can
+list plugins but never enable their hooks
+([plugin activation](skills.md)). niwa adopts the files older versions kept
+there, `instructions.eld` and an untracked `plugins.eld`, into `state/`. When
+an older client writes one again, its changes merge in. Anything that could
+write the top of `.niwa/` could have written those files, before this layout
+too, so no adoption imports hook consent or a note permission mode above the
+store's own value, or above the default for a new note. A store file outside a
+`.niwa/` directory, such as
+`~/.agents/hooks.el` when `~/.agents` lies in a writable root, keeps a
+single-file mount.
+
 Before a confined launch, missing
 protected state directories and their parents are created only in the primary
 workspace root, never in writable memory or additional roots; only the protected

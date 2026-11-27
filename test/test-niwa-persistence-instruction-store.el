@@ -587,7 +587,7 @@ Return the new workspace struct."
                                            :status)))
             (let ((hash (niwa-instruction-store--write workspace nil record)))
               (should hash)
-              (should (file-exists-p (file-name-concat local ".niwa"
+              (should (file-exists-p (file-name-concat local ".niwa" "state"
                                                        "instructions.eld")))
               (let ((observation (niwa-instruction-store--read workspace)))
                 (should (eq 'ok (plist-get observation :status)))
@@ -602,6 +602,112 @@ Return the new workspace struct."
 
 
 ;;; Flushing and store creation
+
+(defun test-niwa-instruction-store--adopt (workspace crash)
+  "Read WORKSPACE's store, adopting a legacy file.
+With CRASH, the adoption program stops after CRASH operations, as a
+process killed there would; the read that follows completes it."
+  (when crash
+    (let ((run (symbol-function 'niwa-session-control-fs-run-program)))
+      (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                 (lambda (operations &rest args)
+                   (if (not (cl-find 'delete-file operations
+                                     :key (lambda (op) (plist-get op :op))))
+                       (apply run operations args)
+                     (apply run (seq-take operations crash) args)
+                     (error "Killed")))))
+        (should-error (niwa-instruction-store--read workspace)))))
+  (niwa-instruction-store--read workspace))
+
+(niwa-deftest niwa-instruction-store/legacy (:quiet t)
+  ,test
+  (test)
+  :doc "a legacy store moves into state/, and an older client's rewrite merges in"
+  ;; Killed after the record, then after the base: either way the next
+  ;; read completes the adoption without losing the legacy changes.
+  (dolist (crash '(nil 4 5))
+   (ert-info ((format "crash after %S operations" crash))
+   (test-niwa-instruction-store--with-workspace (workspace source)
+    (let* ((uuid (lambda (note) (overlay-get note 'niwa-uuid)))
+           (one (funcall uuid (test-niwa-instruction-store--note source "one")))
+           (two (funcall uuid (test-niwa-instruction-store--note source "two" 2)))
+           (three (funcall uuid (test-niwa-instruction-store--note source "three")))
+           (path (niwa-instruction-store-path workspace))
+           (legacy (niwa-instruction-store--legacy-path workspace))
+           (mode (lambda (id)
+                   (plist-get (test-niwa-instruction-store--stored
+                               workspace id 'niwa-note-settings)
+                              :permission-mode)))
+           (niwa-instruction-store--warned nil)
+           ;; A refused change would leave its request text here.
+           (kill-ring nil)
+           record)
+      (niwa-instruction-store-sync workspace)
+      ;; The store as a client before `state/' left it.  Its provenance is
+      ;; unknown, so a mode above the default is dropped, `ask' kept.
+      (setq record (test-niwa-instruction-store--record workspace))
+      (test-niwa-instruction-store--edit-record
+       record one 'niwa-note-settings '(:permission-mode full-auto))
+      (test-niwa-instruction-store--edit-record
+       record two 'niwa-note-settings '(:permission-mode ask))
+      (write-region (niwa-instruction-store--print record) nil path nil 'silent)
+      (rename-file path legacy)
+      (should-not (niwa-instruction-store--current-hash workspace))
+      (should (eq 'ok (plist-get (test-niwa-instruction-store--adopt workspace crash)
+                                 :status)))
+      (should-not (file-exists-p legacy))
+      (should-not (funcall mode one))
+      (should (eq 'ask (funcall mode two)))
+      (should (assq 'legacy-modes niwa-instruction-store--warned))
+      (should (niwa-instruction-store--current-hash workspace))
+      ;; An older client, still holding the migrated record, edits TWO,
+      ;; raises its mode and deletes THREE.
+      (let ((old (copy-tree record)))
+        (test-niwa-instruction-store--edit-record old two 'niwa-note-text "edited")
+        (test-niwa-instruction-store--edit-record
+         old two 'niwa-note-settings '(:permission-mode full-auto))
+        (dolist (entry (plist-get old :files))
+          (setcdr entry (plist-put (cdr entry) :instructions
+                                   (cl-remove three (plist-get (cdr entry) :instructions)
+                                              :test #'equal
+                                              :key (lambda (instruction)
+                                                     (plist-get (plist-get instruction :properties)
+                                                                'niwa-uuid))))))
+        (write-region (niwa-instruction-store--print old) nil legacy nil 'silent))
+      ;; A current-looking store must not hide the reappeared file.
+      (should-not (niwa-instruction-store--current-hash workspace))
+      (test-niwa-instruction-store--adopt workspace crash)
+      (should (equal "edited" (test-niwa-instruction-store--stored-text workspace two)))
+      (should-not (file-exists-p legacy))
+      ;; The raised mode is not imported: the store's own value stays.
+      (should-not (funcall mode one))
+      (should (eq 'ask (funcall mode two)))
+      (should-not (test-niwa-instruction-store--stored-text workspace three))
+      (should-not kill-ring)
+      ;; Control: an unreadable legacy file is left in place.
+      (write-region "(garbage" nil legacy nil 'silent)
+      (should (eq 'ok (plist-get (niwa-instruction-store--read workspace) :status)))
+      (should (file-exists-p legacy))))))
+  :doc "a legacy store moves into state/ over a TRAMP path"
+  (niwa-test--with-local-shell-tramp '("instruction-legacy")
+    (let* ((local (file-name-as-directory (make-temp-file "niwa-remote-legacy-" t)))
+           (root (format "/niwamock:instruction-legacy:%s" local))
+           (workspace (niwa-workspace-get-or-create 'project root root "remote-legacy"))
+           (legacy (file-name-concat local ".niwa" "instructions.eld"))
+           (record (list :format niwa-instruction-store-format-version
+                         :ids (list :id-counter 0 :used-ids nil :retired-ids nil)
+                         :files nil :rewinds nil)))
+      (unwind-protect
+          (progn
+            (niwa-workspace-identity-ensure root)
+            (write-region (niwa-instruction-store--print record) nil legacy nil 'silent)
+            (should-not (niwa-instruction-store--current-hash workspace))
+            (should (equal record (plist-get (niwa-instruction-store--read workspace) :data)))
+            (should-not (file-exists-p legacy))
+            (should (file-exists-p (file-name-concat local ".niwa" "state" "instructions.eld")))
+            (should (niwa-instruction-store--current-hash workspace)))
+        (delete-directory local t)
+        (niwa-workspace-clear-registry)))))
 
 (niwa-deftest niwa-instruction-store-applied-backups
   (:quiet t :doc "session save prunes unused file history when the workspace has no notes store")

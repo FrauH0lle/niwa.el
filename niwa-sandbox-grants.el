@@ -358,6 +358,7 @@ When WORKDIR is remote, discover and launch the wrapper on that target."
   "Return the Bubblewrap mounts for protected RESTRICTIONS and GRANTS.
 
 RESTRICTIONS are `(:path :mode :directory-p)' plists ordered shallow to deep;
+MODE `writable' rebinds a subdirectory beneath a read-only directory;
 `:required' means a missing read-only mount source must refuse launch.
 GRANTS are normalized filesystem grants.  A grant containing a protected path
 is bound before the protections so nested masks still apply inside it; every
@@ -419,6 +420,9 @@ backing private empty file masks."
                            (list (if (plist-get restriction :required)
                                      "--ro-bind" "--ro-bind-try")
                                  path path)))))
+          ;; A protected directory's unprotected subdirectory.
+          ('writable
+           (setq protections (append protections (list "--bind-try" path path))))
           ('inaccessible
            (cond
             ((not (plist-get restriction :directory-p))

@@ -12,7 +12,7 @@ its original directive-activity scope is historical.
 **The workspace owns its current notes in one store.** Notes, their text,
 anchors, authorship, lifecycle, conversation links, waiting prepared changes,
 recently-closed records and display-id state live in
-`<workspace>/.niwa/instructions.eld` on the
+`<workspace>/.niwa/state/instructions.eld` on the
 execution target. Sessions write no instruction snapshots. Ordinary resume loads
 the store; it no longer loads or clears the workspace set from a session.
 Conversations live in their sessions, not the store. There is no directive record
@@ -33,6 +33,28 @@ observed:
 
 A write is retried once; if the store changed again, this client keeps the
 store's record and refuses its own changes.
+
+**The store lives in `state/`, which confinement keeps read-only.** A note's
+settings carry a permission mode, so the store sits with niwa's other
+authority-bearing local state rather than at the top of `.niwa/`, which stays
+writable for tracked project configuration. Older versions kept it at
+`.niwa/instructions.eld`. Every read also reads that legacy file and adopts
+it under the store lock:
+
+- Nothing proves who last wrote the legacy file: before this layout the top
+  of `.niwa/` was writable to confined children too. Every adoption therefore
+  first makes its permission modes safe. A note the store already holds keeps
+  the store's mode; any other keeps only a mode no higher than the default
+  `niwa-permission-mode`. A warning names how many modes were not imported,
+  once.
+- The first adoption takes the legacy record whole otherwise.
+- A legacy file that reappears comes from an older client sharing the
+  workspace. Its changes since the legacy record last adopted, which
+  `state/instructions-legacy.eld` keeps, merge through the rules above.
+- One program writes the store, then that saved base, then removes the
+  legacy file. A crash after any step repeats the adoption on the next read,
+  whose changes are already in the store, so nothing is lost or refused.
+- A legacy file that cannot be decoded is left in place with a warning.
 
 Installing a merged or observed record reconciles notes by UUID, restoring
 presentations in visited buffers and retaining unvisited records without

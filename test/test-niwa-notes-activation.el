@@ -256,9 +256,9 @@ WITHOUT-MODE is non-nil."
             (error "Parent workspace hid the child note"))))))
   :doc "an empty workspace store does not load presentation"
   (progn
-    (make-directory (file-name-concat root ".niwa"))
+    (make-directory (file-name-concat root ".niwa/state") t)
     (write-region "(:format 2 :files nil :ids nil)\n" nil
-                  (file-name-concat root ".niwa/instructions.eld") nil 'silent)
+                  (file-name-concat root ".niwa/state/instructions.eld") nil 'silent)
     (niwa-notes-activation-test--cold
      `(progn
         (find-file-noselect ,file)
@@ -294,7 +294,7 @@ WITHOUT-MODE is non-nil."
         (require 'niwa)
         (with-current-buffer (find-file-noselect ,file)
           (niwa-note-create "First persistent note"))
-        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.eld"))
+        (unless (file-exists-p ,(file-name-concat root ".niwa/state/instructions.eld"))
           (error "First note was not saved"))
         (when (or (featurep 'niwa-chat) (featurep 'niwa-buddy))
           (error "Creating a note started AI")))))
@@ -332,7 +332,7 @@ WITHOUT-MODE is non-nil."
           (with-current-buffer (find-file-noselect ,file)
             (niwa-note-create "Fresh note"))
           (when warnings (error "Unexpected warnings: %S" warnings)))
-        (let ((store ,(file-name-concat root ".niwa/instructions.eld")))
+        (let ((store ,(file-name-concat root ".niwa/state/instructions.eld")))
           (unless (file-exists-p store) (error "First note was not saved"))
           (let ((text (with-temp-buffer (insert-file-contents store) (buffer-string))))
             (unless (string-search "Fresh note" text) (error "Store lacks the new note"))
@@ -379,7 +379,7 @@ WITHOUT-MODE is non-nil."
             (error "Missing or repeated gitignore notice: %S" messages)))
         (when (file-exists-p ,(file-name-concat root ".gitignore"))
           (error "Note command edited gitignore"))
-        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.eld"))
+        (unless (file-exists-p ,(file-name-concat root ".niwa/state/instructions.eld"))
           (error "Unignored note was not saved")))))
   :doc "project.el projects without VCS also persist their first note"
   (niwa-notes-activation-test--cold
@@ -394,7 +394,7 @@ WITHOUT-MODE is non-nil."
           ;; This command comes directly from generated package autoloads.
           (with-current-buffer (find-file-noselect ,file)
             (niwa-note-create "Non-VCS project")))
-        (unless (file-exists-p ,(file-name-concat root ".niwa/instructions.eld"))
+        (unless (file-exists-p ,(file-name-concat root ".niwa/state/instructions.eld"))
           (error "Project.el note was not saved"))
         (unless (seq-some (lambda (text) (string-match-p "not.*gitignore" text))
                           messages)

@@ -34,6 +34,7 @@
 (declare-function niwa-permission-rules-path-protected-p
                   "niwa-permission-rules" (path &optional target access))
 (defvar niwa-protected-paths)
+(defvar niwa-sessions-directory)
 (autoload 'niwa-permission-protected-path-policy
   "niwa-permission-rules")
 (autoload 'niwa-permission-rules-match-path-p "niwa-permission-rules")
@@ -555,7 +556,9 @@ across launches, since another active sandbox may still mount them."
                            :test #'string-equal)))
             (if existing
                 (progn
-                  (when (eq mode 'inaccessible)
+                  ;; Protection always wins over a writable rebind.
+                  (when (or (eq mode 'inaccessible)
+                            (eq (plist-get existing :mode) 'writable))
                     (plist-put existing :mode mode))
                   (when directory-p
                     (plist-put existing :directory-p t))
@@ -716,6 +719,33 @@ across launches, since another active sandbox may still mount them."
                     (dolist (root search-roots)
                       (add-candidate (file-name-concat root suffix)
                                      mode t))))))))))
+      ;; A glob mounts only the sidecars found before launch, so protect a
+      ;; sessions directory whose sidecars the policy protects as a whole.
+      ;; No confined child writes there; niwa writes it from Emacs.
+      (when-let* ((dir (bound-and-true-p niwa-sessions-directory))
+                  ((not (and target-prefix (file-name-absolute-p dir)))))
+        (dolist (root (if (file-name-absolute-p dir) '(nil) discovery-roots))
+          (let* ((path (directory-file-name (expand-file-name dir root)))
+                 ;; Create missing state only at the primary root itself,
+                 ;; never in a memory root nested inside it.
+                 (primary-p (if root
+                                (equal root (car writable-roots))
+                              (file-in-directory-p path (car writable-roots)))))
+            (when (and (or primary-p (file-directory-p path))
+                       (cl-some (lambda (root) (file-in-directory-p path root))
+                                writable-roots)
+                       (niwa-permission-rules-path-protected-p
+                        (file-name-concat path "s" "session.meta.eld")))
+              (add-candidate path 'read-only t primary-p)))))
+      ;; Plugin commands keep runtime data below the protected `state/',
+      ;; and a confined shell may run them.
+      (dolist (candidate (copy-sequence candidates))
+        (let ((path (plist-get candidate :path)))
+          (when (and (eq (plist-get candidate :mode) 'read-only)
+                     (plist-get candidate :directory-p)
+                     (string-suffix-p "/.niwa/state" path))
+            (add-candidate (file-name-concat path "plugin-data") 'writable t
+                           (plist-get candidate :create-parents)))))
       (nreverse candidates))))
 
 (defun niwa-sandbox-cleanup (preparation)
@@ -809,6 +839,8 @@ path, plus the shared Git metadata directories and synthetic mount targets
 created for missing protected directories.  Literal state roots and their
 parents persist; their mounts carry `:required', refusing launch if the
 source disappears.
+A `writable' mode rebinds an unprotected subdirectory of a protected
+directory; it precedes the protections at its depth.
 CANDIDATES, when supplied, wraps the invocation's discovered candidates in
 a one-element list; path and symlink checks still happen here."
   (let* ((checked (make-hash-table :test #'equal))
@@ -973,14 +1005,18 @@ a one-element list; path and symlink checks still happen here."
                                 (plist-get (cdr existing) :required))
                         (plist-put restriction :required t)
                         (setcdr existing (plist-put (cdr existing) :required t)))
-                      (when (eq (plist-get restriction :mode) 'inaccessible)
+                      (when (or (eq (plist-get restriction :mode) 'inaccessible)
+                                (eq (plist-get (cdr existing) :mode) 'writable))
                         (setcdr existing restriction)))
                   (push (cons path restriction) resolved))))
             (list :restrictions
                   (mapcar #'cdr
                           (sort resolved
+                                ;; At one depth, rebind writable before protecting.
                                 :key (lambda (entry)
-                                       (length (split-string (car entry) "/" t)))
+                                       (+ (* 2 (length (split-string (car entry) "/" t)))
+                                          (if (eq (plist-get (cdr entry) :mode) 'writable)
+                                              0 1)))
                                 :lessp #'<))
                   :git-common-directories (delete-dups git-common-directories)
                   :cleanup-paths (nreverse cleanup-paths))))
@@ -1450,7 +1486,9 @@ names.  SCOPE identifies the originating workspace for local diagnostics."
                    (cl-loop for restriction in restrictions
                             when (eq (plist-get restriction :mode) 'inaccessible)
                             collect (plist-get restriction :path))
-                   restrictions))
+                   ;; A writable rebind is no boundary for grants.
+                   (cl-remove 'writable restrictions
+                              :key (lambda (restriction) (plist-get restriction :mode)))))
                  (runtime-masks (niwa-sandbox--runtime-masks canonical-workdir))
                  (_ (niwa-sandbox--check-runtime-grants
                      filesystem-permissions runtime-masks))
@@ -1488,7 +1526,11 @@ names.  SCOPE identifies the originating workspace for local diagnostics."
                                             'unrestricted
                                           'isolated)
                                :writable-roots roots
-                               :protected-paths (length restrictions)
+                               :protected-paths
+                               (cl-count-if-not
+                                (lambda (restriction)
+                                  (eq (plist-get restriction :mode) 'writable))
+                                restrictions)
                                :additional-filesystem
                                (length filesystem-permissions)
                                :additional-filesystem-read filesystem-read-count
