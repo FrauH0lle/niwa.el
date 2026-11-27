@@ -159,7 +159,11 @@ lives; other requests also give up after `niwa-pin-timeout' seconds."
                         "the path pin helper did not answer"
                       "the path pin helper exited"))))
      ((not (plist-get reply :ok))
-      (signal 'niwa-pin-refused (list (plist-get reply :error))))
+      ;; A failed write also names the parent directories it could not remove.
+      (signal 'niwa-pin-refused
+              (cons (plist-get reply :error)
+                    (when-let* ((left (plist-get reply :left)))
+                      (list (mapcar (lambda (path) (concat prefix path)) left))))))
      (t reply))))
 
 (defun niwa-pin--acquire (path)
@@ -221,7 +225,7 @@ is set.  Return (PATH LENGTH)."
         content)
     (encode-coding-string content (or coding 'utf-8-unix))))
 
-(defun niwa-pin-write-file-atomically (path content &optional coding mode)
+(defun niwa-pin-write-file-atomically (path content &optional coding mode keep-link)
   "Replace PATH with CONTENT through descriptors the helper holds.
 Like `niwa--write-file-atomically': CODING and MODE apply to the new
 file.  The helper walks PATH's directory without following symlinks,
@@ -229,26 +233,55 @@ creating missing components, creates a temporary file there with
 O_CREAT|O_EXCL|O_NOFOLLOW, writes and fchmods that descriptor, and renames
 it over PATH within the pinned directory.  Nothing is reopened by name, so
 neither a swapped directory nor a symlink planted at the temporary name can
-redirect the bytes; a symlink planted at PATH is replaced, not followed."
+redirect the bytes; a symlink planted at PATH is replaced, not followed,
+unless KEEP-LINK refuses it at the rename.
+
+Return the directories this write created, outermost first, as (DIRECTORY
+DEVICE INODE) observed through the helper's own descriptor."
+  (let* ((prefix (niwa-pin--prefix path))
+         (reply (niwa-pin--request
+                 prefix
+                 (append
+                  (list :op "write"
+                        :path (directory-file-name
+                               (niwa-collapse-leading-slashes (file-local-name path)))
+                        :mode (or mode (default-file-modes))
+                        :data (base64-encode-string (niwa-pin--encode content coding) t))
+                  (and keep-link '(:keep_link t))))))
+    (niwa-pin--flush path)
+    (niwa-pin--flush (file-name-directory path) t)
+    (mapcar (lambda (entry)
+              (list (concat prefix (aref entry 0)) (aref entry 1) (aref entry 2)))
+            (plist-get reply :created))))
+
+(defun niwa-pin-delete-file (path &optional keep-link)
+  "Delete PATH within its pinned parent directory, never through a symlink.
+A symlink at PATH is removed itself, unless KEEP-LINK refuses it."
   (niwa-pin--request
    (niwa-pin--prefix path)
-   (list :op "write"
-         :path (directory-file-name
-                (niwa-collapse-leading-slashes (file-local-name path)))
-         :mode (or mode (default-file-modes))
-         :data (base64-encode-string (niwa-pin--encode content coding) t)))
+   (append (list :op "unlink"
+                 :path (directory-file-name
+                        (niwa-collapse-leading-slashes (file-local-name path))))
+           (and keep-link '(:keep_link t))))
   (niwa-pin--flush path)
   (niwa-pin--flush (file-name-directory path) t))
 
-(defun niwa-pin-delete-file (path)
-  "Delete PATH within its pinned parent directory, never through a symlink."
-  (niwa-pin--request
-   (niwa-pin--prefix path)
-   (list :op "unlink"
-         :path (directory-file-name
-                (niwa-collapse-leading-slashes (file-local-name path)))))
-  (niwa-pin--flush path)
-  (niwa-pin--flush (file-name-directory path) t))
+(defun niwa-pin-remove-directory (directory device inode)
+  "Remove empty DIRECTORY under its pinned parent if still DEVICE and INODE.
+The identity is the one `niwa-pin-write-file-atomically' reported.  Return
+non-nil when it is gone; a non-empty directory is left.  Signal
+`niwa-pin-refused' when its identity cannot be established.  Removal by
+identity is not atomic: an empty directory swapped in at the same name
+between the helper's check and its rmdir could be removed instead."
+  (prog1 (plist-get
+          (niwa-pin--request
+           (niwa-pin--prefix directory)
+           (list :op "rmdir"
+                 :path (directory-file-name
+                        (niwa-collapse-leading-slashes (file-local-name directory)))
+                 :dev device :ino inode))
+          :removed)
+    (niwa-pin--flush (file-name-directory (directory-file-name directory)) t)))
 
 (provide 'niwa-pin)
 

@@ -1318,7 +1318,7 @@ refuses it later, leaves the review open with the conflict shown."
                          (niwa-tool-patch-sanitize-error
                           (error-message-string err) proposal))
               (plist-put proposal :rollback-incomplete
-                         (eq (car err) 'niwa-tool-patch-partial-rollback))
+                         (eq (car err) 'niwa-change-partial-rollback))
               (niwa-patch-review--render proposal)))
     (cond
      ((memq (plist-get proposal :state) '(submitting settled)))

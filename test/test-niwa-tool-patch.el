@@ -13,7 +13,7 @@
 (require 'niwa-reminders)
 (require 'niwa-tool-patch)
 (require 'niwa-instruction-edit)
-(require 'niwa-journal-claim)
+(require 'niwa-change)
 (require 'niwa-view)
 (require 'niwa-view-interaction)
 (require 'helpers
@@ -653,7 +653,7 @@
                    (niwa-tool-patch-apply-hunks
                     "old\n" hunks "file.txt")))))
 
-(niwa-deftest niwa-tool-patch--assert-buffers-unmodified
+(niwa-deftest niwa-tool-patch-apply/refuses-unsaved
   (:doc "Refuses to overwrite an affected buffer with unsaved edits")
   ,test
   (test)
@@ -685,309 +685,6 @@
       (when (buffer-live-p buffer)
         (with-current-buffer buffer (set-buffer-modified-p nil))
         (kill-buffer buffer))
-      (when (file-directory-p root) (delete-directory root t)))))
-
-(niwa-deftest niwa-tool-patch-commit ()
-  ,test
-  (test)
-  :doc "a single ordered batch still synchronizes buffers and rolls back a failed synchronization"
-  (let* ((root (make-temp-file "niwa-patch-batch-" t))
-         (paths (mapcar (lambda (leaf) (file-name-concat root leaf)) '("a" "b")))
-         (changes (mapcar (lambda (path) (list :action 'write :path path :content "new")) paths))
-         (writer (lambda (_before after)
-                   (niwa-tool-patch--write-file (plist-get after :path) (plist-get after :bytes)
-                                                   (plist-get after :mode) t)))
-         (calls 0)
-         (batch (lambda (before after)
-                  (should (equal paths (mapcar (lambda (row) (plist-get row :path)) before)))
-                  (should (equal paths (mapcar (lambda (row) (plist-get row :path)) after)))
-                  (cl-incf calls)
-                  (cl-mapc writer before after)))
-         buffer)
-    (unwind-protect
-        (progn
-          (dolist (path paths) (write-region "old" nil path nil 'silent))
-          (setq buffer (find-file-noselect (car paths)))
-          (cl-letf (((symbol-function 'niwa-instruction-replace-buffer-contents)
-                     (lambda (&rest _) (error "Injected sync failure"))))
-            (should-error (niwa-tool-patch-commit changes nil writer batch)))
-          (should (= 1 calls))
-          (dolist (path paths) (should (equal "old" (test-niwa-tool-patch--read-bytes path))))
-          (niwa-tool-patch-commit changes nil writer batch)
-          (should (= 2 calls))
-          (should (equal "new" (with-current-buffer buffer (buffer-string)))))
-      (when (buffer-live-p buffer) (kill-buffer buffer))
-      (delete-directory root t)))
-
-  :doc "Rolls back files and newly-created directories after an I/O failure"
-  (let* ((root (file-name-as-directory
-                (make-temp-file "niwa-patch-rollback-" t)))
-         (first (file-name-concat root "created" "first.txt"))
-         (blocker (file-name-concat root "blocker"))
-         (second (file-name-concat blocker "second.txt")))
-    (unwind-protect
-        (progn
-          (with-temp-file blocker (insert "not a directory"))
-          (should-error
-           (niwa-tool-patch-commit
-            (list (list :action 'write :path first :content "first\n")
-                  (list :action 'write :path second :content "second\n")))
-           :type 'error)
-          (should-not (file-exists-p first))
-          (should-not (file-exists-p (file-name-directory first)))
-          (should (file-regular-p blocker)))
-      (when (file-directory-p root) (delete-directory root t))))
-
-  :doc "Restores non-default-coded bytes after a later write failure"
-  (let* ((root (file-name-as-directory
-                (make-temp-file "niwa-patch-coding-rollback-" t)))
-         (path (file-name-concat root "latin-1.el"))
-         (blocker (file-name-concat root "blocker"))
-         (failure (file-name-concat blocker "failure.el"))
-         (original
-          ";; -*- coding: iso-latin-1 -*-\nold: \u00e4\nkeep: \u00f6\n"))
-    (unwind-protect
-        (progn
-          (let ((coding-system-for-write 'iso-latin-1))
-            (with-temp-file path (insert original)))
-          (with-temp-file blocker (insert "not a directory"))
-          (let* ((hunk (list :selected t
-                             :old-lines '("old: \u00e4")
-                             :diff-lines
-                             '("-old: \u00e4" "+new: \u00e4")))
-                 (change
-                  (car
-                   (niwa-tool-patch-planned-changes
-                    (list :operations
-                          (list (list :kind 'update :path path
-                                      :hunks (list hunk))))))))
-            (should-error
-             (niwa-tool-patch-commit
-              (list change
-                    (list :action 'write :path failure :content "fail\n")))
-             :type 'error))
-          (should
-           (equal (encode-coding-string original 'iso-latin-1)
-                  (test-niwa-tool-patch--read-bytes path))))
-      (when (file-directory-p root) (delete-directory root t))))
-
-  :doc "Restores a deleted file's literal bytes and mode after a later failure"
-  (let* ((root (make-temp-file "niwa-patch-deleted-rollback-" t))
-         (path (file-name-concat root "binary.dat"))
-         (blocker (file-name-concat root "blocker"))
-         (failure (file-name-concat blocker "failure.txt"))
-         (bytes (unibyte-string 0 255 13 10 128)))
-    (unwind-protect
-        (progn
-          (let ((coding-system-for-write 'no-conversion))
-            (write-region bytes nil path nil 'silent))
-          (set-file-modes path #o751)
-          (with-temp-file blocker (insert "not a directory"))
-          (should-error
-           (niwa-tool-patch-commit
-            (list (list :action 'delete :path path)
-                  (list :action 'write :path failure :content "fail\n"))))
-          (should (equal bytes (test-niwa-tool-patch--read-bytes path)))
-          (should (= #o751 (file-modes path))))
-      (delete-directory root t)))
-
-  :doc "Synchronizes a buffer visiting the same file through another name"
-  (let* ((root (file-name-as-directory
-                (make-temp-file "niwa-patch-sync-" t)))
-         (target (file-name-concat root "target.txt"))
-         (alias (file-name-concat root "alias.txt"))
-         buffer)
-    (unwind-protect
-        (progn
-          (with-temp-file target (insert "old\n"))
-          (make-symbolic-link target alias)
-          (setq buffer (find-file-noselect alias))
-          (niwa-tool-patch-commit
-           (list (list :action 'write :path target :content "new\n")))
-          (should (equal "new\n" (with-current-buffer buffer
-                                    (buffer-string))))
-          (should (verify-visited-file-modtime buffer)))
-      (when (buffer-live-p buffer)
-        (with-current-buffer buffer (set-buffer-modified-p nil))
-        (kill-buffer buffer))
-      (when (file-directory-p root) (delete-directory root t))))
-
-  :doc "Preserves intervening disk edits when buffer synchronization fails"
-  (let* ((root (make-temp-file "niwa-patch-intervening-" t))
-         (first (file-name-concat root "one.txt"))
-         (second (file-name-concat root "two.txt")) buffer)
-    (unwind-protect
-        (progn
-          (with-temp-file first (insert "old one\n"))
-          (with-temp-file second (insert "old two\n"))
-          (setq buffer (find-file-noselect second))
-          (with-current-buffer buffer
-            (add-hook 'before-change-functions
-                      (lambda (&rest _)
-                        (write-region "intervening edit\n" nil first nil 'silent)
-                        (error "Sync failure after external edit")) nil t))
-          (should-error
-           (niwa-tool-patch-commit
-            (list (list :action 'write :path first :content "new one\n")
-                  (list :action 'write :path second :content "new two\n")))
-           :type 'niwa-tool-patch-partial-rollback)
-          (should (equal "intervening edit\n" (niwa-tool-patch--read-file first)))
-          (should (equal "old two\n" (niwa-tool-patch--read-file second))))
-      (when (buffer-live-p buffer)
-        (with-current-buffer buffer (set-buffer-modified-p nil))
-        (kill-buffer buffer))
-      (delete-directory root t)))
-
-  :doc "Expected before-state rejects changed bytes and unexpected creation before any write"
-  (let* ((root (make-temp-file "niwa-patch-expected-" t))
-         (first (file-name-concat root "one.txt"))
-         (second (file-name-concat root "two.txt")))
-    (unwind-protect
-        (progn
-          (with-temp-file first (insert "old one\n"))
-          (let ((before (niwa-tool-patch--snapshot first)))
-            (write-region "changed\n" nil first nil 'silent)
-            (should-error (niwa-tool-patch-commit
-                           (list (list :action 'write :path second :content "new two\n")
-                                 (list :action 'write :path first :content "new one\n" :before before))))
-            (should-not (file-exists-p second))
-            (should (equal "changed\n" (niwa-tool-patch--read-file first))))
-          (should-error (niwa-tool-patch-commit
-                         (list (list :action 'write :path first :content "new one\n"
-                                     :before (list :path first :exists nil)))))
-          (should (equal "changed\n" (niwa-tool-patch--read-file first))))
-      (delete-directory root t)))
-
-  :doc "Lost target ownership prevents rollback from undoing a successor's files"
-  (let* ((root (make-temp-file "niwa-patch-owner-" t))
-         (first (file-name-concat root "one.txt"))
-         (second (file-name-concat root "two.txt"))
-         (key (file-name-concat root "claims"))
-         (claim (niwa-journal-claim-acquire key 180))
-         successor buffer)
-    (unwind-protect
-        (progn
-          (with-temp-file first (insert "old one\n"))
-          (with-temp-file second (insert "old two\n"))
-          (setq buffer (find-file-noselect first))
-          (with-current-buffer buffer
-            (add-hook 'before-change-functions
-                      (lambda (&rest _)
-                        (niwa-journal-claim-settle claim 'cancelled "")
-                        (setq successor (niwa-journal-claim-acquire key 180))
-                        (write-region "successor edit\n" nil second nil 'silent)) nil t))
-          (should-error
-           (niwa-tool-patch-commit
-            (list (list :action 'write :path first :content "new one\n")
-                  (list :action 'write :path second :content "new two\n"))
-            (lambda () (and (equal claim (niwa-journal-claim-current key))
-                             (not (niwa-journal-claim-outcome claim)))))
-           :type 'niwa-tool-patch-partial-rollback)
-          (should successor)
-          (should-not (niwa-journal-claim-outcome successor))
-          (should (equal "new one\n" (niwa-tool-patch--read-file first)))
-          (should (equal "successor edit\n" (niwa-tool-patch--read-file second))))
-      (when (buffer-live-p buffer)
-        (with-current-buffer buffer (set-buffer-modified-p nil))
-        (kill-buffer buffer))
-      (when successor (niwa-journal-claim-settle successor 'cancelled ""))
-      (delete-directory root t)))
-
-  :doc "Preserves an intervening unsaved buffer edit when another synchronization fails"
-  (let* ((root (make-temp-file "niwa-patch-buffer-intervening-" t))
-         (first (file-name-concat root "one.txt"))
-         (second (file-name-concat root "two.txt")) first-buffer second-buffer)
-    (unwind-protect
-        (progn
-          (with-temp-file first (insert "old one\n"))
-          (with-temp-file second (insert "old two\n"))
-          (setq first-buffer (find-file-noselect first) second-buffer (find-file-noselect second))
-          (with-current-buffer second-buffer
-            (add-hook 'before-change-functions
-                      (lambda (&rest _)
-                        (with-current-buffer first-buffer
-                          (goto-char (point-max)) (insert "user draft\n"))
-                        (error "Sync failure with a draft")) nil t))
-          (should-error
-           (niwa-tool-patch-commit
-            (list (list :action 'write :path first :content "new one\n")
-                  (list :action 'write :path second :content "new two\n")))
-           :type 'niwa-tool-patch-partial-rollback)
-          (with-current-buffer first-buffer
-            (should (equal "new one\nuser draft\n" (buffer-string)))
-            (should (buffer-modified-p)))
-          (should (equal "old one\n" (niwa-tool-patch--read-file first)))
-          (should (equal "old two\n" (niwa-tool-patch--read-file second))))
-      (dolist (buffer (list first-buffer second-buffer))
-        (when (buffer-live-p buffer)
-          (with-current-buffer buffer (set-buffer-modified-p nil))
-          (kill-buffer buffer)))
-      (delete-directory root t)))
-
-  :doc "A quit during buffer synchronization rolls back before propagating cancellation"
-  (let* ((root (make-temp-file "niwa-patch-quit-" t))
-         (path (file-name-concat root "one.txt")) buffer cancelled)
-    (unwind-protect
-        (progn
-          (with-temp-file path (insert "old\n"))
-          (setq buffer (find-file-noselect path))
-          (with-current-buffer buffer
-            (add-hook 'before-change-functions (lambda (&rest _) (signal 'quit nil)) nil t))
-          (condition-case nil
-              (niwa-tool-patch-commit (list (list :action 'write :path path :content "new\n")))
-            (quit (setq cancelled t)))
-          (should cancelled)
-          (should (equal "old\n" (niwa-tool-patch--read-file path)))
-          (should (equal "old\n" (with-current-buffer buffer (buffer-string)))))
-      (when (buffer-live-p buffer)
-        (with-current-buffer buffer (set-buffer-modified-p nil))
-        (kill-buffer buffer))
-      (delete-directory root t)))
-
-  :doc "Reports an incomplete rollback with the original failure and path"
-  (let* ((root (file-name-as-directory
-                (make-temp-file "niwa-patch-partial-rollback-" t)))
-         (first-directory (file-name-concat root "first"))
-         (second-directory (file-name-concat root "second"))
-         (first (file-name-concat first-directory "one.txt"))
-         (second (file-name-concat second-directory "two.txt"))
-         first-buffer
-         second-buffer)
-    (unwind-protect
-        (progn
-          (make-directory first-directory)
-          (make-directory second-directory)
-          (with-temp-file first (insert "old one\n"))
-          (with-temp-file second (insert "old two\n"))
-          (setq first-buffer (find-file-noselect first)
-                second-buffer (find-file-noselect second))
-          (with-current-buffer second-buffer
-            (add-hook 'before-change-functions
-                      (lambda (&rest _)
-                        (set-file-modes first-directory #o500)
-                        (error "Sync failure"))
-                      nil t))
-          (let* ((failure
-                  (should-error
-                   (niwa-tool-patch-commit
-                    (list (list :action 'write :path first
-                                :content "new one\n")
-                          (list :action 'write :path second
-                                :content "new two\n")))
-                   :type 'niwa-tool-patch-partial-rollback))
-                 (message (error-message-string failure)))
-            (should (string-match-p "Sync failure" message))
-            (should (string-match-p (regexp-quote first) message)))
-          (should (equal "new one\n"
-                         (niwa-tool-patch--read-file first)))
-          (should (equal "old two\n"
-                         (niwa-tool-patch--read-file second))))
-      (when (file-directory-p first-directory)
-        (set-file-modes first-directory #o700))
-      (dolist (buffer (list first-buffer second-buffer))
-        (when (buffer-live-p buffer)
-          (with-current-buffer buffer (set-buffer-modified-p nil))
-          (kill-buffer buffer)))
       (when (file-directory-p root) (delete-directory root t)))))
 
 (niwa-deftest niwa-tool-patch-register
@@ -1419,7 +1116,7 @@
                               (niwa-tool-patch--path-state path))))
       (delete-file path))))
 
-(niwa-deftest niwa-tool-patch--capture-baseline
+(niwa-deftest niwa-tool-patch-capture-baseline
   (:doc "Stores source content on the proposal and operation") ,test (test)
   (let ((path (make-temp-file "niwa-patch-baseline-")))
     (unwind-protect
@@ -1427,7 +1124,7 @@
           (with-temp-file path (insert "x"))
           (let* ((operation (list :kind 'delete :path path :rel-path "x"))
                  (proposal (list :operations (list operation))))
-            (niwa-tool-patch--capture-baseline proposal)
+            (niwa-tool-patch-capture-baseline proposal)
             (should (equal "x" (plist-get operation :baseline-content)))
             (should (= 1 (length (plist-get proposal :baseline))))))
       (delete-file path))))
@@ -1455,7 +1152,7 @@
           (let ((proposal (list :operations
                                 (list (list :kind 'delete :path path
                                             :rel-path "x" :selected t)))))
-            (niwa-tool-patch--capture-baseline proposal)
+            (niwa-tool-patch-capture-baseline proposal)
             (should-not (niwa-tool-patch-assert-baseline proposal))))
       (delete-file path))))
 
@@ -1494,7 +1191,7 @@
                  (changes
                   (niwa-tool-patch-planned-changes
                    (list :operations (list operation)))))
-            (niwa-tool-patch-commit changes)
+            (niwa-change-commit changes)
             (should
              (equal (encode-coding-string expected 'iso-latin-1)
                     (test-niwa-tool-patch--read-bytes path))))
@@ -1503,100 +1200,13 @@
                    (list :operations
                          (list (list :kind 'move :path path
                                      :move-path destination :selected t)))))
-            (niwa-tool-patch-commit changes)
+            (niwa-change-commit changes)
             (should-not (file-exists-p path))
             (should
              (equal (encode-coding-string expected 'iso-latin-1)
                     (test-niwa-tool-patch--read-bytes destination)))))
       (when (file-exists-p path) (delete-file path))
       (when (file-exists-p destination) (delete-file destination))))
-
-(niwa-deftest niwa-tool-patch--snapshot
-  (:doc "Snapshots literal file bytes and modes") ,test (test)
-  (let ((path (make-temp-file "niwa-patch-snapshot-"))
-        (bytes (unibyte-string #xff #x00 #x80)))
-    (unwind-protect
-        (progn
-          (niwa-tool-patch--write-file path bytes nil t)
-          (should (equal bytes (plist-get
-                                (niwa-tool-patch--snapshot path)
-                                :bytes))))
-      (delete-file path))))
-
-(niwa-deftest niwa-tool-patch--write-file
-  (:doc "Writes content through a same-directory temporary file") ,test (test)
-  (let ((path (make-temp-name
-               (expand-file-name "niwa-patch-write-" temporary-file-directory))))
-    (unwind-protect
-        (progn (niwa-tool-patch--write-file path "x")
-               (should (equal "x" (niwa-tool-patch--read-file path))))
-      (when (file-exists-p path) (delete-file path))))
-  :doc "Writes literal bytes without recoding"
-  (let ((path (make-temp-name
-               (expand-file-name "niwa-patch-bytes-"
-                                 temporary-file-directory)))
-        (bytes (unibyte-string #xff #x00 #x80)))
-    (unwind-protect
-        (progn
-          (niwa-tool-patch--write-file path bytes nil t)
-          (should
-           (equal bytes
-                  (test-niwa-tool-patch--read-bytes path))))
-      (when (file-exists-p path) (delete-file path)))))
-
-(niwa-deftest niwa-tool-patch--restore-snapshots
-  (:doc "Restores captured literal file bytes") ,test (test)
-  (let ((path (make-temp-file "niwa-patch-restore-"))
-        (bytes (unibyte-string #xff #x00 #x80)))
-    (unwind-protect
-        (progn
-          (niwa-tool-patch--write-file path bytes nil t)
-          (let ((snapshots (list (niwa-tool-patch--snapshot path))))
-            (niwa-tool-patch--write-file path "new")
-            (niwa-tool-patch--restore-snapshots snapshots (list (niwa-tool-patch--snapshot path)))
-            (should
-             (equal bytes
-                    (test-niwa-tool-patch--read-bytes path)))))
-      (delete-file path)))
-
-  :doc "Returns every failed restoration in snapshot order"
-  (let* ((root (file-name-as-directory
-                (make-temp-file "niwa-patch-restore-errors-" t)))
-         (first-directory (file-name-concat root "first"))
-         (second-directory (file-name-concat root "second"))
-         (first (file-name-concat first-directory "one.txt"))
-         (second (file-name-concat second-directory "two.txt")))
-    (unwind-protect
-        (progn
-          (make-directory first-directory)
-          (make-directory second-directory)
-          (with-temp-file first (insert "old one\n"))
-          (with-temp-file second (insert "old two\n"))
-          (let ((snapshots (mapcar #'niwa-tool-patch--snapshot
-                                   (list first second))))
-            (with-temp-file first (insert "new one\n"))
-            (with-temp-file second (insert "new two\n"))
-            (set-file-modes first-directory #o500)
-            (set-file-modes second-directory #o500)
-            (let ((failures
-                   (niwa-tool-patch--restore-snapshots snapshots (mapcar #'niwa-tool-patch--snapshot (list first second)))))
-              (should (equal (list first second) (mapcar #'car failures)))
-              (dolist (failure failures)
-                (should (memq 'error
-                              (get (cadr failure) 'error-conditions)))))))
-      (dolist (directory (list first-directory second-directory))
-        (when (file-directory-p directory)
-          (set-file-modes directory #o700)))
-      (when (file-directory-p root) (delete-directory root t)))))
-
-(niwa-deftest niwa-tool-patch-missing-parent-directories
-  (:doc "Lists absent parent directories below an existing root") ,test (test)
-  (let* ((root (make-temp-file "niwa-patch-parents-" t))
-         (path (file-name-concat root "a" "b" "x")))
-    (unwind-protect
-        (should (= 2 (length
-                      (niwa-tool-patch-missing-parent-directories path))))
-      (delete-directory root t))))
 
 (niwa-deftest niwa-tool-patch-apply
   (:doc "Commits changes before invoking its continuation") ,test (test)
@@ -1953,13 +1563,6 @@
     (should (string-search "+line 20" preview))
     (should-not (string-search "+line 21" preview))
     (should (string-search "…" preview))))
-
-(niwa-deftest niwa-tool-patch--assert-current
-  (:doc "passes without a check or with a confirming one and fails a stale owner")
-  (progn
-    (should-not (niwa-tool-patch--assert-current nil))
-    (should-not (niwa-tool-patch--assert-current (lambda () t)))
-    (should-error (niwa-tool-patch--assert-current (lambda () nil)))))
 
 (provide 'test-niwa-tool-patch)
 ;;; test-niwa-tool-patch.el ends here

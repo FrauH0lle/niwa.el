@@ -67,7 +67,7 @@ closing the editor on success."
   (if-let* ((buffer (find-buffer-visiting path)))
       (with-current-buffer buffer
         (save-restriction (widen) (buffer-substring-no-properties (point-min) (point-max))))
-    (decode-coding-string (or (plist-get (niwa-tool-patch--snapshot path) :bytes) "") coding)))
+    (decode-coding-string (or (plist-get (niwa-change-snapshot path) :bytes) "") coding)))
 
 (defun niwa-note-merge--insert-three-way (section)
   "Insert SECTION's three-way merge with only overlapping lines in conflict."
@@ -122,11 +122,11 @@ closing the editor on success."
         (let* ((path (plist-get change :path))
                (base (cl-find path (plist-get record :before)
                               :key (lambda (snapshot) (plist-get snapshot :path)) :test #'equal))
-               (disk (niwa-tool-patch--snapshot path))
+               (disk (niwa-change-snapshot path))
                (buffer (find-buffer-visiting path))
                (coding (if buffer (buffer-local-value 'buffer-file-coding-system buffer)
                          (if (plist-get disk :exists)
-                             (cdr (niwa-tool-patch--read-file path t)) 'utf-8-unix)))
+                             (cdr (niwa-change-text disk)) 'utf-8-unix)))
                (yours (niwa-note-merge-current-text path coding))
                (seen (decode-coding-string (or (plist-get base :bytes) "") coding))
                (proposed (or (plist-get change :content)
@@ -184,7 +184,7 @@ closing the editor on success."
           (unless (and (equal (or (plist-get section :source-yours) (plist-get section :yours))
                               (niwa-note-merge-current-text path coding))
                        (niwa-change-same-p (plist-get section :disk)
-                                              (niwa-tool-patch--snapshot path)))
+                                              (niwa-change-snapshot path)))
             (user-error "Source changed again: %s; reopen the merge" path))
           (when (and (> (length text) 0)
                      (get-text-property (1- (length text)) 'niwa-note-merge-padding text))

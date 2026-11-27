@@ -183,6 +183,35 @@ handler.  Return (:queued QUEUED :result RESULT)."
 (niwa-deftest niwa-pin-write-file-atomically ()
   ,test
   (test)
+  :doc "KEEP-LINK refuses a leaf link at the rename; without it the link is replaced"
+  (dolist (keep '(t nil))
+    (let* ((root (file-truename (make-temp-file "niwa-pin-leaf-" t)))
+           (target (file-name-concat root "target"))
+           (link (file-name-concat root "link")))
+      (unwind-protect
+          (progn
+            (write-region "target\n" nil target nil 'silent)
+            (make-symbolic-link target link)
+            (if keep
+                (should-error (niwa-pin-write-file-atomically link "new\n" nil nil t)
+                              :type 'niwa-pin-refused)
+              (niwa-pin-write-file-atomically link "new\n"))
+            (should (equal "target\n" (niwa-test--read-file target)))
+            (should (eq keep (and (file-symlink-p link) t)))
+            (should (equal '("link" "target")
+                           (directory-files root nil directory-files-no-dot-files-regexp))))
+        (delete-directory root t))))
+  :doc "a write reports only the directories it created, with their identity"
+  (let* ((root (file-truename (make-temp-file "niwa-pin-created-" t)))
+         (outer (file-name-concat root "a"))
+         (inner (file-name-concat outer "b")))
+    (unwind-protect
+        (let ((created (niwa-pin-write-file-atomically (file-name-concat inner "f") "x")))
+          (should (equal (list outer inner) (mapcar #'car created)))
+          (should (equal (file-attribute-inode-number (file-attributes inner))
+                         (nth 2 (cadr created))))
+          (should-not (niwa-pin-write-file-atomically (file-name-concat inner "g") "y")))
+      (delete-directory root t)))
   :doc "an Add whose directory is swapped for a protected link writes nothing there"
   (test-niwa-pin--call-with-trees
    (lambda (trees)

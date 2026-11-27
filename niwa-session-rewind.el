@@ -9,6 +9,7 @@
 
 (require 'niwa-engine)
 (require 'niwa-change)
+(require 'niwa-pin)
 
 (require 'niwa-utilities)
 (require 'niwa-report)
@@ -71,7 +72,6 @@
 (declare-function niwa-session-artifacts-printed-value "niwa-session-artifacts" (value))
 (declare-function niwa-session-artifacts-read-artifact "niwa-session-artifacts" (session logical &optional committed-only))
 (declare-function niwa-session-artifacts-read-backup "niwa-session-artifacts" (session backup-name))
-(declare-function niwa-session-artifacts-read-file-raw "niwa-session-artifacts" (path))
 (declare-function niwa-session-artifacts-replace-transcript-contents "niwa-session-artifacts" (source))
 (declare-function niwa-session-artifacts-segment-path "niwa-session-artifacts" (save-path n))
 (declare-function niwa-session-artifacts-sidecar-path "niwa-session-artifacts" (save-path))
@@ -91,8 +91,6 @@
 (autoload 'niwa-session-artifacts-printed-value
   "niwa-session-artifacts")
 (autoload 'niwa-session-artifacts-read-artifact
-  "niwa-session-artifacts")
-(autoload 'niwa-session-artifacts-read-file-raw
   "niwa-session-artifacts")
 (autoload 'niwa-session-artifacts-replace-transcript-contents
   "niwa-session-artifacts")
@@ -120,6 +118,8 @@
 
 ;; `niwa-session-durability'
 (declare-function niwa-session-durability-call-with-reserved-lease "niwa-session-durability" (session function))
+(declare-function niwa-session-durability-publication-head "niwa-session-durability" (session-dir &optional names))
+(autoload 'niwa-session-durability-publication-head "niwa-session-durability")
 (autoload 'niwa-session-durability-call-with-reserved-lease
   "niwa-session-durability")
 
@@ -262,6 +262,12 @@ picks its earliest checkpoint in the discarded suffix instead."
       (maphash (lambda (k v) (push (cons k v) result)) state)
       result)))
 
+(defun niwa-session-rewind--checked-path (path)
+  "Return PATH or refuse to restore through a symbolic link."
+  (unless (equal path (file-truename path))
+    (user-error "Rewind refuses a linked path: %s" path))
+  path)
+
 (defun niwa-session-rewind--plan-action
     (session path target-plist &optional before-turn)
   "Return SESSION restore action plist for PATH.
@@ -279,17 +285,18 @@ or earlier.  Possible `:action' values are:
   (let* ((target-backup-name
           (plist-get target-plist
                      (if before-turn :pre-backup-name :backup-name)))
-         (currently-exists   (file-exists-p path)))
+         (current (niwa-change-snapshot (niwa-session-rewind--checked-path path)))
+         (currently-exists (plist-get current :exists)))
     (cond
      ;; Target says "absent" at the picked turn.
      ((null target-backup-name)
       (if currently-exists
-          (list :action 'delete :path path)
+          (list :action 'delete :path path :before current)
         (list :action 'noop :path path)))
      ;; Target has content; file currently absent.
      ((not currently-exists)
       (list :action 'create
-            :path path
+            :path path :before current
             :backup-name target-backup-name))
      ;; Target has content; file currently present -- compare.
      (t
@@ -297,7 +304,7 @@ or earlier.  Possible `:action' values are:
               (niwa-session-artifacts-read-backup
                session target-backup-name))
              (current-content
-              (niwa-session-artifacts-read-file-raw path)))
+              (plist-get current :bytes)))
         (if (string-equal current-content target-content)
             (list :action 'noop :path path)
           ;; Differs from target.  Check vs LATEST snapshot to detect
@@ -313,7 +320,7 @@ or earlier.  Possible `:action' values are:
                                      (string-equal current-content
                                                    latest-content)))))
             (list :action (if diverged 'overwrite 'restore)
-                  :path path
+                  :path path :before current
                   :backup-name target-backup-name
                   :diverged diverged))))))))
 
@@ -337,15 +344,9 @@ nothing to do.  When BEFORE-TURN is non-nil, target the pre-turn checkpoint."
      (lambda (e) (eq 'noop (plist-get e :action)))
      (nreverse plan))))
 
-(defun niwa-session-rewind--file-state (path)
-  "Read PATH's current existence and literal bytes for checked Rewind."
-  (let ((exists (file-exists-p path)))
-    (list :path path :exists exists
-          :bytes (and exists (niwa-session-artifacts-read-file-raw path)))))
-
-(defun niwa-session-rewind--recorded-state (session path name)
-  "Read SESSION's recorded PATH state from backup NAME, or absence."
-  (list :path path :exists (and name t)
+(defun niwa-session-rewind--recorded-state (session path name mode)
+  "Read SESSION's recorded PATH from backup NAME, retaining current MODE."
+  (list :path path :exists (and name t) :mode (and name mode)
         :bytes (and name (niwa-session-artifacts-read-backup session name))))
 
 (defvar niwa-session-rewind--merge-resolutions nil
@@ -371,13 +372,16 @@ RESOLUTIONS supplies checked intermediate states from the merge editor."
                       (gethash (car entry) conflicts))
             (let* ((path (car entry))
                    (current (or (gethash path states)
-                                (let ((state (niwa-session-rewind--file-state path)))
+                                (let ((state (niwa-change-snapshot
+                                              (niwa-session-rewind--checked-path path))))
                                   (puthash path state originals)
                                   state)))
                    (before (niwa-session-rewind--recorded-state
-                            session path (plist-get (cdr entry) :pre-backup-name)))
+                            session path (plist-get (cdr entry) :pre-backup-name)
+                            (plist-get current :mode)))
                    (after (niwa-session-rewind--recorded-state
-                           session path (plist-get (cdr entry) :backup-name)))
+                           session path (plist-get (cdr entry) :backup-name)
+                           (plist-get current :mode)))
                    (resolution (cdr (assoc (cons path (car turn)) resolutions)))
                    (result
                     (cond
@@ -490,73 +494,57 @@ carries the plan-entry plist."
                        backup-path nil 'no-async))
              (delete-file backup-path))))))))
 
-(defvar niwa-session-rewind--written-states nil
-  "Cell of attempted after-states, retained across nonlocal exits.")
+(defun niwa-session-rewind--restore-change (session entry)
+  "Return the checked file change for SESSION restore ENTRY, or nil."
+  (let* ((path (niwa-session-rewind--checked-path (plist-get entry :path)))
+         (change
+          (pcase (plist-get entry :action)
+            ('noop nil)
+            ('conflict (user-error "Unresolved Rewind conflict: %s" path))
+            ('delete (list :path path :action 'delete))
+            ((or 'create 'restore 'overwrite)
+             (let ((bytes (if (plist-member entry :bytes)
+                              (plist-get entry :bytes)
+                            (niwa-session-artifacts-read-backup
+                             session (plist-get entry :backup-name)))))
+               (unless (stringp bytes) (error "Missing Rewind bytes: %s" path))
+               (list :path path :action 'write :bytes bytes)))
+            (action (error "Unknown Rewind action: %s" action)))))
+    (when (and change (plist-member entry :before))
+      (setq change (plist-put change :before (plist-get entry :before))))
+    change))
 
-(defun niwa-session-rewind--apply-restore-action (session entry)
-  "Apply one restore ENTRY (plan-entry plist) for SESSION."
-  (let* ((path        (plist-get entry :path))
-         (action      (plist-get entry :action))
-         (backup-name (plist-get entry :backup-name)))
-    (when (and (plist-member entry :before)
-               (not (niwa-change-same-p
-                     (plist-get entry :before)
-                     (niwa-session-rewind--file-state path))))
-      (error "Captured file changed before Rewind write: %s" path))
-    (pcase action
-      ('conflict (error "Unresolved Rewind conflict: %s" path))
-      ('noop nil)
-      ('delete
-       (when niwa-session-rewind--written-states
-         (push (list :path path :exists nil :bytes nil)
-               (car niwa-session-rewind--written-states)))
-       (when (file-exists-p path)
-         (delete-file path)))
-      ((or 'create 'restore 'overwrite)
-       (let ((content
-              (if (plist-member entry :bytes)
-                  (plist-get entry :bytes)
-                (niwa-session-artifacts-read-backup
-                 session backup-name))))
-         (let ((dir (file-name-directory path)))
-           (when (and dir (not (file-directory-p dir)))
-             (make-directory dir t)))
-         (when niwa-session-rewind--written-states
-           (push (list :path path :exists t :bytes content)
-                 (car niwa-session-rewind--written-states)))
-         (let ((coding-system-for-write 'no-conversion))
-           (write-region content nil path nil 'silent)))))))
+(defun niwa-session-rewind--report-restore (session title body)
+  "Render SESSION's restore result with TITLE and BODY."
+  (with-current-buffer (get-buffer-create "*niwa-restore-results*")
+    (niwa-report-render
+     (list :title "Restore results" :identity session
+           :sections (list (list :id 'result :title title :body body))))))
 
 (defun niwa-session-rewind-execute-restore (session plan)
-  "Execute restore PLAN for SESSION, stopping on the first failure.
-
-Returns a plist describing the outcome:
-  (:succeeded N :failed PATH-OR-NIL :error STR-OR-NIL :total N)
-
-Successful actions are applied in order; on error, remaining plan
-entries are not attempted.  The user-visible report goes to
-`*niwa-restore-results*'."
-  (let ((succeeded 0) (failed nil) (err-str nil)
-        (total (length plan)))
-    (catch 'failed
-      (dolist (entry plan)
-        (condition-case e
-            (progn
-              (niwa-session-rewind--apply-restore-action session entry)
-              (cl-incf succeeded))
-          (error
-           (setq failed   (plist-get entry :path)
-                 err-str  (error-message-string e))
-           (throw 'failed nil)))))
-    (with-current-buffer (get-buffer-create "*niwa-restore-results*")
-      (niwa-report-render
-       (list :title "Restore results" :identity session
-             :sections
-             (list (list :id 'result :title (if failed "Restore failed" "Restored files")
-                         :body (concat (format "Restore results: %d/%d files done\n" succeeded total)
-                                       (when failed (format "Failed on %s: %s\n" failed err-str))))))))
-    (list :succeeded succeeded :failed failed
-          :error err-str :total total)))
+  "Apply PLAN for SESSION as one checked change and return its receipt."
+  (let ((receipt
+         (condition-case err
+             (niwa-change-commit
+              (delq nil (mapcar (lambda (entry)
+                                  (niwa-session-rewind--restore-change session entry))
+                                plan))
+              ;; The preflight checks before the transaction; this keeps a
+              ;; link planted later from being replaced at the write.
+              :keep-links t)
+           (error
+            (unwind-protect
+                (niwa-session-rewind--report-restore
+                 session "Restore failed" (error-message-string err))
+              (signal (car err) (cdr err)))))))
+    (condition-case err
+        (progn
+          (niwa-session-rewind--report-restore
+           session "Restored files" (format "Restored %d files" (length plan)))
+          receipt)
+      ((error quit)
+       (niwa-change-rollback receipt err)
+       (signal (car err) (cdr err))))))
 
 (defun niwa-session-rewind--modified-buffers-for-plan (plan)
   "Return modified buffers visiting files affected by restore PLAN."
@@ -617,29 +605,6 @@ REPLAN, when non-nil, recomputes the plan after saves instead."
              (setq current-plan :abort
                    done t))))))
     current-plan))
-
-(defun niwa-session-rewind--refresh-restored-buffers (plan result)
-  "Refresh visiting buffers for files restored by PLAN.
-
-RESULT is the plist returned by `niwa-session-rewind-execute-restore'."
-  (let ((remaining (plist-get result :succeeded)))
-    (dolist (entry plan)
-      (when (> remaining 0)
-        (cl-decf remaining)
-        (let ((path (plist-get entry :path))
-              (action (plist-get entry :action)))
-          (pcase action
-            ((or 'create 'restore 'overwrite)
-             (when-let* (((file-exists-p path))
-                         (buf (find-buffer-visiting path)))
-               (with-current-buffer buf
-                 (revert-buffer t t t))))
-            ('delete
-             (when-let* ((buf (find-buffer-visiting path)))
-               (with-current-buffer buf
-                 (set-buffer-modified-p nil))
-               (kill-buffer buf)))))))))
-
 
 ;;
 ;;; Rewind picker
@@ -1424,45 +1389,22 @@ publication control directories are never copied."
     decoded))
 
 (defun niwa-session-rewind--backup-restore-files (plan directory)
-  "Copy current PLAN file state under DIRECTORY for transaction rollback."
+  "Copy current PLAN files under DIRECTORY for manual recovery."
   (cl-loop for entry in plan
-           for path = (plist-get entry :path)
+           for path = (niwa-session-rewind--checked-path (plist-get entry :path))
            for index from 1
-           for backup = (file-name-concat directory (format "%06d" index))
-           collect
-           (if (file-exists-p path)
-               (progn
-                 (copy-file path backup t t t)
-                 (list :path path :existed t :backup backup))
-             (list :path path :existed nil))))
+           when (file-exists-p path) do
+           (niwa-pin-with-file path
+             (copy-file (niwa-pin-open-path path)
+                        (file-name-concat directory (format "%06d" index)) t t t))))
 
-(defun niwa-session-rewind--rollback-restore-files (backups written)
-  "Restore file BACKUPS captured for a failed Rewind.
-Only restore WRITTEN after-states that still belong to this transaction.
-Return descriptions of every artifact that could not be restored."
-  (let (failures)
-    (dolist (entry backups)
-      (let ((path (plist-get entry :path)))
-        (when (cl-find path written :key (lambda (state) (plist-get state :path)) :test #'equal)
-          (condition-case err
-              (setq failures
-                    (nconc failures
-                           (niwa-change-rollback
-                            (list (list :path path :exists (plist-get entry :existed)
-                                        :bytes (when (plist-get entry :existed)
-                                                 (niwa-session-artifacts-read-file-raw
-                                                  (plist-get entry :backup)))))
-                            written #'niwa-session-rewind--file-state
-                            (lambda (_before _after)
-                              (if (plist-get entry :existed)
-                                  (progn
-                                    (make-directory (file-name-directory path) t)
-                                    (copy-file (plist-get entry :backup) path t t t))
-                                (when (file-exists-p path) (delete-file path)))))))
-            (error (setq failures (nconc failures (list (cons path err)))))))))
-    (mapcar (lambda (failure)
-              (format "%s (%s)" (car failure) (error-message-string (cdr failure))))
-            failures)))
+(defun niwa-session-rewind--rollback-files (session receipt)
+  "Roll back RECEIPT under SESSION's lease; return incomplete recovery paths."
+  (condition-case err
+      (niwa-session-durability-call-with-reserved-lease
+       session (lambda () (niwa-change-rollback receipt)))
+    (niwa-change-partial-rollback (nth 2 err))
+    (error (list (format "Rollback authority (%s)" (error-message-string err))))))
 
 (defun niwa-session-rewind-rewind-publication-artifacts
     (session buffer staging-path &optional state)
@@ -1577,9 +1519,7 @@ PREPARED supplies a candidate with independently forked native histories."
          (staging-buffer
           (generate-new-buffer " *niwa-remote-rewind-staging*"))
          (niwa-instruction-store--inhibit workspace)
-         file-backups restore-result
-         (niwa-session-rewind--written-states (list nil))
-         project-restore-started
+         receipt
          publish-attempted
          committed
          post-commit-error
@@ -1610,9 +1550,7 @@ PREPARED supplies a candidate with independently forked native histories."
                       "Session state changed before portable project Rewind; retry"))
                    (setq publication current)
                    (setf (niwa-session-publication session) current))
-                 (setq file-backups
-                       (niwa-session-rewind--backup-restore-files
-                        plan file-backup-dir))
+                 (niwa-session-rewind--backup-restore-files plan file-backup-dir)
                  (niwa-session-rewind--stage-rewind
                   session candidate target staging-path staging-buffer
                   publication)
@@ -1629,12 +1567,7 @@ PREPARED supplies a candidate with independently forked native histories."
                       "Captured files changed after Rewind confirmation")))
                  ;; Discard definitions before changing their source history.
                  (niwa-execution-stop-services session)
-                 (setq project-restore-started t)
-                 (setq restore-result (niwa-session-rewind-execute-restore session plan))
-                   (when (plist-get restore-result :failed)
-                     (error "File restore failed on %s: %s"
-                            (plist-get restore-result :failed)
-                            (plist-get restore-result :error)))))
+                 (setq receipt (niwa-session-rewind-execute-restore session plan))))
               (setq publish-attempted t)
               (condition-case publish-error
                   (niwa-session-publication-publish
@@ -1689,34 +1622,15 @@ PREPARED supplies a candidate with independently forked native histories."
               ;; The workspace store owns the current set: prune the records
               ;; here and in the store.
               (niwa-session-rewind--end-store-intent
-               session t "Portable project Rewind")
-              (condition-case refresh-error
-                  (niwa-session-rewind--refresh-restored-buffers
-                   plan (list :succeeded (length plan)))
-                (error
-                 (niwa-diagnostic-warning (niwa-diagnostic-scope session)
-                  'niwa
-                  (format
-                   "Portable project Rewind committed, but buffers did not refresh: %s"
-                   (error-message-string refresh-error))
-                  :warning))))
+               session t "Portable project Rewind"))
+          (niwa-change-partial-rollback
+           (setq rollback-failures (nth 2 err) operation-error err))
           (error (setq operation-error err)))
       (unless committed
         (niwa-session-rewind--end-store-intent
          session nil "Portable project Rewind")
-        (when project-restore-started
-          (condition-case rollback-error
-              (setq rollback-failures
-                    (niwa-session-durability-call-with-reserved-lease
-                     session
-                     (lambda ()
-                       (niwa-session-rewind--rollback-restore-files
-                        file-backups (car niwa-session-rewind--written-states)))))
-            (error
-             (push
-              (format "Project rollback authority (%s)"
-                      (error-message-string rollback-error))
-              rollback-failures))))
+        (when receipt
+          (setq rollback-failures (niwa-session-rewind--rollback-files session receipt)))
         (when (and publish-attempted (null rollback-failures))
           (condition-case discard-error
               (niwa-session-publication-discard-rolled-back
@@ -2098,8 +2012,7 @@ the file plan already confirmed before native preparation."
          (source (copy-sequence session))
          (staging-buffer (generate-new-buffer " *niwa-restore-staging*"))
          (workspace (niwa-session-workspace session))
-         candidate plan file-backups restore-result file-restore-started committed
-         (niwa-session-rewind--written-states (list nil))
+         candidate plan receipt committed
          rollback-failures)
     (setf (niwa-session-publication source) publication)
     (unwind-protect
@@ -2182,18 +2095,15 @@ the file plan already confirmed before native preparation."
                            (niwa-session-rewind--restore-file-plan
                             candidate))))
                    (error "Captured files changed after restore confirmation"))
-                 (setq file-backups
-                       (niwa-session-rewind--backup-restore-files
-                        plan file-backup-dir))
+                 (niwa-session-rewind--backup-restore-files plan file-backup-dir)
                  ;; Redo replaces history just as Rewind does.
                  (niwa-execution-stop-services session)
                  (when plan
-                   (setq file-restore-started t)
-                   (setq restore-result (niwa-session-rewind-execute-restore candidate plan))
-                     (when (plist-get restore-result :failed)
-                       (error "File restore failed on %s: %s"
-                              (plist-get restore-result :failed)
-                              (plist-get restore-result :error))))))
+                   (condition-case err
+                       (setq receipt (niwa-session-rewind-execute-restore candidate plan))
+                     (niwa-change-partial-rollback
+                      (setq rollback-failures (nth 2 err))
+                      (signal (car err) (cdr err)))))))
               (unwind-protect
                   (niwa-session-publication-publish
                    session
@@ -2243,11 +2153,7 @@ the file plan already confirmed before native preparation."
                    (error-message-string instruction-error))
                   :warning)))
               (condition-case refresh-error
-                  (progn
-                    (when plan
-                      (niwa-session-rewind--refresh-restored-buffers
-                       plan (list :succeeded (length plan))))
-                    (niwa-session-recovery-refresh-session-buffers session))
+                  (niwa-session-recovery-refresh-session-buffers session)
                 (error
                  (niwa-diagnostic-warning (niwa-diagnostic-scope session)
                   'niwa
@@ -2260,19 +2166,8 @@ the file plan already confirmed before native preparation."
           (set-buffer-modified-p nil))
         (kill-buffer staging-buffer))
       (unless committed
-        (when file-restore-started
-          (condition-case rollback-error
-              (setq rollback-failures
-                    (niwa-session-durability-call-with-reserved-lease
-                     session
-                     (lambda ()
-                       (niwa-session-rewind--rollback-restore-files
-                        file-backups (car niwa-session-rewind--written-states)))))
-            (error
-             (push
-              (format "Restore rollback authority (%s)"
-                      (error-message-string rollback-error))
-              rollback-failures))))
+        (when receipt
+          (setq rollback-failures (niwa-session-rewind--rollback-files session receipt)))
         (when (and (null rollback-failures)
                    (niwa-session-pending-publication session))
           (condition-case nil

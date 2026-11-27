@@ -29,11 +29,11 @@ RESOLUTIONS holds already resolved newer turns.  Confirmation resumes Rewind."
       (dolist (entry prepared)
         (when (plist-get entry :conflicts)
           (let* ((path (plist-get entry :path))
-                 (disk (niwa-tool-patch--snapshot path))
+                 (disk (niwa-change-snapshot path))
                  (source (find-buffer-visiting path))
                  (coding (if source (buffer-local-value 'buffer-file-coding-system source)
                            (if (plist-get disk :exists)
-                               (cdr (niwa-tool-patch--read-file path t)) 'utf-8-unix))))
+                               (cdr (niwa-change-text disk)) 'utf-8-unix))))
             (push (list :path path :disk disk :coding coding :data entry
                         :source-yours (niwa-note-merge-current-text path coding)
                         :yours (decode-coding-string (or (plist-get (plist-get entry :current) :bytes) "") coding)

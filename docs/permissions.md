@@ -334,8 +334,17 @@ temporary file with `O_CREAT|O_EXCL|O_NOFOLLOW`, writes and `fchmod`s that
 descriptor, and renames it over the target within the pinned directory.
 Emacs encodes the content and sends the bytes. A symlink planted at the
 temporary name therefore cannot receive the content or mode, and a planted
-final symlink is replaced instead of followed. Deletion uses `unlinkat` in the
-pinned directory. One helper serves
+final symlink is replaced instead of followed; a write that asks to keep links
+(Rewind's) refuses one found at the target just before the rename, and such a
+deletion refuses to remove one. A write reports the directories it created
+with their device and inode, and removes them again if it then fails; any it
+cannot remove are returned with the write's own error and reported. A
+transaction's rollback asks the helper to remove only those, through the
+pinned parent and only while empty and still the same directory; one it
+cannot identify is left and reported. POSIX has no removal by identity, so
+an empty directory swapped in at the same name between the check and the
+removal could be removed instead; a non-empty directory never is. Deletion
+uses `unlinkat` in the pinned directory. One helper serves
 each execution target; the first use costs about 11 ms locally and each later
 pin about 0.1 ms. Grep, Glob and media converters run under the same
 confinement as the commands that could swap paths, where protected trees are

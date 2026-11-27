@@ -11,8 +11,6 @@
 (require 'niwa-memory-apply)
 (require 'niwa-memory-store)
 
-;; `niwa-tool-patch'
-(declare-function niwa-tool-patch-missing-parent-directories "niwa-tool-patch" (path))
 ;; `niwa-memory-notes'
 (declare-function niwa-memory-notes-control-directory "niwa-memory-notes" (directory))
 (declare-function niwa-memory-notes-same-p "niwa-memory-notes" (left right))
@@ -137,7 +135,7 @@ The caller must include unchanged dependencies in CHECKS."
           (when create-mode
             (niwa-memory-apply-check-new-mode
              (seq-find (lambda (row) (equal path (plist-get row :path))) checks) snapshot))
-          (setq dirs (append dirs (niwa-tool-patch-missing-parent-directories path))))))
+          (setq dirs (append dirs (niwa-change-missing-parent-directories path))))))
     (setq operations
           (append
            (list (list :op 'begin-files :path lock))

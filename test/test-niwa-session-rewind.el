@@ -11,6 +11,7 @@
           (file-name-directory
            (or buffer-file-name load-file-name byte-compile-current-file))
           "niwa-session-test-support"))
+(require 'niwa-change)
 (require 'niwa-chat)
 (require 'niwa-execution)
 (require 'niwa-notes)
@@ -36,54 +37,6 @@ them are set, so the committing save keeps them."
      session (nreverse niwa-session-artifacts--critical-artifacts) t))
   (niwa-session-artifacts-save
    session (or (get-buffer "*test-data-buf*") (current-buffer)) nil t))
-
-(niwa-deftest niwa-session-rewind--refresh-restored-buffers ()
-  ,test
-  (test)
-  :doc "reverts visiting buffers after file restore, including confirmed local edits"
-  (dolist (modified '(nil t))
-    (let* ((tempdir (make-temp-file "niwa-refresh-" t))
-           (file (file-name-concat tempdir "source.el"))
-           (buf nil))
-      (unwind-protect
-          (progn
-            (write-region "old\n" nil file nil 'silent)
-            (setq buf (find-file-noselect file))
-            (when modified
-              (with-current-buffer buf
-                (goto-char (point-max))
-                (insert "local\n")))
-            (write-region "new\n" nil file nil 'silent)
-            (niwa-session-rewind--refresh-restored-buffers
-             (list (list :action 'restore :path file))
-             (list :succeeded 1))
-            (with-current-buffer buf
-              (should-not (buffer-modified-p))
-              (should (equal "new\n"
-                             (buffer-substring-no-properties
-                              (point-min) (point-max))))))
-        (when (buffer-live-p buf)
-          (with-current-buffer buf (set-buffer-modified-p nil))
-          (kill-buffer buf))
-        (delete-directory tempdir t))))
-  :doc "kills visiting buffers for deleted restored files"
-  (let* ((tempdir (make-temp-file "niwa-refresh-" t))
-         (file (file-name-concat tempdir "source.el"))
-         (buf nil))
-    (unwind-protect
-        (progn
-          (write-region "old\n" nil file nil 'silent)
-          (setq buf (find-file-noselect file))
-          (delete-file file)
-          (niwa-session-rewind--refresh-restored-buffers
-           (list (list :action 'delete :path file))
-           (list :succeeded 1))
-          (should-not (buffer-live-p buf)))
-      (when (buffer-live-p buf)
-        (with-current-buffer buf (set-buffer-modified-p nil))
-        (kill-buffer buf))
-      (delete-directory tempdir t))))
-
 
 (niwa-deftest niwa-session-rewind--prepare-buffers-for-restore ()
   ,test
@@ -1546,10 +1499,7 @@ them are set, so the committing save keeps them."
                         candidate))
                      ((symbol-function
                        'niwa-session-rewind-restore-plan)
-                      (lambda (&rest _) nil))
-                     ((symbol-function
-                       'niwa-session-rewind--refresh-restored-buffers)
-                      #'ignore))
+                      (lambda (&rest _) nil)))
                   (should
                    (niwa-session-rewind--commit-rewind
                     session buffer target nil)))
@@ -1652,10 +1602,7 @@ them are set, so the committing save keeps them."
                         (signal 'beginning-of-buffer nil)))
                      ((symbol-function
                        'niwa-instruction-store-rewind-end)
-                      (lambda (&rest _) (push 'instructions followed) t))
-                     ((symbol-function
-                       'niwa-session-rewind--refresh-restored-buffers)
-                      (lambda (&rest _) (push 'buffers followed))))
+                      (lambda (&rest _) (push 'instructions followed) t)))
                   (niwa-test--with-captured-diagnostics warning
                     (should
                      (niwa-session-rewind--commit-rewind
@@ -1670,7 +1617,7 @@ them are set, so the committing save keeps them."
                 (should (equal generation
                                (plist-get (niwa-session-lease session)
                                           :generation)))
-                (should (equal '(instructions buffers)
+                (should (equal '(instructions)
                                (nreverse followed)))
                 (should (string-match-p "did not install" warning))
                 (should (string-match-p "Beginning of buffer" warning))
@@ -2470,7 +2417,7 @@ them are set, so the committing save keeps them."
          (candidate (niwa-session--create :workspace workspace))
          (buffer (generate-new-buffer " *restore-rollback*"))
          (plan '((:path "/tmp/captured" :action overwrite)))
-         (backups '((:path "/tmp/captured" :existed nil)))
+         (receipt (list 'committed))
          (reservations 0)
          rolled-back)
     (unwind-protect
@@ -2497,11 +2444,8 @@ them are set, so the committing save keeps them."
              ((symbol-function
                'niwa-session-rewind--prepare-buffers-for-restore)
               (lambda (_candidate _turn actual-plan &rest _) actual-plan))
-             ((symbol-function
-               'niwa-session-rewind--backup-restore-files)
-              (lambda (_plan _directory) backups))
              ((symbol-function 'niwa-session-rewind-execute-restore)
-              (lambda (_candidate _plan) '(:succeeded 1)))
+              (lambda (_candidate _plan) receipt))
              ((symbol-function
                'niwa-session-rewind-rewind-publication-artifacts)
               (lambda (&rest _) nil))
@@ -2515,11 +2459,8 @@ them are set, so the committing save keeps them."
               (lambda (_session function)
                 (cl-incf reservations)
                 (funcall function)))
-             ((symbol-function
-               'niwa-session-rewind--rollback-restore-files)
-              (lambda (actual-backups _written)
-                (setq rolled-back actual-backups)
-                nil))
+             ((symbol-function 'niwa-change-rollback)
+              (lambda (actual) (setq rolled-back actual) nil))
              ((symbol-function
                'niwa-session-publication-discard-rolled-back)
               (lambda (actual-session)
@@ -2534,7 +2475,7 @@ them are set, so the committing save keeps them."
       (when (buffer-live-p buffer) (kill-buffer buffer))
       (when (file-directory-p root) (delete-directory root t)))
     (should (= 2 reservations))
-    (should (equal backups rolled-back))
+    (should (eq receipt rolled-back))
     (should-not (niwa-session-pending-publication session)))
 
   :doc "refuses a workspace-free session"
@@ -2545,30 +2486,6 @@ them are set, so the committing save keeps them."
      :type 'user-error)))
 
 
-(niwa-deftest niwa-session-rewind--rollback-restore-files ()
-  ,test
-  (test)
-  :doc "reports every file whose rollback fails"
-  (let* ((directory (make-temp-file "rewind-rollback-" t))
-         (path-a (file-name-concat directory "a"))
-         (path-b (file-name-concat directory "b"))
-         (backup (file-name-concat directory "backup")))
-    (unwind-protect
-        (progn
-          (write-region "before" nil backup nil 'silent)
-          (dolist (path (list path-a path-b)) (write-region "after" nil path nil 'silent))
-          (let ((failures
-                 (cl-letf (((symbol-function 'copy-file)
-                            (lambda (_source target &rest _)
-                              (error "Cannot restore %s" target))))
-                   (niwa-session-rewind--rollback-restore-files
-                    (mapcar (lambda (path) (list :path path :existed t :backup backup))
-                            (list path-a path-b))
-                    (mapcar #'niwa-session-rewind--file-state (list path-a path-b))))))
-            (should (= 2 (length failures)))
-            (should (string-match-p (regexp-quote path-a) (nth 0 failures)))
-            (should (string-match-p (regexp-quote path-b) (nth 1 failures)))))
-      (delete-directory directory t))))
 
 
 ;;
@@ -2854,10 +2771,13 @@ them are set, so the committing save keeps them."
                         (list :action 'overwrite :path restore-path
                               :backup-name backup-name-restore
                               :diverged t)))
-                 (result (niwa-session-rewind-execute-restore
-                          session plan)))
-            (should (= 3 (plist-get result :succeeded)))
-            (should (null (plist-get result :failed)))
+                 (visited (find-file-noselect delete-path)))
+            (unwind-protect
+                (progn
+                  (should (niwa-session-rewind-execute-restore session plan))
+                  (should (buffer-live-p visited))
+                  (should (equal "to be deleted" (with-current-buffer visited (buffer-string)))))
+              (when (buffer-live-p visited) (kill-buffer visited)))
             (should (file-exists-p create-path))
             (should-not (file-exists-p delete-path))
             (with-temp-buffer
@@ -2867,7 +2787,7 @@ them are set, so the committing save keeps them."
               (insert-file-contents restore-path)
               (should (equal "original" (buffer-string))))))
       (test-niwa-session-persistence--cleanup tempdir)))
-  :doc "stops on first failure"
+  :doc "a missing backup aborts the whole plan without creating a file"
   (cl-destructuring-bind (session . tempdir)
       (test-niwa-session-persistence--make-materialized-session)
     (unwind-protect
@@ -2885,11 +2805,9 @@ them are set, so the committing save keeps them."
                         ;; Should not be reached.
                         (list :action 'create
                               :path (file-name-concat tempdir "three.el")
-                              :backup-name bn)))
-                 (result (niwa-session-rewind-execute-restore
-                          session plan)))
-            (should (= 1 (plist-get result :succeeded)))
-            (should (plist-get result :failed))
+                              :backup-name bn))))
+            (should-error (niwa-session-rewind-execute-restore session plan))
+            (should-not (file-exists-p path))
             (should-not (file-exists-p
                          (file-name-concat tempdir "three.el")))))
       (test-niwa-session-persistence--cleanup tempdir))))

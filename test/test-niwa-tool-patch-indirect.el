@@ -7,6 +7,7 @@
 
 ;;; Code:
 
+(require 'niwa-change)
 (require 'niwa-tool-patch)
 (require 'helpers
          (file-name-concat
@@ -326,7 +327,7 @@
                          (list base child second second-child)))
     (let ((failure
            (should-error
-            (niwa-tool-patch-commit
+            (niwa-change-commit
              (niwa-tool-patch-planned-changes
               (niwa-tool-patch-parse
                (concat "*** Begin Patch\n*** Update File: source.txt\n@@\n-old\n+new\n"

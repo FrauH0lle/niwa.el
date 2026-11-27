@@ -13,7 +13,7 @@
           "helpers"))
 (require 'niwa-memory-apply)
 (require 'niwa-memory-store)
-(require 'niwa-tool-patch)
+(require 'niwa-change)
 (require 'niwa-system)
 
 (niwa-deftest niwa-memory-apply--index-lines
@@ -76,7 +76,7 @@
   :doc "promotes a complete topic and escaped index entry through the shared transaction"
   (let ((changes (niwa-memory-apply-changes scope (proposal 'promote "new topic.md" "New lesson."))))
     (should-not (file-exists-p (file-name-concat memory "new topic.md")))
-    (niwa-tool-patch-commit changes)
+    (niwa-change-commit changes)
     (should (equal (format "---\nname: \"Current [context]\"\ndescription: \"When this matters\"\ntype: project\nmodified: %s\n---\n\nNew lesson.\n"
                            (format-time-string "%Y-%m-%d"))
                    (read-file "new topic.md")))
@@ -115,29 +115,29 @@
            (topic (seq-find (lambda (change) (string-suffix-p "unicode.md" (plist-get change :path))) changes)))
       (should (string-search "\u754c topic" (plist-get topic :content)))
       (should (equal (plist-get topic :content) (decode-coding-string (plist-get topic :bytes) 'utf-8-unix)))
-      (niwa-tool-patch-commit changes)
+      (niwa-change-commit changes)
       (should (equal (plist-get topic :content) (read-file "unicode.md")))))
   :doc "updates one topic and its existing index position"
   (progn
-    (niwa-tool-patch-commit (niwa-memory-apply-changes scope (proposal 'update "a.md" "Updated lesson.")))
+    (niwa-change-commit (niwa-memory-apply-changes scope (proposal 'update "a.md" "Updated lesson.")))
     (should (string-suffix-p "Updated lesson.\n" (read-file "a.md")))
     (should (equal "# Memory\n- [Current \\[context\\]](a.md) - When this matters\n- [Beta](b.md) - second\n" (read-file "MEMORY.md")))
     (should (equal "Old beta.\n" (read-file "b.md"))))
   :doc "merges both topics and their index entries as one checked transaction"
   (progn
-    (niwa-tool-patch-commit (niwa-memory-apply-changes scope (proposal 'merge "a.md" "Merged context." '("a.md" "b.md"))))
+    (niwa-change-commit (niwa-memory-apply-changes scope (proposal 'merge "a.md" "Merged context." '("a.md" "b.md"))))
     (should-not (file-exists-p (file-name-concat memory "b.md")))
     (should (string-suffix-p "Merged context.\n" (read-file "a.md")))
     (should (equal "# Memory\n- [Current \\[context\\]](a.md) - When this matters\n" (read-file "MEMORY.md"))))
   :doc "removes a topic and only its index entry"
   (progn
-    (niwa-tool-patch-commit (niwa-memory-apply-changes scope (proposal 'remove "a.md" "")))
+    (niwa-change-commit (niwa-memory-apply-changes scope (proposal 'remove "a.md" "")))
     (should-not (file-exists-p (file-name-concat memory "a.md")))
     (should (equal "# Memory\n- [Beta](b.md) - second\n" (read-file "MEMORY.md"))))
   :doc "replaces complete instructions without appending or changing the memory index"
   (progn
     (setq root-id (car (seq-find (lambda (row) (eq (plist-get (cdr row) :kind) 'instructions)) (plist-get scope :roots))))
-    (niwa-tool-patch-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.md" "Additional instruction.")))
+    (niwa-change-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.md" "Additional instruction.")))
     (should (equal "Additional instruction."
                    (niwa-session-control-fs-read-file (file-name-concat root "AGENTS.md"))))
     (should (equal "# Memory\n- [Alpha](a.md) - first\n- [Beta](b.md) - second\n" (read-file "MEMORY.md"))))
@@ -145,7 +145,7 @@
   (progn
     (setq root-id (car (seq-find (lambda (row) (eq (plist-get (cdr row) :kind) 'instructions)) (plist-get scope :roots))))
     (let ((path (file-name-concat root "AGENTS.md")))
-      (niwa-tool-patch-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.md" "")))
+      (niwa-change-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.md" "")))
       (should (file-exists-p path))
       (should (equal "" (niwa-session-control-fs-read-file path)))))
   :doc "empty instructions create an admitted absent file with zero bytes"
@@ -153,7 +153,7 @@
     (setq root-id (car (seq-find (lambda (row) (eq (plist-get (cdr row) :kind) 'instructions)) (plist-get scope :roots))))
     (let ((path (file-name-concat root "AGENTS.local.md")))
       (should-not (file-exists-p path))
-      (niwa-tool-patch-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.local.md" "")))
+      (niwa-change-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.local.md" "")))
       (should (file-exists-p path))
       (should (= 0 (file-attribute-size (file-attributes path))))))
   :doc "instruction whitespace is exact and an unchanged complete body emits no write"
@@ -161,12 +161,12 @@
     (setq root-id (car (seq-find (lambda (row) (eq (plist-get (cdr row) :kind) 'instructions)) (plist-get scope :roots))))
     (should-not (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.md" "Existing instructions.\n")))
     (let ((body "  Indented instruction.\n\n "))
-      (niwa-tool-patch-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.md" body)))
+      (niwa-change-commit (niwa-memory-apply-changes scope (proposal 'instructions "AGENTS.md" body)))
       (should (equal body (niwa-session-control-fs-read-file (file-name-concat root "AGENTS.md"))))))
   :doc "a changed index prevents all prepared topic writes"
   (let ((changes (niwa-memory-apply-changes scope (proposal 'update "a.md" "Updated lesson."))))
     (write-region "External index edit.\n" nil (file-name-concat memory "MEMORY.md") nil 'silent)
-    (should-error (niwa-tool-patch-commit changes))
+    (should-error (niwa-change-commit changes))
     (should (equal "Old alpha.\n" (read-file "a.md")))
     (should (equal "External index edit.\n" (read-file "MEMORY.md"))))
   :doc "an index update exceeding the memory reader limit produces no writes"

@@ -151,7 +151,7 @@
                        (not (plist-get context :resource-granted-p))
                        (not (eq (plist-get context :mode) 'full-auto))))
           (error "Prepared change is denied for %s" path))))
-    (niwa-tool-patch--capture-baseline proposal)
+    (niwa-tool-patch-capture-baseline proposal)
     (let ((changes (niwa-tool-patch-planned-changes proposal)))
       (niwa-tool-patch-assert-baseline proposal)
       (niwa-note-change-record proposal changes (current-buffer)))))

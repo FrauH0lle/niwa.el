@@ -5,6 +5,7 @@
 
 ;;; Code:
 
+(require 'niwa-change)
 (require 'helpers (file-name-concat (locate-dominating-file load-file-name "Eask") "test" "helpers"))
 (require 'gptel-openai-extras)
 (require 'gptel-openai-oauth)
@@ -99,7 +100,7 @@
            (unless (or (file-in-directory-p path (file-name-concat root "local" session))
                        (file-in-directory-p path (file-name-concat root "shared")))
              (error "Patch path outside writable scope"))))
-       (niwa-tool-patch-commit (niwa-tool-patch-planned-changes proposal))
+       (niwa-change-commit (niwa-tool-patch-planned-changes proposal))
        "Patch applied"))))
 
 (defun scope--tools (root session record)

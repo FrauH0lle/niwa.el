@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'niwa-change)
 (require 'helpers
          (file-name-concat
           (file-name-directory
@@ -629,7 +630,7 @@ Verify the exact rebased index in MEMORY, including its trailing blank line."
   t
   (let* ((id (plist-get item :id)) (topic (file-name-concat memory "topic.md")) (index (file-name-concat memory "MEMORY.md")))
     (let ((changes (niwa-memory-apply--changes (niwa-memory-scope--root scope root-id) item (plist-get scope :new-file-mode))))
-      (niwa-tool-patch-commit (list (seq-find (lambda (c) (equal topic (plist-get c :path))) changes))))
+      (niwa-change-commit (list (seq-find (lambda (c) (equal topic (plist-get c :path))) changes))))
     (write-region "User edit.\n" nil index nil 'silent)
     (dolist (act '(niwa-memory-decision-apply niwa-memory-decision-reject))
       (should (eq 'stale (plist-get (funcall act workspace pass id) :status)))

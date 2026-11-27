@@ -173,6 +173,19 @@
       (should-not (eq 'ready (niwa-notes-attention-state sibling)))
       (niwa-note-apply-change note)
       (should (equal "heading\nbefore\nnew\nafter\n" (niwa-test--read-file file)))))
+  :doc "a hunk already present in unsaved text notifies only its own batch note"
+  (niwa-note-change-test--with-note
+    (let ((sibling (with-current-buffer source
+                     (goto-char (point-min))
+                     (let ((item (niwa-note-create "Other request")))
+                       (niwa-note-mark-sent (list item) (niwa-session-session-id session))
+                       (goto-char (overlay-start note))
+                       (insert "my ")
+                       item))))
+      (niwa-note-change-test--propose
+       data-buf "*** Begin Patch\n*** Update File: source.txt\n@@\n-old\n+my old\n*** End Patch")
+      (should (eq 'ready (niwa-notes-attention-state note)))
+      (should-not (eq 'ready (niwa-notes-attention-state sibling)))))
   :doc "conflicting and disjoint hunks both notify their own batch notes"
   (niwa-note-change-test--with-note
     (let ((sibling (with-current-buffer source

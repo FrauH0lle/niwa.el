@@ -2358,7 +2358,7 @@ names written."
     (session turn changes &key application-backups then)
   "Record the applied prepared CHANGES under SESSION's TURN, then save.
 Each change is a plist with :path, :before and optionally :history-before, as
-`niwa-tool-patch-commit' takes.  The source is already written.  TURN's
+`niwa-change-commit' takes.  The source is already written.  TURN's
 previous capture supplies each path's turn pre-content: an existing gap is
 kept, later edits give an `edited after turn N' gap, and a path never captured
 uses the change's before bytes.  Entries for untouched paths stay.

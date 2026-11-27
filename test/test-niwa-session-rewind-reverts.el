@@ -18,6 +18,10 @@
 (require 'niwa-tool-patch)
 (require 'niwa-note-merge)
 (require 'niwa-report)
+(require 'niwa-change)
+(require 'niwa-pin)
+(require 'niwa-notes)
+(require 'niwa-session-publication)
 
 (defun niwa-test-rewind-reverts--call (turns current check &optional patch)
   "Record TURNS, install CURRENT bytes, and call CHECK in a real session.
@@ -267,13 +271,14 @@ With PATCH, run that ApplyPatch hunk through the real pipeline for capture."
   (niwa-test-rewind-reverts--call
    '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
    (lambda (buffer target path)
-     (let ((apply-action (symbol-function 'niwa-session-rewind--apply-restore-action))
+     (let ((write (symbol-function 'niwa-pin-write-file-atomically))
            (transcript (with-current-buffer buffer (buffer-string))))
        (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
-                 ((symbol-function 'niwa-session-rewind--apply-restore-action)
-                  (lambda (session entry)
-                    (prog1 (funcall apply-action session entry)
-                      (unless (equal path (plist-get entry :path))
+                 ((symbol-function 'niwa-pin-write-file-atomically)
+                  (lambda (file &rest args)
+                    (prog1 (apply write file args)
+                      (when (and (equal file (file-name-concat (file-name-directory path) "other.txt"))
+                                 (equal (car args) "clean-0\n"))
                         (write-region "concurrent\ntwo\n" nil path nil 'silent))))))
          (should-error (niwa-session-rewind-rewind buffer target)))
        (should (equal "concurrent\ntwo\n" (niwa-test--read-file path)))
@@ -285,13 +290,14 @@ With PATCH, run that ApplyPatch hunk through the real pipeline for capture."
   (niwa-test-rewind-reverts--call
    '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
    (lambda (buffer target path)
-     (let ((apply-action (symbol-function 'niwa-session-rewind--apply-restore-action))
+     (let ((write (symbol-function 'niwa-pin-write-file-atomically))
            quit)
        (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
-                 ((symbol-function 'niwa-session-rewind--apply-restore-action)
-                  (lambda (session entry)
-                    (funcall apply-action session entry)
-                    (signal 'quit nil))))
+                 ((symbol-function 'niwa-pin-write-file-atomically)
+                  (lambda (file &rest args)
+                    (prog1 (apply write file args)
+                      (when (equal (car args) "clean-0\n")
+                        (signal 'quit nil))))))
          (condition-case nil
              (niwa-session-rewind-rewind buffer target)
            (quit (setq quit t))))
@@ -528,7 +534,30 @@ With PATCH, run that ApplyPatch hunk through the real pipeline for capture."
            (while (search-forward "<<<<<<<" nil t) (smerge-keep-lower))
            (niwa-note-merge-confirm)
            (should (equal "one\ntwo\n" (niwa-test--read-file path)))
-           (should (equal "clean-0\n" (niwa-test--read-file other)))))))))
+           (should (equal "clean-0\n" (niwa-test--read-file other))))))))
+  :doc "keeps the current mode of an executable it reverts"
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n"))
+   "ONE\ntwo\n"
+   (lambda (buffer target path)
+     (set-file-modes path #o755)
+     (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+       (should (niwa-session-rewind-rewind buffer target)))
+     (should (equal "one\ntwo\n" (niwa-test--read-file path)))
+     (should (= #o755 (file-modes path))))
+   "@@\n-one\n+ONE")
+  :doc "control: ApplyPatch keeps the current mode of an executable"
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n"))
+   "ONE\ntwo\n"
+   (lambda (_buffer _target path)
+     (set-file-modes path #o755)
+     (should (eq 'success
+                 (plist-get (niwa-test-rewind-reverts--apply-patch path "@@\n-ONE\n+one")
+                            :status)))
+     (should (equal "one\ntwo\n" (niwa-test--read-file path)))
+     (should (= #o755 (file-modes path))))
+   "@@\n-one\n+ONE"))
 
 (niwa-deftest niwa-note-merge-open (:quiet t)
   ,test
@@ -547,7 +576,7 @@ With PATCH, run that ApplyPatch hunk through the real pipeline for capture."
                 (niwa-note-merge-open
                  "*pairs*"
                  (cl-mapcar (lambda (path turn)
-                              (list :path path :disk (niwa-tool-patch--snapshot path)
+                              (list :path path :disk (niwa-change-snapshot path)
                                     :coding 'utf-8-unix :yours (format "mine%d\n" turn)
                                     :seen "base\n" :proposed (format "ai%d\n" turn)
                                     :data (list :turn turn)))
@@ -567,6 +596,190 @@ With PATCH, run that ApplyPatch hunk through the real pipeline for capture."
     ;; Negative control: a mispairing (sorted turns) must not equal the real result.
     (should-not (equal (sort (copy-sequence turns) #'<)
                        (mapcar (lambda (pair) (plist-get (cdr pair) :turn)) got)))))
+
+(defun niwa-test-rewind-reverts--apply-patch (path patch)
+  "Run PATCH against PATH through the real ApplyPatch pipeline; return reply."
+  (niwa-request-begin niwa--session)
+  (unwind-protect
+      (let (reply)
+        (niwa-pipeline-run-tool-outcome
+         (niwa-tool-get "ApplyPatch")
+         (lambda (value) (setq reply value))
+         (list :patch (format "*** Begin Patch\n*** Update File: %s\n%s\n*** End Patch"
+                              path patch)))
+        (let ((deadline (+ (float-time) 10)))
+          (while (and (not reply) (< (float-time) deadline))
+            (accept-process-output nil 0.05)))
+        reply)
+    (niwa-request-end)))
+
+(niwa-deftest niwa-session-rewind-file-transaction (:quiet t)
+  ,test
+  (test)
+  :doc "publication failure restores files and buffers but preserves intervening edits"
+  (dolist (edit '(nil other both))
+    (niwa-test-rewind-reverts--call
+     '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+     (lambda (buffer target path)
+       (let ((source (find-file-noselect path))
+             (other (file-name-concat (file-name-directory path) "other.txt"))
+             (transcript (with-current-buffer buffer (buffer-string)))
+             observed)
+         (unwind-protect
+             (let ((failure
+                    (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                              ((symbol-function 'niwa-session-publication-publish)
+                               (lambda (&rest _)
+                                 (setq observed (list (niwa-test--read-file path)
+                                                      (with-current-buffer source (buffer-string))))
+                                 (when edit (write-region "later" nil other nil 'silent))
+                                 (when (eq edit 'both) (write-region "newer" nil path nil 'silent))
+                                 (error "Injected publication failure"))))
+                      (should-error (niwa-session-rewind-rewind buffer target)))))
+               (should (equal '("one\ntwo\n" "one\ntwo\n") observed))
+               (should (string-match-p (if edit "rollback incomplete" "Injected publication failure")
+                                       (error-message-string failure)))
+               (should (equal (if edit "later" "clean-1\n") (niwa-test--read-file other)))
+               (when edit (should (string-match-p (regexp-quote other) (error-message-string failure))))
+               (when (eq edit 'both)
+                 (should (string-match-p (regexp-quote path) (error-message-string failure))))
+               (should (equal (if (eq edit 'both) "newer" "ONE\ntwo\n") (niwa-test--read-file path)))
+               (with-current-buffer source
+                 (should-not (buffer-modified-p))
+                 (should (equal (if (eq edit 'both) "one\ntwo\n" "ONE\ntwo\n") (buffer-string))))
+               (should (equal transcript (with-current-buffer buffer (buffer-string)))))
+           (kill-buffer source))))))
+  :doc "an aliased captured path refuses the command before it changes the other file"
+  (niwa-test-rewind-reverts--call
+   '(("one\n" "ONE\n")) "ONE\n"
+   (lambda (buffer target path)
+     (let ((transcript (with-current-buffer buffer (buffer-string)))
+           (truename (symbol-function 'file-truename)) checked)
+       (cl-letf (((symbol-function 'file-truename)
+                  (lambda (file &rest args)
+                    (if (equal path file)
+                        (progn (setq checked t) (concat path ".alias"))
+                      (apply truename file args))))
+                 ((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+         (should-error (niwa-session-rewind-rewind buffer target) :type 'user-error))
+       (should checked)
+       (should (equal "ONE\n" (niwa-test--read-file path)))
+       (should (equal "clean-1\n" (niwa-test--read-file
+                                 (file-name-concat (file-name-directory path) "other.txt"))))
+       (should (equal transcript (with-current-buffer buffer (buffer-string)))))))
+  :doc "existing leaf and directory aliases within the project refuse before confirmation"
+  (dolist (leaf '(nil t))
+    (niwa-test-rewind-reverts--call
+     '(("previous\n" "same\n")) "same\n"
+     (lambda (buffer target path)
+       (let* ((dir (file-name-directory path))
+              (real (file-name-concat dir "real"))
+              (link (file-name-concat dir "alias"))
+              (copy (file-name-concat real "source.txt"))
+              (alias (if leaf link (file-name-concat link "source.txt")))
+              (session (buffer-local-value 'niwa--session buffer))
+              (transcript (with-current-buffer buffer (buffer-string))))
+         (make-directory real)
+         (copy-file path copy)
+         (make-symbolic-link (if leaf copy real) link)
+         ;; Feed an inert existing alias to planning, without writing through it.
+         (setcar (assoc path (cdr (assq 1 (niwa-session-file-snapshots session)))) alias)
+         (cl-letf (((symbol-function 'yes-or-no-p)
+                    (lambda (&rest _) (ert-fail "Reached confirmation"))))
+           (let ((err (should-error (niwa-session-rewind-rewind buffer target) :type 'user-error)))
+             (should (string-match-p (regexp-quote alias) (error-message-string err)))))
+         (should (equal "same\n" (niwa-test--read-file copy)))
+         (should (equal transcript (with-current-buffer buffer (buffer-string))))))))
+  :doc "a leaf link planted after validation is refused at the write and kept"
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+   (lambda (buffer target path)
+     (let ((write (symbol-function 'niwa-pin-write-file-atomically))
+           (outside (make-temp-file "niwa-rewind-outside-" nil nil "ONE\ntwo\n"))
+           (other (file-name-concat (file-name-directory path) "other.txt"))
+           (transcript (with-current-buffer buffer (buffer-string)))
+           planted)
+       (unwind-protect
+           (progn
+             (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                       ((symbol-function 'niwa-pin-write-file-atomically)
+                        (lambda (file &rest args)
+                          ;; Past the preflight and the commit's recheck.
+                          (when (and (equal file path) (not planted))
+                            (setq planted t)
+                            (delete-file path)
+                            (make-symbolic-link outside path))
+                          (apply write file args))))
+               (should-error (niwa-session-rewind-rewind buffer target)))
+             (should planted)
+             (should (equal outside (file-symlink-p path)))
+             (should (equal "ONE\ntwo\n" (niwa-test--read-file outside)))
+             (should (equal "clean-1\n" (niwa-test--read-file other)))
+             (should (equal transcript (with-current-buffer buffer (buffer-string)))))
+         (when (file-symlink-p path) (delete-file path))
+         (delete-file outside)))))
+  :doc "a buffer that cannot be restored is named and the numbered recovery copies stay"
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+   (lambda (buffer target path)
+     (let* ((other (file-name-concat (file-name-directory path) "other.txt"))
+            (visiting (find-file-noselect other))
+            (restore (symbol-function 'niwa-change--restore-buffer))
+            (write (symbol-function 'niwa-pin-write-file-atomically))
+            (save-path (niwa-session-save-path (buffer-local-value 'niwa--session buffer)))
+            injected)
+       (unwind-protect
+           (let* ((failure
+                   (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                             ((symbol-function 'niwa-pin-write-file-atomically)
+                              (lambda (file &rest args)
+                                (if (equal file path)
+                                    (error "Injected write failure")
+                                  (apply write file args))))
+                             ((symbol-function 'niwa-change--restore-buffer)
+                              (lambda (snapshot)
+                                (if (eq (plist-get snapshot :buffer) visiting)
+                                    (progn (setq injected t)
+                                           (error "Injected buffer restore failure"))
+                                  (funcall restore snapshot)))))
+                     (should-error (niwa-session-rewind-rewind buffer target))))
+                  (message (error-message-string failure)))
+             (should injected)
+             (should (string-match-p "rollback incomplete" message))
+             (should (string-match-p (regexp-quote other) message))
+             ;; The portable session moves the recovery directory to its target.
+             (should (directory-files-recursively
+                      (file-name-concat save-path ".recovery") "\\`[0-9]\\{6\\}\\'"))
+             (should (equal "clean-1\n" (niwa-test--read-file other)))
+             (should (equal "ONE\ntwo\n" (niwa-test--read-file path))))
+         (with-current-buffer visiting (set-buffer-modified-p nil))
+         (kill-buffer visiting)))))
+  :doc "Rewind keeps point and note on an unchanged line"
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+   (lambda (buffer target path)
+     (let ((source (find-file-noselect path)) uuid annotation)
+       (unwind-protect
+           (progn
+             (with-current-buffer source
+               (setq-local niwa--workspace (buffer-local-value 'niwa--workspace buffer))
+               (goto-char 6)
+               (setq uuid (overlay-get (niwa-note-create "keep this line") 'niwa-uuid))
+               (should uuid)
+               (setq annotation (make-overlay 5 8))
+               (overlay-put annotation 'evaporate t)
+               (goto-char 6))
+             (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+               (should (niwa-session-rewind-rewind buffer target)))
+             (with-current-buffer source
+               (should (= 6 (point)))
+               (should (equal '(5 8) (list (overlay-start annotation)
+                                           (overlay-end annotation))))
+               ;; The note store reinstalls presentations after publication.
+               (should (cl-find uuid (overlays-at 6)
+                                :key (lambda (o) (overlay-get o 'niwa-uuid))
+                                :test #'equal))))
+         (kill-buffer source))))))
 
 (provide 'test-niwa-session-rewind-reverts)
 ;;; test-niwa-session-rewind-reverts.el ends here

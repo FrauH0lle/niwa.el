@@ -63,21 +63,8 @@
 (declare-function niwa-session-record-file-access
                   "niwa-file-state" (session path kind &optional offset limit))
 
-;; `niwa-instruction-edit'
-(autoload 'niwa-instruction-replace-buffer-contents "niwa-instruction-edit")
-
-;; `niwa-instruction-registry'
-(declare-function niwa--instruction-alist-value
-                  "niwa-instruction-registry" ())
-(declare-function niwa--set-instruction-alist-value
-                  "niwa-instruction-registry" (value))
-
 ;; `niwa-note-change'
 (autoload 'niwa-note-prepare-change "niwa-note-change")
-
-;; `niwa-note-source'
-(declare-function niwa--mark-buffer-source-missing
-                  "niwa-note-source" (buffer))
 
 ;; `niwa-patch-review'
 (declare-function niwa-patch-review-start
@@ -136,9 +123,6 @@ to (:text TEXT :hash HASH), or (:binary t :data BASE64 :hash HASH) for
 content that is not text; an address without an entry was not fetched,
 as it is created.  `:workspace', `:actor' and `:authorize' are the
 workspace, attribution and authority the files are written with.")
-
-(define-error 'niwa-tool-patch-partial-rollback
-  "Patch rollback incomplete")
 
 (define-error 'niwa-tool-patch-remote-stale
   "Remote file changed since it was read")
@@ -1057,7 +1041,7 @@ Returns nil when the two contents hold the same lines."
    ((file-directory-p path) '(directory))
    (t (list 'file (niwa-tool-patch--read-file path)))))
 
-(defun niwa-tool-patch--capture-baseline (proposal)
+(defun niwa-tool-patch-capture-baseline (proposal)
   "Capture every affected path in PROPOSAL for later stale detection."
   (let ((niwa-tool-patch--remote (plist-get proposal :remote-artifact))
         baseline)
@@ -1237,301 +1221,6 @@ Prepared note reviews select changes against their captured source snapshots."
         (dolist (change changes) (plist-put change :resource-check check))))
     (nreverse changes)))
 
-(defun niwa-tool-patch--snapshot (path)
-  "Return a rollback snapshot plist for PATH."
-  (list :path path
-        :exists (file-exists-p path)
-        :bytes (and (file-exists-p path)
-                    (with-temp-buffer
-                      (set-buffer-multibyte nil)
-                      (niwa-pin-with-file path
-                        (insert-file-contents-literally
-                         (niwa-pin-open-path path)))
-                      (buffer-string)))
-        :mode (and (file-exists-p path) (file-modes path))))
-
-(defun niwa-tool-patch--write-file (path content &optional mode literal-p)
-  "Replace PATH with CONTENT and restore MODE when non-nil.
-When LITERAL-P is non-nil, write CONTENT as literal bytes."
-  ;; Through the pinned parent: a directory swapped for a symlink after
-  ;; authorization is refused rather than written through.
-  (niwa-pin-write-file-atomically
-   path content (and literal-p 'no-conversion) mode))
-
-(defun niwa-tool-patch--assert-current (currentp)
-  "Signal unless CURRENTP, when non-nil, still confirms the caller's authority."
-  (when (and currentp (not (funcall currentp)))
-    (error "Patch ownership is unavailable")))
-
-(defun niwa-tool-patch--restore-snapshots (snapshots expected &optional currentp mutate)
-  "Restore SNAPSHOTS from EXPECTED using checked transaction rollback.
-CURRENTP guards authority.  MUTATE may supply a target-fenced writer instead
-of the default pinned filesystem writer.  Return failed path/error pairs."
-  (niwa-change-rollback
-   snapshots expected #'niwa-tool-patch--snapshot
-   (or mutate
-       (lambda (_before after)
-         (let ((path (plist-get after :path)))
-           (if (plist-get after :exists)
-               (niwa-tool-patch--write-file
-                path (plist-get after :bytes) (plist-get after :mode) t)
-             (niwa-pin-delete-file path)))))
-   (lambda () (niwa-tool-patch--assert-current currentp))))
-
-(defun niwa-tool-patch-missing-parent-directories (path)
-  "Return missing parent directories for PATH, outermost first."
-  (let ((directory (file-name-directory path)) missing)
-    (while (and directory (not (file-exists-p directory)))
-      (push directory missing)
-      (setq directory
-            (file-name-directory (directory-file-name directory))))
-    missing))
-
-(defun niwa-tool-patch--visiting-base-buffer (path)
-  "Return PATH's visiting buffer normalized to its base buffer.
-Preserve `find-buffer-visiting' file identity and alias matching."
-  (when-let* ((buffer (find-buffer-visiting path)))
-    (or (buffer-base-buffer buffer) buffer)))
-
-(defun niwa-tool-patch-commit (changes &optional currentp mutate batch)
-  "Commit CHANGES as one filesystem and visited-buffer transaction.
-Each change may include :before, a snapshot whose bytes/absence/mode must still
-match before any write. Recheck snapshots before individual writes. CURRENTP,
-when supplied, must authorize writes, synchronization, and rollback mutations.
-MUTATE, when supplied, replaces the default filesystem mutation. It receives
-before/after snapshots and must check freshness and fence the replacement on
-the target; the same callback handles rollback.  BATCH, when non-nil, checks
-and applies the ordered lists of before/after snapshots in one target program
-instead of individual forward mutations.  Buffer synchronization stays here.
-Rollback never overwrites an intervening edit; it reports incomplete recovery."
-    (require 'niwa-overlays)
-  (let ((owner-current-p currentp)
-        (checks (delete-dups (delq nil (mapcar (lambda (change) (plist-get change :resource-check))
-                                               changes)))))
-    (when checks
-      (setq currentp (lambda ()
-                       (and (or (null owner-current-p) (funcall owner-current-p))
-                            (cl-every #'funcall checks))))))
-  (dolist (change changes)
-    (when-let* (((eq (plist-get change :action) 'write))
-                (buffer (niwa-tool-patch--visiting-base-buffer
-                         (plist-get change :path)))
-                ((buffer-local-value 'buffer-read-only buffer)))
-      (error "Buffer is read-only: %s" (buffer-name buffer))))
-  (cl-labels
-      ((buffer-snapshot
-        (buffer)
-        (with-current-buffer buffer
-          (let ((minimum (point-min))
-                (maximum (point-max))
-                (position (point)))
-            (save-restriction
-              (widen)
-              (let* ((overlays (append (car (overlay-lists))
-                                       (cdr (overlay-lists))))
-                     (entry (assq buffer
-                                  (niwa--instruction-alist-value))))
-                (list :buffer buffer
-                      :group (prepare-change-group)
-                      :minimum minimum
-                      :maximum maximum
-                      :point position
-                      :modified (buffer-modified-p)
-                      :modtime (visited-file-modtime)
-                      :content (buffer-substring (point-min) (point-max))
-                      :instruction-present (and entry t)
-                      :instructions (and entry (copy-sequence (cdr entry)))
-                      :overlays
-                      (mapcar
-                       (lambda (overlay)
-                         (list overlay (overlay-start overlay)
-                               (overlay-end overlay)
-                               (copy-sequence (overlay-properties overlay))))
-                       overlays)))))))
-       (restore-buffer
-        (snapshot)
-        (when-let* ((buffer (plist-get snapshot :buffer))
-                    ((buffer-live-p buffer)))
-          (with-current-buffer buffer
-            (save-restriction
-              (widen)
-              (let ((inhibit-modification-hooks t)
-                    (inhibit-read-only t))
-                (unless (equal (buffer-string) (plist-get snapshot :content))
-                  (erase-buffer)
-                  (insert (plist-get snapshot :content))))
-              (let* ((saved-overlays (plist-get snapshot :overlays))
-                     (originals (mapcar #'car saved-overlays))
-                     (current (append (car (overlay-lists))
-                                      (cdr (overlay-lists)))))
-                (dolist (overlay current)
-                  (unless (memq overlay originals)
-                    (delete-overlay overlay)))
-                (dolist (saved saved-overlays)
-                  (let ((overlay (car saved))
-                        (properties (nth 3 saved)))
-                    (let ((current (overlay-properties overlay)))
-                      (while current
-                        (overlay-put overlay (pop current) nil)
-                        (pop current)))
-                    (move-overlay overlay (nth 1 saved) (nth 2 saved) buffer)
-                    (while properties
-                      (overlay-put overlay (pop properties) (pop properties)))))
-                (let ((alist (niwa--instruction-alist-value)))
-                  (if (plist-get snapshot :instruction-present)
-                      (setf (alist-get buffer alist)
-                            (plist-get snapshot :instructions))
-                    (setq alist (assq-delete-all buffer alist)))
-                  (niwa--set-instruction-alist-value alist))
-                (narrow-to-region (plist-get snapshot :minimum)
-                                  (plist-get snapshot :maximum))
-                (goto-char (plist-get snapshot :point))
-                (set-visited-file-modtime (plist-get snapshot :modtime))
-                (set-buffer-modified-p (plist-get snapshot :modified))))))))
-    (niwa-tool-patch--assert-current currentp)
-    (let* ((snapshots (mapcar (lambda (change)
-                                (niwa-tool-patch--snapshot
-                                 (plist-get change :path)))
-                              changes))
-           expected batch-expected
-           (created-directories
-            (delete-dups
-             (cl-mapcan
-              (lambda (change)
-                (when (eq (plist-get change :action) 'write)
-                  (niwa-tool-patch-missing-parent-directories
-                   (plist-get change :path))))
-              changes)))
-           (buffer-snapshots
-            (delq nil
-                  (mapcar
-                   (lambda (change)
-                     (when-let* ((buffer (niwa-tool-patch--visiting-base-buffer
-                                          (plist-get change :path))))
-                       (append (buffer-snapshot buffer)
-                               (list :path (plist-get change :path)
-                                     :expected-content (plist-get change :content)))))
-                   changes))))
-      (cl-loop for change in changes for snapshot in snapshots do
-               (when (and (plist-member change :before)
-                          (not (niwa-change-same-p (plist-get change :before) snapshot)))
-                 (error "File changed before the transaction: %s" (plist-get change :path))))
-      (dolist (snapshot buffer-snapshots)
-        (when-let* ((group (plist-get snapshot :group)))
-          (with-current-buffer (plist-get snapshot :buffer)
-            (activate-change-group group))))
-      (condition-case err
-          (progn
-            (cl-loop for change in changes for snapshot in snapshots do
-              (niwa-tool-patch--assert-current currentp)
-              (unless (niwa-change-same-p snapshot (niwa-tool-patch--snapshot (plist-get change :path)))
-                (error "File changed before its transaction write: %s" (plist-get change :path)))
-              (let ((after (list :path (plist-get change :path) :exists (eq (plist-get change :action) 'write)
-                          :bytes (when (eq (plist-get change :action) 'write)
-                                   (if (plist-member change :bytes) (plist-get change :bytes)
-                                     (encode-coding-string (plist-get change :content) 'utf-8-unix)))
-                          :mode (when (eq (plist-get change :action) 'write)
-                                  (or (plist-get change :mode) (plist-get snapshot :mode) (default-file-modes))))))
-                (if batch (push after batch-expected)
-                  (push after expected)
-                  (if mutate (funcall mutate snapshot after)
-                    (pcase (plist-get change :action)
-                ('write
-                 (let* ((path (plist-get change :path))
-                        (literal-p (plist-member change :bytes)))
-                   (niwa-tool-patch--write-file
-                    path (if literal-p
-                             (plist-get change :bytes)
-                           (plist-get change :content))
-                    (or (plist-get change :mode)
-                        (plist-get snapshot :mode)
-                        (default-file-modes))
-                    literal-p)))
-                ('delete
-                 (niwa-pin-delete-file (plist-get change :path))))))))
-            (when batch
-              (niwa-tool-patch--assert-current currentp)
-              (setq expected (nreverse batch-expected))
-              (funcall batch snapshots expected))
-            (dolist (change changes)
-              (niwa-tool-patch--assert-current currentp)
-              (when-let* ((buffer (niwa-tool-patch--visiting-base-buffer
-                                   (plist-get change :path))))
-                (with-current-buffer buffer
-                  (if (eq (plist-get change :action) 'delete)
-                      (progn
-                        (niwa--mark-buffer-source-missing buffer)
-                        (set-visited-file-modtime 0))
-                    (save-restriction
-                      (widen)
-                      (let ((source
-                             (generate-new-buffer " *niwa patch sync*")))
-                        (unwind-protect
-                            (progn
-                              (with-current-buffer source
-                                (insert (plist-get change :content)))
-                              (set-visited-file-modtime)
-                              (niwa-instruction-replace-buffer-contents source)
-                              (unless (equal (buffer-substring-no-properties (point-min) (point-max))
-                                             (plist-get change :content))
-                                (error "Buffer changed during the transaction: %s" (plist-get change :path)))
-                              (set-visited-file-modtime)
-                              (set-buffer-modified-p nil))
-                          (kill-buffer source))))))))
-            (niwa-tool-patch--assert-current currentp)
-            (dolist (after expected)
-              (unless (niwa-change-same-p after (niwa-tool-patch--snapshot (plist-get after :path)))
-                (error "File changed during the transaction: %s" (plist-get after :path))))
-            (dolist (snapshot buffer-snapshots)
-              (when-let* ((group (plist-get snapshot :group)))
-                (with-current-buffer (plist-get snapshot :buffer)
-                  (accept-change-group group)))))
-        ((error quit)
-         (let* ((inhibit-quit t)
-                (rollback-failures
-                 (niwa-tool-patch--restore-snapshots snapshots expected currentp mutate)))
-           (dolist (snapshot buffer-snapshots)
-             (when-let* ((buffer (plist-get snapshot :buffer)) ((buffer-live-p buffer)))
-               (let ((path (plist-get snapshot :path))
-                     (text (with-current-buffer buffer
-                             (save-restriction (widen) (buffer-substring-no-properties (point-min) (point-max))))))
-                 (when (or (assoc path rollback-failures)
-                           (not (or (equal text (plist-get snapshot :content))
-                                    (equal text (plist-get snapshot :expected-content)))))
-                   (plist-put snapshot :preserve t)
-                   (unless (assoc path rollback-failures)
-                     (push (cons path '(error "Buffer changed during the transaction")) rollback-failures))))))
-           (dolist (snapshot (reverse buffer-snapshots))
-             (when-let* ((group (plist-get snapshot :group)))
-               (with-current-buffer (plist-get snapshot :buffer)
-                 (let ((inhibit-modification-hooks t)
-                       (inhibit-read-only t))
-                   (if (plist-get snapshot :preserve)
-                       (progn (accept-change-group group) (set-buffer-modified-p t))
-                     (cancel-change-group group))))))
-           (dolist (snapshot buffer-snapshots)
-             (unless (plist-get snapshot :preserve) (restore-buffer snapshot)))
-           (dolist (directory (reverse created-directories))
-             (condition-case failure
-                 (when (and (file-directory-p directory)
-                            (null (directory-files directory nil directory-files-no-dot-files-regexp)))
-                   (niwa-tool-patch--assert-current currentp)
-                   (delete-directory directory))
-               (error (push (cons directory failure) rollback-failures))))
-           (if rollback-failures
-               (signal 'niwa-tool-patch-partial-rollback
-                       (list err (mapcar #'car rollback-failures)))
-             (signal (car err) (cdr err)))))))))
-
-(defun niwa-tool-patch--assert-buffers-unmodified (changes)
-  "Signal when a visited file in CHANGES has unsaved edits."
-  (dolist (change changes)
-    (when-let* ((buffer (niwa-tool-patch--visiting-base-buffer
-                        (plist-get change :path)))
-                ((buffer-modified-p buffer)))
-      (error "File has unsaved buffer changes: %s"
-             (plist-get change :path)))))
-
 (defun niwa-tool-patch-apply (data-buffer changes continuation &optional fail)
   "Apply CHANGES for DATA-BUFFER, then call CONTINUATION.
 Refresh file tracking immediately and diagnostics before continuation.
@@ -1546,12 +1235,12 @@ signals here.  A remote change has no local file tracking or diagnostics."
 (defun niwa-tool-patch--apply-local (data-buffer changes continuation)
   "Apply local CHANGES as `niwa-tool-patch-apply' does for DATA-BUFFER.
 Call CONTINUATION after diagnostics."
-  (niwa-tool-patch--assert-buffers-unmodified changes)
+  (niwa-change-assert-saved changes)
   (dolist (change changes)
     (unless (plist-get change :resource-p)
       (niwa-edit-diagnostics-before-edit
        data-buffer (plist-get change :path))))
-  (niwa-tool-patch-commit changes)
+  (niwa-change-commit changes)
   (when-let* ((session (and (buffer-live-p data-buffer)
                             (buffer-local-value 'niwa--session
                                                 data-buffer))))
@@ -1978,7 +1667,7 @@ matches fails as it does for a local file."
          (proceed (retries)
            (condition-case err
                (progn
-                 (niwa-tool-patch--capture-baseline proposal)
+                 (niwa-tool-patch-capture-baseline proposal)
                  (let ((changes (niwa-tool-patch-planned-changes proposal)))
                    (niwa-tool-patch-assert-baseline proposal)
                    (cond

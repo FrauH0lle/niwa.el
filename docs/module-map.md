@@ -285,7 +285,7 @@ Tools (each dispatches through niwa-pipeline)
   niwa-tool-fs-read.el     Read text/media decoding and bounded output
   niwa-tool-fs-search.el   Glob/Grep execution and resource-output privacy
   niwa-tool-patch-registration.el ApplyPatch catalog and callback autoloads
-  niwa-tool-patch.el       ApplyPatch parse/match/apply engine and rendering
+  niwa-tool-patch.el       ApplyPatch parsing, matching, proposal baselines and rendering
   niwa-tool-note.el        NoteWrite catalog and handler autoloads
   niwa-tool-code.el        XrefReferences, XrefDefinitions, Imenu, Treesitter
   niwa-tool-exec-permission.el Bash/Eval authority and prompt adapters
@@ -312,7 +312,7 @@ Tools (each dispatches through niwa-pipeline)
   niwa-tools-list.el       native tools cockpit list
 
 Support
-  niwa-change.el           recorded byte-change preparation, hunk conflicts, strict rollback
+  niwa-change.el           checked file transactions: snapshots, hunk mapping, buffer sync and rollback
   niwa-file-state.el       LRU file cache
   niwa-diff-apply.el       transactional unified diff staging/application
   niwa-theme-faces.el      active-theme-derived face registration and refresh

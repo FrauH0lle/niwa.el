@@ -31,9 +31,16 @@ identity; conflict markers never enter source. Force uses the previous
 whole-file restoration plan. Redo continues to restore a selected published head's captured state;
 it is not changed into replay of recorded changes.
 
-Successful preparation passes one final replacement per file to the existing
-transaction. The transaction recomputes the same kind of plan after confirmation
-and each reverse-change write checks the current bytes again. Modified visiting
+Rewind recomputes the plan after confirmation, then passes one final replacement
+per file to `niwa-change`. A symlink in any restore path refuses the whole plan.
+Because that check precedes the writes, Rewind's commit also asks the pinned
+writer to refuse a link found at the target when it renames, rather than
+replace it as ApplyPatch does. The transaction rechecks each file before its
+pinned write and synchronizes visiting buffers without reloading them. If
+publication fails, Rewind uses the receipt to roll back files and buffers
+without overwriting intervening edits; a buffer that cannot be restored is
+reported as incomplete recovery, so the backups below are kept.
+Rewind retains separate on-disk backup copies for incomplete recovery. Modified visiting
 buffers retain their save/discard/abort prompt; a save recomputes the reverse
 plan rather than silently switching to snapshot restoration. Creation, deletion
 and binary changes require the complete recorded post-state to match. There is

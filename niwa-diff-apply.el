@@ -3,24 +3,20 @@
 ;;; Commentary:
 
 ;; `niwa-diff-apply-buffer' resolves unified diff hunks with Emacs, stages
-;; each file's final text, and commits every touched path through ApplyPatch's
-;; shared rollback transaction.  Visited buffers are synchronized with
+;; each file's final text, and commits every touched path through
+;; `niwa-change-commit'.  Visited buffers are synchronized with
 ;; changed line runs, so instruction hooks map complete replacements without
 ;; absorbing unchanged hunk context or relying on minimal character edits.
 
 ;;; Code:
 
+(require 'niwa-change)
 (require 'niwa-utilities)
 
 (require 'diff-mode)
 
 ;; `niwa-structs'
 (declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
-
-;; `niwa-tool-patch'
-(declare-function niwa-tool-patch-commit "niwa-tool-patch" (changes &optional currentp mutate batch))
-(declare-function niwa-tool-patch-missing-parent-directories
-                  "niwa-tool-patch" (path))
 
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))
@@ -148,7 +144,7 @@ repair heuristically instead of prompting or modifying the diff."
             (unless (file-exists-p file)
               (setq created-directories
                     (nconc
-                     (niwa-tool-patch-missing-parent-directories file)
+                     (niwa-change-missing-parent-directories file)
                      created-directories))
               (when-let* ((buffer (find-buffer-visiting file)))
                 (push (cons buffer
@@ -225,7 +221,7 @@ repair heuristically instead of prompting or modifying the diff."
                                     (equal file (plist-get change :path)))
                                   changes)
                   (push (list :path file :action 'delete) changes)))
-              (niwa-tool-patch-commit (nreverse changes))
+              (niwa-change-commit (nreverse changes))
               (setq applied t)
               (message "Saved %d buffers" (length buffer-order)))))
       (unless applied

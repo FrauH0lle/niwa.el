@@ -11,7 +11,8 @@ feedback, before a rollback-backed transaction applies the accepted changes.
 The [tool reference](../tools/applypatch.md) owns matching and operation syntax;
 the [review manual](../preview.md) owns interaction and result behavior.
 
-The shared file/buffer transaction also serves memory consolidation. Consumers
+`niwa-change` owns the shared file/buffer transaction used by ApplyPatch,
+note changes, Rewind and memory consolidation. Consumers
 may supply expected-before snapshots and current target ownership. Recovery
 restores only this transaction's exact intended after-state; intervening disk
 or unsaved-buffer edits remain intact and produce incomplete-recovery reporting.
@@ -20,7 +21,7 @@ propagates.
 
 Memory application supplies a target mutation callback for forward writes and
 rollback. It checks snapshots and claim authority under the target-side lock
-used by takeover. The patch engine retains buffer synchronization and recovery
+used by takeover. The transaction retains buffer synchronization and recovery
 reporting.
 
 ## Rationale and alternatives

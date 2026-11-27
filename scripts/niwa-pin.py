@@ -11,19 +11,27 @@ names the pinned inode whatever happens to the path afterwards.
 
 Protocol: one JSON object per line on stdin, one answer per line on stdout.
   {"id": I, "op": "file", "path": P}                    pin an existing file
-  {"id": I, "op": "write", "path": P, "mode": M, "data": B64}
-                                                        atomically replace P
-  {"id": I, "op": "unlink", "path": P}                  remove P
+  {"id": I, "op": "write", "path": P, "mode": M, "data": B64, "keep_link": K}
+                                                        atomically replace P;
+                                                        K refuses a link at P
+  {"id": I, "op": "unlink", "path": P, "keep_link": K}  remove P; K refuses a link
+  {"id": I, "op": "rmdir", "path": P, "dev": D, "ino": N}
+                                                        remove empty directory P
+                                                        if it is still (D, N)
   {"id": I, "op": "release", "pin": N}                  close pin N
 Writes never reopen anything by name: the directory is walked (creating
 missing components with mkdirat), a temporary file is created there with
 O_CREAT|O_EXCL|O_NOFOLLOW, written and fchmodded through its descriptor and
 renamed over the target within the directory descriptor.
-Answers are {"id": I, "ok": true, "pin": N, "path": "/proc/PID/fd/N"} or
-{"id": I, "ok": false, "error": TEXT}.  The helper exits when stdin closes.
+Answers are {"id": I, "ok": true, "pin": N, "path": "/proc/PID/fd/N"},
+{"id": I, "ok": true, "created": [[DIR, DEV, INO], ...]} for a write (the
+directories it made, outermost first), {"id": I, "ok": true, "removed": B}
+for an rmdir, or {"id": I, "ok": false, "error": TEXT}.  The helper exits
+when stdin closes.
 """
 
 import base64
+import errno
 import json
 import os
 import secrets
@@ -56,23 +64,30 @@ def step(parent, name, shown):
     return child
 
 
-def walk(path, directory=False, create=False):
-    """Return a descriptor for PATH reached without symlinks."""
+def walk(path, directory=False, create=None):
+    """Return a descriptor for PATH reached without symlinks.
+    With a CREATE list, make missing components and append each one this
+    call made as [PATH, DEV, INO]; a component another writer made is not ours."""
     parts = components(path)
     fd = os.open("/", FLAGS | os.O_DIRECTORY)
     try:
         for index, name in enumerate(parts):
             shown = "/" + "/".join(parts[:index + 1])
+            made = False
             try:
                 child = step(fd, name, shown)
             except FileNotFoundError:
-                if not create:
+                if create is None:
                     raise Refused(f"no such file: {shown}") from None
                 try:
                     os.mkdir(name, 0o777, dir_fd=fd)
+                    made = True
                 except FileExistsError:
                     pass
                 child = step(fd, name, shown)
+            if made:
+                info = os.fstat(child)
+                create.append([shown, info.st_dev, info.st_ino])
             last = index == len(parts) - 1
             if (not last or directory) and not stat.S_ISDIR(os.fstat(child).st_mode):
                 os.close(child)
@@ -93,12 +108,75 @@ def split(path):
     return "/" + "/".join(parts[:-1]), parts[-1]
 
 
-def write(path, mode, data):
-    """Atomically replace PATH with DATA at MODE through descriptors only."""
+def refuse_link(directory, name, path):
+    """Refuse when NAME in the pinned DIRECTORY is a symlink."""
+    # shortcut: a link planted between this check and the caller's rename or
+    # unlink is still replaced or removed (never followed); renameat2 would close it.
+    try:
+        present = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(present.st_mode):
+        raise Refused(f"symlink in authorized path: {path}")
+
+
+def rmdir(path, dev, ino):
+    """Remove PATH relative to its pinned parent if it is the empty directory
+    (DEV, INO).  Return whether it is gone; a non-empty one is left.  Refuse
+    when its identity cannot be established.  POSIX cannot remove by
+    identity, so an empty directory swapped in at the same name between the
+    check and the removal could be removed instead; a non-empty one never."""
+    parent, name = split(path)
+    directory = walk(parent, directory=True)
+    try:
+        try:
+            info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        except FileNotFoundError:
+            return True
+        if not stat.S_ISDIR(info.st_mode) or (info.st_dev, info.st_ino) != (dev, ino):
+            raise Refused(f"directory was replaced: {path}")
+        try:
+            # shortcut: an empty directory swapped in between the stat above
+            # and this rmdir is removed instead; no POSIX call removes by identity.
+            os.rmdir(name, dir_fd=directory)
+        except OSError as error:
+            if error.errno in (errno.ENOTEMPTY, errno.EEXIST):
+                return False
+            raise
+        return True
+    finally:
+        os.close(directory)
+
+
+def write(path, mode, data, keep_link=False):
+    """Atomically replace PATH with DATA at MODE through descriptors only.
+    KEEP_LINK refuses to replace a symlink at PATH.  Return the directories
+    created on the way.  A failed write removes them again and re-raises its
+    own error, carrying any it could not remove as `left'."""
     parent, name = split(path)
     if not isinstance(mode, int) or not 0 <= mode <= 0o7777:
         raise Refused("invalid mode")
-    directory = walk(parent, directory=True, create=True)
+    created = []
+    try:
+        place(parent, name, path, mode, data, keep_link, created)
+    except BaseException:
+        left = []
+        for entry in reversed(created):
+            try:
+                if not rmdir(*entry):
+                    left.append(entry[0])
+            except (Refused, OSError):
+                left.append(entry[0])
+        if left:
+            error = sys.exc_info()[1]
+            error.left = left
+        raise
+    return created
+
+
+def place(parent, name, path, mode, data, keep_link, created):
+    """Write DATA into a temporary file under PARENT and rename it to NAME."""
+    directory = walk(parent, directory=True, create=created)
     try:
         temporary = None
         for _ in range(16):
@@ -118,6 +196,8 @@ def write(path, mode, data):
                 stream.flush()
                 os.fchmod(stream.fileno(), mode)
                 written = os.fstat(stream.fileno())
+            if keep_link:
+                refuse_link(directory, name, path)
             os.rename(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
             temporary = None
             # A swap of the temporary name can only move the attacker's own
@@ -135,11 +215,14 @@ def write(path, mode, data):
         os.close(directory)
 
 
-def unlink(path):
-    """Remove PATH's final entry without following any symlink."""
+def unlink(path, keep_link=False):
+    """Remove PATH's final entry without following any symlink.
+    KEEP_LINK refuses to remove a symlink at PATH."""
     parent, name = split(path)
     directory = walk(parent, directory=True)
     try:
+        if keep_link:
+            refuse_link(directory, name, path)
         os.unlink(name, dir_fd=directory)
     finally:
         os.close(directory)
@@ -157,12 +240,18 @@ def answer(request, pins):
         data = request.get("data")
         if not isinstance(data, str):
             raise Refused("missing data")
-        write(request.get("path"), request.get("mode"),
-              base64.b64decode(data, validate=True))
-        return {"ok": True}
+        return {"ok": True,
+                "created": write(request.get("path"), request.get("mode"),
+                                 base64.b64decode(data, validate=True),
+                                 request.get("keep_link") is True)}
     if op == "unlink":
-        unlink(request.get("path"))
+        unlink(request.get("path"), request.get("keep_link") is True)
         return {"ok": True}
+    if op == "rmdir":
+        dev, ino = request.get("dev"), request.get("ino")
+        if not isinstance(dev, int) or not isinstance(ino, int):
+            raise Refused("invalid directory identity")
+        return {"ok": True, "removed": rmdir(request.get("path"), dev, ino)}
     if op != "file":
         raise Refused("unknown operation")
     fd = walk(request.get("path"))
@@ -182,6 +271,8 @@ def main():
                 f"{type(error).__name__}: {error.strerror or error}"
                 if isinstance(error, OSError) else "malformed request")
             reply = {"ok": False, "error": text}
+            if getattr(error, "left", None):
+                reply["left"] = error.left
         reply["id"] = request.get("id") if isinstance(request, dict) else None
         sys.stdout.write(json.dumps(reply) + "\n")
         sys.stdout.flush()

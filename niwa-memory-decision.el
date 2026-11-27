@@ -33,10 +33,6 @@
 (autoload 'niwa-memory-notes-record-hold "niwa-memory-notes")
 
 ;; `niwa-memory-pass'
-(declare-function niwa-tool-patch--assert-buffers-unmodified "niwa-tool-patch" (changes))
-(declare-function niwa-tool-patch-commit "niwa-tool-patch" (changes &optional currentp mutate batch))
-(autoload 'niwa-tool-patch--assert-buffers-unmodified "niwa-tool-patch")
-(autoload 'niwa-tool-patch-commit "niwa-tool-patch")
 
 (defvar niwa-memory-pass--drains)
 (defvar niwa-memory-pass--running)
@@ -677,7 +673,7 @@ OBSERVATION names required extractions; it never authorizes their disposal."
                          check)))
                    (when-let* ((hold (niwa-memory-decision--hold workspace item scope live)))
                      (cl-return-from locked (list :status 'held :reason hold))))
-                 (niwa-tool-patch--assert-buffers-unmodified
+                 (niwa-change-assert-saved
                   (mapcar (lambda (row) (list :path (plist-get (cdr row) :path))) before))
                  (setq plan
                        (condition-case err
@@ -740,9 +736,10 @@ OBSERVATION names required extractions; it never authorizes their disposal."
                               (mapc #'niwa-session-control-fs-program-value
                                     (niwa-session-control-fs-lock-session-run target (niwa-memory-write--verify (cdar observed))))))
                            (changes
-                            (niwa-tool-patch-commit
-                             changes currentp (lambda (old new) (niwa-memory-write--batch target (list old) (list new)))
-                             (lambda (_old new)
+                            (niwa-change-commit
+                             changes :currentp currentp
+                             :mutate (lambda (old new) (niwa-memory-write--batch target (list old) (list new)))
+                             :batch (lambda (_old new)
                                (funcall guard)
                                (unless (funcall currentp) (error "Memory write owner lost"))
                                (niwa-memory-write--batch target (mapcar #'cdr observed) new t)
@@ -751,7 +748,7 @@ OBSERVATION names required extractions; it never authorizes their disposal."
                            (t (mapc #'niwa-session-control-fs-program-value
                                     (niwa-session-control-fs-lock-session-run target (cl-mapcan (lambda (row) (niwa-memory-write--verify (cdr row))) observed)))))
                    (niwa-memory-decision--held (cl-return-from locked (list :status 'held :reason (cadr err))))
-                   (niwa-tool-patch-partial-rollback
+                   (niwa-change-partial-rollback
                     (if (eq (car (cadr err)) 'quit)
                         (signal 'niwa-memory-decision-interrupted (list nil "Quit" (error-message-string err)))
                       (signal (car err) (cdr err))))

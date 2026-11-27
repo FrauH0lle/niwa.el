@@ -43,7 +43,7 @@
                     (or (niwa-session-turn-count session) 0))
             :proposal proposal :changes changes
             :before (mapcar (lambda (change)
-                              (niwa-tool-patch--snapshot (plist-get change :path)))
+                              (niwa-change-snapshot (plist-get change :path)))
                             changes)))))
 
 (defun niwa-note-change--base-extent (note record)
@@ -59,21 +59,11 @@
                        (buffer-substring-no-properties (point-min) (point-max))
                        buffer-file-coding-system))
                (base (or (plist-get before :bytes) ""))
-               (start-offset 0) (end-offset 0) touched)
-          (unless (equal bytes base)
-            (dolist (run (niwa-change--runs bytes base))
-              (pcase-let ((`(,a ,b ,c ,d) run))
-                (when (<= b start)
-                  (cl-incf start-offset (- (- d c) (- b a))))
-                (when (<= b end)
-                  (cl-incf end-offset (- (- d c) (- b a))))
-                (when (niwa-change--overlap-p start end a b)
-                  (push run touched)))))
+               (mapped (car (niwa-change-map-extents bytes base (list (cons start end)))))
+               (touched (plist-get mapped :touched)))
           (list :path buffer-file-name
-                :start-line (apply #'min (+ start start-offset)
-                                   (mapcar (lambda (run) (nth 2 run)) touched))
-                :end-line (apply #'max (+ end end-offset)
-                                 (mapcar (lambda (run) (nth 3 run)) touched))))))))
+                :start-line (apply #'min (plist-get mapped :start) (mapcar #'car touched))
+                :end-line (apply #'max (plist-get mapped :end) (mapcar #'cdr touched))))))))
 
 (defun niwa-note-change--touches-p (note record)
   "Return non-nil when RECORD changes NOTE's marked source lines."
@@ -91,17 +81,17 @@
                            (or (plist-get change :bytes)
                                (encode-coding-string (plist-get change :content) 'utf-8-unix))))
                    (prepared (niwa-change-prepare before after current))
-                   (runs (or (plist-get prepared :ranges)
-                             (if (plist-get prepared :conflicts)
-                                 (list (list 0 (line-number-at-pos (point-max))))
-                               (niwa-change--runs
-                                (or (plist-get current :bytes) "")
-                                (or (plist-get (plist-get prepared :after) :bytes) "")))))
                    (start (1- (line-number-at-pos (overlay-start note))))
                    (end (line-number-at-pos (max (overlay-start note) (1- (overlay-end note))))))
-              (cl-some (lambda (run)
-                         (niwa-change--overlap-p start end (nth 0 run) (nth 1 run)))
-                       runs)))))))
+              (cond
+               ((plist-get prepared :ranges)
+                (cl-some (lambda (run) (niwa-change-overlap-p start end (car run) (cadr run)))
+                         (plist-get prepared :ranges)))
+               ((plist-get prepared :conflicts) t)
+               (t (plist-get (car (niwa-change-map-extents
+                                   (or (plist-get current :bytes) "")
+                                   (or (plist-get (plist-get prepared :after) :bytes) "")
+                                   (list (cons start end)))) :touched)))))))))
 
 (defun niwa-note-prepare-change (proposal changes data-buffer)
   "Hold PROPOSAL and CHANGES for DATA-BUFFER's notes without writing source.
@@ -215,19 +205,19 @@ When SELECTED is non-nil, prepare only those reviewed changes."
                        (plist-get record :note-extents))))
         (when extents
           (let ((current (niwa-note-change--source-snapshot
-                          (niwa-tool-patch--snapshot path))))
+                          (niwa-change-snapshot path))))
             (cond
              ((not (eq (plist-get before :exists) (plist-get current :exists)))
               (push (list :path path :start-line 1 :end-line 1) conflicts))
-             ((not (equal (plist-get before :bytes) (plist-get current :bytes)))
-              (dolist (run (niwa-change--runs (or (plist-get before :bytes) "")
-                                               (or (plist-get current :bytes) "")))
-                (when (cl-some (lambda (extent)
-                                 (niwa-change--overlap-p
-                                  (plist-get extent :start-line) (plist-get extent :end-line)
-                                  (nth 0 run) (nth 1 run))) extents)
-                  (push (list :path path :start-line (1+ (nth 2 run))
-                              :end-line (max (1+ (nth 2 run)) (nth 3 run))) conflicts)))))))))
+             (t
+              (dolist (mapped (niwa-change-map-extents
+                               (or (plist-get before :bytes) "") (or (plist-get current :bytes) "")
+                               (mapcar (lambda (extent)
+                                         (cons (plist-get extent :start-line)
+                                               (plist-get extent :end-line))) extents)))
+                (dolist (run (plist-get mapped :touched))
+                  (cl-pushnew (list :path path :start-line (1+ (car run))
+                                    :end-line (max (1+ (car run)) (cdr run))) conflicts :test #'equal)))))))))
     (dolist (change (or selected (plist-get record :changes)))
       (let* ((path (plist-get change :path))
              (before (cl-find path (plist-get record :before)
@@ -239,7 +229,7 @@ When SELECTED is non-nil, prepare only those reviewed changes."
                           :mode (when (eq (plist-get change :action) 'write)
                                   (or (plist-get change :mode) (plist-get before :mode)
                                       (default-file-modes)))))
-             (disk (niwa-tool-patch--snapshot path))
+             (disk (niwa-change-snapshot path))
              (current (niwa-note-change--source-snapshot disk))
              (prepared (niwa-change-prepare before after current)))
         (setq conflicts (append conflicts (plist-get prepared :conflicts)))
@@ -248,7 +238,7 @@ When SELECTED is non-nil, prepare only those reviewed changes."
                  (buffer (find-buffer-visiting path))
                  (coding (if buffer (buffer-local-value 'buffer-file-coding-system buffer)
                            (if (plist-get current :exists)
-                               (cdr (niwa-tool-patch--read-file path t)) 'utf-8-unix))))
+                               (cdr (niwa-change-text current)) 'utf-8-unix))))
             (push (list :path path :before disk :history-before current
                         :action (if (plist-get result :exists) 'write 'delete)
                         :bytes (plist-get result :bytes)
@@ -278,7 +268,7 @@ When SELECTED is non-nil, prepare only those reviewed changes."
     (dolist (change changes)
       (when-let* ((buffer (find-buffer-visiting (plist-get change :path))))
         (with-current-buffer buffer (undo-boundary))))
-    (niwa-tool-patch-commit changes)
+    (niwa-change-commit changes)
     (dolist (change changes)
       (when-let* ((buffer (find-buffer-visiting (plist-get change :path))))
         (with-current-buffer buffer (undo-boundary))))
@@ -351,7 +341,7 @@ Confirming a partial selection drops the rest of this waiting change."
     (dolist (entry entries)
       (let* ((path (car entry))
              (record (cdr entry))
-             (disk (niwa-tool-patch--snapshot path))
+             (disk (niwa-change-snapshot path))
              (current (niwa-note-change--source-snapshot disk))
              (buffer (find-buffer-visiting path)))
         (when (plist-get record :gap)
@@ -372,7 +362,7 @@ Confirming a partial selection drops the rest of this waiting change."
             (when (and result (not (niwa-change-same-p result current)))
               (let ((coding (if buffer (buffer-local-value 'buffer-file-coding-system buffer)
                               (if (plist-get current :exists)
-                                  (cdr (niwa-tool-patch--read-file path t)) 'utf-8-unix))))
+                                  (cdr (niwa-change-text current)) 'utf-8-unix))))
                 (push (list :path path :before disk
                             :action (if (plist-get result :exists) 'write 'delete)
                             :bytes (plist-get result :bytes)
@@ -481,7 +471,7 @@ note only after success; do not change the conversation or its history."
              (session (buffer-local-value 'niwa--session data))
              (turn (plist-get pair :turn)))
         (niwa-session-artifacts-assert-new-mutation-authority session)
-        (niwa-tool-patch-commit
+        (niwa-change-commit
          (niwa-note-change--revert-plan
           session turn (if (equal own-id id)
                            (cdr (assq turn (niwa-session-file-snapshots session)))

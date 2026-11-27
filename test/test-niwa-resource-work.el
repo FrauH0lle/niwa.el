@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'niwa-change)
 (require 'helpers
          (file-name-concat
           (file-name-directory
@@ -197,14 +198,14 @@
                              (niwa-tool-patch-sanitize-error
                               (concat "Denied: " physical) proposal)))
               (niwa-tool-patch--materialize-resources proposal)
-              (niwa-tool-patch-commit (niwa-tool-patch-planned-changes proposal))
+              (niwa-change-commit (niwa-tool-patch-planned-changes proposal))
               (should (file-exists-p physical))
               (let* ((updated
                       (niwa-tool-patch-prepare-resources
                        (niwa-tool-patch-parse
                         (format "*** Begin Patch\n*** Update File: %s\n*** Move to: %s.moved\n@@\n-original\n+corrected\n*** End Patch"
                                 address address)) t)))
-                (niwa-tool-patch-commit (niwa-tool-patch-planned-changes updated))
+                (niwa-change-commit (niwa-tool-patch-planned-changes updated))
                 (should-not (file-exists-p physical))
                 (should (equal "corrected\n" (with-temp-buffer
                                               (insert-file-contents (concat physical ".moved"))
@@ -213,7 +214,7 @@
                      (niwa-tool-patch-prepare-resources
                       (niwa-tool-patch-parse
                        (format "*** Begin Patch\n*** Delete File: %s.moved\n*** End Patch" address)) t)))
-                (niwa-tool-patch-commit (niwa-tool-patch-planned-changes deleted))
+                (niwa-change-commit (niwa-tool-patch-planned-changes deleted))
                 (should-not (file-exists-p (concat physical ".moved"))))))
           (should-not (niwa-session-save-path session)))
       (niwa-resource-discard-attempts (car niwa-resource-attempts-cell))
@@ -347,7 +348,7 @@
                    (changes (niwa-tool-patch-planned-changes proposal)))
               (setf (niwa-workspace-root workspace) (file-name-concat root "retargeted"))
               (should-error (niwa-tool-patch-planned-changes proposal))
-              (should-error (niwa-tool-patch-commit changes))
+              (should-error (niwa-change-commit changes))
               (should-not (file-exists-p (plist-get (car changes) :path)))
               (setf (niwa-workspace-root workspace) root)))
           (with-temp-file (file-name-concat root "source.txt") (insert "source\n"))
@@ -356,7 +357,7 @@
                              "*** Begin Patch\n*** Update File: source.txt\n*** Move to: work://shared/moved.txt\n*** End Patch") t))
                  (changes (niwa-tool-patch-planned-changes proposal)))
             (setf (niwa-workspace-root workspace) (file-name-concat root "retargeted"))
-            (should-error (niwa-tool-patch-commit changes))
+            (should-error (niwa-change-commit changes))
             (should (file-exists-p (file-name-concat root "source.txt")))))
       (delete-directory root t)))
 

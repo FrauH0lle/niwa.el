@@ -8,6 +8,7 @@
 
 ;;; Code:
 
+(require 'niwa-change)
 (require 'helpers
          (file-name-concat
           (file-name-directory
@@ -157,7 +158,7 @@
           (cl-letf (((symbol-function 'niwa-tool-patch-assert-baseline)
                      (lambda (_)
                        (setq attempted t)
-                       (signal 'niwa-tool-patch-partial-rollback
+                       (signal 'niwa-change-partial-rollback
                                '("Could not restore one.txt")))))
             (niwa-patch-review--submit proposal))
           (should attempted)

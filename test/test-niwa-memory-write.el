@@ -13,7 +13,7 @@
           "helpers"))
 (require 'niwa-memory-write)
 (require 'niwa-session-control-fs)
-(require 'niwa-tool-patch)
+(require 'niwa-change)
 
 (niwa-deftest niwa-memory-write-control-directory
   (:doc "shares target-local state across callers without aliasing memory and instruction ownership")
@@ -90,7 +90,7 @@
       (let* ((after (mapcar (lambda (path) (cons (file-name-nondirectory path) (niwa-memory-scope--snapshot path 32768))) paths))
              (changes (niwa-memory-write--changes after before)))
         (should (= 3 (length changes)))
-        (niwa-tool-patch-commit changes)
+        (niwa-change-commit changes)
         (dolist (row before)
           (should (equal (cdr row) (niwa-memory-scope--snapshot (plist-get (cdr row) :path) 32768))))
         (should-not (niwa-memory-write--changes before before)))))
