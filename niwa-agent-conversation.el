@@ -151,6 +151,11 @@
                   "niwa-transport" (key path thunk &optional on-cancel delay))
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 
+;; `niwa-turn'
+(declare-function niwa-request-end
+                  "niwa-turn" (&optional abort-plan-approval))
+(autoload 'niwa-request-end "niwa-turn")
+
 ;; `niwa-utilities'
 (declare-function niwa--insert-user-role-block-at-marker
                   "niwa-utilities" (block &optional marker))
@@ -802,6 +807,17 @@ Return nil when INVOCATION has no live conversation buffer."
       (when (timerp timer)
         (cancel-timer timer))
       (setf (niwa-agent-invocation-transcript-save-timer invocation) nil))))
+
+(defun niwa-agent-conversation-retire (invocation)
+  "Retire fenced INVOCATION's local conversation without persisting it.
+The successor owns the durable transcript: cancel this producer's pending
+save, mark its transcript aborted, and end the request it still owns."
+  (niwa-agent-conversation--cancel-save invocation)
+  (setf (niwa-agent-invocation-transcript-status invocation) 'aborted)
+  (when-let* ((buffer (niwa-agent-invocation-buffer invocation))
+              ((buffer-live-p buffer))
+              ((eq invocation (buffer-local-value 'niwa--agent-invocation buffer))))
+    (with-current-buffer buffer (niwa-request-end))))
 
 (defun niwa-agent-conversation--owns-transcript-p (invocation)
   "Return non-nil when INVOCATION's live buffer is its canonical transcript."

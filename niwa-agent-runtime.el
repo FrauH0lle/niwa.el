@@ -3,9 +3,10 @@
 ;;; Commentary:
 
 ;; Provider boundary for retained Agent V2 conversations.  The durable tree,
-;; admission, addressing, mailboxes, and waits live in `niwa-agent-control'.
-;; This module starts one asynchronous provider turn, persists its transcript,
-;; settles it exactly once, and interrupts it by canonical invocation.
+;; admission, addressing, mailboxes, waits and turn settlement live in
+;; `niwa-agent-control'.  This module starts one asynchronous provider turn,
+;; persists its transcript, ends the provider turn when control settles it,
+;; and interrupts it by canonical invocation.
 
 ;;; Code:
 
@@ -43,24 +44,22 @@
 ;; `niwa-agent-control'
 (declare-function niwa-agent-control-clear-agent-wakes
                   "niwa-agent-control" (session path))
-(declare-function niwa-agent-control-commit-session
-                  "niwa-agent-control" (session &optional token))
+(declare-function niwa-agent-control-defer-until-gate
+                  "niwa-agent-control"
+                  (invocation what function &optional token failure))
 (declare-function niwa-agent-control-enqueue-execution-result
                   "niwa-agent-control"
                   (session owner body &optional execution-id wake meta
                            acknowledgement))
-(declare-function niwa-agent-control-settlement-finished
-                  "niwa-agent-control" (session))
+(declare-function niwa-agent-control-settle
+                  "niwa-agent-control"
+                  (invocation response &optional event token acknowledgement))
 (autoload 'niwa-agent-control-clear-agent-wakes "niwa-agent-control")
-(autoload 'niwa-agent-control-commit-session "niwa-agent-control")
+(autoload 'niwa-agent-control-defer-until-gate "niwa-agent-control")
 (autoload 'niwa-agent-control-enqueue-execution-result "niwa-agent-control")
-(autoload 'niwa-agent-control-settlement-finished "niwa-agent-control")
-(defvar niwa-agent-control-settling)
-(defvar niwa-agent-control-suppress-persistence)
+(autoload 'niwa-agent-control-settle "niwa-agent-control")
 
 ;; `niwa-agent-conversation'
-(declare-function niwa-agent-conversation--cancel-save
-                  "niwa-agent-conversation" (invocation))
 (declare-function niwa-agent-conversation-configure
                   "niwa-agent-conversation" (invocation &optional buffer))
 (declare-function niwa-agent-conversation-fenced-p
@@ -75,9 +74,10 @@
                   (invocation item &optional suppress-rerender))
 (declare-function niwa-agent-conversation-refresh
                   "niwa-agent-conversation" (invocation))
+(declare-function niwa-agent-conversation-retire
+                  "niwa-agent-conversation" (invocation))
 (declare-function niwa-agent-conversation-save
                   "niwa-agent-conversation" (invocation &optional deferred token))
-(autoload 'niwa-agent-conversation--cancel-save "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-configure "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-fenced-p "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-final-response
@@ -86,6 +86,7 @@
 (autoload 'niwa-agent-conversation-record-activity
   "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-refresh "niwa-agent-conversation")
+(autoload 'niwa-agent-conversation-retire "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-save "niwa-agent-conversation")
 (defvar niwa--agent-invocation)
 
@@ -112,7 +113,7 @@
 (declare-function niwa-execution-owner-live-p
                   "niwa-execution" (session owner))
 (declare-function niwa-execution-stop-owner
-                  "niwa-execution" (session owner))
+                  "niwa-execution" (session owner &optional invocation))
 (autoload 'niwa-execution-owner-live-p "niwa-execution")
 (autoload 'niwa-execution-stop-owner "niwa-execution")
 
@@ -147,18 +148,8 @@
 (declare-function niwa-session-artifacts-artifact-present-p
                   "niwa-session-artifacts"
                   (session logical &optional committed-only))
-(declare-function niwa-session-artifacts-publish-agent-terminal-state
-                  "niwa-session-artifacts" (invocation &optional token))
 (autoload 'niwa-session-artifacts-artifact-present-p
   "niwa-session-artifacts")
-(autoload 'niwa-session-artifacts-publish-agent-terminal-state
-  "niwa-session-artifacts")
-
-;; `niwa-session-codec'
-(declare-function niwa-session-codec-portable-authority-p
-                  "niwa-session-codec" (session))
-(autoload 'niwa-session-codec-portable-authority-p
-  "niwa-session-codec")
 
 ;; `niwa-session-persistence'
 (declare-function niwa-session-persistence-record-running-transcript
@@ -180,18 +171,11 @@
   "niwa-session-persistence")
 (defvar niwa-session--read-only-mode)
 
-;; `niwa-session-publication'
-(declare-function niwa-session-publication-defer
-                  "niwa-session-publication"
-                  (session preparation &optional failure token))
-(autoload 'niwa-session-publication-defer "niwa-session-publication")
-
 ;; `niwa-structs'
 (declare-function niwa-session-agent-transcripts
                   "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
 (declare-function niwa-session-p "niwa-structs" (cl-x))
+(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
 (declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
 (declare-function niwa-session-turn-count "niwa-structs" (cl-x) t)
 (declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
@@ -220,6 +204,12 @@
   "niwa-transcript-audit")
 (defvar niwa-transcript-audit--buffer-record-bytes)
 (defvar niwa-transcript-audit--buffer-records)
+
+;; `niwa-transport'
+(declare-function niwa-transport-run-when-idle
+                  "niwa-transport"
+                  (key path thunk &optional on-cancel delay))
+(autoload 'niwa-transport-run-when-idle "niwa-transport")
 
 ;; `niwa-turn'
 (declare-function niwa-current-turn "niwa-turn" (session))
@@ -480,7 +470,7 @@ TOKEN is the caller's publication gate ownership, handed to gated writers."
           (niwa-request-end)))
       (when session
         (niwa-execution-stop-owner
-         session (niwa-agent-invocation-require-path invocation)))
+         session (niwa-agent-invocation-require-path invocation) invocation))
       (setf (niwa-agent-invocation-transcript-status invocation) status)
       (niwa-agent-runtime--finalize-step
        invocation 'transcript-status
@@ -531,241 +521,44 @@ TOKEN is the caller's publication gate ownership, handed to gated writers."
          (when (fboundp 'niwa-view-agent-live-transcript-finalize)
            (niwa-view-agent-live-transcript-finalize invocation)))))))
 
-(defun niwa-agent-runtime--settle
-    (invocation response &optional event token acknowledgement)
-  "Finalize INVOCATION and deliver RESPONSE and EVENT exactly once.
-TOKEN proves the caller already owns the session's publication gate, as a
-queued preparation does.  Without it, a held gate queues settlement as a
-preparation that runs before any registry mutation or sidecar capture, in the
-buffer that requested it, and a failure is reported without losing the turn.
-ACKNOWLEDGEMENT receives (SUCCESS ERROR) exactly once after durable settlement
-or definitive failure, including when the preparation runs later."
-  (let* (acknowledged
-         (acknowledge
-          (lambda (success error)
-            (unless acknowledged
-              (setq acknowledged t)
-              (when acknowledgement
-                (funcall acknowledgement success error))))))
-    (condition-case err
-        (if (niwa-agent-invocation-runtime-settled-p invocation)
-            (funcall acknowledge t nil)
-          (cond
-           ((memq invocation niwa-agent-control-settling)
-            ;; A nested terminal callback for the same turn; the outer call
-            ;; reports when settlement ends.
-            (prog1 (niwa-agent-runtime--settle-1 invocation response event token)
-              (funcall acknowledge t nil)))
-           ((niwa-agent-runtime--defer-settlement
-             invocation response event token acknowledge)
-            ;; Queued: the turn is not settled yet, so report no response.
-            nil)
-           (t
-            (prog1
-                (unwind-protect
-                    (let ((niwa-agent-control-settling
-                           (cons invocation niwa-agent-control-settling)))
-                      (niwa-agent-runtime--settle-1 invocation response event token))
-                  (when-let* ((session (niwa-agent-invocation-parent-session invocation)))
-                    (niwa-agent-control-settlement-finished session)))
-              (funcall acknowledge t nil)))))
-      ((error quit)
-       ;; Post-commit notification/cleanup failure cannot undo authoritative
-       ;; adoption.  Before that point, the producer must retain its output.
-       (if (or (niwa-agent-invocation-runtime-settled-p invocation)
-               (let ((pending (niwa-agent-invocation-runtime-pending-response
-                               invocation)))
-                 (and (listp pending) (eq 'committed (plist-get pending :phase)))))
-           (funcall acknowledge t nil)
-         (funcall acknowledge nil (error-message-string err)))
-       (signal (car err) (cdr err))))))
-
-(defun niwa-agent-runtime--defer-until-gate
-    (invocation what function &optional token failure)
-  "Queue FUNCTION for INVOCATION behind its session's publication gate.
-Return non-nil when queued, nil when the gate is open and the caller proceeds.
-The publication owner decides whether TOKEN proves the caller already owns
-the gate; such a caller is not queued.  FUNCTION receives the fresh token of
-its queued run, before any registry mutation or sidecar capture, in the
-buffer that requested it.  A failure is passed to FAILURE, if supplied, and
-warned as WHAT, never dropped silently."
-  (when-let* ((session (niwa-agent-invocation-parent-session invocation))
-              ((not (niwa-agent-conversation-fenced-p invocation))))
-    (let ((buffer (current-buffer))
-          (scope (niwa-diagnostic-scope session)))
-      (niwa-session-publication-defer
-       session
-       (lambda (queued-token)
-         (with-current-buffer (if (buffer-live-p buffer) buffer
-                                (current-buffer))
-           (funcall function queued-token)))
-       (lambda (err)
-         (when failure (funcall failure err))
-         (niwa-diagnostic-warning
-          scope 'niwa
-          (format "Deferred %s of %s failed: %s" what
-                  (or (niwa-agent-invocation-path invocation) "unknown")
-                  (error-message-string err))
-          :warning))
-       token))))
-
-(defun niwa-agent-runtime--defer-settlement
-    (invocation response event &optional token acknowledgement)
-  "Queue INVOCATION's settlement with RESPONSE and EVENT behind the gate.
-Return non-nil when queued; the failure leaves the invocation unsettled.
-A caller holding TOKEN is never queued.  ACKNOWLEDGEMENT follows settlement
-or a failed preparation exactly once.  Teardown drains accepted preparations."
-  (let* (acknowledged
-         (acknowledge
-          (lambda (success error)
-            (unless acknowledged
-              (setq acknowledged t)
-              (when acknowledgement
-                (funcall acknowledgement success error))))))
-    (niwa-agent-runtime--defer-until-gate
-     invocation "settlement"
-     (lambda (queued-token)
-       (niwa-agent-runtime--settle
-        invocation response event queued-token acknowledge))
-     token
-     (lambda (err)
-       (funcall acknowledge nil (error-message-string err))))))
-
-(cl-defun niwa-agent-runtime--settle-1 (invocation response event token)
-  "Finalize INVOCATION and deliver RESPONSE and EVENT; see the caller.
-TOKEN, possibly nil, is the gate ownership its mutations hand on explicitly."
-  (let* ((fenced-p (niwa-agent-conversation-fenced-p invocation))
-         (pending
-          (niwa-agent-invocation-runtime-pending-response invocation))
-         (committed-p
-          (and (not fenced-p) (listp pending)
-               (eq 'committed (plist-get pending :phase))))
-         status visible transaction terminal-publication-p)
-    (if committed-p
-        (setq status (plist-get pending :status)
-              visible (plist-get pending :visible)
-              transaction (plist-get pending :transaction))
-      (when (and (listp pending) (plist-member pending :response))
-        (setq response (plist-get pending :response)
-              event (plist-get pending :event)))
-      (setq pending (list :response response :event event))
-      (setf (niwa-agent-invocation-runtime-pending-response invocation)
-            pending)
-      (let* ((event-status
-              (and (listp event)
-                   (plist-get event :niwa-agent-terminal-status)))
-             (callback
-              (niwa-agent-invocation-runtime-settle-callback invocation))
-             (session
-              (niwa-agent-invocation-parent-session invocation))
-             (save-path (and session
-                             (niwa-session-save-path session))))
-        (setq status (pcase (if fenced-p 'aborted event-status)
-                       ('error 'error)
-                       ('aborted 'aborted)
-                       (_ 'completed))
-              visible
-              (pcase status
-                ('error
-                 (niwa-agent-runtime--error-response invocation event))
-                ('aborted
-                 (niwa-agent-runtime--interrupted-response
-                  invocation
-                  (or (niwa-agent-invocation-terminal-reason invocation)
-                      "interrupted")))
-                (_ response))
-              terminal-publication-p
-              (and (not fenced-p) session
-                   save-path
-                   (niwa-session-artifacts-artifact-present-p
-                    session "session.meta.eld")
-                   (niwa-agent-invocation-transcript-relative-path
-                    invocation)
-                   (buffer-live-p
-                    (niwa-agent-invocation-buffer invocation))
-                   (buffer-live-p
-                    (niwa-agent-invocation-parent-data-buffer invocation))
-                   (niwa-session-execution-target session)
-                   ;; Portable authority resolves the transcript through
-                   ;; the publication, local target included: a direct
-                   ;; write would leave resume unable to see it.
-                   (niwa-session-codec-portable-authority-p session)))
-        (when (eq status 'error)
-          (let ((detail (plist-get event :error-details)))
-            (niwa-recovery-report
-             session (concat "agent:" (niwa-agent-invocation-agent-id invocation))
-             (niwa-recovery-category (and (stringp detail) detail))
-             (format "Agent %s failed; inspect its transcript before continuing"
-                     (niwa-agent-invocation-require-path invocation)) nil)))
-        (if fenced-p
-            (progn
-              (niwa-agent-conversation--cancel-save invocation)
-              (setf (niwa-agent-invocation-transcript-status invocation) 'aborted)
-              (when-let* ((buffer (niwa-agent-invocation-buffer invocation))
-                          ((buffer-live-p buffer))
-                          ((eq invocation (buffer-local-value 'niwa--agent-invocation buffer))))
-                (let ((niwa-agent-control-suppress-persistence t))
-                  (with-current-buffer buffer (niwa-request-end)))))
-          (let ((niwa-agent-runtime--defer-terminal-publication-p
-                 terminal-publication-p))
-            (niwa-agent-runtime--finalize invocation status token)))
-        (when callback
-          (let ((niwa-agent-control-suppress-persistence t))
-            (setq transaction
-                  (funcall callback invocation visible event token))))
-        (condition-case err
-            (progn
-              (unless (niwa-agent-conversation-fenced-p invocation)
-                (if terminal-publication-p
-                    (niwa-session-artifacts-publish-agent-terminal-state
-                     invocation token)
-                  (when (consp transaction)
-                    (niwa-agent-control-commit-session session token))))
-              (when (and (not fenced-p) (niwa-agent-conversation-fenced-p invocation))
-                (when (functionp (car-safe transaction)) (funcall (car transaction)))
-                (setq transaction nil)
-                (cl-return-from niwa-agent-runtime--settle-1
-                  (niwa-agent-runtime--settle-1 invocation response event token))))
-          ;; A quit must not leave the staged idle record and its
-          ;; uncommitted RESULT behind either.
-          ((error quit)
-           (when (functionp (car-safe transaction))
-             (funcall (car transaction)))
-           (signal (car err) (cdr err))))
-        (setq pending
-              (list :phase 'committed :status status :visible visible
-                    :transaction transaction))
-        (setf (niwa-agent-invocation-runtime-pending-response invocation)
-              pending)))
-    (when (functionp (cdr-safe transaction))
-      (funcall (cdr transaction)))
-    (setf (niwa-agent-invocation-runtime-settled-p invocation) t
-          (niwa-agent-invocation-runtime-fsm invocation) nil
-          (niwa-agent-invocation-runtime-cancel invocation) nil
-          (niwa-agent-invocation-runtime-pending-response invocation) nil)
-    (niwa-agent-runtime--release-settled-state invocation)
-    (when-let* ((timer
-                 (niwa-agent-invocation-runtime-budget-timer invocation)))
-      (cancel-timer timer)
-      (setf (niwa-agent-invocation-runtime-budget-timer invocation) nil))
-    (when-let* ((session
-                 (niwa-agent-invocation-parent-session invocation)))
-      (niwa-telemetry-record
-       session 'agent-settled
-       :agent-id (niwa-agent-invocation-agent-id invocation)
-       :agent-path (niwa-agent-invocation-path invocation)
-       :agent-type
-       (and (niwa-agent-invocation-agent invocation)
-            (niwa-agent-name
-             (niwa-agent-invocation-agent invocation)))
-       :outcome status
-       :duration-ms
-       (when-let* ((started-at
-                    (niwa-agent-invocation-started-at invocation)))
-         (round
-          (* 1000.0
-             (float-time (time-subtract (current-time) started-at)))))))
+(defun niwa-agent-runtime-end-turn
+    (invocation status event retire publish-later &optional token)
+  "End INVOCATION's provider turn with terminal STATUS from EVENT.
+Return the parent-visible text of an `error' or `aborted' STATUS, else nil.
+A RETIRE producer was fenced: its conversation retires without persisting.
+Otherwise the turn is finalized; with PUBLISH-LATER its transcript save and
+sidecar are left to the caller's terminal publication.  TOKEN is the
+caller's publication gate ownership, handed to gated writers."
+  (let* ((session (niwa-agent-invocation-parent-session invocation))
+         (visible
+          (pcase status
+            ('error (niwa-agent-runtime--error-response invocation event))
+            ('aborted
+             (niwa-agent-runtime--interrupted-response
+              invocation
+              (or (niwa-agent-invocation-terminal-reason invocation)
+                  "interrupted"))))))
+    (when (eq status 'error)
+      (let ((detail (plist-get event :error-details)))
+        (niwa-recovery-report
+         session (concat "agent:" (niwa-agent-invocation-agent-id invocation))
+         (niwa-recovery-category (and (stringp detail) detail))
+         (format "Agent %s failed; inspect its transcript before continuing"
+                 (niwa-agent-invocation-require-path invocation)) nil)))
+    (if retire
+        (niwa-agent-conversation-retire invocation)
+      (let ((niwa-agent-runtime--defer-terminal-publication-p publish-later))
+        (niwa-agent-runtime--finalize invocation status token)))
     visible))
+
+(defun niwa-agent-runtime-release-turn (invocation)
+  "Release settled INVOCATION's provider handles, budget and spare memory."
+  (setf (niwa-agent-invocation-runtime-fsm invocation) nil
+        (niwa-agent-invocation-runtime-cancel invocation) nil)
+  (niwa-agent-runtime--release-settled-state invocation)
+  (when-let* ((timer (niwa-agent-invocation-runtime-budget-timer invocation)))
+    (cancel-timer timer)
+    (setf (niwa-agent-invocation-runtime-budget-timer invocation) nil)))
 
 (defun niwa-agent-runtime--release-settled-state (invocation)
   "Drop memory a settled INVOCATION's buffer no longer needs.
@@ -809,13 +602,43 @@ next turn started in the same buffer; that turn's state is left alone."
   invocation)
 
 (defun niwa-agent-runtime--handle-provider-result (invocation response)
-  "Settle INVOCATION from provider RESPONSE, or hold for yielded Bash."
+  "Settle INVOCATION from provider RESPONSE, or hold for yielded Bash.
+A settlement that fails before commit is retried once after this callback
+unwinds, so a transient write failure does not hold the turn's slot."
   (if (and (stringp response)
            (niwa-agent-runtime--execution-live-p invocation))
       (setf (niwa-agent-invocation-runtime-pending-response invocation)
             response)
-    (niwa-agent-runtime--settle invocation response
-                                   (and (listp response) response))))
+    (let ((event (and (listp response) response)))
+      (niwa-agent-control-settle
+       invocation response event nil
+       (lambda (success _error)
+         (unless success
+           (niwa-agent-runtime--retry-settlement invocation response event)))))))
+
+(defun niwa-agent-runtime--retry-settlement (invocation response event)
+  "Retry INVOCATION's failed settlement with RESPONSE and EVENT once, later.
+shortcut: one retry after the failing callback unwinds; an outage that
+outlasts it still holds the slot until interrupted, add backoff if seen."
+  (let* ((session (niwa-agent-invocation-parent-session invocation))
+         (root (and session (niwa-session-root-buffer session))))
+    (niwa-transport-run-when-idle
+     (list 'agent-settle invocation)
+     (if (buffer-live-p root)
+         (buffer-local-value 'default-directory root)
+       default-directory)
+     (lambda ()
+       (unless (niwa-agent-invocation-runtime-settled-p invocation)
+         (condition-case err
+             (niwa-agent-control-settle invocation response event)
+           ((error quit)
+            (niwa-diagnostic-warning
+             (niwa-diagnostic-scope session) 'niwa
+             (format "Settlement retry of %s failed: %s"
+                     (or (niwa-agent-invocation-path invocation) "unknown")
+                     (error-message-string err))
+             :warning)))))
+     nil 0)))
 
 (defun niwa-agent-runtime-queue-execution-completion
     (context owner body &optional meta acknowledgement)
@@ -847,7 +670,7 @@ when CONTEXT no longer accepts BODY."
               (progn
                 (when acknowledgement (funcall acknowledgement t nil))
                 t)
-            (niwa-agent-runtime--settle
+            (niwa-agent-control-settle
              context response nil nil
              (lambda (success error)
                (unless acknowledged
@@ -894,7 +717,7 @@ terminal acknowledgement and will settle the invocation itself."
     (error "Interrupt target has no live invocation"))
   (if (niwa-agent-invocation-runtime-settled-p invocation)
       (niwa-agent-runtime--interrupted-response invocation reason)
-    (if (niwa-agent-runtime--defer-until-gate
+    (if (niwa-agent-control-defer-until-gate
          invocation "interrupt"
          (lambda (queued-token)
            (niwa-agent-runtime-interrupt invocation reason queued-token))
@@ -934,8 +757,10 @@ terminal acknowledgement and will settle the invocation itself."
          (setf (niwa-agent-invocation-terminal-reason invocation)
                previous-reason)
          (signal (car err) (cdr err))))
+      ;; Settlement returns nil when the turn already settled or its settlement
+      ;; is queued; the caller still gets this interruption's visible text.
       (or (unless deferred
-            (niwa-agent-runtime--settle
+            (niwa-agent-control-settle
              invocation response
              (list :niwa-agent-terminal-status 'aborted :response response)
              token))
@@ -1206,14 +1031,15 @@ Return a marker at the start of the turn's Agent Task heading."
     (agent description prompt
            &key context-snapshot model-policy skill-permission-rules
            prepared-turn start-hook-audits
-           on-invocation on-settle path frozen-configuration
+           on-invocation path frozen-configuration
            retained-id retained-buffer retained-transcript
            pending-hook-context on-hook-context parent-tool-use-id
            plan-read-only token working-directory)
   "Start one asynchronous retained agent turn and return its invocation.
 AGENT starts a new conversation; FROZEN-CONFIGURATION and the three retained
 identity values continue one.  PATH is the conversation's canonical address.
-ON-SETTLE receives (INVOCATION RESPONSE EVENT TOKEN) exactly once.
+ON-INVOCATION publishes the started invocation; until it returns, a terminal
+callback cannot settle the turn.  `niwa-agent-control-settle' settles it.
 TOKEN, when the caller runs under a queued publication preparation, is its
 gate ownership: every persisting step of the turn setup and of its error
 settlement carries it, so the error cleanup cannot wait on its own gate.
@@ -1248,8 +1074,7 @@ conversation's optional execution directory, never a resource grant."
                (cl-find (concat "agent:" agent-id)
                         (niwa-session-recovery-issues session)
                         :key (lambda (issue) (plist-get issue :id))
-                        :test #'equal)))
-         publication-ready)
+                        :test #'equal))))
     (unless (niwa-session-p session)
       (error "Agent requires an active niwa session"))
     (when (memq session (bound-and-true-p niwa-claude-code-fork--sessions))
@@ -1278,12 +1103,7 @@ conversation's optional execution directory, never a resource grant."
           (niwa-agent-invocation-sandbox-summary-cell invocation)
           (list nil)
           (niwa-agent-invocation-transcript-status invocation) 'running
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (settled-invocation response event token)
-            (if publication-ready
-                (when on-settle
-                  (funcall on-settle settled-invocation response event token))
-              (error "Agent invocation publication is pending"))))
+          (niwa-agent-invocation-runtime-unpublished invocation) t)
     (niwa-telemetry-record
      session 'agent-dispatch
      :agent-id agent-id
@@ -1363,7 +1183,7 @@ conversation's optional execution directory, never a resource grant."
                                      (concat context-snapshot "\n\n"
                                              (plist-get turn :prompt))
                                    (plist-get turn :prompt)))))
-              (when (and on-settle
+              (when (and on-invocation
                          (not
                           (niwa-agent-invocation-transcript-relative-path
                            invocation)))
@@ -1383,8 +1203,8 @@ conversation's optional execution directory, never a resource grant."
                   (funcall on-invocation invocation))
                 (when (fboundp 'niwa-view-agent-live-transcript-start)
                   (niwa-view-agent-live-transcript-start invocation))
-                (setq published-p t
-                      publication-ready t)
+                (setf published-p t
+                      (niwa-agent-invocation-runtime-unpublished invocation) nil)
                 ;; Equal failure notices are deduplicated.  A synchronous
                 ;; terminal error can therefore retain the old issue object
                 ;; while its callback waits for publication; do not clear it.
@@ -1415,7 +1235,7 @@ conversation's optional execution directory, never a resource grant."
                (progn
                  (setf (niwa-agent-invocation-terminal-reason invocation)
                        (error-message-string err))
-                 (niwa-agent-runtime--settle
+                 (niwa-agent-control-settle
                   invocation nil
                   (list :niwa-agent-terminal-status 'error
                         :error-details (error-message-string err))

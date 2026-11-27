@@ -11,6 +11,7 @@
           (file-name-directory
            (or buffer-file-name load-file-name byte-compile-current-file))
           "gptel-retry-helpers"))
+(require 'niwa-agent-control)
 (require 'niwa-agent-runtime)
 (require 'niwa-agent-conversation)
 (require 'niwa-session-persistence)
@@ -61,11 +62,7 @@ runtime.  BEFORE-RESULT can interrupt inside an accepted terminal callback."
                    (niwa-request-session request) session
                    (niwa-session-root-buffer session) parent-buffer
                    (niwa-session-agent-transcripts session)
-                   (list (cons "retry-runtime" (list :status 'running)))
-                   (niwa-agent-invocation-runtime-settle-callback invocation)
-                   (lambda (_invocation visible event &optional _token)
-                     (push (list :visible visible :event event) results)
-                     nil))
+                   (list (cons "retry-runtime" (list :status 'running))))
              (with-current-buffer parent-buffer
                (org-mode)
                (setq-local niwa--session session)
@@ -101,7 +98,12 @@ runtime.  BEFORE-RESULT can interrupt inside an accepted terminal callback."
                        (cons (lambda (_machine) (push state terminal-events))
                              (copy-sequence
                               (alist-get state niwa-agent-exec--handlers))))))
-             ,@body)
+             ;; Observe what settlement stages for the parent.
+             (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+                        (lambda (_session _invocation visible event &optional _token)
+                          (push (list :visible visible :event event) results)
+                          nil)))
+               ,@body))
          (niwa-agent-conversation--cancel-save invocation)
          (when (buffer-live-p data-buf)
            (with-current-buffer data-buf (set-buffer-modified-p nil))

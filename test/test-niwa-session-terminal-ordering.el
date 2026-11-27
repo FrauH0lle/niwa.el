@@ -13,7 +13,7 @@
 (require 'niwa-agent-control)
 (require 'niwa-agent-conversation)
 
-(niwa-deftest niwa-agent-runtime--settle/checkpoint-ordering
+(niwa-deftest niwa-agent-control-settle/checkpoint-ordering
   (:doc "a nested hook cannot publish tentative terminal state before its transcript")
   (let* ((tempdir (file-name-as-directory
                    (make-temp-file "niwa-terminal-order-" t)))
@@ -57,10 +57,7 @@
                 '(("terminal-agent" :agent-type "default" :agent-path "/root/worker"
                    :description "Test agent" :path "agents/worker.chat.org"
                    :status running :created-at "created" :updated-at "updated"
-                   :parent-turn 0))
-                (niwa-agent-invocation-runtime-settle-callback invocation)
-                (lambda (inv response event &optional token)
-                  (niwa-agent-control--settle session record inv response event token)))
+                   :parent-turn 0)))
           (with-current-buffer child
             (niwa-chat-prepare-transcript-buffer)
             (setq-local niwa--session session niwa--workspace workspace
@@ -85,7 +82,7 @@
           ;; Real runtime finalization stages the registry and RESULT before
           ;; this hook. Its rollback must not leave that state committed.
           (let ((failure (should-error
-                          (niwa-agent-runtime--settle invocation "Finished result")
+                          (niwa-agent-control-settle invocation "Finished result")
                           :type 'user-error)))
             (should (equal "Session checkpoint is being prepared"
                            (error-message-string failure))))

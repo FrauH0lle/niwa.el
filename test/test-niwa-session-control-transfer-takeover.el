@@ -131,7 +131,7 @@ KIND is `project' or `file'.  The holder renews once as host desktop."
   "Register a running agent turn on OWNER; return a cell set when it is cancelled.
 The turn's native canceller stands in for a provider request; interruption
 itself runs the real runtime path, including its publication gate.
-With SETTLE, run the real terminal settlement callback as well."
+With SETTLE, the canceller lets the real terminal settlement run as well."
   (let* ((cell (list nil))
          (invocation (niwa-agent-invocation--create
                       :agent-id "busy" :path "/root/busy" :parent-session owner
@@ -142,9 +142,6 @@ With SETTLE, run the real terminal settlement callback as well."
          (record (niwa-agent-record--create
                   :id "busy" :path "/root/busy" :parent-path "/root"
                   :activity 'running :invocation invocation)))
-    (when settle
-      (setf (niwa-agent-invocation-runtime-settle-callback invocation)
-            (apply-partially #'niwa-agent-control--settle owner record)))
     (setf (niwa-session-agent-registry owner)
           (list (cons "/root/busy" record)))
     cell))

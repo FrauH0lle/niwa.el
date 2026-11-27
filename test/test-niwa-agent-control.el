@@ -60,7 +60,7 @@
   "Stage a settlement with ARGS; in-memory fixtures have no lease to admit."
   (cl-letf (((symbol-function 'niwa-session-artifacts-assert-mutation-authority)
              #'ignore))
-    (apply #'niwa-agent-control--settle args)))
+    (apply #'niwa-agent-control--stage args)))
 
 (defun niwa-agent-control-test--settle
     (session record invocation response &optional event)
@@ -74,7 +74,7 @@
        (funcall (car transaction))
        (signal (car err) (cdr err))))
     (funcall (cdr transaction))
-    (niwa-agent-control-settlement-finished session)
+    (niwa-agent-control--schedule-agent-wakes session)
     transaction))
 
 (niwa-deftest niwa-agent-control-active-activity-p ()
@@ -139,7 +139,7 @@
          release-wait release-permission stale-release)
     (setf (niwa-session-agent-registry session)
           (list (cons "/root/worker" record)))
-    (let ((niwa-agent-control-suppress-persistence t))
+    (let ((niwa-agent-control--suppress-persistence t))
       (setq release-wait
             (niwa-agent-control-block-turn
              session "/root/worker" 'waiting)
@@ -407,7 +407,7 @@
   (let ((session (niwa-agent-control-test--session)))
     (should (niwa-agent-control-commit-session session))
     (setf (niwa-session-save-path session) temporary-file-directory)
-    (let ((niwa-agent-control-suppress-persistence t))
+    (let ((niwa-agent-control--suppress-persistence t))
       (should (niwa-agent-control-commit-session session)))))
 
 (niwa-deftest niwa-agent-control--persist-session ()
@@ -447,7 +447,7 @@
   (let ((session (niwa-agent-control-test--session)))
     (should-not (niwa-agent-control--persist-session session))
     (setf (niwa-session-save-path session) temporary-file-directory)
-    (let ((niwa-agent-control-suppress-persistence t))
+    (let ((niwa-agent-control--suppress-persistence t))
       (should-not (niwa-agent-control--persist-session session))
       (should-not (gethash
                    session
@@ -761,7 +761,7 @@
            offered)
       (unless (eq mode 'consumed)
         (setf (niwa-session-messages session) (list result)))
-      (let ((niwa-agent-control-suppress-persistence (eq mode 'recovery)))
+      (let ((niwa-agent-control--suppress-persistence (eq mode 'recovery)))
         (cl-letf (((symbol-function 'niwa-pending-inputs-offer-root-event)
                    (lambda (&rest _) (setq offered t))))
           (niwa-agent-control--deliver-mail session "/root" result)))
@@ -915,7 +915,7 @@
     (should (equal id (niwa-agent-control--settlement-mail-id invocation 'result)))
     (should-not (equal id (niwa-agent-control--settlement-mail-id invocation 'execution)))))
 
-(niwa-deftest niwa-agent-control--settle ()
+(niwa-deftest niwa-agent-control--stage ()
   ,test
   (test)
   :doc "authority preflight runs before terminal staging and snapshots nested arrivals"
@@ -937,8 +937,8 @@
                    (when failure (error "Target acknowledgement failed"))
                    t)))
         (if failure
-            (should-error (niwa-agent-control--settle session record invocation "answer"))
-          (setq transaction (niwa-agent-control--settle session record invocation "answer"))))
+            (should-error (niwa-agent-control--stage session record invocation "answer"))
+          (setq transaction (niwa-agent-control--stage session record invocation "answer"))))
       (should entered)
       (when transaction (funcall (car transaction)))
       (should (eq 'running (niwa-agent-record-activity record)))
@@ -1134,7 +1134,7 @@
                   :activity 'running :invocation invocation))
          ;; The runtime binds this around the whole settlement, so an
          ;; arrival for the already-idle record waits instead of starting it.
-         (niwa-agent-control-settling (list invocation))
+         (niwa-agent-control--settling (list invocation))
          transaction execution-id)
     (setf (niwa-session-agent-registry session) (list (cons "/root/work" record)))
     (niwa-agent-control-enqueue-execution-result session "/root/work" "unread execution")
@@ -1323,7 +1323,7 @@
       (should-not reasons)
       (should (niwa-session-agent-root-waiter session)))
     ;; A later successful publication retains the effective nil effort.
-    (let ((niwa-agent-control-suppress-persistence t))
+    (let ((niwa-agent-control--suppress-persistence t))
       (niwa-agent-control-test--settle
        session record invocation "retryable result"))
     (should (eq 'idle (niwa-agent-record-activity record)))
@@ -1769,6 +1769,78 @@
     (should (eq 'running (niwa-agent-record-activity record)))
     (should-not (niwa-agent-control-settled-result record)))
 
+  :doc "regression: an interrupt while the turn starts stops it once it is published"
+  (dolist (interrupt
+           (list (lambda (session)
+                   (niwa-agent-control-interrupt-user session "/root/worker"))
+                 (lambda (session)
+                   (niwa-agent-control-interrupt session "/root/worker"))))
+    (let* ((session (niwa-agent-control-test--session))
+           (buffer (generate-new-buffer " *agent-control-start-interrupt*"))
+           (record
+            (niwa-agent-record--create
+             :id "worker--retained" :path "/root/worker" :parent-path "/root"
+             :role "worker" :configuration (niwa-agent-control-test--configuration)
+             :activity 'idle :conversation-buffer buffer
+             :conversation-location "agents/worker.chat.org"))
+           cancelled during invocation)
+      (setf (niwa-session-agent-registry session)
+            (list (cons "/root/worker" record)))
+      (unwind-protect
+          (cl-letf
+              (;; In-memory fixtures have no lease to admit, as in
+               ;; `niwa-agent-control-test--stage-settle'.
+               ((symbol-function 'niwa-session-artifacts-assert-mutation-authority)
+                #'ignore)
+               ((symbol-function 'niwa-agent-runtime-dispatch)
+                (lambda (_agent _description _message &rest keys)
+                  ;; The provider is still starting: no invocation is recorded.
+                  (setq during (list (niwa-agent-record-activity record)
+                                     (funcall interrupt session)))
+                  (setq invocation
+                        (niwa-agent-invocation--create
+                         :agent-id "worker--retained" :path "/root/worker"
+                         :parent-session session :transcript-status 'running
+                         :runtime-cancel (lambda () (push t cancelled) nil)))
+                  (setf (niwa-agent-invocation-frozen-configuration invocation)
+                        (plist-get keys :frozen-configuration))
+                  (funcall (plist-get keys :on-invocation) invocation)
+                  invocation)))
+            (niwa-agent-control--activate session record "Start."))
+        (kill-buffer buffer))
+      (should (eq 'starting (car during)))
+      (should (cadr during))
+      (should (equal '(t) cancelled))
+      (should (niwa-agent-invocation-runtime-settled-p invocation))
+      (should (eq 'idle (niwa-agent-record-activity record)))
+      (should-not (niwa-agent-record-interrupt-requested record))
+      (let ((messages (niwa-session-messages session)))
+        (should (equal '(RESULT) (mapcar (lambda (m) (plist-get m :type)) messages)))
+        (should (eq 'interrupted (plist-get (car messages) :outcome))))))
+
+  :doc "a start that fails drops an interrupt requested while it was starting"
+  (let* ((session (niwa-agent-control-test--session))
+         (record
+          (niwa-agent-record--create
+           :id "worker--retained" :path "/root/worker" :parent-path "/root"
+           :configuration (niwa-agent-control-test--configuration)
+           :activity 'idle))
+         interrupted)
+    (setf (niwa-session-agent-registry session)
+          (list (cons "/root/worker" record)))
+    (cl-letf (((symbol-function 'niwa-agent-persistence-ensure-conversation)
+               #'ignore)
+              ((symbol-function 'niwa-agent-runtime-dispatch)
+               (lambda (&rest _)
+                 (niwa-agent-control-interrupt-user session "/root/worker")
+                 (error "Provider did not start")))
+              ((symbol-function 'niwa-agent-runtime-interrupt)
+               (lambda (&rest args) (push args interrupted))))
+      (should-error (niwa-agent-control--activate session record "Start.")))
+    (should-not interrupted)
+    (should (eq 'idle (niwa-agent-record-activity record)))
+    (should-not (niwa-agent-record-interrupt-requested record)))
+
   :doc "execution mail persists during activation and survives rollback"
   (dolist (outcome '(success error quit))
     (let* ((gptel--known-backends nil)
@@ -1855,28 +1927,17 @@
          (other-session (niwa-agent-control-test--session))
          (idle (niwa-agent-record--create :path "/root/idle" :activity 'idle)))
     (should (niwa-agent-control--startable-p session idle))
-    (let ((niwa-agent-control-settling
+    (let ((niwa-agent-control--settling
            (list (niwa-agent-invocation--create :parent-session session))))
       (should-not (niwa-agent-control--startable-p session idle)))
     ;; Another session's settlement offers only its own agents afterwards,
     ;; so it must not hold this session's start.
-    (let ((niwa-agent-control-settling
+    (let ((niwa-agent-control--settling
            (list (niwa-agent-invocation--create
                   :parent-session other-session))))
       (should (niwa-agent-control--startable-p session idle)))
     (setf (niwa-agent-record-activity idle) 'running)
     (should-not (niwa-agent-control--startable-p session idle))))
-
-(niwa-deftest niwa-agent-control-settlement-finished ()
-  ,test
-  (test)
-  :doc "offers the session's waiting agents a turn"
-  (let ((session (niwa-agent-control-test--session))
-        offered)
-    (cl-letf (((symbol-function 'niwa-agent-control--schedule-agent-wakes)
-               (lambda (value) (push value offered))))
-      (niwa-agent-control-settlement-finished session))
-    (should (equal (list session) offered))))
 
 (niwa-deftest niwa-agent-control--capacity-p ()
   ,test
@@ -3260,7 +3321,7 @@
          (record (niwa-agent-record--create
                   :path "/root/work" :parent-path "/root" :activity 'idle))
          ;; The settling agent already reads idle.
-         (niwa-agent-control-settling
+         (niwa-agent-control--settling
           (list (niwa-agent-invocation--create :parent-session session))))
     (setf (niwa-session-agent-registry session)
           (list (cons "/root/work" record)))

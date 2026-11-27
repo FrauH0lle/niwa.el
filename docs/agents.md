@@ -463,6 +463,9 @@ settlement races use the ordinary exactly-once settlement gate: whichever
 terminal event wins is the only RESULT. The tool result itself contains only
 the target's activity observed before the request and renders `Interrupted
 PATH` from the canonical event.
+An interrupt that arrives while a follow-up turn is still starting, before its
+provider request exists, is held on the agent and stops that turn as soon as it
+has started; a start that fails drops it.
 
 ## Inter-agent messaging (SendMessage)
 
@@ -681,6 +684,10 @@ gptel's post-response hooks may add transcript text; their extra checkpoint uses
 the existing debounced conversation save instead of extending the terminal
 callback. If settlement is still pending, that checkpoint remains synchronous.
 Explicit saves and teardown flush the pending checkpoint normally.
+A provider's terminal settlement that fails before its commit, such as a
+sidecar write during a network drop, is retried once after the provider
+callback has returned. If the retry fails too, it is reported and the turn
+keeps its slot until it is interrupted.
 Generated task background is ordinary persisted conversation context with its
 own structural type. Follow-ups and agent compaction therefore absorb it
 naturally without replaying or regenerating it.
@@ -714,7 +721,7 @@ so an unattended agent turn reaches disk before it settles. Emacs exit flushes t
 before root session ownership is released. `niwa-agent-exec.el` is the provider
 adapter: it owns
 the gptel request FSM, prompt dispatch, and streaming callback contract. It
-consumes its exactly-once terminal latch only after runtime settlement accepts
+consumes its exactly-once terminal latch only after turn settlement accepts
 the handoff; transformer or transcript-extraction failures become structured
 terminal errors, while a rejected runtime handoff remains pending for retry.
 Frozen request locals use one closed symbol schema owned by

@@ -2816,8 +2816,10 @@ instead discards it, and the late acknowledgement then finds it gone."
           (setf (niwa-execution--record-stop-p record) t)))
       (niwa-execution--finalize-discarded-record record managed-live-p))))
 
-(defun niwa-execution-stop-owner (session owner)
+(defun niwa-execution-stop-owner (session owner &optional invocation)
   "Discard every execution record belonging to OWNER in SESSION.
+With INVOCATION, discard only the records that turn started, so a later
+turn at the same OWNER path keeps its own.
 Return the number of executions selected."
   (let ((state (and session (niwa-session-execution-state session)))
         records)
@@ -2826,7 +2828,11 @@ Return the number of executions selected."
          (when (and (not (niwa-execution--idle-service-p record))
                     (equal owner
                            (niwa-execution--origin-owner
-                            (niwa-execution--record-origin record))))
+                            (niwa-execution--record-origin record)))
+                    (or (null invocation)
+                        (eq invocation
+                            (niwa-execution--origin-owner-context
+                             (niwa-execution--record-origin record)))))
            (push record records)))
       (dolist (record records)
         (niwa-execution--discard-record record 'owner-stopped)))

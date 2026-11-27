@@ -23,6 +23,7 @@
 (require 'niwa-session-artifacts)
 (require 'niwa-session-control-transfer)
 (require 'niwa-session-persistence)
+(require 'niwa-session-publication)
 (require 'niwa-structs)
 (require 'niwa-tool-task)
 (require 'niwa-tool-permission)
@@ -395,7 +396,12 @@
                 (lambda (invocation status &optional _token)
                   (push status finalizations)
                   (setf (niwa-agent-invocation-transcript-status invocation)
-                        status))))
+                        status)))
+               ;; Control stages the parent's RESULT; observe what it receives.
+               ((symbol-function 'niwa-agent-control--stage-invocation)
+                (lambda (_session inv response event &optional _token)
+                  (push (list inv response event) settlements)
+                  nil)))
             (let ((invocation
                    (niwa-agent-runtime-dispatch
                     agent "Explore" "Find the entry point."
@@ -405,10 +411,7 @@
                     :on-invocation
                     (lambda (inv)
                       (push 'invocation-published events)
-                      (setq seen-invocation inv))
-                    :on-settle
-                    (lambda (inv response event &optional _token)
-                      (push (list inv response event) settlements)))))
+                      (setq seen-invocation inv)))))
               (should (eq invocation seen-invocation))
               ;; The Goal-charged root request pays for the agent.
               (should (eq root-fsm
@@ -1259,11 +1262,7 @@ Each element is (NAME SEARCH-RESULT IN-TOOLCALL-ROSTER-P)."
            finalizations)
       (setf (niwa-session-agent-registry session)
             (list (cons "/root/explore" record))
-            (niwa-agent-invocation-parent-session invocation) session
-            (niwa-agent-invocation-runtime-settle-callback invocation)
-            (lambda (invocation response event &optional token)
-              (niwa-agent-control--settle
-               session record invocation response event token)))
+            (niwa-agent-invocation-parent-session invocation) session)
       (cl-letf (((symbol-function 'niwa-agent-runtime--execution-live-p)
                  (lambda (_invocation) live-p))
                 ((symbol-function 'niwa-agent-runtime--finalize)
@@ -1341,11 +1340,7 @@ Each element is (NAME SEARCH-RESULT IN-TOOLCALL-ROSTER-P)."
                   :activity 'running :invocation invocation)))
     (setf (niwa-session-agent-registry session)
           (list (cons "/root/explore" record))
-          (niwa-agent-invocation-parent-session invocation) session
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (invocation response event &optional token)
-            (niwa-agent-control--settle
-             session record invocation response event token)))
+          (niwa-agent-invocation-parent-session invocation) session)
     (cl-letf (((symbol-function 'niwa-agent-runtime--execution-live-p)
                (lambda (_invocation) nil))
               ((symbol-function 'niwa-agent-runtime--finalize) #'ignore))
@@ -1423,10 +1418,7 @@ Each element is (NAME SEARCH-RESULT IN-TOOLCALL-ROSTER-P)."
                (niwa-agent-invocation-parent-data-buffer invocation) parent
                (niwa-agent-invocation-runtime-pending-response invocation) "answer"
                (niwa-session-agent-registry session)
-               (list (cons "/root/explore" record))
-               (niwa-agent-invocation-runtime-settle-callback invocation)
-               (lambda (inv response event token)
-                 (niwa-agent-control--settle session record inv response event token)))
+               (list (cons "/root/explore" record)))
          (setf (niwa-agent-invocation-frozen-configuration invocation)
                (with-current-buffer parent
                  (niwa-agent-exec-freeze-configuration
@@ -1500,7 +1492,7 @@ Each element is (NAME SEARCH-RESULT IN-TOOLCALL-ROSTER-P)."
                ;; error. Retrying cleanup must neither reconsume nor republish it.
                (should-not (niwa-agent-invocation-runtime-settled-p invocation))
                (setq fail-delivery nil)
-               (niwa-agent-runtime--settle invocation "answer"))
+               (niwa-agent-control-settle invocation "answer"))
              (should (niwa-agent-invocation-runtime-settled-p invocation))
              (niwa-session-publication-barrier session)
              (should (equal '((t nil)) acks))))))))
@@ -1534,7 +1526,7 @@ Each element is (NAME SEARCH-RESULT IN-TOOLCALL-ROSTER-P)."
             (niwa-agent-invocation-runtime-execution-results invocation) siblings)
       (cl-letf (((symbol-function 'niwa-agent-runtime--execution-live-p)
                  (lambda (_) nil))
-                ((symbol-function 'niwa-agent-runtime--settle-1)
+                ((symbol-function 'niwa-agent-control--settle-1)
                  (lambda (&rest _) (signal condition '("Settlement failed")))))
         (condition-case err
             (niwa-agent-runtime-queue-execution-completion
@@ -1567,9 +1559,6 @@ Each element is (NAME SEARCH-RESULT IN-TOOLCALL-ROSTER-P)."
                    (niwa-agent-invocation-parent-data-buffer invocation) parent
                    (niwa-agent-invocation-runtime-pending-response invocation) "answer"
                    (niwa-session-agent-registry session) (list (cons "/root/explore" record))
-                   (niwa-agent-invocation-runtime-settle-callback invocation)
-                   (lambda (inv response event token)
-                     (niwa-agent-control--settle session record inv response event token))
                    (niwa-agent-invocation-frozen-configuration invocation)
                    (with-current-buffer parent
                      (niwa-agent-exec-freeze-configuration
@@ -1659,16 +1648,16 @@ ARTIFACT-P selects whether its sidecar counts as committed."
           (setf (niwa-agent-invocation-parent-session invocation) session
                 (niwa-agent-invocation-parent-data-buffer invocation) parent
                 (niwa-agent-invocation-transcript-relative-path invocation)
-                "agents/explorer.chat.org"
-                (niwa-agent-invocation-runtime-settle-callback invocation)
-                (lambda (&rest _)
-                  (push (list 'callback
-                              niwa-agent-control-suppress-persistence)
-                        events)
-                  (when niwa-agent-control-suppress-persistence
-                    (cons (lambda () (push 'rollback events))
-                          (lambda () (push 'delivery events))))))
-          (cl-letf (((symbol-function
+                "agents/explorer.chat.org")
+          (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+                     (lambda (&rest _)
+                       (push (list 'callback
+                                   niwa-agent-control--suppress-persistence)
+                             events)
+                       (when niwa-agent-control--suppress-persistence
+                         (cons (lambda () (push 'rollback events))
+                               (lambda () (push 'delivery events))))))
+                    ((symbol-function
                       'niwa-session-artifacts-artifact-present-p)
                      (lambda (seen-session logical)
                        (push (list 'presence logical) events)
@@ -1693,11 +1682,179 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                      (lambda (_session &optional _token)
                        (push 'commit events)
                        t)))
-            (niwa-agent-runtime--settle invocation "finished"))
+            (niwa-agent-control-settle invocation "finished"))
           (nreverse events))
       (kill-buffer child)
       (kill-buffer parent)
       (delete-directory save-path t))))
+
+(niwa-deftest niwa-agent-runtime--handle-provider-result (:quiet t)
+  ,test
+  (test)
+  :doc "regression: a failed terminal publication is retried once; a second failure is reported"
+  (dolist (failures '(1 2))
+    (test-niwa-publication-async--fixture
+     (lambda (session parent)
+       (let* ((child (generate-new-buffer " *provider-result-retry*"))
+              (invocation (niwa-agent-runtime-test--invocation child))
+              (record (niwa-agent-record--create
+                       :id "explorer--test" :role "explorer"
+                       :path "/root/explore" :parent-path "/root"
+                       :activity 'running :invocation invocation))
+              (publisher (symbol-function
+                          'niwa-session-artifacts-publish-agent-terminal-state))
+              (left failures) (attempts 0) signalled warnings)
+         (setf (niwa-agent-invocation-parent-session invocation) session
+               (niwa-agent-invocation-parent-data-buffer invocation) parent
+               (niwa-session-agent-registry session)
+               (list (cons "/root/explore" record))
+               (niwa-agent-invocation-frozen-configuration invocation)
+               (with-current-buffer parent
+                 (niwa-agent-exec-freeze-configuration
+                  "explorer" invocation
+                  (list :backend gptel-backend :model gptel-model)))
+               (niwa-agent-record-configuration record)
+               (niwa-agent-invocation-frozen-configuration invocation))
+         (with-current-buffer child
+           (org-mode)
+           (setq-local niwa--session session niwa--agent-invocation invocation)
+           (niwa-agent-runtime--setup-transcript invocation child)
+           (insert "* Agent Task: explore\n\nAgent answer\n"))
+         (setf (niwa-agent-record-conversation-location record)
+               (niwa-agent-invocation-transcript-relative-path invocation))
+         (cl-letf (((symbol-function 'niwa-agent-runtime--execution-live-p) #'ignore)
+                   ((symbol-function
+                     'niwa-session-artifacts-publish-agent-terminal-state)
+                    (lambda (&rest args)
+                      (cl-incf attempts)
+                      (when (> left 0)
+                        (cl-decf left)
+                        (error "Injected sidecar write failure"))
+                      (apply publisher args)))
+                   ((symbol-function 'display-warning)
+                    (lambda (_type message &rest _) (push message warnings))))
+           (condition-case err
+               (niwa-agent-runtime--handle-provider-result invocation "Agent answer")
+             (error (setq signalled (error-message-string err))))
+           ;; The provider callback still reports the failure it saw.
+           (should (equal "Injected sidecar write failure" signalled))
+           (should-not (niwa-agent-invocation-runtime-settled-p invocation))
+           (test-niwa-publication-async--wait (lambda () (= 2 attempts)))
+           (niwa-session-publication-barrier session)
+           ;; Exactly one retry: nothing else is queued for this turn.
+           (should-not (gethash (list 'agent-settle invocation)
+                                niwa-transport--pending)))
+         (if (= failures 1)
+             (progn
+               (should (niwa-agent-invocation-runtime-settled-p invocation))
+               (should (eq 'idle (niwa-agent-record-activity record)))
+               (should (equal '(RESULT)
+                              (mapcar (lambda (mail) (plist-get mail :type))
+                                      (test-niwa-publication-async--restored-mail
+                                       session))))
+               (should-not warnings))
+           (should-not (niwa-agent-invocation-runtime-settled-p invocation))
+           (should (eq 'running (niwa-agent-record-activity record)))
+           (should-not (test-niwa-publication-async--restored-mail session))
+           (should (cl-some (lambda (w) (string-match-p "Settlement retry of /root/explore failed" w))
+                            warnings)))
+         (should (= 2 attempts)))))))
+
+(niwa-deftest niwa-agent-runtime--retry-settlement
+  ()
+  ,test
+  (test)
+  :doc "regression: a delayed retry for a replaced record leaves the successor turn intact"
+  (test-niwa-publication-async--fixture
+   (lambda (session parent)
+     (let* ((child (generate-new-buffer " *stale-retry*"))
+            (old (niwa-agent-runtime-test--invocation child))
+            (record (niwa-agent-record--create
+                     :id "explorer--test" :role "explorer"
+                     :path "/root/explore" :parent-path "/root"
+                     :activity 'running :invocation old))
+            (root (niwa-workspace-root (niwa-session-workspace session)))
+            (niwa-sandbox-mode 'off)
+            (publisher (symbol-function
+                        'niwa-session-artifacts-publish-agent-terminal-state))
+            (fail t) (attempts 0) ended successor durable-before)
+       (unwind-protect
+           (progn
+             (setf (niwa-agent-invocation-parent-session old) session
+                   (niwa-agent-invocation-parent-data-buffer old) parent
+                   (niwa-session-agent-registry session)
+                   (list (cons "/root/explore" record))
+                   (niwa-agent-invocation-frozen-configuration old)
+                   (with-current-buffer parent
+                     (niwa-agent-exec-freeze-configuration
+                      "explorer" old (list :backend gptel-backend :model gptel-model)))
+                   (niwa-agent-record-configuration record)
+                   (niwa-agent-invocation-frozen-configuration old))
+             (with-current-buffer child
+               (org-mode)
+               (setq-local niwa--session session niwa--agent-invocation old)
+               (niwa-agent-runtime--setup-transcript old child)
+               (insert "* Agent Task: explore\n\nOld answer\n"))
+             (setf (niwa-agent-record-conversation-location record)
+                   (niwa-agent-invocation-transcript-relative-path old))
+             (cl-letf (((symbol-function 'niwa-agent-runtime--execution-live-p) #'ignore)
+                       ((symbol-function
+                         'niwa-session-artifacts-publish-agent-terminal-state)
+                        (lambda (&rest args)
+                          (cl-incf attempts)
+                          (when fail (error "Injected sidecar write failure"))
+                          (apply publisher args))))
+               (should-error
+                (niwa-agent-runtime--handle-provider-result old "Old answer"))
+               (should (gethash (list 'agent-settle old) niwa-transport--pending))
+               ;; Before the retry runs, a successor record and turn take the path.
+               (setq fail nil
+                     successor (niwa-agent-runtime-test--invocation child))
+               (setf (niwa-agent-invocation-parent-session successor) session
+                     (niwa-agent-invocation-parent-data-buffer successor) parent
+                     (niwa-agent-invocation-transcript-relative-path successor)
+                     (niwa-agent-invocation-transcript-relative-path old)
+                     (niwa-session-agent-registry session)
+                     (list (cons "/root/explore"
+                                 (niwa-agent-record--create
+                                  :id "explorer--test" :role "explorer"
+                                  :path "/root/explore" :parent-path "/root"
+                                  :activity 'running :invocation successor))))
+               (with-current-buffer child
+                 (setq-local niwa--agent-invocation successor)
+                 (goto-char (point-max))
+                 (insert "Successor work in progress\n"))
+               ;; The failed attempt left no durable transcript; nil is a state too.
+               (setq durable-before
+                     (ignore-errors
+                       (niwa-session-artifacts-read-artifact
+                        session (niwa-agent-invocation-transcript-relative-path old) t)))
+               (test-niwa-execution--start-managed
+                session root (list "sh" "-c" "sleep 30")
+                :owner "/root/explore" :owner-context successor)
+               (should (niwa-execution-owner-live-p session "/root/explore"))
+               (cl-letf (((symbol-function 'niwa-request-end)
+                          (lambda (&rest _) (push (current-buffer) ended))))
+                 (test-niwa-publication-async--wait
+                  (lambda () (not (gethash (list 'agent-settle old)
+                                           niwa-transport--pending))))
+                 (niwa-session-publication-barrier session)))
+             ;; The stale turn retired locally only.
+             (should (niwa-agent-invocation-runtime-settled-p old))
+             (should (= 1 attempts))
+             (should-not ended)
+             (should (niwa-execution-owner-live-p session "/root/explore"))
+             (should-not (niwa-agent-invocation-runtime-settled-p successor))
+             (should (eq successor (niwa-agent-record-invocation
+                                    (cdr (assoc "/root/explore"
+                                                (niwa-session-agent-registry session))))))
+             (should (equal durable-before
+                            (ignore-errors
+                              (niwa-session-artifacts-read-artifact
+                               session (niwa-agent-invocation-transcript-relative-path old) t))))
+             (should-not (test-niwa-publication-async--mail session))
+             (should-not (test-niwa-publication-async--restored-mail session)))
+         (niwa-execution-teardown-session session))))))
 
 (niwa-deftest niwa-agent-runtime--setup-transcript
   ()
@@ -1822,7 +1979,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                         (plist-get (gptel-fsm-info gptel--fsm-last) :data)))))
       (kill-buffer buffer))))
 
-(niwa-deftest niwa-agent-runtime--settle (:quiet t)
+(niwa-deftest niwa-agent-control-settle (:quiet t)
   ,test
   (test)
   :doc "successful retained-idle settlement closes owned tasks before parent RESULT"
@@ -1833,10 +1990,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                   :activity 'running :invocation invocation)))
     (setf (niwa-session-agent-registry session)
           (list (cons "/root/explore" record))
-          (niwa-agent-invocation-parent-session invocation) session
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (inv response event &optional token)
-            (niwa-agent-control--settle session record inv response event token)))
+          (niwa-agent-invocation-parent-session invocation) session)
     (with-temp-buffer
       (setq-local niwa--session session)
       (let ((niwa--agent-invocation invocation))
@@ -1848,7 +2002,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
        '(:tasks [(:subject "Parent follow-up" :blockedBy [1 2])]))
       ;; Exercise the real runtime and control settlement, not a direct call
       ;; to task finalization.  Retained idle is the public completion state.
-      (should (equal "Done" (niwa-agent-runtime--settle invocation "Done")))
+      (should (equal "Done" (niwa-agent-control-settle invocation "Done")))
       (should (eq 'idle (niwa-agent-record-activity record)))
       (should-not (niwa-agent-record-invocation record))
       (should (niwa-agent-invocation-runtime-settled-p invocation))
@@ -1870,17 +2024,14 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                     :activity 'running :invocation invocation)))
       (setf (niwa-session-agent-registry session)
             (list (cons "/root/explore" record))
-            (niwa-agent-invocation-parent-session invocation) session
-            (niwa-agent-invocation-runtime-settle-callback invocation)
-            (lambda (inv response event &optional token)
-              (niwa-agent-control--settle session record inv response event token)))
+            (niwa-agent-invocation-parent-session invocation) session)
       (with-temp-buffer
         (setq-local niwa--session session)
         (let ((niwa--agent-invocation invocation))
           (niwa-tool-task--handle-write
            '(:tasks [(:subject "Unfinished investigation" :status "in_progress")]
              :note "Still checking")))
-        (niwa-agent-runtime--settle
+        (niwa-agent-control-settle
          invocation nil (list :niwa-agent-terminal-status status
                               :error-details "Injected failure"))
         (should (eq 'idle (niwa-agent-record-activity record)))
@@ -1915,23 +2066,23 @@ ARTIFACT-P selects whether its sidecar counts as committed."
           (current-buffer)
           (niwa-agent-invocation-buffer invocation) (current-buffer)
           (niwa-agent-invocation-transcript-relative-path invocation)
-          "agents/test.chat.org"
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (&rest _)
+          "agents/test.chat.org")
+    (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+               (lambda (&rest _)
             (cons (lambda () (push 'rollback events))
                   (lambda () (push 'delivery events)))))
-    (cl-letf (((symbol-function
+              ((symbol-function
                 'niwa-session-artifacts-artifact-present-p)
                (lambda (&rest _) t))
               ((symbol-function 'niwa-agent-runtime--finalize) #'ignore)
               ((symbol-function
                 'niwa-session-artifacts-publish-agent-terminal-state)
                (lambda (&rest _) (signal 'quit nil)))
-              ((symbol-function 'niwa-agent-control-settlement-finished)
+              ((symbol-function 'niwa-agent-control--schedule-agent-wakes)
                (lambda (&rest _) (push 'finished events))))
       (should (equal '(quit)
                      (condition-case err
-                         (progn (niwa-agent-runtime--settle invocation "done")
+                         (progn (niwa-agent-control-settle invocation "done")
                                 nil)
                        (quit err))))
       (should (equal '(rollback finished) (nreverse events)))))
@@ -1947,13 +2098,13 @@ ARTIFACT-P selects whether its sidecar counts as committed."
           (current-buffer)
           (niwa-agent-invocation-buffer invocation) (current-buffer)
           (niwa-agent-invocation-transcript-relative-path invocation)
-          "agents/test.chat.org"
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (&rest _)
+          "agents/test.chat.org")
+    (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+               (lambda (&rest _)
             (push 'callback events)
             (cons (lambda () (push 'rollback events))
                   (lambda () (push 'delivery events)))))
-    (cl-letf (((symbol-function
+              ((symbol-function
                 'niwa-session-artifacts-artifact-present-p)
                (lambda (&rest _) t))
               ((symbol-function 'niwa-agent-runtime--finalize)
@@ -1963,12 +2114,12 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                (lambda (&rest _)
                  (push 'publication events)
                  (error "Commit unavailable")))
-              ((symbol-function 'niwa-agent-control-settlement-finished)
+              ((symbol-function 'niwa-agent-control--schedule-agent-wakes)
                (lambda (seen-session)
                  (should (eq session seen-session))
                  (push 'finished events))))
       (should-error
-       (niwa-agent-runtime--settle invocation "finished"))
+       (niwa-agent-control-settle invocation "finished"))
       ;; Even a failed settlement stops blocking new turns in the tree.
       (should (equal '(finalize callback publication rollback finished)
                      (nreverse events)))
@@ -1982,22 +2133,22 @@ ARTIFACT-P selects whether its sidecar counts as committed."
          (invocation (niwa-agent-runtime-test--invocation))
          (finished nil)
          (nested nil))
-    (setf (niwa-agent-invocation-parent-session invocation) session
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (&rest _)
+    (setf (niwa-agent-invocation-parent-session invocation) session)
+    (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+               (lambda (&rest _)
             (unless nested
               (setq nested t)
               ;; A terminal timer fires while the outer call is staging.
-              (should (memq invocation niwa-agent-control-settling))
-              (niwa-agent-runtime--settle invocation "again")
+              (should (memq invocation niwa-agent-control--settling))
+              (niwa-agent-control-settle invocation "again")
               (should-not finished))
             nil))
-    (cl-letf (((symbol-function 'niwa-agent-runtime--finalize) #'ignore)
-              ((symbol-function 'niwa-agent-control-settlement-finished)
+              ((symbol-function 'niwa-agent-runtime--finalize) #'ignore)
+              ((symbol-function 'niwa-agent-control--schedule-agent-wakes)
                (lambda (_session) (push t finished))))
-      (niwa-agent-runtime--settle invocation "finished"))
+      (niwa-agent-control-settle invocation "finished"))
     (should nested)
-    (should-not niwa-agent-control-settling)
+    (should-not niwa-agent-control--settling)
     (should (equal '(t) finished)))
 
   :doc "portable delivery retries without repeating its committed publication"
@@ -2013,16 +2164,16 @@ ARTIFACT-P selects whether its sidecar counts as committed."
           (current-buffer)
           (niwa-agent-invocation-buffer invocation) (current-buffer)
           (niwa-agent-invocation-transcript-relative-path invocation)
-          "agents/test.chat.org"
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (&rest _)
+          "agents/test.chat.org")
+    (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+               (lambda (&rest _)
             (cl-incf callbacks)
             (cons #'ignore
                   (lambda ()
                     (cl-incf deliveries)
                     (when (= deliveries 1)
                       (error "Delivery unavailable"))))))
-    (cl-letf (((symbol-function
+              ((symbol-function
                 'niwa-session-artifacts-artifact-present-p)
                (lambda (&rest _) t))
               ((symbol-function 'niwa-agent-runtime--finalize) #'ignore)
@@ -2032,7 +2183,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                  (cl-incf publications)
                  t)))
       (should-error
-       (niwa-agent-runtime--settle invocation "finished"))
+       (niwa-agent-control-settle invocation "finished"))
       (should-not
        (niwa-agent-invocation-runtime-settled-p invocation))
       (should
@@ -2042,7 +2193,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
             :phase)))
       (should
        (equal "finished"
-              (niwa-agent-runtime--settle
+              (niwa-agent-control-settle
                invocation "ignored duplicate"
                '(:niwa-agent-terminal-status error))))
       (should
@@ -2064,13 +2215,11 @@ ARTIFACT-P selects whether its sidecar counts as committed."
       (setq-local niwa-transcript-audit--buffer-record-bytes 42)
       (setf (niwa-agent-invocation-parent-session invocation) session
             (niwa-agent-invocation-parent-data-buffer invocation)
-            (current-buffer)
-            (niwa-agent-invocation-runtime-settle-callback invocation)
-            (lambda (&rest _) nil))
+            (current-buffer))
       (setq-local niwa--agent-invocation invocation)
       (cl-letf (((symbol-function 'niwa-agent-runtime--finalize) #'ignore))
         (should (equal "finished"
-                       (niwa-agent-runtime--settle invocation "finished"))))
+                       (niwa-agent-control-settle invocation "finished"))))
       (should (niwa-agent-invocation-runtime-settled-p invocation))
       ;; Markers a continuation reads survive; the payload does not.
       (should-not (plist-get (gptel-fsm-info gptel--fsm-last) :data))
@@ -2119,7 +2268,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                (lambda (timer) (setq cancelled timer)))
               ((symbol-function 'niwa-agent-runtime--finalize) #'ignore))
       (niwa-agent-runtime-bound-turn invocation 30)
-      (niwa-agent-runtime--settle invocation "done")
+      (niwa-agent-control-settle invocation "done")
       (should (eq 'budget-timer cancelled))
       (should-not
        (niwa-agent-invocation-runtime-budget-timer invocation))
@@ -2140,11 +2289,11 @@ ARTIFACT-P selects whether its sidecar counts as committed."
          abort-count)
     (unwind-protect
         (progn
-          (setf (niwa-agent-invocation-runtime-fsm invocation) fsm
-                (niwa-agent-invocation-runtime-settle-callback invocation)
-                (lambda (_invocation response _event &optional _token)
+          (setf (niwa-agent-invocation-runtime-fsm invocation) fsm)
+          (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+                     (lambda (_session _invocation response _event &optional _token)
                   (setq callback-response response)))
-          (cl-letf (((symbol-function 'run-at-time)
+                    ((symbol-function 'run-at-time)
                      (lambda (_seconds _repeat callback &rest args)
                        (setq timer-callback callback timer-args args)
                        'budget-timer))
@@ -2266,13 +2415,14 @@ ARTIFACT-P selects whether its sidecar counts as committed."
          abort-count)
     (unwind-protect
         (progn
-          (setf (niwa-agent-invocation-runtime-fsm invocation) fsm
-                (niwa-agent-invocation-runtime-settle-callback invocation)
-                (lambda (_invocation response _event &optional _token)
-                  (setq callback-count (1+ (or callback-count 0))
-                        callback-response response)))
+          (setf (niwa-agent-invocation-runtime-fsm invocation) fsm)
           (cl-letf
-              (((symbol-function 'niwa-agent-runtime--partial-text)
+              (((symbol-function 'niwa-agent-control--stage-invocation)
+                (lambda (_session _invocation response _event &optional _token)
+                  (setq callback-count (1+ (or callback-count 0))
+                        callback-response response)
+                  nil))
+               ((symbol-function 'niwa-agent-runtime--partial-text)
                 (lambda (&rest _) "useful partial work"))
                ((symbol-function 'niwa-agent-runtime--finalize)
                 (lambda (inv status &optional _token)
@@ -2310,7 +2460,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
         (progn
           (setf (niwa-agent-invocation-runtime-cancel invocation)
                 (lambda () (cl-incf cancel-count) 'deferred))
-          (cl-letf (((symbol-function 'niwa-agent-runtime--settle)
+          (cl-letf (((symbol-function 'niwa-agent-control-settle)
                      (lambda (&rest _) (setq settled t))))
             (should (string-match-p "stop" (niwa-agent-runtime-interrupt invocation "stop")))
             (niwa-agent-runtime-interrupt invocation "stop again")
@@ -2355,10 +2505,10 @@ ARTIFACT-P selects whether its sidecar counts as committed."
          settled)
     (unwind-protect
         (progn
-          (setf (niwa-agent-invocation-runtime-fsm invocation) fsm
-                (niwa-agent-invocation-runtime-settle-callback invocation)
-                (lambda (&rest _) (setq settled t)))
-          (cl-letf (((symbol-function 'gptel-abort)
+          (setf (niwa-agent-invocation-runtime-fsm invocation) fsm)
+          (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+                     (lambda (&rest _) (setq settled t)))
+                    ((symbol-function 'gptel-abort)
                      (lambda (_buffer) (error "Provider abort failed"))))
             (should
              (equal '(error "Provider abort failed")
@@ -2458,10 +2608,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
     (unwind-protect
         (progn
           (setf (niwa-agent-invocation-parent-session invocation) session
-                (niwa-agent-invocation-parent-data-buffer invocation) parent
-                (niwa-agent-invocation-runtime-settle-callback invocation)
-                (lambda (&rest _)
-                  (setq settled (1+ (or settled 0)))))
+                (niwa-agent-invocation-parent-data-buffer invocation) parent)
           (with-current-buffer parent
             (setq-local niwa--session session))
           (niwa-session-control-transfer-register-root-buffer session parent)
@@ -2490,7 +2637,10 @@ ARTIFACT-P selects whether its sidecar counts as committed."
           (with-timeout (5 (error "Timed out waiting for active Bash"))
             (while (not (file-exists-p active-path))
               (accept-process-output nil 0.01)))
-          (cl-letf (((symbol-function
+          (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+                     (lambda (&rest _)
+                  (setq settled (1+ (or settled 0)))))
+                    ((symbol-function
                       'niwa-session-persistence-update-transcript-entry)
                      #'ignore)
                     ((symbol-function 'niwa-agent-conversation-save)
@@ -2526,7 +2676,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
       (when (buffer-live-p parent) (kill-buffer parent))
       (delete-directory root t))))
 
-(niwa-deftest niwa-agent-runtime--defer-settlement ()
+(niwa-deftest niwa-agent-control--defer-settlement ()
   ,test
   (test)
   :doc "a held publication gate queues settlement and its run receives a fresh token"
@@ -2541,15 +2691,15 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                      (when (and gate-held (not token))
                        (setq queued (cons preparation failure))
                        t)))
-                  ((symbol-function 'niwa-agent-runtime--settle-1)
-                   (lambda (_invocation response event token)
+                  ((symbol-function 'niwa-agent-control--settle-1)
+                   (lambda (_invocation response event token &optional _superseded)
                      (push (list response event (current-buffer) token)
                            settled)))
-                  ((symbol-function 'niwa-agent-control-settlement-finished)
+                  ((symbol-function 'niwa-agent-control--schedule-agent-wakes)
                    #'ignore))
           (setq gate-held t)
           (with-current-buffer buffer
-            (niwa-agent-runtime--settle invocation "answer" '(:event)))
+            (niwa-agent-control-settle invocation "answer" '(:event)))
           (should queued)
           (should-not settled)
           ;; The gate releases: the preparation settles in its own buffer
@@ -2566,12 +2716,12 @@ ARTIFACT-P selects whether its sidecar counts as committed."
     (setf (niwa-agent-invocation-parent-session invocation) session)
     (cl-letf (((symbol-function 'niwa-session-publication-defer)
                (lambda (&rest _) nil))
-              ((symbol-function 'niwa-agent-runtime--settle-1)
-               (lambda (_invocation response _event token)
+              ((symbol-function 'niwa-agent-control--settle-1)
+               (lambda (_invocation response _event token &optional _superseded)
                  (push (list response token) settled)))
-              ((symbol-function 'niwa-agent-control-settlement-finished)
+              ((symbol-function 'niwa-agent-control--schedule-agent-wakes)
                #'ignore))
-      (niwa-agent-runtime--settle invocation "answer" nil 'owned))
+      (niwa-agent-control-settle invocation "answer" nil 'owned))
     (should (equal '(("answer" owned)) settled)))
   :doc "the token is forwarded to the publication owner's defer decision"
   (let* ((session (niwa-session--create))
@@ -2582,24 +2732,24 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                (lambda (_session _preparation &optional _failure token)
                  (setq seen token)
                  nil))
-              ((symbol-function 'niwa-agent-runtime--settle-1)
+              ((symbol-function 'niwa-agent-control--settle-1)
                #'ignore)
-              ((symbol-function 'niwa-agent-control-settlement-finished)
+              ((symbol-function 'niwa-agent-control--schedule-agent-wakes)
                #'ignore))
-      (niwa-agent-runtime--settle invocation "answer" nil 'owned))
+      (niwa-agent-control-settle invocation "answer" nil 'owned))
     (should (eq 'owned seen)))
   :doc "a nested settlement of the same turn is never deferred"
   (let* ((session (niwa-session--create))
          (invocation (niwa-agent-runtime-test--invocation))
-         (niwa-agent-control-settling (list invocation))
+         (niwa-agent-control--settling (list invocation))
          settled)
     (setf (niwa-agent-invocation-parent-session invocation) session)
     (cl-letf (((symbol-function 'niwa-session-publication-defer)
                (lambda (&rest _) (error "Must not defer")))
-              ((symbol-function 'niwa-agent-runtime--settle-1)
-               (lambda (_invocation response _event _token)
+              ((symbol-function 'niwa-agent-control--settle-1)
+               (lambda (_invocation response _event _token &optional _superseded)
                  (push response settled))))
-      (niwa-agent-runtime--settle invocation "inner"))
+      (niwa-agent-control-settle invocation "inner"))
     (should (equal '("inner") settled)))
   :doc "a deferred settlement reports no response to its caller"
   (let* ((session (niwa-session--create))
@@ -2607,7 +2757,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
     (setf (niwa-agent-invocation-parent-session invocation) session)
     (cl-letf (((symbol-function 'niwa-session-publication-defer)
                (lambda (&rest _) t)))
-      (should-not (niwa-agent-runtime--settle invocation "answer"))))
+      (should-not (niwa-agent-control-settle invocation "answer"))))
   :doc "a queued failure keeps its workspace after the origin buffer dies"
   (let* ((workspace (niwa-workspace--create :root "/project/origin/"))
          (session (niwa-session--create :workspace workspace))
@@ -2623,7 +2773,7 @@ ARTIFACT-P selects whether its sidecar counts as committed."
       (unwind-protect
           (with-current-buffer origin
             (setq-local niwa--session session)
-            (niwa-agent-runtime--settle invocation "answer"))
+            (niwa-agent-control-settle invocation "answer"))
         (kill-buffer origin)))
     (with-temp-buffer
       (setq-local niwa--session
@@ -2646,14 +2796,14 @@ ARTIFACT-P selects whether its sidecar counts as committed."
         (cl-letf (((symbol-function 'niwa-session-publication-defer)
                    (lambda (_session preparation &optional failure token)
                      (unless token (setq queued (cons preparation failure)) t)))
-                  ((symbol-function 'niwa-agent-runtime--settle-1)
+                  ((symbol-function 'niwa-agent-control--settle-1)
                    (lambda (&rest _)
                      (when committed
                        (setf (niwa-agent-invocation-runtime-pending-response invocation)
                              '(:phase committed)))
                      (error "Deferred step failed"))))
           (should
-           (niwa-agent-runtime--defer-settlement
+           (niwa-agent-control--defer-settlement
             invocation "answer" nil nil
             (lambda (success error) (push (list success error) acks))))
           (should-not acks)
@@ -2663,24 +2813,24 @@ ARTIFACT-P selects whether its sidecar counts as committed."
           (funcall (cdr queued) '(error "Repeated teardown failure"))))
       (should (equal (if committed '((t nil)) '((nil "Deferred step failed"))) acks)))))
 
-(niwa-deftest niwa-agent-runtime--settle-1/token ()
+(niwa-deftest niwa-agent-control--settle-1/token ()
   ,test
   (test)
   :doc "the gate token reaches finalization, the settle callback and the control commit"
   (let* ((session (niwa-session--create))
          (invocation (niwa-agent-runtime-test--invocation))
          seen)
-    (setf (niwa-agent-invocation-parent-session invocation) session
-          (niwa-agent-invocation-runtime-settle-callback invocation)
-          (lambda (_invocation _visible _event token)
+    (setf (niwa-agent-invocation-parent-session invocation) session)
+    (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+               (lambda (_session _invocation _visible _event token)
             (push (cons 'callback token) seen)
             (list 'transaction)))
-    (cl-letf (((symbol-function 'niwa-agent-runtime--finalize)
+              ((symbol-function 'niwa-agent-runtime--finalize)
                (lambda (_invocation _status &optional token)
                  (push (cons 'finalize token) seen)))
               ((symbol-function 'niwa-agent-control-commit-session)
                (lambda (_session &optional token) (push (cons 'commit token) seen))))
-      (niwa-agent-runtime--settle-1 invocation "answer" nil 'owned))
+      (niwa-agent-control--settle-1 invocation "answer" nil 'owned))
     (should (equal '((commit . owned) (callback . owned) (finalize . owned))
                    seen))))
 
@@ -2701,11 +2851,11 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                    t)))
               ((symbol-function 'niwa-agent-control-clear-agent-wakes)
                (lambda (&rest _) (push 'clear log)))
-              ((symbol-function 'niwa-agent-runtime--settle)
+              ((symbol-function 'niwa-agent-control-settle)
                (lambda (_invocation _response _event token)
                  (push (cons 'settle token) log)
                  "settled"))
-              ((symbol-function 'niwa-agent-control-settlement-finished)
+              ((symbol-function 'niwa-agent-control--schedule-agent-wakes)
                #'ignore))
       (setq gate-held t)
       (let ((result (niwa-agent-runtime-interrupt invocation "stop")))
@@ -2728,14 +2878,14 @@ ARTIFACT-P selects whether its sidecar counts as committed."
                (lambda (&rest _) nil))
               ((symbol-function 'niwa-agent-control-clear-agent-wakes)
                #'ignore)
-              ((symbol-function 'niwa-agent-runtime--settle)
+              ((symbol-function 'niwa-agent-control-settle)
                (lambda (&rest _) "settled")))
       (should (equal "settled"
                      (niwa-agent-runtime-interrupt invocation "stop"))))))
 
-(defun test-niwa-agent-runtime--dispatch-with-token (exec-run on-settle)
+(defun test-niwa-agent-runtime--dispatch-with-token (exec-run on-invocation)
   "Dispatch a retained turn under gate token `owned' using EXEC-RUN.
-ON-SETTLE, when non-nil, is the settle callback.  Return the recorded
+ON-INVOCATION, when non-nil, publishes the started invocation.  Return the recorded
 calls as (SAVES FINALIZES SETTLES) token lists, after the dispatch error."
   (let* ((parent (generate-new-buffer " *agent-runtime-token-parent*"))
          (agent-buffer (generate-new-buffer " *agent-runtime-token-child*"))
@@ -2755,7 +2905,7 @@ calls as (SAVES FINALIZES SETTLES) token lists, after the dispatch error."
                     ((symbol-function 'niwa-agent-runtime--finalize)
                      (lambda (_invocation _status &optional token)
                        (push token finalizes)))
-                    ((symbol-function 'niwa-agent-runtime--settle)
+                    ((symbol-function 'niwa-agent-control-settle)
                      (lambda (_invocation _response &optional _event token)
                        (push token settles)
                        nil))
@@ -2772,7 +2922,7 @@ calls as (SAVES FINALIZES SETTLES) token lists, after the dispatch error."
                     :retained-buffer agent-buffer
                     :retained-transcript "agents/explorer.chat.org"
                     :token 'owned
-                    (and on-settle (list :on-settle on-settle))))))
+                    (and on-invocation (list :on-invocation on-invocation))))))
       (kill-buffer agent-buffer)
       (kill-buffer parent))
     (list saves finalizes settles)))

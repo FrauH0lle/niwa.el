@@ -224,10 +224,7 @@
                 (niwa-session-agent-transcripts session)
                 '(("terminal-agent" :agent-type "default" :agent-path "/root/worker"
                    :description "Test agent" :path "agents/worker.chat.org"
-                   :status running :created-at "created" :updated-at "updated" :parent-turn 0))
-                (niwa-agent-invocation-runtime-settle-callback invocation)
-                (lambda (inv response event &optional _token)
-                  (niwa-agent-control--settle session record inv response event)))
+                   :status running :created-at "created" :updated-at "updated" :parent-turn 0)))
           (with-current-buffer child
             (niwa-chat-prepare-transcript-buffer)
             (setq-local niwa--session session niwa--workspace workspace
@@ -251,7 +248,7 @@
                      (error "Injected terminal checkpoint failure")))))
           (let ((failure
                  (should-error
-                  (niwa-agent-runtime--settle invocation "Tentative result") :type 'error)))
+                  (niwa-agent-control-settle invocation "Tentative result") :type 'error)))
             (should (equal "Injected terminal checkpoint failure"
                            (error-message-string failure))))
           (should entered)

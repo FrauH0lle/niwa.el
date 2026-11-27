@@ -8,6 +8,7 @@
 (require 'niwa-journal-test-support
          (file-name-concat (file-name-directory (or load-file-name buffer-file-name))
                            "niwa-journal-test-support"))
+(require 'niwa-agent-control)
 (require 'niwa-agent-runtime)
 (require 'niwa-session-publication)
 (require 'niwa-session-publication-test-helpers
@@ -159,21 +160,22 @@ Return a plist of the observed order and final state."
                  (niwa-agent-conversation-configure inv child)
                  (niwa-agent-runtime--setup-transcript inv child)
                  (insert "* Agent Task: check\n\nDurable gate task\n"))
-               (setf (niwa-agent-invocation-runtime-settle-callback inv)
-                     (lambda (_inv _visible _event token)
-                       (push (list 'callback (and token t)) log)
-                       nil))
+               
                ;; A real accepted preparation holds the gate; the settlement
                ;; must queue behind it and later run under its own token.
                (setf (niwa-session-publication-preparations session)
                      (list (cons (lambda (_token) (push 'earlier log)) nil)))
                (should (niwa-session-publication-busy-p session))
-               (cl-letf (((symbol-function 'niwa-session-publication-barrier)
+               (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+                          (lambda (_session _inv _visible _event token)
+                       (push (list 'callback (and token t)) log)
+                       nil))
+                         ((symbol-function 'niwa-session-publication-barrier)
                           (lambda (&rest args)
                             (push args barriers)
                             (apply barrier args))))
                  (should-not
-                  (niwa-agent-runtime--settle inv "finished" event))
+                  (niwa-agent-control-settle inv "finished" event))
                  (should-not (niwa-agent-invocation-runtime-settled-p inv))
                  (test-niwa-execution--wait
                   (lambda () (niwa-agent-invocation-runtime-settled-p inv))))
@@ -196,7 +198,7 @@ Return a plist of the observed order and final state."
            (kill-buffer child)))))
     result))
 
-(niwa-deftest niwa-agent-runtime--settle/busy-gate (:quiet t)
+(niwa-deftest niwa-agent-control-settle/busy-gate (:quiet t)
   ,test
   (test)
   :doc "a completed turn queues behind a real held gate and settles under its token"

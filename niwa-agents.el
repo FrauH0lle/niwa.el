@@ -521,7 +521,9 @@ and render-data markers are runtime-only caches for cheap live updates."
   runtime-fsm
   runtime-cancel
   (runtime-context nil :type list)
-  runtime-settle-callback
+  ;; Non-nil from dispatch until the started invocation is published; a
+  ;; terminal callback in that window cannot settle it.
+  (runtime-unpublished nil :type boolean)
   runtime-pending-response
   runtime-budget-timer
   (runtime-execution-results nil :type list)

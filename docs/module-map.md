@@ -245,10 +245,10 @@ Prompt / presets / agents
   niwa-agents.el           worker/explorer/verifier/reviewer definitions
   niwa-agent-conversation.el  retained conversation buffers, activity, and saves
   niwa-agent-directory.el  same-target workspace/worktree cwd validation without authority grants
-  niwa-agent-control.el    retained-agent tree addressing, turns, mail, waits
+  niwa-agent-control.el    retained-agent tree addressing, turns and their settlement, mail, waits
   niwa-agent-exec.el       sub-agent request runner and FSM handlers
   niwa-agent-persistence.el durable agent registry codec and cold hydration
-  niwa-agent-runtime.el    retained agent request lifecycle and settlement
+  niwa-agent-runtime.el    retained agent provider turns: start, transcript, end, interruption
   niwa-goal.el             phase-free Goal continuation controller
   niwa-schedule.el         session wake-ups: timing, store, one-timer scheduler, mailbox firing
   niwa-workspace-schedule.el workspace schedules: locked store, exclusive run claims, headless run sessions

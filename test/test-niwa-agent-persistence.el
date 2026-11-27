@@ -1090,7 +1090,7 @@ Each entry is (RELATIVE . CONTENT), or (RELATIVE . :delete) to remove it."
           (should-not (niwa-agent-record-conversation-buffer sibling))
           ;; A follow-up needs owned writable bytes, not the inspection buffer.
           (with-current-buffer parent
-            (let ((niwa-agent-control-suppress-persistence t))
+            (let ((niwa-agent-control--suppress-persistence t))
               (cl-letf (((symbol-function 'niwa-agent-runtime-dispatch)
                          (lambda (_agent _description _message &rest options)
                            (setq resident (plist-get options :retained-buffer)

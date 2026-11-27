@@ -25,6 +25,7 @@
 (require 'niwa-tools)
 (require 'niwa-transcript)
 (require 'niwa-transport)
+(require 'niwa-turn)
 (require 'niwa-view)
 (require 'niwa-view-agent)
 (require 'niwa-workspace)
@@ -1234,6 +1235,38 @@
 		   (should (eq invocation saved))
 		   (should-not
 		    (niwa-agent-invocation-transcript-save-timer invocation))))
+
+(niwa-deftest niwa-agent-conversation-retire ()
+  ,test
+  (test)
+  :doc "preserved: fenced retirement cancels its own pending save and ends only its own request"
+  (dolist (owner-p '(t nil))
+    (let* ((invocation (niwa-agent-invocation-create
+                        (niwa-agent--create :name "default")))
+           (buffer (generate-new-buffer " *agent-conversation-retire*"))
+           (niwa-agent-conversation-save-debounce 10)
+           ended writes)
+      (setf (niwa-agent-invocation-buffer invocation) buffer
+            (niwa-agent-invocation-transcript-status invocation) 'running)
+      (with-current-buffer buffer
+        (setq-local niwa--agent-invocation
+                    (if owner-p invocation
+                      (niwa-agent-invocation-create
+                       (niwa-agent--create :name "successor")))))
+      (unwind-protect
+          (cl-letf (((symbol-function 'niwa-agent-conversation--write)
+                     (lambda (&rest _) (push t writes)))
+                    ((symbol-function 'niwa-request-end)
+                     (lambda (&rest _) (push (current-buffer) ended))))
+            (niwa-agent-conversation-save invocation t)
+            (should (timerp (niwa-agent-invocation-transcript-save-timer invocation)))
+            (niwa-agent-conversation-retire invocation)
+            (should-not (niwa-agent-invocation-transcript-save-timer invocation))
+            (should (eq 'aborted (niwa-agent-invocation-transcript-status invocation)))
+            (should (equal (and owner-p (list buffer)) ended))
+            (should-not writes))
+        (niwa-agent-conversation--cancel-save invocation)
+        (kill-buffer buffer)))))
 
 (niwa-deftest niwa-agent-conversation-refresh ()
   ,test

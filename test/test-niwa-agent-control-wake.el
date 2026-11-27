@@ -63,8 +63,8 @@
                     ((symbol-function 'gptel--handle-wait)
                      (lambda (fsm)
                        (push (copy-tree (plist-get (gptel-fsm-info fsm) :data)) sent))))
-            (let* ((niwa-agent-control-settling (list old))
-                   (transaction (niwa-agent-control--settle session record old "Finished")))
+            (let* ((niwa-agent-control--settling (list old))
+                   (transaction (niwa-agent-control--stage session record old "Finished")))
               (with-current-buffer root
                 (niwa-agent-control-send-message session "/root/work" "settlement-notch"))
               (funcall (cdr transaction)))

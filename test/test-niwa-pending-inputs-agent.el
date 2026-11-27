@@ -40,7 +40,7 @@ ON-SAVE can deliver a report inside the real settlement transaction."
                   :info (list :buffer data-buf :niwa-request-id "original"
                               :backend nil :data (list :messages []))))
             (niwa-turn-settled-functions nil)
-            (niwa-agent-control-suppress-persistence nil)
+            (niwa-agent-control--suppress-persistence nil)
             (real-timer (symbol-function 'run-at-time))
             callbacks timers sent on-save)
        (with-current-buffer data-buf

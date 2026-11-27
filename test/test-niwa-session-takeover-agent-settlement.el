@@ -7,6 +7,7 @@
 
 ;;; Code:
 
+(require 'niwa-agent-control)
 (require 'niwa-agent-conversation)
 (require 'niwa-agent-exec)
 (require 'niwa-agent-runtime)
@@ -21,7 +22,7 @@
                             (or load-file-name buffer-file-name))
                            "niwa-session-publication-test-helpers"))
 
-(niwa-deftest niwa-agent-runtime--settle/takeover (:quiet t)
+(niwa-deftest niwa-agent-control-settle/takeover (:quiet t)
   ,test
   (test)
   :doc "owned settlement publishes, takeover settles only local runtime state"
@@ -55,8 +56,6 @@
                (gptel-make-fsm :state 'WAIT :info (list :buffer child))
                (niwa-agent-invocation-runtime-cancel invocation)
                (lambda () (setq cancelled t) nil)
-               (niwa-agent-invocation-runtime-settle-callback invocation)
-               (apply-partially #'niwa-agent-control--settle session record)
                (niwa-session-agent-registry session)
                (list (cons "/root/busy" record))
                (niwa-session-agent-transcripts session)
@@ -117,7 +116,7 @@
            (should (= 1 publications))
            (should (eq 'RESULT (plist-get (car (test-niwa-publication-async--restored-mail session)) :type)))))))))
 
-(niwa-deftest niwa-agent-runtime--settle/takeback (:quiet t)
+(niwa-deftest niwa-agent-control-settle/takeback (:quiet t)
   ,test
   (test)
   :doc "a deferred old terminal stays fenced after takeback; new turns publish"
@@ -149,8 +148,7 @@
                   nil "busy" "Keep working."
                   :path "/root/busy" :prepared-turn '(:prompt "Keep working.")
                   :frozen-configuration configuration
-                  :on-invocation (apply-partially #'niwa-agent-control--record-invocation session record)
-                  :on-settle (apply-partially #'niwa-agent-control--settle session record))))
+                  :on-invocation (apply-partially #'niwa-agent-control--record-invocation session record))))
          (setq child (niwa-agent-invocation-buffer invocation)
                old-generation (plist-get (niwa-session-lease session) :generation)
                old-epoch (niwa-session-ownership-epoch session))
@@ -214,8 +212,7 @@
                       nil "fresh" "New work."
                       :path "/root/fresh" :prepared-turn '(:prompt "New work.")
                       :frozen-configuration configuration
-                      :on-invocation (apply-partially #'niwa-agent-control--record-invocation session fresh-record)
-                      :on-settle (apply-partially #'niwa-agent-control--settle session fresh-record))))
+                      :on-invocation (apply-partially #'niwa-agent-control--record-invocation session fresh-record))))
              (should-not (niwa-agent-conversation-fenced-p fresh))
              (should (equal (niwa-session-ownership-epoch session)
                             (niwa-agent-invocation-ownership-epoch fresh)))
@@ -242,8 +239,7 @@
                        :retained-id (niwa-agent-invocation-agent-id fresh)
                        :retained-buffer (niwa-agent-invocation-buffer fresh)
                        :retained-transcript (niwa-agent-invocation-transcript-relative-path fresh)
-                       :on-invocation (apply-partially #'niwa-agent-control--record-invocation session fresh-record)
-                       :on-settle (apply-partially #'niwa-agent-control--settle session fresh-record)))))
+                       :on-invocation (apply-partially #'niwa-agent-control--record-invocation session fresh-record)))))
                (should-not (eq fresh next))
                (should (eq (niwa-agent-invocation-buffer fresh)
                            (niwa-agent-invocation-buffer next)))
@@ -253,7 +249,7 @@
                (should (= 2 publications))
                (should (niwa-session-control-fs-wait-async 5))))))))))
 
-(niwa-deftest niwa-agent-runtime--settle/reentrant-epoch (:quiet t)
+(niwa-deftest niwa-agent-control-settle/reentrant-epoch (:quiet t)
   ,test
   (test)
   :doc "authority checks and staged callbacks cannot publish a superseded epoch"
@@ -299,12 +295,12 @@
                 (should (niwa-session-control-transfer-acquire session root t))
                 (setq head (niwa-session-durability--lease-head
                             (niwa-session-durability--lease-path (niwa-session-save-path session))))))
-           (setf (niwa-agent-invocation-runtime-settle-callback invocation)
-                 (lambda (&rest args)
-                   (let ((transaction (apply #'niwa-agent-control--settle session record args)))
-                     (when (and armed (eq boundary 'staged)) (takeback))
-                     transaction)))
-           (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+           (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
+                      (lambda (_session &rest args)
+                        (let ((transaction (apply #'niwa-agent-control--stage session record args)))
+                          (when (and armed (eq boundary 'staged)) (takeback))
+                          transaction)))
+                     ((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
                      ((symbol-function 'niwa-session-artifacts-assert-mutation-authority)
                       (lambda (owner &rest args)
                         (prog1 (apply authority owner args)
@@ -313,7 +309,7 @@
                             (takeback)))))
                      ((symbol-function 'niwa-session-publication-publish)
                       (lambda (&rest args) (cl-incf publications) (apply publish args))))
-             (niwa-agent-runtime--settle invocation "Finished old answer."))
+             (niwa-agent-control-settle invocation "Finished old answer."))
            (should-not armed)
            (should (= 0 publications))
            (should (niwa-agent-invocation-runtime-settled-p invocation))
@@ -326,7 +322,7 @@
              (should (buffer-modified-p)))
            (should (niwa-session-control-fs-wait-async 5))))))))
 
-(niwa-deftest niwa-agent-runtime--settle/own-continuity (:quiet t)
+(niwa-deftest niwa-agent-control-settle/own-continuity (:quiet t)
   ,test
   (test)
   :doc "same-owner latch rotations and expired reclamation preserve settlement"
@@ -360,8 +356,7 @@
                     nil "busy" "Retain own work."
                     :path "/root/busy" :prepared-turn '(:prompt "Retain own work.")
                     :frozen-configuration configuration
-                    :on-invocation (apply-partially #'niwa-agent-control--record-invocation session record)
-                    :on-settle (apply-partially #'niwa-agent-control--settle session record))))
+                    :on-invocation (apply-partially #'niwa-agent-control--record-invocation session record))))
            (with-current-buffer (niwa-agent-invocation-buffer invocation)
              (goto-char (point-max))
              (insert (propertize "Same-owner answer.\n" 'gptel 'response)))
