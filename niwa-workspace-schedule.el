@@ -302,15 +302,54 @@ Signal for an ID that is not a canonical schedule id."
         (push run runs)))
     (sort runs (lambda (a b) (< (plist-get a :scheduled-at) (plist-get b :scheduled-at))))))
 
+(defun niwa-workspace-schedule-cleanup-runs (workspace cutoff)
+  "Remove recognized runs settled before CUTOFF from WORKSPACE's history."
+  (dolist (job (niwa-workspace-schedule-list workspace))
+    (let* ((id (plist-get job :id))
+           (file (niwa-workspace-schedule--path workspace id "schedule.eld"))
+           (paths (niwa-session-control-fs-list-directory
+                   (niwa-workspace-schedule--path workspace id "runs") "\\`[0-9]+\\.eld\\'")))
+      (let ((old (cl-remove-if-not
+                  (lambda (p)
+                    (let ((at (string-to-number (file-name-nondirectory p))))
+                      (and (< at cutoff) (not (eql at (plist-get job :last-scheduled-at)))
+                           (not (eql at (plist-get job :last-claimed-at)))))) paths)))
+        (dolist (batch (seq-partition old 64))
+          (let ((results (niwa-session-control-fs-run-program
+                          (mapcar (lambda (p) (list :op 'read :path p :optional t)) batch)))
+                proofs deletes)
+            (cl-loop for p in batch for result in results
+                     when (eq 'ok (plist-get result :status)) do
+                     (let* ((bytes (niwa-session-control-fs-program-value result))
+                            (run (niwa-workspace-schedule--parse bytes))
+                            (at (and (niwa-workspace-schedule-run-p run) (plist-get run :scheduled-at)))
+                            (proof (list :op 'verify :path p :content bytes)))
+                       (when (and at (equal id (plist-get run :schedule-id))
+                                  (equal p (niwa-workspace-schedule--run-path workspace id at))
+                                  (equal bytes (niwa-workspace-schedule--bytes run))
+                                  ;; Before the index is seeded, any open session might still be busy.
+                                  (or (plist-member job :last-claimed-at)
+                                      (not (niwa-workspace-schedule--overlap-candidate-p run)))
+                                  (memq (plist-get run :status) niwa-workspace-schedule-run-statuses)
+                                  (memq (plist-get run :outcome) '(done failed skipped expired))
+                                  (integerp (plist-get run :settled-at))
+                                  (< (plist-get run :settled-at) cutoff))
+                         (push proof proofs)
+                         (push (list :op 'delete-file :path p) deletes))))
+            (when deletes
+              (niwa-workspace-schedule--commit
+               workspace (cons (list :op 'verify :path file :content (niwa-workspace-schedule--bytes job))
+                               (nconc proofs deletes))))))))))
+
 (defun niwa-workspace-schedule--update-file (workspace path valid-p function
-                                                          &optional slot-p)
+                                                          &optional slot-p refreshing)
   "Replace store file PATH of WORKSPACE with FUNCTION's result.
 FUNCTION receives a copy of the current value and returns the new one; an
 `equal' result writes nothing.  VALID-P must accept the result.  A value
 changed meanwhile by another writer is read again and FUNCTION called again.
 When SLOT-P says a value counts against capacity and the new one does but
 the current one does not, the change is admitted within capacity.  Return
-the committed value."
+the committed value.  REFRESHING means the caller is already arming the timer."
   (cl-loop
    repeat 5
    do (pcase-let* ((`(,value . ,bytes)
@@ -328,7 +367,7 @@ the committed value."
                 (if (and slot-p (funcall slot-p new) (not (funcall slot-p value)))
                     (append (niwa-workspace-schedule-admit workspace) operations)
                   operations)))
-          (niwa-workspace-schedule--refresh workspace)
+          (unless refreshing (niwa-workspace-schedule--refresh workspace))
           (cl-return new))))
    finally (error "Schedule record %s keeps changing; try again" path)))
 
@@ -498,6 +537,24 @@ active or paused schedules."
       (make-directory (file-name-directory file) t)
       (with-temp-file file (prin1 root (current-buffer))))))
 
+(defun niwa-workspace-schedule--seed-overlap (workspace job)
+  "Index the prior overlap candidate of legacy JOB before arming WORKSPACE."
+  (let ((id (plist-get job :id)))
+    (when (and (plist-get job :last-scheduled-at) (not (plist-member job :last-claimed-at)))
+      (niwa-workspace-schedule--update-file
+       workspace (niwa-workspace-schedule--path workspace id "schedule.eld")
+       #'niwa-workspace-schedule-entry-p
+       (lambda (current)
+         (unless (plist-member current :last-claimed-at)
+           (setf (plist-get current :last-claimed-at)
+                 (cl-loop for run in (reverse (niwa-workspace-schedule-runs workspace id))
+                          for at = (plist-get run :scheduled-at)
+                          when (and (< at (plist-get current :last-scheduled-at))
+                                    (niwa-workspace-schedule--overlap-candidate-p run))
+                          return at)))
+         current)
+       nil t))))
+
 (defun niwa-workspace-schedule--refresh (workspace)
   "Schedule WORKSPACE's earliest active schedule and index the workspace.
 Return its due time, or nil when nothing is active.  Only startup restore
@@ -507,6 +564,7 @@ otherwise drop each other's entry."
          (active (seq-filter (lambda (schedule) (eq 'active (plist-get schedule :status)))
                              (niwa-workspace-schedule-list workspace)))
          (due (and active (cl-loop for job in active minimize (plist-get job :due)))))
+    (dolist (job active) (niwa-workspace-schedule--seed-overlap workspace job))
     (setq niwa-schedule--workspaces
           (cl-remove root niwa-schedule--workspaces :key #'car :test #'equal))
     (when due
@@ -619,13 +677,25 @@ A schedule that fails to fire is retried after `niwa-schedule-retry-delay'."
 ;;
 ;;; Runs
 
-(defun niwa-workspace-schedule--previous-busy-p (workspace id due)
-  "Return non-nil when the latest run of WORKSPACE's schedule ID still works.
-Check an open session locally; otherwise use its lease or its claim at DUE."
-  (when-let* ((run (cl-find-if (lambda (run) (or (plist-get run :session-id)
-                                                 (eq 'claimed (plist-get run :status))))
-                               (niwa-workspace-schedule-runs workspace id)
-                               :from-end t)))
+(defun niwa-workspace-schedule--overlap-candidate-p (run)
+  "Return non-nil when RUN has a session or may still launch one."
+  (or (plist-get run :session-id) (eq 'claimed (plist-get run :status))))
+
+(defun niwa-workspace-schedule--previous-run (workspace schedule)
+  "Return the last overlap candidate of SCHEDULE in WORKSPACE."
+  (when (and (plist-get schedule :last-scheduled-at) (not (plist-member schedule :last-claimed-at)))
+    (error "Missing overlap index; refresh before firing"))
+  (cl-loop for key in '(:last-scheduled-at :last-claimed-at)
+           for at = (plist-get schedule key)
+           for run = (and at (car (niwa-workspace-schedule--read
+                                   (niwa-workspace-schedule--run-path
+                                    workspace (plist-get schedule :id) at))))
+           when (and (niwa-workspace-schedule-run-p run)
+                     (niwa-workspace-schedule--overlap-candidate-p run)) return run))
+
+(defun niwa-workspace-schedule--previous-busy-p (workspace run due)
+  "Return non-nil when RUN in WORKSPACE still blocks the firing at DUE."
+  (when run
     (if-let* ((session-id (plist-get run :session-id))
               (open (cl-find-if
                      (lambda (entry)
@@ -651,6 +721,7 @@ Emacs fired it."
         (let* ((due (plist-get schedule :due))
                (expires (plist-get schedule :expires-at))
                (late (and expires (> now expires)))
+               (previous (niwa-workspace-schedule--previous-run workspace schedule))
                (next (and (not late) (niwa-schedule-next-run (plist-get schedule :timing) now)))
                (status (cond (late 'expired)
                              ((null next) 'finished)
@@ -662,9 +733,11 @@ Emacs fired it."
                                    :last-scheduled-at due))
                (run (list :schedule-id id :scheduled-at due :fired-at now
                           :status (cond (late 'expired)
-                                        ((niwa-workspace-schedule--previous-busy-p workspace id due)
+                                        ((niwa-workspace-schedule--previous-busy-p workspace previous due)
                                          'skipped)
                                         (t 'claimed)))))
+          ;; Keep the candidate if this run skips or never acquires a session.
+          (setf (plist-get updated :last-claimed-at) (plist-get previous :scheduled-at))
           (when (eq 'claimed (plist-get run :status))
             (setf (plist-get run :holder) (niwa-session-durability--holder)))
           (pcase (niwa-workspace-schedule--commit

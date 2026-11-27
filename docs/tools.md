@@ -1844,7 +1844,11 @@ shows when it fired, the outcome, and a link to the run session if one was
 created. `notified` means the run issued a failure notice or a non-duplicate
 `Notify`; it is not a delivery receipt from a desktop or phone. A duplicate
 `Notify` alone leaves the run `quiet`. `p` pauses, `r` resumes, and `d` asks
-before deleting the schedule and its history.
+before deleting the schedule and its history. The idle cleanup sweep after
+session activity removes settled run records older than `niwa-session-max-age-days`
+(default 30; `nil` disables expiry). It keeps unsettled runs and the records
+needed to decide whether the next run would overlap. Removing a history
+record does not delete its saved session.
 
 Standing jobs also lists **Session wake-ups**, grouped by session, including
 closed sessions in this workspace. These read-only rows show the note and

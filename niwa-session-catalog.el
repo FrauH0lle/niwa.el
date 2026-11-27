@@ -96,6 +96,9 @@
 (declare-function niwa-workspace-identity-read "niwa-workspace-identity" (root))
 (autoload 'niwa-workspace-identity-read "niwa-workspace-identity")
 
+;; `niwa-workspace-schedule'
+(autoload 'niwa-workspace-schedule-cleanup-runs "niwa-workspace-schedule")
+
 (defcustom niwa-session-max-age-days 30
   "Auto-cleanup threshold for old sessions, in days.
 
@@ -109,7 +112,9 @@ a portable session's last lease renewal must also be older.  Sessions
 with a live, publishing, mutating or transfer-reserved lease are skipped.
 Legacy pre-lease control state is always refused.  So are the
 `niwa-session-keep-recent-count' most-recently-updated sessions.  A nil
-value disables auto-cleanup entirely."
+value disables auto-cleanup entirely.  The idle activity sweep also expires
+workspace schedule run records by settlement time, retaining the records
+needed to check for overlapping runs."
   :type '(choice (integer :tag "Days")
           (const :tag "Disabled" nil))
   :group 'niwa)
@@ -1023,7 +1028,11 @@ nil when nothing was queued."
      (niwa-session-artifacts-sessions-dir workspace)
      (lambda ()
        (condition-case err
-           (niwa-session-persistence-cleanup-expired workspace)
+           (progn
+             (niwa-session-persistence-cleanup-expired workspace)
+             (when niwa-session-max-age-days
+               (niwa-workspace-schedule-cleanup-runs
+                workspace (- (float-time) (* niwa-session-max-age-days 86400)))))
          (error
           (niwa-diagnostic-message (niwa-diagnostic-scope workspace) "Session cleanup failed: %s"
                    (error-message-string err))))))))

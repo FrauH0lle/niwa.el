@@ -27,6 +27,7 @@
 (require 'niwa-turn)
 (require 'niwa-workspace-schedule)
 (require 'niwa-workspace-schedule-runs)
+(require 'niwa-transport)
 (require 'niwa-session-test-support
          (file-name-concat (file-name-directory (or load-file-name buffer-file-name))
                            "niwa-session-test-support"))
@@ -98,6 +99,50 @@ sessions, as an Emacs restart would."
       (should (equal (cons (+ now 1200) 1) (niwa-schedule-pending-summary workspace session)))
       (niwa-workspace-schedule-delete workspace (plist-get a :id))
       (should-not (niwa-schedule-pending-summary workspace session)))))
+
+(niwa-deftest niwa-workspace-schedule-run-retention ()
+  ,test
+  (test)
+  :doc "idle session cleanup expires only settled history not needed for overlap"
+  (niwa-workspace-schedule-test--with-workspace
+    (let* ((id (plist-get (niwa-workspace-schedule-test--create workspace) :id))
+           (dir (niwa-workspace-schedule--path workspace id "runs"))
+           (commit (symbol-function 'niwa-workspace-schedule--commit))
+           (niwa-session-max-age-days 30)
+           (cutoff (- (float-time) (* 30 86400))))
+      ;; Inactive legacy schedules have not had their overlap index seeded.
+      (niwa-workspace-schedule-set-paused workspace id t)
+      (dolist (row '((1 launched done "older") (2 launched done "latest")
+                     (3 launched nil nil) (4 skipped skipped nil) (5 expired expired nil)
+                     (6 skipped skipped nil) (7 future done nil) (8 skipped skipped nil)))
+        (pcase-let ((`(,at ,status ,outcome ,session) row))
+          (niwa-workspace-schedule--commit
+           workspace (list (list :op 'create :path (niwa-workspace-schedule--run-path workspace id at)
+                                 :content (prin1-to-string
+                                           (list :schedule-id (if (= at 8) "other" id)
+                                                 :scheduled-at at :fired-at at :status status
+                                                 :outcome outcome :session-id session
+                                                 :settled-at (if (= at 6) (floor (float-time)) at))))))))
+      (with-temp-file (file-name-concat dir "notes") (insert "keep"))
+      ;; Move the index between inspection and deletion, as another writer could.
+      (cl-letf (((symbol-function 'niwa-workspace-schedule--commit)
+                 (lambda (ws ops)
+                   (when (cl-find 'delete-file ops :key (lambda (op) (plist-get op :op)))
+                     (niwa-workspace-schedule-update ws id (lambda (job) (plist-put job :last-scheduled-at 4))))
+                   (funcall commit ws ops))))
+        (niwa-workspace-schedule-cleanup-runs workspace cutoff))
+      (should (file-exists-p (file-name-concat dir "4.eld")))
+      (niwa-workspace-schedule-cleanup-runs workspace cutoff)
+      (should (file-exists-p (file-name-concat dir "1.eld"))) ; unindexed legacy session
+      (niwa-workspace-schedule-update workspace id (lambda (job) (plist-put job :last-claimed-at 2)))
+      (let ((noninteractive nil) callback)
+        (cl-letf (((symbol-function 'niwa-transport-schedule-idle)
+                   (lambda (_table _key _tag _path thunk) (setq callback thunk))))
+          (niwa-session-persistence-schedule-cleanup workspace))
+        (should (file-exists-p (file-name-concat dir "1.eld")))
+        (funcall callback))
+      (should (equal (directory-files dir nil "\\`[^.]")
+                     '("2.eld" "3.eld" "4.eld" "6.eld" "7.eld" "8.eld" "notes"))))))
 
 (defun niwa-workspace-schedule-test--kill-runs (before)
   "Kill the session buffers created since buffer list BEFORE."
@@ -211,6 +256,22 @@ sessions, as an Emacs restart would."
                                (niwa-workspace-schedule-runs workspace id))))
         (should-not (plist-get (cadr (niwa-workspace-schedule-runs workspace id))
                                :session-id))
+        ;; A paused legacy schedule can be resumed without a startup restore.
+        (niwa-workspace-schedule-set-paused workspace id t)
+        (niwa-workspace-schedule-update workspace id
+                                        (lambda (job) (cl-remf job :last-claimed-at) job))
+        (delete-file (niwa-workspace-schedule--index-file
+                      (niwa-workspace-schedule--root workspace)))
+        (niwa-workspace-schedule-set-paused workspace id nil)
+        ;; A skip does not replace the busy session, or require reading history.
+        (cl-letf (((symbol-function 'niwa-workspace-schedule-runs)
+                   (lambda (&rest _) (error "Firing read the full run history"))))
+          (cl-incf now 1200)
+          (niwa-schedule-run-due))
+        (should (= 1 (length submitted)))
+        (should (equal '(launched skipped skipped)
+                       (mapcar (lambda (run) (plist-get run :status))
+                               (niwa-workspace-schedule-runs workspace id))))
         (niwa--turn-record-settlement (gptel-make-fsm :info (list :buffer first)) 'success)
         (setq now (+ now 1200))
         (niwa-schedule-run-due)
