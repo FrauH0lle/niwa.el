@@ -1863,9 +1863,11 @@ rebuilding the status area.
 The background-work cockpit (`[Manage]`, the main cockpit's `Background work`
 entry, or `/ps`) lists active agents and every live managed execution of the
 session, including foreground work. `k` stops an execution or interrupts an
-agent's turn, `C-c C-c` interrupts either, `i` sends a line to a PTY, and `o`
-opens an agent's transcript or an execution's artifact. Elapsed sorts by
-number rather than text.
+agent's turn. `C-c C-c` interrupts an agent's turn or a running execution.
+Executions cannot be interrupted on Windows, before launch, or during a
+Sandbox Eval call; use `k` to stop them instead. `i` sends a line to a PTY,
+and `o` opens an agent's transcript or an execution's artifact. Elapsed sorts
+by number rather than text.
 
 ## Live browser collaboration
 

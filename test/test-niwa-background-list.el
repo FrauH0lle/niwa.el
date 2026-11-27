@@ -12,6 +12,7 @@
           (file-name-directory (or buffer-file-name load-file-name))
           "niwa-report-test-support"))
 
+(require 'niwa-agent-control)
 (require 'niwa-background-list)
 (require 'niwa-cockpit)
 (require 'niwa-execution)
@@ -219,6 +220,27 @@
                (lambda (&rest args) (setq call args))))
       (niwa-background-list-interrupt))
     (should (equal (list #'niwa-execution-interrupt-user) call)))
+  :doc "explains unsupported interrupts without hiding unrelated errors"
+  (let ((session (niwa-session--create))
+        (record (niwa-execution--record-create
+                 :child (niwa-execution-process-create :spool-path "unused"))))
+    (cl-letf (((symbol-function 'niwa-cockpit-surface-selected)
+               (lambda () '(:execution-id "e")))
+              ((symbol-function 'niwa-background-list--session)
+               (lambda () session))
+              ((symbol-function 'niwa-execution--user-live-record)
+               (lambda (_session _id) record)))
+      (dolist (case '((windows-nt nil "unavailable on Windows")
+                      (gnu/linux t "Sandbox Eval cannot be interrupted in place; stop it instead")
+                      (gnu/linux nil "Execution has not started")))
+        (pcase-let ((`(,system-type ,service ,reason) case))
+          (setf (niwa-execution--record-service-call-p record) service)
+          (should (string-search reason (error-message-string
+                                         (should-error (niwa-background-list-interrupt)
+                                                       :type 'user-error))))))
+      (cl-letf (((symbol-function 'niwa-execution-interrupt-user)
+                 (lambda (&rest _) (signal 'niwa-execution-error '("other")))))
+        (should-error (niwa-background-list-interrupt) :type 'niwa-execution-error))))
   :doc "interrupts a selected agent's turn"
   (let (interrupted)
     (cl-letf (((symbol-function 'niwa-cockpit-surface-selected)

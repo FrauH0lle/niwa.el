@@ -2700,15 +2700,24 @@ after WAIT-MS while the process remains live."
   "Return non-nil while SESSION owns a process or pending result delivery.
 An unclaimed result after a failed delivery remains owner-pollable, but is
 not active work and cannot keep session transfer or history changes blocked."
+  (and (niwa-execution-session-live-description session) t))
+
+(defun niwa-execution-session-live-description (session)
+  "Describe live work in SESSION, preferring a Monitor the owner can stop."
   (when-let* ((state (and session
                           (niwa-session-execution-state session))))
-    (let (live-p)
-      (dolist (record (niwa-execution--state-record-list state))
-        (when (and (not (niwa-execution--idle-service-p record))
-                   (or (not (niwa-execution--record-finished-p record))
-                       (niwa-execution--record-delivery-pending-p record)))
-          (setq live-p t)))
-      live-p)))
+    (catch 'monitor
+      (let (description)
+        (dolist (record (niwa-execution--state-record-list state) description)
+          (when (and (not (niwa-execution--idle-service-p record))
+                     (or (not (niwa-execution--record-finished-p record))
+                         (niwa-execution--record-delivery-pending-p record)))
+            (when (and (eq (niwa-execution--record-kind record) 'monitor)
+                       (niwa-execution--managed-live-p record))
+              (throw 'monitor
+                     (format "Monitor %s (press k on its /ps row to stop it)"
+                             (niwa-execution--record-execution-id record))))
+            (setq description "a live execution")))))))
 
 (defun niwa-execution-session-live-spools (session)
   "Return spool paths still written by SESSION's unfinished executions."

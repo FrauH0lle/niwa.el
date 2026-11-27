@@ -347,8 +347,11 @@
                    (record (gethash id (niwa-execution--state-records
                                        (niwa-session-execution-state session)))))
               (pcase mode
-                ('stop (niwa-execution-stop session "/root" id
-                         (lambda (value) (setq stopped value))))
+                ('stop
+                 (should (equal (format "Monitor %s (press k on its /ps row to stop it)" id)
+                                (niwa-session-control-transfer-drain-blocker session)))
+                 (niwa-execution-stop session "/root" id
+                   (lambda (value) (setq stopped value))))
                 ('teardown (niwa-execution-teardown-session session)))
               (unless (eq mode 'teardown)
                 (test-niwa-execution--wait
@@ -360,7 +363,9 @@
                        (facts (plist-get terminal :facts)))
                   (should (eq (plist-get facts :termination)
                               (pcase mode ('expiry 'timed-out) ('flood 'flood) (_ 'stopped))))
-                  (when (eq mode 'stop) (should stopped))
+                  (when (eq mode 'stop)
+                    (should stopped)
+                    (should-not (niwa-session-control-transfer-drain-blocker session)))
                   (accept-process-output nil 0.25)
                   (should (= 1 (cl-count 'terminal events :key (lambda (e) (plist-get e :type)))))))))
         (niwa-execution-teardown-session session)

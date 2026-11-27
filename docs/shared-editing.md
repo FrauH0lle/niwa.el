@@ -774,7 +774,11 @@ each other's commits. Embedded images travel with their item's
 state. Ordinary read-only artifact addresses gain no new mutation capability.
 Requests and helper replies arriving during a remote file operation retain
 their continuations until the transport is idle, so TRAMP's temporary timer
-lists cannot strand the workspace queue.
+lists cannot strand the workspace queue. If the helper does not answer within
+30 seconds, only its current request expires; a late result can no longer
+save it. Emacs gives the helper five more seconds to answer that request or
+a separate status check. Either reply lets the next room use the same helper.
+With neither reply, Emacs discards the helper and starts a fresh one as needed.
 
 Across Emacs instances, an item lease decides who may commit
 (`niwa-artifact-lease.el`). It lives outside the store, under

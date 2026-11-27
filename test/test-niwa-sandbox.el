@@ -131,7 +131,14 @@
                   :permission-mode 'edits :sandbox-mode 'best-effort)))
     (should (eq 'required (niwa-sandbox-mode-effective session)))
     (setf (niwa-session-permission-mode session) 'full-auto)
-    (should (eq 'off (niwa-sandbox-mode-effective session)))
+    (let ((mode (niwa-sandbox-mode-effective session)))
+      (should (eq 'off mode))
+      (dolist (facts (list (niwa-sandbox-pending-facts nil nil mode)
+                           (plist-get (niwa-sandbox-prepare
+                                       '("true") default-directory nil nil nil mode)
+                                      :facts)))
+        (should (equal (plist-get facts :reason)
+                       "Confinement is off (Full Access or an off sandbox preference)"))))
     (should (eq 'best-effort (niwa-session-sandbox-mode session)))
     (setf (niwa-session-permission-mode session) 'ask)
     (should (eq 'best-effort (niwa-sandbox-mode-effective session)))
@@ -1384,7 +1391,7 @@ a disabled transport cleans immediately instead of dropping work"
   (should
    (equal
     '(:sandbox off :filesystem unrestricted :network unrestricted
-      :reason "Confinement disabled by niwa-sandbox-mode")
+      :reason "Confinement is off (Full Access or an off sandbox preference)")
     (niwa-sandbox-pending-facts
      '(:network t) 'require-escalated 'off)))
   :doc "probes the pending command's remote execution target"

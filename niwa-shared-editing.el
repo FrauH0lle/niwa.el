@@ -546,6 +546,8 @@ The edit that was to continue them did not commit."
     (with-silent-modifications
       (delete-region (point-min) (- (point-max) 65536)))))
 
+(defconst niwa-shared-editing--timed-out "Shared editing helper timed out; edit was not saved")
+
 (defun niwa-shared-editing--process (runtime &optional restart)
   "Return RUNTIME's private helper, starting it if needed or RESTART is non-nil."
   ;; Configuration changes take effect between jobs, without cancelling the
@@ -602,13 +604,20 @@ The edit that was to continue them did not commit."
                              (process-put child :partial-bytes 0)
                              (when-let* ((job (plist-get runtime :active)))
                                (condition-case err
-                                   (let ((reply (niwa-shared-editing--parse line)))
-                                     (when (equal (plist-get reply :requestId)
-                                                  (plist-get job :requestId))
+                                   (let* ((reply (niwa-shared-editing--parse line))
+                                          (id (plist-get reply :requestId))
+                                          (probe (plist-get job :probe)))
+                                     (when (or (equal id (plist-get job :requestId))
+                                               (and probe (equal id probe)))
+                                       (when-let* ((timer (plist-get runtime :timeout)))
+                                         (cancel-timer timer)
+                                         (plist-put runtime :timeout nil))
                                        (plist-put runtime :timer
                                                   (niwa-transport-run-at-time
-                                                   0 #'niwa-shared-editing--accept
-                                                   runtime job reply))))
+                                                   0 (if probe #'niwa-shared-editing--finish
+                                                       #'niwa-shared-editing--accept)
+                                                   runtime job (if probe (list :error niwa-shared-editing--timed-out)
+                                                                 reply)))))
                                  ;; Finishing can commit a batch; never from
                                  ;; inside a filter that may run in a remote
                                  ;; operation.
@@ -637,6 +646,23 @@ characters so UTF-8 encoding never splits a character between writes."
       (let ((end (min length (+ offset 1024))))
         (process-send-string process (substring text offset end))
         (setq offset end)))))
+
+(defun niwa-shared-editing--deadline (runtime job process &optional probing)
+  "Expire RUNTIME's JOB.  Retire PROCESS only if already PROBING its health."
+  (when (and (eq job (plist-get runtime :active)) (plist-get runtime :timeout))
+    (if probing
+        (progn
+          (set-process-sentinel process #'ignore)
+          (delete-process process)
+          (niwa-shared-editing--finish runtime job (list :error niwa-shared-editing--timed-out)))
+      (unless (plist-get job :probe)
+        (let ((probe (- (plist-get job :requestId))))
+          (plist-put job :probe probe)
+          (plist-put runtime :timeout
+                     (run-at-time 5 nil #'niwa-shared-editing--deadline runtime job process t))
+          ;; Never interleave JSON frames if the original pipe write is blocked.
+          (when (plist-get job :sent)
+            (niwa-shared-editing--send process (list :action "status" :requestId probe))))))))
 
 ;; ponytail: one queue and helper per workspace serializes every item there;
 ;; split per item only if unrelated boards measurably wait on each other.
@@ -746,11 +772,11 @@ characters so UTF-8 encoding never splits a character between writes."
                   (funcall current)
                   ;; A check starts fresh so repaired resources and runtime
                   ;; changes are verified, without discarding queued work.
-                  (niwa-shared-editing--send
-                   (niwa-shared-editing--process runtime (equal action "status")) args)
-                  (plist-put runtime :timeout
-                             (run-at-time
-                              30 nil (lambda () (niwa-shared-editing-stop runtime))))))))
+                  (let ((process (niwa-shared-editing--process runtime (equal action "status"))))
+                    (plist-put runtime :timeout
+                               (run-at-time 30 nil #'niwa-shared-editing--deadline runtime job process))
+                    (niwa-shared-editing--send process args)
+                    (plist-put job :sent t))))))
           ;; A quit during target I/O must settle the job too, or the
           ;; workspace queue would wait for it forever.
           ((error quit)

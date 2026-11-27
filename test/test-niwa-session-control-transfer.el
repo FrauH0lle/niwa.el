@@ -247,8 +247,8 @@
     (setf (niwa-session-pending-publication session) t)
     (should (equal "a publication"
                    (niwa-session-control-transfer-drain-blocker session)))
-    (cl-letf (((symbol-function 'niwa-execution-session-live-p)
-               (lambda (_session) t)))
+    (cl-letf (((symbol-function 'niwa-execution-session-live-description)
+               (lambda (_session) "a live execution")))
       ;; A live execution outranks a queued publication: it is the wait the
       ;; user can actually end.
       (should (equal "a live execution"

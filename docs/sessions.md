@@ -1500,6 +1500,11 @@ against a busy owner sits in `quiescing` until the work it is waiting on
 finishes. Only the owner can say what that work is, so the owner's surface
 names the blocker and the requester's says just that it is waiting.
 
+A live Monitor holds the handoff open even when it has no events. To hand
+over before it exits or its timeout expires (up to one hour), open `/ps` on
+the owning machine and press `k` on the Monitor row named in the banner.
+The Monitor does not restart on the new owner.
+
 `niwa-take-control`, also bound to the read-only interaction's `r` key,
 routes
 on lease state: an unheld or expired lease is acquired directly, because

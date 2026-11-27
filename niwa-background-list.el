@@ -365,8 +365,11 @@
   "Call execution user control FUNCTION with the selected execution and ARGS."
   (let* ((session (niwa-background-list--session))
          (id (plist-get (niwa-background-list--selected-execution) :execution-id)))
-    (condition-case nil
+    (condition-case err
         (apply function session id args)
+      (niwa-execution-input-error
+       (niwa-diagnostic-user-error (niwa-diagnostic-scope session)
+                                   "%s" (cadr err)))
       (niwa-execution-not-found
        (niwa-cockpit-surface-refresh)
        (niwa-diagnostic-user-error (niwa-diagnostic-scope session)

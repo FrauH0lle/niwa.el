@@ -1369,7 +1369,7 @@ WORKDIR identifies the execution target that the pending child will use."
       (niwa-sandbox--unrestricted-facts
        (if (eq mode 'off) 'off 'escalated)
        (if (eq mode 'off)
-           "Confinement disabled by niwa-sandbox-mode"
+           "Confinement is off (Full Access or an off sandbox preference)"
          "Full execution escalation requested")))
      ((memq mode '(best-effort required))
       (let ((availability
@@ -1596,7 +1596,7 @@ SCOPE identifies the originating workspace for local diagnostics."
     (pcase mode
       ('off
        (niwa-sandbox--direct-preparation
-        command 'off "Confinement disabled by niwa-sandbox-mode"))
+        command 'off "Confinement is off (Full Access or an off sandbox preference)"))
       ((or 'best-effort 'required)
        (let* ((target (and workdir (file-remote-p workdir)))
               (cached (alist-get target niwa-sandbox--probe-cache

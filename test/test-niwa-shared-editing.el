@@ -484,6 +484,51 @@
                                                     :title "P" :actor "Alice" :opId "two"))
                                        :error)))))
 
+(niwa-deftest niwa-shared-editing-timeout
+  (:doc "only the expired edit fails; only an unresponsive helper is replaced")
+  (niwa-shared-editing-test--with-workspace
+    (let ((case ,scenario)
+          (runtime (niwa-shared-editing--runtime workspace))
+          (send (symbol-function 'niwa-shared-editing--send))
+          first second probe old-timer replies)
+      (cl-letf (((symbol-function 'niwa-shared-editing--send)
+                 (lambda (process args)
+                   (pcase (plist-get args :id)
+                     ("first"
+                      (setq first process)
+                      (unless (eq case 'probe-reply)
+                        (stop-process process)
+                        (funcall send process args)))
+                     ("second"
+                      (setq second process)
+                      (apply (timer--function old-timer) (timer--args old-timer))
+                      (funcall send process args))
+                     (_ (setq probe args)
+                        (unless (eq case 'late-reply) (funcall send process args)))))))
+        (dolist (id '("first" "second"))
+          (niwa-shared-editing-call
+           workspace (list :action "create" :kind "document" :id id :actor "Alice"
+                           :title id :opId id)
+           (lambda (reply) (push reply replies))))
+        (niwa-test--await 5 "first room sent" (and first (plist-get runtime :timeout)))
+        (setq old-timer (plist-get runtime :timeout))
+        (cancel-timer old-timer)
+        (apply (timer--function old-timer) (timer--args old-timer))
+        (should (equal (plist-get probe :action) "status"))
+        (pcase case
+          ('late-reply (continue-process first))
+          ('wedged (let ((timer (plist-get runtime :timeout)))
+                     (apply (timer--function timer) (timer--args timer)))))
+        (niwa-test--await 10 "both rooms settled" (= 2 (length replies)))
+        (should-not (plist-get (car replies) :error))
+        (should (string-match-p "timed out" (plist-get (cadr replies) :error)))
+        (should (eq (eq first second) (not (eq case 'wedged))))
+        (should (eq (not (process-live-p first)) (eq case 'wedged)))
+        (should-not (niwa-shared-editing-present-p workspace "first"))
+        (should (equal "second" (plist-get (niwa-shared-editing--read workspace "second") :title))))))
+  (scenario)
+  'wedged 'late-reply 'probe-reply)
+
 (niwa-deftest niwa-shared-editing-stop
   ()
   ,test (test)
@@ -800,7 +845,7 @@
           replies)
       (cl-letf (((symbol-function 'niwa-shared-editing--commit)
                  (lambda (&rest args)
-                   ;; The edit's timeout or the helper's exit, during target I/O.
+                   ;; The helper's exit during target I/O.
                    (niwa-shared-editing-stop runtime)
                    (apply commit args))))
         (niwa-shared-editing-call

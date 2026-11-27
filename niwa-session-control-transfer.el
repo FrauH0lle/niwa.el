@@ -31,13 +31,13 @@
 (autoload 'niwa-engine-external-history-p "niwa-engine")
 
 ;; `niwa-execution'
-(declare-function niwa-execution-session-live-p
+(declare-function niwa-execution-session-live-description
                   "niwa-execution" (session))
 (declare-function niwa-execution-stop-services "niwa-execution" (session))
 (declare-function niwa-execution-teardown-session "niwa-execution" (session))
 (declare-function niwa-execution-unsettled-mutation-p
                   "niwa-execution" (session))
-(autoload 'niwa-execution-session-live-p "niwa-execution")
+(autoload 'niwa-execution-session-live-description "niwa-execution")
 (autoload 'niwa-execution-stop-services "niwa-execution")
 (autoload 'niwa-execution-teardown-session "niwa-execution")
 (autoload 'niwa-execution-unsettled-mutation-p "niwa-execution")
@@ -424,7 +424,7 @@ is conservatively treated as still draining."
    ((niwa-turn-busy-p
      (niwa-session-control-transfer-root-buffer session))
     "a settling turn")
-   ((niwa-execution-session-live-p session) "a live execution")
+   ((niwa-execution-session-live-description session))
    ((niwa-session-permission-queue session) "a permission prompt")
    ((niwa-session-pending-plan-approval session) "a plan approval")
    ((niwa-session-pending-input-p session) "queued input")
