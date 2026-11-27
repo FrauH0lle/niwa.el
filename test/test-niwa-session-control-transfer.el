@@ -212,6 +212,21 @@
       ;; the user to stop seeing both.
       (should-not (plist-get idle :attention))
       (should (equal '("r" "b") (mapcar #'car (plist-get idle :keys)))))
+    ;; A live owner refuses cooperative transfer of native history, so the
+    ;; follower is offered only the takeover that works in every lease state.
+    (setf (niwa-session-external-conversations session)
+          '(("root" :engine claude-code :id "native")))
+    (dolist (state '(rejected released))
+      (setf (niwa-session-control-transfer session) (list :state state))
+      (should (equal '(("b" . "take over"))
+                     (plist-get (niwa-session-control-transfer-descriptor
+                                 session t)
+                                :keys))))
+    (should (string-match-p
+             "Claude history"
+             (plist-get (niwa-session-control-transfer-descriptor session t)
+                        :detail)))
+    (setf (niwa-session-external-conversations session) nil)
     ;; A writable session with no request has nothing to say.
     (should-not
      (niwa-session-control-transfer-descriptor session nil))))

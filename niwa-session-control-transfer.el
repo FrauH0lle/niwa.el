@@ -26,6 +26,9 @@
 (declare-function niwa-engine-assert-local-history "niwa-engine"
                   (session operation &optional backend root-only))
 (autoload 'niwa-engine-assert-local-history "niwa-engine")
+(declare-function niwa-engine-external-history-p "niwa-engine"
+                  (session &optional root-only))
+(autoload 'niwa-engine-external-history-p "niwa-engine")
 
 ;; `niwa-execution'
 (declare-function niwa-execution-session-live-p
@@ -918,7 +921,15 @@ the owner can see what a handoff is still waiting for."
   (let* ((transfer (niwa-session-control-transfer session))
          (state (plist-get transfer :state))
          (request (plist-get transfer :request))
-         (label (or (plist-get request :requester-label) "another client")))
+         (label (or (plist-get request :requester-label) "another client"))
+         ;; A live owner refuses to hand over native history cooperatively;
+         ;; take over acquires every lease state, so offer only it.
+         (native (niwa-engine-external-history-p session))
+         (keys (if native '(("b" . "take over"))
+                 '(("r" . "take control") ("b" . "take over"))))
+         (help (if native
+                   "Take over the lease; its Claude history cannot be handed over cooperatively"
+                 "Acquire an available lease or request cooperative control")))
     (cond
      ((and (not read-only-p) (eq state 'requested))
       (list :kind 'control-transfer
@@ -958,15 +969,17 @@ the owner can see what a handoff is still waiting for."
             :action 'request
             :attention t
             :title "Control request was declined"
-            :keys '(("r" . "take control") ("b" . "take over"))
-            :help-echo "Acquire an available lease or request cooperative control"))
+            :keys keys
+            :help-echo help))
      (t
       (list :kind 'control-transfer
             :action 'request
             :title "This session is read-only here"
-            :detail "Take control to acquire its lease or ask its current owner."
-            :keys '(("r" . "take control") ("b" . "take over"))
-            :help-echo "Acquire an available lease or request cooperative control")))))
+            :detail (if native
+                        "Its Claude history cannot be handed over; take over to acquire its lease."
+                      "Take control to acquire its lease or ask its current owner.")
+            :keys keys
+            :help-echo help)))))
 
 (provide 'niwa-session-control-transfer)
 

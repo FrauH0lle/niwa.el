@@ -907,7 +907,12 @@ requests from a client with stale native history information instead of
 automatically granting them. Direct acquisition of an unheld or expired lease
 preserves native identities just as ordinary resume does. The next send checks
 the native installation and history, so recovery after an Emacs crash does not
-require copying or discarding native history. Read-only following remains available.
+require copying or discarding native history. Forced **take over** of a live
+holder is the same direct acquisition and also keeps native identities: no
+owner grant is involved, and the send-time check still refuses history that
+another machine or installation holds. The read-only banner therefore offers
+only **take over** for these sessions; `r` still acquires a free lease.
+Read-only following remains available.
 For adapter crashes, diagnostic logs default to `~/.niwa/claude-agent-logs`
 on the Emacs host, controlled by `niwa-claude-code-agent-log-directory`;
 an inherited `CLAUDE_AGENT_LOGS` value takes precedence. See

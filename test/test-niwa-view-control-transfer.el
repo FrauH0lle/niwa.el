@@ -18,6 +18,7 @@
 (require 'niwa-session-durability)
 (require 'niwa-session-persistence)
 (require 'niwa-structs)
+(require 'niwa-view)
 (require 'niwa-view-control-transfer)
 (require 'niwa-view-render)
 
@@ -298,6 +299,33 @@
       (should-not (string-match-p "another host" reason))
       (test-niwa-view-control-transfer--with-pair session t
         (should-error (niwa-release-control) :type 'user-error)))))
+
+(niwa-deftest niwa-view-control-transfer/native-banner ()
+  ,test
+  (test)
+  :doc "renders only take over, with matching help, for native history"
+  (dolist (native '(nil t))
+    (dolist (state '(released rejected))
+      (niwa-view-test--with-buffers
+        (let ((session (niwa-session--create :name "follower")))
+          (setf (niwa-session-control-transfer session) (list :state state))
+          (when native
+            (setf (niwa-session-external-conversations session)
+                  '(("root" :engine claude-code :id "native"))))
+          (with-current-buffer data-buf
+            (setq-local niwa--session session)
+            (setq-local niwa-session--read-only-mode t))
+          (with-current-buffer view-buf
+            (niwa-view--interaction-rebuild t)
+            (let* ((overlay (gethash 'control-transfer
+                                     niwa-view--interaction-overlays))
+                   (text (buffer-substring-no-properties
+                          (overlay-start overlay) (overlay-end overlay)))
+                   (help (overlay-get overlay 'help-echo)))
+              (should (string-match-p "take over" text))
+              (should (eq (not native) (and (string-match-p "take control" text) t)))
+              (should (eq (not native) (and (string-match-p "cooperative control" help) t)))
+              (should (eq native (and (string-match-p "Take over" help) t))))))))))
 
 (provide 'test-niwa-view-control-transfer)
 ;;; test-niwa-view-control-transfer.el ends here
