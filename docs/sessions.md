@@ -1493,8 +1493,13 @@ alive and polling; an owner that has died instead lets its lease expire, and
 the successor takes over through the expired-lease path. Grant is not
 release: the owner still drains, publishes, and releases, so a request
 against a busy owner sits in `quiescing` until the work it is waiting on
-finishes. Only the owner can say what that work is, so the owner's surface
-names the blocker and the requester's says just that it is waiting.
+finishes. If Monitors are the only blockers, the owner sees one question:
+“Stop N monitors and hand over?” Grant (`g`) or the same unanswered-request
+timeout stops them; Keep (`k`) leaves them running. A grant never stops
+other executions. If other work is outstanding, the owner waits until it
+settles before stopping any remaining Monitors and publishing the final
+state. The requester sees that it is waiting for the owner, not a count of
+processes it cannot inspect.
 
 A live Monitor holds the handoff open even when it has no events. To hand
 over before it exits or its timeout expires (up to one hour), open `/ps` on

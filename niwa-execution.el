@@ -2702,22 +2702,33 @@ An unclaimed result after a failed delivery remains owner-pollable, but is
 not active work and cannot keep session transfer or history changes blocked."
   (and (niwa-execution-session-live-description session) t))
 
+(defun niwa-execution--live-records (session)
+  "Return SESSION records with a process or result delivery outstanding."
+  (seq-filter (lambda (record)
+                (and (not (niwa-execution--idle-service-p record))
+                     (or (not (niwa-execution--record-finished-p record))
+                         (niwa-execution--record-delivery-pending-p record))))
+              (niwa-execution--state-record-list
+               (and session (niwa-session-execution-state session)))))
+
+(defun niwa-execution--live-monitor-p (record)
+  "Return non-nil when RECORD is a Monitor the owner can stop."
+  (and (eq (niwa-execution--record-kind record) 'monitor)
+       (niwa-execution--managed-live-p record)))
+
+(defun niwa-execution-session-only-monitors (session)
+  "Return Monitor IDs if they are the only live executions in SESSION."
+  (let ((records (niwa-execution--live-records session)))
+    (when (seq-every-p #'niwa-execution--live-monitor-p records)
+      (mapcar #'niwa-execution--record-execution-id records))))
+
 (defun niwa-execution-session-live-description (session)
   "Describe live work in SESSION, preferring a Monitor the owner can stop."
-  (when-let* ((state (and session
-                          (niwa-session-execution-state session))))
-    (catch 'monitor
-      (let (description)
-        (dolist (record (niwa-execution--state-record-list state) description)
-          (when (and (not (niwa-execution--idle-service-p record))
-                     (or (not (niwa-execution--record-finished-p record))
-                         (niwa-execution--record-delivery-pending-p record)))
-            (when (and (eq (niwa-execution--record-kind record) 'monitor)
-                       (niwa-execution--managed-live-p record))
-              (throw 'monitor
-                     (format "Monitor %s (press k on its /ps row to stop it)"
-                             (niwa-execution--record-execution-id record))))
-            (setq description "a live execution")))))))
+  (when-let* ((records (niwa-execution--live-records session)))
+    (if-let* ((monitor (seq-find #'niwa-execution--live-monitor-p records)))
+        (format "Monitor %s (press k on its /ps row to stop it)"
+                (niwa-execution--record-execution-id monitor))
+      "a live execution")))
 
 (defun niwa-execution-session-live-spools (session)
   "Return spool paths still written by SESSION's unfinished executions."

@@ -200,9 +200,9 @@
 (declare-function niwa-verify "niwa-review" (&optional instructions))
 
 ;; `niwa-session-control-transfer'
-(declare-function niwa-session-control-transfer-drain-blocker
-                  "niwa-session-control-transfer" (session))
-(autoload 'niwa-session-control-transfer-drain-blocker
+(declare-function niwa-session-control-transfer-descriptor
+                  "niwa-session-control-transfer" (session read-only-p))
+(autoload 'niwa-session-control-transfer-descriptor
   "niwa-session-control-transfer")
 
 ;; `niwa-session-publication'
@@ -880,8 +880,7 @@ unavailable until it changes."
   (let* ((context (niwa-menu--context))
          (session (niwa-cockpit-context-session context))
          (read-only-p (niwa-menu--read-only-p))
-         (transfer (and session (niwa-session-control-transfer session)))
-         (label (plist-get (plist-get transfer :request) :requester-label)))
+         (transfer (and session (niwa-session-control-transfer session))))
     (concat
      (niwa-menu--face "control" 'transient-heading)
      " "
@@ -891,18 +890,9 @@ unavailable until it changes."
      " · "
      (niwa-menu--face
       (pcase (plist-get transfer :state)
-        ('requested
-         (if read-only-p
-             "control requested, waiting for the owner"
-           (format "%s is asking for control" (or label "another client"))))
-        ('quiescing
-         (if read-only-p
-             "granted, waiting for the owner to finish"
-           (format "granting to %s, finishing %s"
-                   (or label "another client")
-                   (or (niwa-session-control-transfer-drain-blocker
-                        session)
-                       "up"))))
+        ((or 'requested 'quiescing)
+         (let ((prompt (niwa-session-control-transfer-descriptor session read-only-p)))
+           (format "%s\n%s" (plist-get prompt :title) (plist-get prompt :detail))))
         ('rejected "control request was declined")
         (_ (if read-only-p
                "another client is writing this session"

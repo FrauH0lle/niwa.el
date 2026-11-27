@@ -25,11 +25,15 @@
 ;; `niwa-execution'
 (declare-function niwa-execution-session-live-description
                   "niwa-execution" (session))
+(declare-function niwa-execution-session-only-monitors "niwa-execution" (session))
+(declare-function niwa-execution-stop-user "niwa-execution" (session execution-id))
 (declare-function niwa-execution-stop-services "niwa-execution" (session))
 (declare-function niwa-execution-teardown-session "niwa-execution" (session))
 (declare-function niwa-execution-unsettled-mutation-p
                   "niwa-execution" (session))
 (autoload 'niwa-execution-session-live-description "niwa-execution")
+(autoload 'niwa-execution-session-only-monitors "niwa-execution")
+(autoload 'niwa-execution-stop-user "niwa-execution")
 (autoload 'niwa-execution-stop-services "niwa-execution")
 (autoload 'niwa-execution-teardown-session "niwa-execution")
 (autoload 'niwa-execution-unsettled-mutation-p "niwa-execution")
@@ -409,6 +413,10 @@ Only the owner can answer this: a requester sees `quiescing' and nothing
 about why.  The first blocker is enough -- the user wants to know whether the
 wait is theirs to end, not an inventory.  A failed transient drain predicate
 is conservatively treated as still draining."
+  (niwa-session-control-transfer--blocker session nil))
+
+(defun niwa-session-control-transfer--blocker (session skip-executions)
+  "Describe SESSION's first blocker, ignoring executions when SKIP-EXECUTIONS."
   (cond
    ((niwa-request-active-p
      (niwa-session-control-transfer-root-buffer session))
@@ -416,7 +424,7 @@ is conservatively treated as still draining."
    ((niwa-turn-busy-p
      (niwa-session-control-transfer-root-buffer session))
     "a settling turn")
-   ((niwa-execution-session-live-description session))
+   ((and (not skip-executions) (niwa-execution-session-live-description session)))
    ((niwa-session-permission-queue session) "a permission prompt")
    ((niwa-session-pending-plan-approval session) "a plan approval")
    ((niwa-session-pending-input-p session) "queued input")
@@ -431,6 +439,12 @@ is conservatively treated as still draining."
                   (error t)))
               (niwa-session-control-transfer-drains session))
     "the view")))
+
+(defun niwa-session-control-transfer--only-monitors (session)
+  "Return Monitor IDs when nothing else blocks SESSION's handover."
+  (when-let* ((ids (niwa-execution-session-only-monitors session))
+              ((not (niwa-session-control-transfer--blocker session t))))
+    ids))
 
 (defun niwa-session-control-transfer-observe (session &optional admission)
   "Refresh SESSION's durable transfer state without settling it.
@@ -516,19 +530,19 @@ interrupt that publication cleanup could discard."
 (defun niwa-session-control-transfer--poll-owner (session)
   "Poll owner-side state, save drained work, and release the granted lease."
   (let ((state (niwa-session-transfer-poll session)))
-    (when (and (eq (plist-get state :state) 'quiescing)
-               (niwa-session-control-transfer-drained-p session))
-      (let ((buffer (niwa-session-control-transfer-root-buffer session)))
-        (when (buffer-live-p buffer)
-          (niwa-session-artifacts-save session buffer t)
-          (niwa-execution-stop-services session)
-          (niwa-session-transfer-release session)
-          (niwa-session-persistence-apply-read-only-mode
-           buffer
-           (format "control transferred to %s; this session is read-only here"
-                   (or (plist-get (plist-get state :request)
-                                  :requester-label)
-                       "another client"))))))
+    (when-let* (((eq (plist-get state :state) 'quiescing))
+                (buffer (niwa-session-control-transfer-root-buffer session)))
+      (dolist (id (niwa-session-control-transfer--only-monitors session))
+        (niwa-execution-stop-user session id))
+      (when (niwa-session-control-transfer-drained-p session)
+        (niwa-session-artifacts-save session buffer t)
+        (niwa-execution-stop-services session)
+        (niwa-session-transfer-release session)
+        (niwa-session-persistence-apply-read-only-mode
+         buffer
+         (format "control transferred to %s; this session is read-only here"
+                 (or (plist-get (plist-get state :request) :requester-label)
+                     "another client")))))
     (niwa-session-control-transfer session)))
 
 (defun niwa-session-control-transfer--insert-committed-segment
@@ -917,7 +931,10 @@ the owner can see what a handoff is still waiting for."
             :action 'grant
             :attention t
             :title (format "%s is asking for control of this session" label)
-            :detail "Granted automatically if you do not answer."
+            :detail (if-let* ((ids (niwa-session-control-transfer--only-monitors session)))
+                        (format "Stop %d monitor%s and hand over? Yes if you do not answer."
+                                (length ids) (if (cdr ids) "s" ""))
+                      "Granted automatically if you do not answer.")
             :keys '(("g" . "grant now") ("k" . "keep control"))
             :help-echo "Grant or keep the current lease"))
      ((and (not read-only-p) (eq state 'quiescing))
@@ -935,14 +952,14 @@ the owner can see what a handoff is still waiting for."
       (list :kind 'control-transfer
             :action 'status
             :title "Control requested"
-            :detail "The owner grants automatically if it does not answer."
+            :detail "Waiting for the owner. No answer grants the request; other work must still finish."
             :keys '(("b" . "take over"))
             :help-echo "Waiting for the owner to answer or time out"))
      ((eq state 'quiescing)
       (list :kind 'control-transfer
             :action 'status
             :title "Control granted"
-            :detail "Waiting for the owner to finish its current work."
+            :detail "Waiting for the owner to finish work and stop any remaining monitors."
             :keys '(("b" . "take over"))
             :help-echo "Control arrives once the owner has drained its work"))
      ((eq state 'rejected)

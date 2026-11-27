@@ -740,6 +740,100 @@ With SETTLE, the canceller lets the real terminal settlement run as well."
          (should-not (buffer-local-value 'niwa-session--read-only-mode
                                          data)))))))
 
+(defun test-niwa-takeover--monitor-handoff (scenario)
+  "Request control from a live owner with two executions in SCENARIO."
+  (test-niwa-takeover--with-session
+   'project
+   (lambda (owner buffer)
+     (pcase-let* ((`(,laptop . ,data) (test-niwa-takeover--follower owner))
+                  (root (niwa-session-working-directory owner))
+                  (pid-file (file-name-concat root "monitor-child.pid"))
+                  (pid nil)
+                  (niwa-session-transfer-prompt-timeout 2)
+                  (now (float-time))
+                  (records nil))
+       (setf (niwa-session-sandbox-mode owner) 'off)
+       (niwa-session-control-transfer-register-root-buffer owner buffer)
+       (unwind-protect
+           (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+                      (lambda (&rest _) now)))
+             (dolist (kind (if (eq scenario 'mixed) '(monitor bash) '(monitor monitor)))
+               (let (initial)
+                 (niwa-execution-start-bash
+                  (lambda (value) (setq initial value))
+                  :kind kind :description "handoff test" :session owner :owner "/root"
+                  :owner-context owner :yield-time-ms 10
+                  :command (if records '("sleep" "60")
+                             (list "sh" "-c" "sleep 300 & echo $! > \"$1\"; wait" "sh" pid-file))
+                  :workdir root :writable-roots (list root)
+                  :artifact-directory (file-name-concat root "artifacts"))
+                 (test-niwa-execution--wait (lambda () initial))
+                 (let ((facts (plist-get initial :facts)))
+                   (should (eq 'running (plist-get facts :state)))
+                   (push (gethash (plist-get facts :execution-id)
+                                  (niwa-execution--state-records
+                                   (niwa-session-execution-state owner))) records))))
+             (test-niwa-takeover--as 'laptop
+               (should (niwa-session-control-transfer-request laptop)))
+             (niwa-session-control-transfer-poll owner buffer nil)
+             (should (eq 'requested (plist-get (niwa-session-control-transfer owner) :state)))
+             (when (eq scenario 'view)
+               (niwa-session-control-transfer-register-drain owner (lambda () t)))
+             (let* ((row (niwa-session-control-transfer-descriptor owner nil))
+                    (prompt (concat (plist-get row :title) " " (plist-get row :detail))))
+               (pcase scenario
+                 ('grant (should (string-match-p "Stop 2 monitors and hand over" prompt)))
+                 ((or 'mixed 'view) (should-not (string-match-p "Stop .*monitors?" prompt)))))
+             (should-not (seq-some #'niwa-execution--record-finished-p records))
+             (test-niwa-execution--wait
+              (lambda ()
+                (and (file-exists-p pid-file)
+                     (> (setq pid (with-temp-buffer
+                                    (insert-file-contents pid-file)
+                                    (string-to-number (buffer-string)))) 0)
+                     (equal "sleep" (alist-get 'comm (process-attributes pid))))))
+             (if (eq scenario 'timeout)
+                 (cl-incf now 3)
+               (niwa-session-control-transfer-decide owner 'grant))
+             (niwa-session-control-transfer-poll owner buffer nil)
+             (if (memq scenario '(mixed view))
+                 (progn
+                   (should (niwa-session-durability-lease-owned-p owner))
+                   (should (eq 'quiescing (plist-get (niwa-session-control-transfer owner) :state)))
+                   (should-not (seq-some #'niwa-execution--record-finished-p records))
+                   (should (member (alist-get 'state (process-attributes pid)) '("S" "R")))
+                   (test-niwa-takeover--as 'laptop
+                     (niwa-session-control-transfer-poll laptop data t)
+                     (should (buffer-local-value 'niwa-session--read-only-mode data))))
+               (test-niwa-execution--wait
+                (lambda ()
+                  (niwa-session-control-transfer-poll owner buffer nil)
+                  (buffer-local-value 'niwa-session--read-only-mode buffer)))
+               (should (seq-every-p #'niwa-execution--record-finished-p records))
+               ;; A dead orphan may still be waiting for init to reap it.
+               (should (member (alist-get 'state (process-attributes pid)) '(nil "Z")))
+               (test-niwa-takeover--as 'laptop
+                 (niwa-session-control-transfer-poll laptop data t)
+                 (should (niwa-session-durability-lease-owned-p laptop))
+                 (should-not (buffer-local-value 'niwa-session--read-only-mode data)))))
+         (when (and pid (> pid 0) (equal "sleep" (alist-get 'comm (process-attributes pid))))
+           (ignore-errors (signal-process pid 'KILL)))
+         (dolist (record records)
+           (unless (niwa-execution--record-finished-p record)
+             (niwa-execution--discard-record record 'session-ended))))))))
+
+(niwa-deftest niwa-session-control-transfer/monitor-handoff (:quiet t)
+  ,test
+  (test)
+  :doc "granting the monitor question stops both monitors and makes the laptop writable"
+  (test-niwa-takeover--monitor-handoff 'grant)
+  :doc "the owner's observed timeout stops both monitors without a manual grant"
+  (test-niwa-takeover--monitor-handoff 'timeout)
+  :doc "a mixed grant keeps the command and monitor alive and the laptop read-only"
+  (test-niwa-takeover--monitor-handoff 'mixed)
+  :doc "a view drain blocks the handoff without stopping the monitors"
+  (test-niwa-takeover--monitor-handoff 'view))
+
 (niwa-deftest niwa-session-control-transfer-taken-over/safety (:quiet t)
   ,test
   (test)
