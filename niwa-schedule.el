@@ -37,6 +37,10 @@
 (require 'subr-x)
 
 ;; `niwa-agent-control'
+(declare-function niwa-sleep-update "niwa-sleep" (&rest _))
+(autoload 'niwa-sleep-update "niwa-sleep")
+(defvar niwa-sleep-inhibit)
+(defvar niwa-sleep-wake-up-horizon)
 (declare-function niwa-agent-control-commit-session
                   "niwa-agent-control" (session &optional token))
 (declare-function niwa-agent-control-context-mailbox
@@ -145,6 +149,9 @@ DUE is the clock second their earliest schedule needs attention.")
 
 (defvar niwa-schedule--timer nil
   "The one timer armed for the earliest pending wake-up, or nil.")
+
+(defvar niwa-schedule--horizon-timer nil
+  "One-shot timer for the earliest wake-up entering the sleep horizon, or nil.")
 
 (defvar-local niwa-schedule--retry-at nil
   "Clock seconds before which this root buffer's wake-ups are not retried.")
@@ -949,6 +956,37 @@ A buffer following a session whose lease another client holds never fires."
     (max due
          (or (buffer-local-value 'niwa-schedule--retry-at buffer) 0))))
 
+(defun niwa-schedule--session-due ()
+  "Return the earliest due time of any session wake-up, or nil.
+Workspace schedules are excluded."
+  (when-let* ((dues (append (mapcar #'cdr niwa-schedule--closed)
+                            (delq nil (mapcar #'niwa-schedule--earliest
+                                              niwa-schedule--buffers)))))
+    (apply #'min dues)))
+
+(defun niwa-schedule-sleep-reasons (horizon)
+  "Return a sleep reason when a session wake-up is due within HORIZON seconds.
+Workspace schedules never count: cron work would hold sleep for good."
+  (when-let* (((numberp horizon))
+              (due (niwa-schedule--session-due))
+              ((<= due (+ (niwa-schedule-now) horizon))))
+    (list (format-time-string "wake-up due %H:%M" due))))
+
+(defun niwa-schedule--arm-sleep-horizon ()
+  "Tell the sleep inhibitor when the earliest wake-up comes into its horizon.
+Event-driven: nothing is armed without a wake-up or while inhibition is off."
+  (when (timerp niwa-schedule--horizon-timer)
+    (cancel-timer niwa-schedule--horizon-timer))
+  (setq niwa-schedule--horizon-timer nil)
+  (when-let* (((bound-and-true-p niwa-sleep-inhibit))
+              (horizon (bound-and-true-p niwa-sleep-wake-up-horizon))
+              (due (niwa-schedule--session-due)))
+    (let ((wait (- due horizon (niwa-schedule-now))))
+      (if (<= wait 0)
+          (niwa-sleep-update)
+        (setq niwa-schedule--horizon-timer
+              (run-at-time wait nil #'niwa-sleep-update))))))
+
 (defun niwa-schedule--rearm ()
   "Arm one timer for the earliest pending wake-up, or none."
   (when (timerp niwa-schedule--timer)
@@ -968,7 +1006,8 @@ A buffer following a session whose lease another client holds never fires."
     (let ((due (apply #'min dues)))
       (setq niwa-schedule--timer
             (run-at-time (max 0 (- due (funcall niwa-schedule-clock)))
-                         nil #'niwa-schedule-run-due)))))
+                         nil #'niwa-schedule-run-due))))
+  (niwa-schedule--arm-sleep-horizon))
 
 (defun niwa-schedule-run-due ()
   "Fire every wake-up and workspace schedule due by `niwa-schedule-clock'.

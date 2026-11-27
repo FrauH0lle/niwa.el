@@ -2757,6 +2757,21 @@ A monitor waiting for events is live but not working."
      niwa-execution--sessions)
     nil))
 
+(defun niwa-execution-monitoring-p ()
+  "Return non-nil while any session has a live Monitor.
+Monitors are not working (see `niwa-execution-working-p') but can wake a
+session at any moment, so they hold the sleep inhibitor."
+  (catch 'monitoring
+    (maphash
+     (lambda (session _present)
+       (when-let* ((state (niwa-session-execution-state session)))
+         (maphash (lambda (_id record)
+                    (when (niwa-execution--live-monitor-p record)
+                      (throw 'monitoring t)))
+                  (niwa-execution--state-records state))))
+     niwa-execution--sessions)
+    nil))
+
 (defun niwa-execution--teardown-record (record)
   "Release RECORD's caller-owned resources exactly once."
   (when-let* ((function (niwa-execution--record-teardown-function record)))

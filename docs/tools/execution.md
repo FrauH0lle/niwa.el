@@ -227,8 +227,10 @@ notices wake an idle root; StopExecution's terminal notice does not.
 A quiet Monitor has no elapsed ticker or periodic progress redraw. The status
 zone and `/ps` show `Watching: DESCRIPTION`, a fixed expiry once available, and
 the event count. The tool header stays concise, with expiry and count in its
-details. Monitors alone do not inhibit system sleep; a request awakened by an
-event is ordinary active work and does hold the inhibitor.
+details. A live Monitor holds the system sleep inhibitor ("monitor watching"); it
+lasts at most an hour and is re-armed explicitly, so it cannot hold sleep
+indefinitely. A request awakened by an event is ordinary active work and also
+holds it.
 
 ## Transcript presentation
 

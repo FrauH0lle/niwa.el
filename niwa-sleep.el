@@ -4,14 +4,17 @@
 
 ;; Holds one operating-system sleep inhibitor while this Emacs has work that
 ;; system sleep would interrupt: a running or settling turn, a live managed
-;; command, or an open collaboration share within its idle allowance.  Only
-;; sleep is blocked; screen blanking and locking are unaffected.
+;; command, a live Monitor, a session wake-up due within
+;; `niwa-sleep-wake-up-horizon', or an open collaboration share within its idle
+;; allowance.  Workspace schedules never hold sleep.  Only sleep is blocked; screen blanking and locking are unaffected.
 ;;
 ;; Work owners call `niwa-sleep-update' when work begins.  End edges need
 ;; no call: while any reason holds, a slow poll re-evaluates them and releases
 ;; the inhibitor once none remains, so no teardown path can leak it.  The poll
 ;; also refreshes the announced reasons, so short-lived work such as a quick
-;; command does not replace the inhibitor process twice.  The inhibitor is a
+;; command does not replace the inhibitor process twice.  A wake-up that
+;; comes into the horizon is announced by a one-shot timer in niwa-schedule,
+;; so an idle Emacs with no wake-ups still has no timer at all.  The inhibitor is a
 ;; child process whose stdin is a pipe from Emacs, so it also exits, releasing
 ;; the lock, when Emacs exits or crashes.
 
@@ -25,6 +28,11 @@
 
 ;; `niwa-execution'
 (declare-function niwa-execution-working-p "niwa-execution" ())
+(declare-function niwa-execution-monitoring-p "niwa-execution" ())
+
+;; `niwa-schedule'
+(declare-function niwa-schedule-sleep-reasons "niwa-schedule" (horizon))
+(declare-function niwa-schedule--arm-sleep-horizon "niwa-schedule" ())
 
 ;; `niwa-transport'
 (declare-function niwa-transport-run-at-time
@@ -48,6 +56,7 @@
 (defcustom niwa-sleep-inhibit nil
   "Non-nil means block system sleep while niwa has work in progress.
 The work that counts is a running or settling turn, a live managed command,
+a live Monitor, a session wake-up due within `niwa-sleep-wake-up-horizon',
 and an open collaboration share within its idle allowance.  Only sleep is
 blocked, not screen blanking or locking.  The block is held by
 `niwa-sleep-inhibit-command'.  Setting this through Customize applies at
@@ -55,6 +64,23 @@ once; a plain `setq' takes effect at the next evaluation."
   :type 'boolean
   :initialize #'custom-initialize-default
   :set #'niwa-sleep--set-inhibit
+  :group 'niwa)
+
+(defun niwa-sleep--set-horizon (symbol value)
+  "Set SYMBOL to VALUE and apply it to the pending wake-ups at once."
+  (set-default symbol value)
+  (when (featurep 'niwa-schedule)
+    (niwa-schedule--arm-sleep-horizon))
+  (niwa-sleep-update))
+
+(defcustom niwa-sleep-wake-up-horizon (* 6 3600)
+  "Seconds ahead within which a pending session wake-up blocks system sleep.
+Nil means wake-ups never block sleep.  Workspace schedules never do.  Setting
+this through Customize applies at once; a plain `setq' may wait until the
+wake-ups are next re-armed."
+  :type '(choice (const :tag "Never" nil) (integer :tag "Seconds"))
+  :initialize #'custom-initialize-default
+  :set #'niwa-sleep--set-horizon
   :group 'niwa)
 
 (defcustom niwa-sleep-inhibit-command
@@ -101,6 +127,10 @@ evaluated must not keep the machine awake indefinitely."
             (list "request running"))
        (and (featurep 'niwa-execution) (niwa-execution-working-p)
             (list "command running"))
+       (and (featurep 'niwa-execution) (niwa-execution-monitoring-p)
+            (list "monitor watching"))
+       (and niwa-sleep-wake-up-horizon (featurep 'niwa-schedule)
+            (niwa-schedule-sleep-reasons niwa-sleep-wake-up-horizon))
        (and (fboundp 'niwa-collaboration-sleep-reasons)
             (niwa-collaboration-sleep-reasons (float-time))))
     (error

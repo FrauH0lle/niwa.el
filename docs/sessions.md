@@ -3385,13 +3385,16 @@ Emacs has work that sleep would interrupt. The work that counts is:
   [permissions](permissions.md#absence-timeout));
 - a live managed command other than Monitor, including a yielded Bash command
   that outlives its turn (`niwa-execution-working-p`);
+- a live Monitor (`niwa-execution-monitoring-p`, reason `monitor watching`).
+  Monitors last at most an hour and are re-armed explicitly, so this cannot
+  leak; they stay excluded from `niwa-execution-working-p`;
+- a pending session wake-up due within `niwa-sleep-wake-up-horizon` (default
+  six hours, nil disables), reason `wake-up due HH:MM`. Workspace schedules
+  never hold sleep, since cron work would keep the machine awake for good. A
+  one-shot timer armed with the wake-ups tells the inhibitor when the earliest
+  one comes into the horizon; nothing runs without wake-ups;
 - an open collaboration share or lobby within its idle allowance (see
   [collaboration](collaboration.md)).
-
-Monitors are excluded from the working-execution predicate: waiting for an
-event alone must not keep the machine awake. A request awakened by a Monitor
-event or Bash completion is still a running or settling turn and holds the
-inhibitor normally.
 
 Only sleep is blocked. Screen blanking, locking and idle detection are
 unaffected. The inhibitor announces its reasons, such as
@@ -3443,5 +3446,6 @@ Defined in `niwa-session-persistence.el` unless another module is named:
 - `niwa-view-input-history-size` (in `niwa-view-history.el`,
   default 500)
 - `niwa-sleep-inhibit` (in `niwa-sleep.el`, default nil)
+- `niwa-sleep-wake-up-horizon` (in `niwa-sleep.el`, default 21600 seconds)
 - `niwa-sleep-inhibit-command` (in `niwa-sleep.el`, default
   `systemd-inhibit --what=sleep --who=niwa --why=%s --mode=block cat`)

@@ -159,8 +159,10 @@ One timer for the earliest wake-up, rather than one per wake-up, keeps re-arming
 and teardown in one place and satisfies "idle means idle": nothing polls, and
 an Emacs with no pending wake-ups has no timer. Emacs timers are absolute, so a
 timer due during system sleep runs on wake, which is what makes the overdue
-annotation meaningful. A pending wake-up therefore does not hold the sleep
-inhibitor. Inbound webhooks were left out: a polling Monitor serves them.
+annotation meaningful. A session wake-up due within `niwa-sleep-wake-up-horizon`
+(default six hours) holds the sleep inhibitor; workspace schedules never do. A
+one-shot timer announces a wake-up entering the horizon, so nothing polls while
+there is none. Inbound webhooks were left out: a polling Monitor serves them.
 
 Delivering the note as a queued follow-up was rejected because follow-ups are
 user input and run first; a background notification must not acquire user
@@ -253,3 +255,12 @@ never launched: the launcher checks the same record before submitting work.
 The same store lock serializes edits and firings. After launch, overlap
 across Emacs instances relies on first-request settlement and the run
 session's own lease, since only the owner sees the active request.
+
+## Decision history
+
+- Originally a pending wake-up did not hold the sleep inhibitor, because timers
+  run on wake. Reversed: KDE idle-suspended a machine during a planned pause
+  with a wake-up due at 01:03 and a watchdog Monitor running, so the promised
+  check never happened. Wake-ups within the horizon and live Monitors now hold
+  sleep; workspace (cron) schedules still do not, since they would keep the
+  machine awake permanently.

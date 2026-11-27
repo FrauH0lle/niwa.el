@@ -12,6 +12,14 @@
 (require 'niwa-execution)
 (require 'niwa-transport)
 (require 'niwa-turn)
+(require 'niwa-sandbox)
+(require 'niwa-schedule)
+(require 'niwa-collaboration)
+(require 'niwa-execution-test-helpers
+         (file-name-concat
+          (file-name-directory
+           (or buffer-file-name load-file-name byte-compile-current-file))
+          "niwa-execution-test-helpers"))
 (require 'helpers
          (file-name-concat
           (file-name-directory
@@ -294,6 +302,121 @@ Registry corrupt"
         (should-not niwa-sleep--process)
         (should-not niwa-sleep--timer)
         (should-not (process-live-p held))))))
+
+
+(niwa-deftest niwa-sleep-monitor-reason ()
+  ,test
+  (test)
+  :doc "a live Monitor alone holds the inhibitor and ending it releases"
+  (let* ((root (make-temp-file "niwa-sleep-monitor-" t))
+         (session (test-niwa-execution--session root))
+         (niwa-sandbox-mode 'off))
+    (unwind-protect
+        (cl-letf (((symbol-function 'niwa-busy-p) #'ignore)
+                  ((symbol-function 'niwa-collaboration-sleep-reasons) #'ignore)
+                  ((symbol-function 'niwa-schedule-sleep-reasons) #'ignore))
+          (should-not (niwa-sleep--reasons))
+          (niwa-execution-start-bash
+           #'ignore :kind 'monitor :description "watch" :session session
+           :owner "/root" :owner-context session
+           :command '("sh" "-c" "sleep 30") :workdir root
+           :writable-roots (list root)
+           :artifact-directory (file-name-concat root "artifacts"))
+          (should-not (niwa-execution-working-p))
+          (should (equal '("monitor watching") (niwa-sleep--reasons)))
+          (niwa-execution-teardown-session session)
+          (should-not (niwa-sleep--reasons)))
+      (niwa-execution-teardown-session session)
+      (delete-directory root t))))
+
+(niwa-deftest niwa-schedule-sleep-reasons ()
+  ,test
+  (test)
+  :doc "a session wake-up holds inside the horizon, not outside, not when nil"
+  (let* ((now 1000000.0)
+         (niwa-schedule-clock (lambda () now))
+         (niwa-schedule--buffers nil)
+         (niwa-schedule--workspaces nil)
+         (niwa-schedule--closed (list (cons "/tmp/s" (+ now 3600)))))
+    (should (string-prefix-p "wake-up due "
+                             (car (niwa-schedule-sleep-reasons 7200))))
+    (should-not (niwa-schedule-sleep-reasons 1800))
+    (should-not (niwa-schedule-sleep-reasons nil)))
+
+  :doc "a workspace schedule never holds, however near"
+  (let* ((now 1000000.0)
+         (niwa-schedule-clock (lambda () now))
+         (niwa-schedule--buffers nil)
+         (niwa-schedule--closed nil)
+         (niwa-schedule--workspaces (list (cons "/tmp/w" (+ now 60)))))
+    (should-not (niwa-schedule-sleep-reasons 86400))))
+
+(niwa-deftest niwa-schedule--arm-sleep-horizon ()
+  ,test
+  (test)
+  :doc "a wake-up entering the horizon triggers an update with no other reason"
+  (let* ((now 1000000.0)
+         (niwa-schedule-clock (lambda () now))
+         (niwa-schedule--buffers nil)
+         (niwa-schedule--workspaces nil)
+         (niwa-schedule--horizon-timer nil)
+         (niwa-sleep-inhibit t)
+         (niwa-sleep-wake-up-horizon 3600)
+         (niwa-schedule--closed (list (cons "/tmp/s" (+ now 7200))))
+         updates)
+    (cl-letf (((symbol-function 'niwa-sleep-update)
+               (lambda (&rest _) (push t updates))))
+      (unwind-protect
+          (progn
+            (niwa-schedule--arm-sleep-horizon)
+            (should (timerp niwa-schedule--horizon-timer))
+            (should (< (abs (- 3600 (float-time
+                                     (time-subtract
+                                      (timer--time niwa-schedule--horizon-timer)
+                                      nil))))
+                       5))
+            (should-not updates)
+            ;; Already inside the horizon: update at once, no timer.
+            (setq niwa-schedule--closed (list (cons "/tmp/s" (+ now 60))))
+            (niwa-schedule--arm-sleep-horizon)
+            (should updates)
+            (should-not niwa-schedule--horizon-timer))
+        (when (timerp niwa-schedule--horizon-timer)
+          (cancel-timer niwa-schedule--horizon-timer)))))
+
+  :doc "setting the horizon through Customize re-arms and updates at once"
+  (let* ((now 1000000.0)
+         (niwa-schedule-clock (lambda () now))
+         (niwa-schedule--buffers nil)
+         (niwa-schedule--workspaces nil)
+         (niwa-schedule--horizon-timer nil)
+         (niwa-sleep-inhibit t)
+         (niwa-sleep-wake-up-horizon nil)
+         (niwa-schedule--closed (list (cons "/tmp/s" (+ now 60))))
+         updates)
+    (cl-letf (((symbol-function 'niwa-sleep-update)
+               (lambda (&rest _) (push t updates))))
+      (unwind-protect
+          (progn
+            (customize-set-variable 'niwa-sleep-wake-up-horizon 3600)
+            (should (= 3600 niwa-sleep-wake-up-horizon))
+            ;; Armed (inside the horizon) plus the setter's own update.
+            (should (= 2 (length updates))))
+        (when (timerp niwa-schedule--horizon-timer)
+          (cancel-timer niwa-schedule--horizon-timer)))))
+
+  :doc "idle stays idle: no timer when inhibition is off or nothing is pending"
+  (let ((niwa-schedule--buffers nil)
+        (niwa-schedule--workspaces nil)
+        (niwa-schedule--horizon-timer nil)
+        (niwa-sleep-wake-up-horizon 3600)
+        (niwa-schedule--closed (list (cons "/tmp/s" (+ (float-time) 7200)))))
+    (let ((niwa-sleep-inhibit nil))
+      (niwa-schedule--arm-sleep-horizon)
+      (should-not niwa-schedule--horizon-timer))
+    (let ((niwa-sleep-inhibit t) (niwa-schedule--closed nil))
+      (niwa-schedule--arm-sleep-horizon)
+      (should-not niwa-schedule--horizon-timer))))
 
 (provide 'test-niwa-sleep)
 ;;; test-niwa-sleep.el ends here
