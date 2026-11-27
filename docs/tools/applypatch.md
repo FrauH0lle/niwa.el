@@ -37,7 +37,8 @@ When context matches multiple locations, enlarge the hunk or add one anchor:
   It only chooses among content-matching locations. A stale number does not
   reject an otherwise unique match and cannot force a content mismatch.
 - `@@ context anchor` names a line above the hunk, or a prefix of that line,
-  such as an enclosing definition. The hunk starts below the anchor.
+  such as an enclosing definition. The hunk starts below the anchor. A hunk
+  containing only additions inserts immediately after the matching anchor line.
   It does not let you replace part of the anchor line itself.
 
 ```text
@@ -58,7 +59,9 @@ the hunks after it. An entire Update that changes nothing is rejected.
 Matching first prefers exact contents, then tolerates trailing whitespace,
 surrounding whitespace, and ASCII/typographic punctuation differences. Multiple
 remaining matches are an error. Existing context lines are retained from the
-file, not rewritten from the patch. Hunk order can disambiguate later matches.
+file, not rewritten from the patch. Replacements inherit the corresponding
+removed lines' endings; extra lines use the file's majority ending (LF on a
+tie). Hunk order can disambiguate later matches.
 
 ## Adds, deletes, and moves
 

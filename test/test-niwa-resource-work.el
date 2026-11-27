@@ -204,7 +204,8 @@
                       (niwa-tool-patch-prepare-resources
                        (niwa-tool-patch-parse
                         (format "*** Begin Patch\n*** Update File: %s\n*** Move to: %s.moved\n@@\n-original\n+corrected\n*** End Patch"
-                                address address)) t)))
+                                address address)))))
+                (niwa-tool-patch--materialize-resources updated)
                 (niwa-change-commit (niwa-tool-patch-planned-changes updated))
                 (should-not (file-exists-p physical))
                 (should (equal "corrected\n" (with-temp-buffer
@@ -213,7 +214,8 @@
               (let ((deleted
                      (niwa-tool-patch-prepare-resources
                       (niwa-tool-patch-parse
-                       (format "*** Begin Patch\n*** Delete File: %s.moved\n*** End Patch" address)) t)))
+                       (format "*** Begin Patch\n*** Delete File: %s.moved\n*** End Patch" address)))))
+                (niwa-tool-patch--materialize-resources deleted)
                 (niwa-change-commit (niwa-tool-patch-planned-changes deleted))
                 (should-not (file-exists-p (concat physical ".moved"))))))
           (should-not (niwa-session-save-path session)))
@@ -344,8 +346,9 @@
           (dolist (address '("work://shared/decision.md" "memory://local-niwa/lesson.md"))
             (let* ((proposal (niwa-tool-patch-prepare-resources
                               (niwa-tool-patch-parse
-                               (format "*** Begin Patch\n*** Add File: %s\n+reviewed\n*** End Patch" address)) t))
-                   (changes (niwa-tool-patch-planned-changes proposal)))
+                               (format "*** Begin Patch\n*** Add File: %s\n+reviewed\n*** End Patch" address))))
+                   (changes (niwa-tool-patch-planned-changes
+                             (niwa-tool-patch--materialize-resources proposal))))
               (setf (niwa-workspace-root workspace) (file-name-concat root "retargeted"))
               (should-error (niwa-tool-patch-planned-changes proposal))
               (should-error (niwa-change-commit changes))
@@ -354,8 +357,9 @@
           (with-temp-file (file-name-concat root "source.txt") (insert "source\n"))
           (let* ((proposal (niwa-tool-patch-prepare-resources
                             (niwa-tool-patch-parse
-                             "*** Begin Patch\n*** Update File: source.txt\n*** Move to: work://shared/moved.txt\n*** End Patch") t))
-                 (changes (niwa-tool-patch-planned-changes proposal)))
+                             "*** Begin Patch\n*** Update File: source.txt\n*** Move to: work://shared/moved.txt\n*** End Patch")))
+                 (changes (niwa-tool-patch-planned-changes
+                           (niwa-tool-patch--materialize-resources proposal))))
             (setf (niwa-workspace-root workspace) (file-name-concat root "retargeted"))
             (should-error (niwa-change-commit changes))
             (should (file-exists-p (file-name-concat root "source.txt")))))

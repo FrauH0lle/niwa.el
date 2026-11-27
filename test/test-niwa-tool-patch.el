@@ -104,6 +104,17 @@
     (should (string-prefix-p "Applied patch: 4 changes" (plist-get result :result)))
     (should (eq 'patch (plist-get (plist-get result :render-data) :kind))))
 
+  :doc "Growing an unterminated final line preserves EOF and mixed line endings"
+  (progn
+    (let ((coding-system-for-write 'no-conversion))
+      (with-temp-file update-path (insert "first\r\nsecond\nthird\r\nold")))
+    (with-current-buffer buffer
+      (niwa-tool-patch-handler
+       (lambda (value) (setq result value))
+       '(:patch "*** Begin Patch\n*** Update File: update.txt\n@@\n-old\n+A\n+B\n*** End Patch")))
+    (should (equal "first\r\nsecond\nthird\r\nA\r\nB"
+                   (test-niwa-tool-patch--read-bytes update-path))))
+
   :doc "Direct path authority auto-applies while the session remains in ask mode"
   (let ((niwa-pipeline--auto-apply-edit-p t))
     (setf (niwa-session-permission-mode session) 'ask)
@@ -469,7 +480,17 @@
       "same\nmiddle\nsame\n" (list hunk) "file.txt")
      :type 'error))
 
-  :doc "A line hint resolves an otherwise ambiguous match"
+  :doc "Pure insertions follow their anchor and reject duplicate anchors"
+  (let ((hunks (niwa-tool-patch-parse-update-lines '("@@ def bar" "+new") 1)))
+    (should (equal "def bar():\nnew\nbody\ntail\n"
+                   (niwa-tool-patch-apply-hunks "def bar():\nbody\ntail\n" hunks "f")))
+    (should (string-match-p
+             "ambiguous.*distinguishing context"
+             (error-message-string
+              (should-error (niwa-tool-patch-apply-hunks
+                             "def bar1():\ndef bar2():\n" hunks "f"))))))
+
+  :doc "A numeric hint chooses the closest matching line"
   (let ((hunk '(:old-lines ("same") :new-lines ("new") :selected t
                 :line-hint 3 :diff-lines ("-same" "+new"))))
     (should (equal "same\nmiddle\nnew\n"
@@ -523,7 +544,14 @@
                    (niwa-tool-patch-apply-hunks
                     "a\r\nold\r\nb\r\n" (list hunk) "file.txt"))))
 
-  :doc "Preserves the file's context lines under fuzzy matching"
+  :doc "Maps removed endings within each run and uses the majority for extras"
+  (let ((hunk '(:old-lines ("a" "b" "keep" "c") :selected t
+                :diff-lines ("-a" "-b" "+A" "+B" "+extra" " keep" "-c" "+C"))))
+    (should (equal "A\nB\r\nextra\r\nkeep\r\nC\r\nend\r"
+                   (niwa-tool-patch-apply-hunks
+                    "a\nb\r\nkeep\r\nc\r\nend\r" (list hunk) "file.txt"))))
+
+  :doc "Keeps fuzzy-matched context byte-identical"
   ;; The pattern ASCII-fies the file's typographic dash and drops the
   ;; deleted line's indentation; the applied result must keep the
   ;; context line verbatim while the change still lands.
@@ -914,8 +942,8 @@
       (delete-file path))))
 
 (niwa-deftest niwa-tool-patch--lines
-  (:doc "Normalizes CRLF while retaining the final line") ,test (test)
-  (should (equal '("a" "") (niwa-tool-patch--lines "a\r\n"))))
+  (:doc "Pairs logical lines with their actual endings") ,test (test)
+  (should (equal '(("a\rb" . "\r\n") ("")) (niwa-tool-patch--lines "a\rb\r\n"))))
 
 (niwa-deftest niwa-tool-patch-content-lines
   (:doc "Removes one file terminator while retaining trailing blank lines")
@@ -928,10 +956,10 @@
 (niwa-deftest niwa-tool-patch--hunk-replacement
   (:doc "Takes context from the file and additions from the patch")
   ,test (test)
-  (should (equal '("A" "new")
+  (should (equal '(("A" . "\r\n") ("new" . "\n"))
                  (niwa-tool-patch--hunk-replacement
-                  '("A" "old" "tail") 0
-                  '(:diff-lines (" A" "-old" "+new"))))))
+                  (niwa-tool-patch--lines "A\r\nold\ntail") 0
+                  '(:diff-lines (" A" "-old" "+new")) "\r\n"))))
 
 (niwa-deftest niwa-tool-patch--section-label
   (:doc "Returns the closest unindented line at or above the start")
@@ -1175,9 +1203,9 @@
   (let* ((path (make-temp-file "niwa-patch-plan-coding-" nil ".el"))
          (destination (concat path ".moved"))
          (original
-          ";; -*- coding: iso-latin-1 -*-\nold: \u00e4\nkeep: \u00f6\n")
+          ";; -*- coding: iso-latin-1 -*-\r\nold: \u00e4\nkeep: \r\u00f6\n")
          (expected
-          ";; -*- coding: iso-latin-1 -*-\nnew: \u00e4\nkeep: \u00f6\n"))
+          ";; -*- coding: iso-latin-1 -*-\r\nnew: \u00e4\nkeep: \r\u00f6\n"))
     (unwind-protect
         (progn
           (let ((coding-system-for-write 'iso-latin-1))

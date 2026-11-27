@@ -192,16 +192,15 @@ PROPOSAL is the prepared proposal whose physical fields are private."
      (file-name-concat (niwa-session-save-path session) "local") t)
     session))
 
-(defun niwa-tool-patch-prepare-resources (proposal &optional materialize)
+(defun niwa-tool-patch-prepare-resources (proposal)
   "Prepare resource operands in PROPOSAL once.
 
 The authored operands stay in the regular operation fields.  Resolved
 filesystem targets are kept in private fields consumed by the existing patch
 transaction, so review and result data continue to use authored addresses.
-When MATERIALIZE is non-nil, establish the durable session work directory
-and resolve its physical targets.  Preparation used by the pipeline leaves
-local sessions untouched until permission and plan checks have completed."
-  (let (operands session-work-p session (session-only-p t))
+Preparation leaves local sessions untouched until permission and plan checks
+have completed."
+  (let (operands (session (bound-and-true-p niwa--session)) (session-only-p t))
     (dolist (operation (plist-get proposal :operations))
       (dolist (address (delq nil (list (plist-get operation :rel-path)
                                        (plist-get operation :move-rel-path))))
@@ -214,8 +213,6 @@ local sessions untouched until permission and plan checks have completed."
                                        :resource-move-path-p)))
         (let ((address (plist-get operation (nth 0 entry))))
           (when (niwa-tool-patch-resource-address-p address)
-            (when (niwa-resource-session-work-p address)
-              (setq session-work-p t))
             (push (list operation address (nth 1 entry) (nth 2 entry)
                         (nth 3 entry))
                   operands)))))
@@ -230,9 +227,6 @@ local sessions untouched until permission and plan checks have completed."
       ;; Its origin writes them at once, so all of them land or none.
       (when (cdr (delete-dups (mapcar #'car (remq nil remote))))
         (error "A patch changes the files of one remote artifact; split it into one patch per artifact")))
-    (setq session (and (boundp 'niwa--session) niwa--session))
-    (when (and session-work-p materialize)
-      (setq session (niwa-tool-patch--ensure-work-session)))
     (dolist (entry operands)
       (pcase-let ((`(,operation ,address ,physical-key ,attempt-key ,resource-key)
                    entry))
@@ -242,8 +236,7 @@ local sessions untouched until permission and plan checks have completed."
                  (list :session session
                        :workspace (and session
                                        (niwa-session-workspace session)))))
-               (remote-p (niwa-tool-patch-remote-p address))
-               physical)
+               (remote-p (niwa-tool-patch-remote-p address)))
           ;; A remote file has no backing path to resolve: its address is
           ;; what planning and the commit work with, also in place of the
           ;; operand's path the pipeline canonicalized as a local one.
@@ -253,18 +246,11 @@ local sessions untouched until permission and plan checks have completed."
                      (if (eq physical-key :physical-path)
                          :resource-check-path :resource-check-move-path)
                      (niwa-resource-attempt-write-check attempt))
-          (when (and materialize (not remote-p))
-            (niwa-resource-execute
-             attempt (lambda (path _authored) (setq physical path)))
-            (unless physical
-              (error "Writable resource owner is unavailable: %s" address))
-            (plist-put operation physical-key physical)
-            (plist-put operation attempt-key nil))
           (plist-put operation resource-key t)
           (plist-put operation
                      (if (eq physical-key :physical-path)
                          :permission-path :permission-move-path)
-                     (unless (or materialize remote-p)
+                     (unless remote-p
                        (niwa-resource-attempt-write-path attempt))))))
     (plist-put proposal :session-only-p session-only-p)))
 
@@ -654,14 +640,19 @@ whole or not at all.  On a refusal FAIL receives an error condition,
      (plist-get origin :authorize))))
 
 (defun niwa-tool-patch--lines (text)
-  "Return TEXT as LF-normalized lines, retaining a final empty line."
-  (split-string (replace-regexp-in-string "\r\n?" "\n" text) "\n" nil))
+  "Split TEXT into (LINE . ENDING) pairs, retaining a final empty line."
+  (let ((start 0) lines)
+    (while (string-match "\r?\n" text start)
+      (push (cons (substring text start (match-beginning 0))
+                  (match-string 0 text)) lines)
+      (setq start (match-end 0)))
+    (nreverse (cons (cons (substring text start) nil) lines))))
 
 (defun niwa-tool-patch-content-lines (content)
   "Return logical diff lines for complete file CONTENT."
   (unless (string-empty-p content)
-    (let ((normalized (replace-regexp-in-string "\r\n?" "\n" content)))
-      (split-string (string-remove-suffix "\n" normalized) "\n" nil))))
+    (let ((lines (mapcar #'car (niwa-tool-patch--lines content))))
+      (if (string-suffix-p "\n" content) (butlast lines) lines))))
 
 (defconst niwa-tool-patch--ascii-folds
   (append
@@ -741,13 +732,13 @@ IGNORE-EOF drops the end-of-file anchoring requirement of an
                               (1- (length lines))
                             (length lines)))))
         (dotimes (start (1+ limit))
-          (when (and (not context-seen)
-                     (> start 0)
-                     ;; An anchor names a line or its prefix, so
-                     ;; "@@ def load_config" finds "def load_config(path):".
-                     (string-prefix-p norm-context
-                                      (aref norm-lines (1- start))))
-            (setq context-seen t))
+          ;; An insertion must immediately follow its anchor; for a
+          ;; nonempty pattern, any position below the anchor is eligible.
+          (when (and context (or (not context-seen) (null pattern)))
+            (setq context-seen
+                  (and (> start 0)
+                       (string-prefix-p norm-context
+                                        (aref norm-lines (1- start))))))
           (when (and context-seen
                      (niwa-tool-patch--sequence-match-p
                       norm-lines norm-pattern start)
@@ -873,7 +864,7 @@ a hunk on its own.  The winning pass label is recorded on HUNK as `:match-pass'
                   (or (niwa-tool-patch--mismatch-detail
                        (or baseline-lines lines) hunk path lines) "")))
         (1 (car starts))
-        (_ (error "%s%s is ambiguous in %s; anchor it with @@ LINE or add context"
+        (_ (error "%s%s is ambiguous in %s; add distinguishing context or use @@ N from Read"
                   label where path))))))
 
 (defun niwa-tool-patch--section-label (lines start)
@@ -894,7 +885,7 @@ and renders without gutter numbers."
   (dolist (operation (plist-get proposal :operations))
     (when (memq (plist-get operation :kind) '(update move))
       (let* ((content (plist-get operation :baseline-content))
-             (lines (and content (niwa-tool-patch--lines content)))
+             (lines (and content (mapcar #'car (niwa-tool-patch--lines content))))
              (offset 0)
              (after 0))
         (dolist (hunk (plist-get operation :hunks))
@@ -915,30 +906,39 @@ and renders without gutter numbers."
                        (- (length (plist-get hunk :new-lines))
                           (length (plist-get hunk :old-lines)))))))))))
 
-(defun niwa-tool-patch--hunk-replacement (lines start hunk)
-  "Return HUNK's replacement lines when matched at START in LINES.
-Context lines come verbatim from LINES rather than the patch, so the
-fuzzy matching passes only ever decide where the hunk lands and what
-gets deleted; untouched lines stay byte-identical.  Only added lines
-come from the patch."
+(defun niwa-tool-patch--hunk-replacement (lines start hunk eol)
+  "Replace HUNK at START in paired LINES, using EOL for unmapped additions."
   (let ((remaining (nthcdr start lines))
-        replacement)
-    (dolist (line (plist-get hunk :diff-lines))
-      (pcase (aref line 0)
-        (?\s (push (car remaining) replacement)
-             (setq remaining (cdr remaining)))
-        (?- (setq remaining (cdr remaining)))
-        (?+ (push (substring line 1) replacement))))
+        (diff (plist-get hunk :diff-lines)) replacement)
+    (while diff
+      (if (= (aref (car diff) 0) ?\s)
+          (progn (push (pop remaining) replacement) (pop diff))
+        (let (added endings)
+          (while (and diff (/= (aref (car diff) 0) ?\s))
+            (let ((line (pop diff)))
+              (if (= (aref line 0) ?-)
+                  (push (cdr (pop remaining)) endings)
+                (push (substring line 1) added))))
+          (let ((unterminated (and endings (null (car endings)))))
+            (setq endings (nreverse endings)
+                  added (nreverse added))
+            (while added
+              (let ((text (pop added)))
+                (push (cons text (unless (and unterminated (null added))
+                                   (or (pop endings) eol)))
+                      replacement)))))))
     (nreverse replacement)))
 
 (defun niwa-tool-patch-apply-hunks (content hunks path)
   "Return CONTENT with selected HUNKS applied for PATH.
-The file's line-ending style is preserved: content containing CRLF
-line endings is written back with CRLF.  Deselected hunks still
+Replacements inherit the removed lines' endings within each change run;
+extra lines use the majority ending (LF on ties).  Deselected hunks still
 advance the order-disambiguation cursor when they match, so a later
 hunk that previewed cleanly stays unambiguous after a deselection."
-  (let* ((eol (if (string-search "\r\n" content) "\r\n" "\n"))
-         (baseline-lines (niwa-tool-patch--lines content))
+  (let* ((records (niwa-tool-patch--lines content))
+         (crlf (cl-count "\r\n" records :key #'cdr :test #'equal))
+         (eol (if (> (* 2 crlf) (1- (length records))) "\r\n" "\n"))
+         (baseline-lines (mapcar #'car records))
          (lines baseline-lines)
          (after 0)
          (line-offset 0))
@@ -948,18 +948,22 @@ hunk that previewed cleanly stays unambiguous after a deselection."
                          lines hunk path after line-offset baseline-lines))
                  (old-count (length (plist-get hunk :old-lines)))
                  (replacement (niwa-tool-patch--hunk-replacement
-                               lines start hunk)))
-            (setq lines
-                  (append (seq-take lines start)
+                               records start hunk eol)))
+            (setq records
+                  (append (seq-take records start)
                           replacement
-                          (nthcdr (+ start old-count) lines)))
+                          (nthcdr (+ start old-count) records))
+                  lines (mapcar #'car records))
             (setq after (+ start (length replacement)))
             (cl-incf line-offset (- (length replacement) old-count)))
         (when-let* ((start (ignore-errors
                              (niwa-tool-patch--match-start
                               lines hunk path after line-offset))))
           (setq after (+ start (length (plist-get hunk :old-lines)))))))
-    (string-join lines eol)))
+    (with-temp-buffer
+      (cl-loop for ((text . ending) . rest) on records
+               do (insert text (or ending (and rest eol) "")))
+      (buffer-string))))
 
 (defun niwa-tool-patch--diff-update-lines (buffer)
   "Return BUFFER's unified diff output as update payload lines.
@@ -1706,9 +1710,9 @@ matches fails as it does for a local file."
           (let ((prepared niwa-tool-patch-prepared-proposal))
             (setq proposal (or prepared
                                (niwa-tool-patch-parse (plist-get args :patch))))
-            (if prepared
-                (niwa-tool-patch--materialize-resources proposal)
-              (niwa-tool-patch-prepare-resources proposal t))
+            (unless prepared
+              (niwa-tool-patch-prepare-resources proposal))
+            (niwa-tool-patch--materialize-resources proposal)
             (if (niwa-tool-patch-remote-p
                  (plist-get (car (plist-get proposal :operations)) :rel-path))
                 (progn
