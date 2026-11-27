@@ -95,6 +95,10 @@ complex solutions; most do not.
 
 ## NO SURPRISES
 
+NO SURPRISES and SMOOTH BY DEFAULT go together: the first keeps the user's
+place, the second keeps niwa's behaviour predictable and its demands on the
+user small.
+
 The user's point, windows and focus belong to the user. Only the command the
 user just invoked may change them, and only in the way its name promises.
 
@@ -121,6 +125,30 @@ Treat an unexplained cursor jump, window or focus change as a defect, not a
 cosmetic issue. Test it the way the
 [testing conventions](docs/development.md#testing-conventions) describe for
 redraws.
+
+## SMOOTH BY DEFAULT
+
+Niwa should work the way a user expects, with as little ceremony as safety
+allows. Every prompt, confirmation and extra step must earn its place.
+
+- **Ask only when the answer matters.** Prompt for consent to new authority,
+  a choice between real alternatives, or confirmation of something destructive
+  or irreversible. Do not ask for what niwa can find out, decide by an
+  established rule, or safely undo.
+- **Ask once.** Make each question answerable in one step with a sensible
+  default. Remember the answer at the scope it applies to (this turn, this
+  session, this content version) and do not ask again while it holds.
+- **As expected, everywhere.** A command does what its name and the docs say,
+  the same way across engines, local and remote workspaces, the chat and its
+  agents. Where behaviour must differ, say so where the user meets it.
+- **Explain refusals and waits.** When niwa refuses, waits or skips something,
+  say what happened, why, and the one action that resolves it.
+- **Prefer quiet safeguards.** Where safety needs a check, prefer one that is
+  invisible in the common case (checking the real target, protecting a store)
+  over one that prompts every time.
+
+Treat an unnecessary prompt, an unexplained wait, or behaviour that differs
+between equivalent paths as a defect.
 
 ## RESPONSIVE BY DEFAULT
 
