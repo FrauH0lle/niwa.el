@@ -1838,7 +1838,7 @@ test('native new-tab lobby links preserve the selected tab and open files privat
           await newTab(page, page.getByRole('menuitem', {name: tab, exact: false}), gesture, {
             room: lobbyRoom, length, route: {tab},
             ready: target => target.waitForFunction(tab =>
-              document.getElementById(`lobby-tab-${tab}`).getAttribute('aria-selected') === 'true', tab),
+              document.getElementById(`lobby-tab-${tab}`)?.getAttribute('aria-selected') === 'true', tab),
           });
         }
         await page.keyboard.press('Escape');
