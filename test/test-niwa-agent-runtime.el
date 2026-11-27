@@ -2743,6 +2743,39 @@ calls as (SAVES FINALIZES SETTLES) token lists, after the dispatch error."
     (should-not finalizes)
     (should (equal '(owned) settles))))
 
+(niwa-deftest niwa-agent-runtime-abandon-persistence ()
+  ,test
+  (test)
+  :doc "deletes in-session transcripts but not files behind a symlinked parent"
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-abandon-" t)))
+         (save-path (expand-file-name "session/" root))
+         (outside (expand-file-name "outside/" root))
+         (session (niwa-session--create :save-path save-path)))
+    (unwind-protect
+        (progn
+          (make-directory (expand-file-name "agents" save-path) t)
+          (make-directory outside)
+          (make-symbolic-link outside (expand-file-name "linked" save-path))
+          (pcase-dolist (`(,path ,target ,deleted)
+                         `(("agents/a.chat.org" "agents/a.chat.org" t)
+                           ("linked/b.chat.org" ,(concat outside "b.chat.org")
+                            nil)))
+            (let* ((transcript (expand-file-name path save-path))
+                   (target (expand-file-name target save-path))
+                   (buffer (generate-new-buffer " *abandon*")))
+              (unwind-protect
+                  (progn
+                    (write-region "transcript" nil target)
+                    (with-current-buffer buffer
+                      (setq buffer-file-name transcript))
+                    (niwa-agent-runtime-abandon-persistence
+                     (niwa-agent-invocation--create
+                      :parent-session session :buffer buffer))
+                    (should (eq deleted (not (file-exists-p target)))))
+                (kill-buffer buffer)))))
+      (delete-directory root t))))
+
 (provide 'test-niwa-agent-runtime)
 
 ;;; test-niwa-agent-runtime.el ends here

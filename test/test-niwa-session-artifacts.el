@@ -25,6 +25,7 @@
 (require 'niwa-journal-evidence)
 (require 'niwa-session-artifacts)
 (require 'niwa-session-durability)
+(require 'niwa-session-publication)
 (require 'niwa-transcript-audit)
 (require 'niwa-utilities)
 (require 'so-long)
@@ -3559,6 +3560,45 @@ rotation never saves through a rebound temporary visited filename or prompts"
         (list (list :path path :content "remote state" :coding 'utf-8-unix))
         published)))))
 
+
+(niwa-deftest niwa-session-artifacts-publish-transcript-state/concurrent-dir-change ()
+  ,test
+  (test)
+  :doc "admits a contained transcript while sibling writes change the save dir"
+  (let* ((save-path (file-name-as-directory
+                     (make-temp-file "niwa-transcript-race-" t)))
+         (inside (expand-file-name "agents/a.chat.org" save-path))
+         (true-save (directory-file-name (file-truename save-path)))
+         (session (niwa-session--create :save-path save-path))
+         (stamp 0)
+         (file-attributes-orig (symbol-function 'file-attributes))
+         published)
+    (unwind-protect
+        (cl-letf (((symbol-function 'niwa-session-artifacts--barrier) #'ignore)
+                  ((symbol-function
+                    'niwa-session-artifacts--sidecar-publication-artifact)
+                   (lambda (&rest _) 'sidecar))
+                  ((symbol-function 'niwa-session-publication-publish)
+                   (lambda (_session artifacts &rest _)
+                     (setq published artifacts)))
+                  ;; Each stat of the save dir sees a newer mtime, as when
+                  ;; another agent publishes into it between two stat calls.
+                  ((symbol-function 'file-attributes)
+                   (lambda (file &rest args)
+                     (let ((attributes (apply file-attributes-orig file args)))
+                       (when (and attributes
+                                  (equal (directory-file-name file) true-save))
+                         (setf (nth 5 attributes) (list 0 (cl-incf stamp))))
+                       attributes))))
+          (make-directory (file-name-directory inside))
+          (should (niwa-session-artifacts-publish-transcript-state
+                   session nil inside "content" nil))
+          (should (equal inside (plist-get (car published) :path)))
+          (should-error
+           (niwa-session-artifacts-publish-transcript-state
+            session nil (expand-file-name "../outside.chat.org" save-path)
+            "content" nil)))
+      (delete-directory save-path t))))
 
 (niwa-deftest niwa-session-artifacts-publish-transcript-state ()
   ,test

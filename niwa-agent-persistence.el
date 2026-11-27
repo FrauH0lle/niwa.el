@@ -552,9 +552,11 @@ Malformed identities are diagnosed and dropped independently.  Unexpected
                                 (file-name-directory resolved)))
               (or (file-remote-p save-path)
                   (not (file-exists-p resolved))
-                  (file-in-directory-p
-                   (file-truename resolved)
-                  (file-truename agents-dir)))))))
+                  ;; Not `file-in-directory-p': concurrent agent saves change
+                  ;; the directory's stat between its two calls.
+                  (string-prefix-p
+                   (file-name-as-directory (file-truename agents-dir))
+                   (file-truename resolved)))))))
 
 (defun niwa-agent-persistence-ensure-conversation
     (session record root-buffer &optional readonly-p)

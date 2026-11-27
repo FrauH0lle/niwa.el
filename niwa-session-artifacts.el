@@ -2352,10 +2352,12 @@ only patches already committed bytes and retires no live delivery state."
     (error "Transcript publication requires string content"))
   (niwa-session-artifacts--barrier session token)
   (let* ((save-path (file-name-as-directory
-                     (niwa-session-save-path session)))
+                     (expand-file-name (niwa-session-save-path session))))
          (path (expand-file-name transcript-path))
          (logical (file-relative-name path save-path)))
-    (unless (and (file-in-directory-p path save-path)
+    ;; Lexical containment: `file-in-directory-p' compares two stats of
+    ;; SAVE-PATH, which concurrent publication by other agents makes differ.
+    (unless (and (string-prefix-p save-path path)
                  (niwa-session-publication-logical-path-p logical))
       (error "Invalid session transcript path: %s" transcript-path))
     ;; Admission observations must precede capture and remain shared through

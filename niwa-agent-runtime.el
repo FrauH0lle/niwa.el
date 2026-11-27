@@ -266,9 +266,15 @@
     (when (and transcript
                session
                (niwa-session-save-path session)
-               (file-in-directory-p transcript
-                                    (niwa-session-save-path session))
-               (file-exists-p transcript))
+               (file-exists-p transcript)
+               ;; Physical containment of the parent, so a symlinked
+               ;; directory cannot redirect deletion outside the session; not
+               ;; `file-in-directory-p', whose two stats concurrent saves skew.
+               (string-prefix-p
+                (file-name-as-directory
+                 (file-truename (niwa-session-save-path session)))
+                (file-name-as-directory
+                 (file-truename (file-name-directory transcript)))))
       (delete-file transcript))
     (setf (niwa-agent-invocation-transcript-relative-path invocation) nil
           (niwa-agent-invocation-sidecar-dirty invocation) nil)
