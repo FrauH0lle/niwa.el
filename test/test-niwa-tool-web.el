@@ -156,7 +156,7 @@ the requested timeout budget but remove the race with connection/redirect I/O."
                              "body" '(:host "a.org" :final-host "b.org" :bytes 2048
                                             :code 200 :content-type "text/html"))
                             :header)))
-  (should (equal "WebFetch: a.org — redirect needs approval"
+  (should (equal "WebFetch: a.org — redirect not followed"
                  (plist-get (niwa-tool-web--render-fetch
                              "WebFetch" '(:url "https://a.org/") "REDIRECT: ..."
                              '(:host "a.org" :redirect t))
@@ -555,23 +555,90 @@ the requested timeout budget but remove the race with connection/redirect I/O."
   (should (niwa-tool-web--unsupported-url "http://"))
   (should (niwa-tool-web--unsupported-url nil)))
 
-(niwa-deftest niwa-tool-web--local-host-p ()
+(niwa-deftest niwa-tool-web--retrieve/redirect-peers
+  (:before-each (niwa-tool-web--register))
   ,test
   (test)
-  :doc "recognizes loopback, private and link-local hosts"
-  (dolist (host '("localhost" "app.localhost" "127.0.0.1" "10.1.2.3" "192.168.0.1"
-                  "172.16.0.1" "172.31.255.1" "169.254.1.1" "[::1]" "fd12:3456::1"
-                  "fe80::1" "0.0.0.0"))
-    (should (niwa-tool-web--local-host-p host)))
-  :doc "treats public hosts as remote"
-  (dolist (host '("example.com" "172.32.0.1" "11.0.0.1" "localhost.example.com" nil))
-    (should-not (niwa-tool-web--local-host-p host))))
+  :doc "only same-origin redirects connect; others reach no new peer, even when allowed"
+  (let ((niwa-permission-rules nil) (niwa-hook-rules nil)
+        (niwa-permission-log-enabled nil))
+    (pcase-dolist (`(,location ,expected) '(("http://localhost:%s/b" handed-back)
+                                           ("http://127.0.0.1:%s/b" handed-back)
+                                           ("/final" followed)))
+      (let (b-requests a-requests)
+        (niwa-test-http
+         (lambda (request) (push request b-requests) '("200 OK" "" "peer B"))
+         (lambda (b-base)
+           (niwa-test-http
+            (lambda (request)
+              (push request a-requests)
+              (if (string-match-p " /final " request)
+                  '("200 OK" "" "peer A")
+                (list "302 Found"
+                      (format "Location: %s\r\n"
+                              (format location (car (last (split-string b-base ":")))))
+                      "")))
+            (lambda (a-base)
+              (with-temp-buffer
+                (setq-local niwa--session
+                            (niwa-session--create
+                             :name "peers" :permission-mode 'ask
+                             :permission-rules '(("WebFetch" :action allow))))
+                ;; The url-retrieve callback must never block on DNS.
+                (cl-letf (((symbol-function 'network-lookup-address-info)
+                           (lambda (&rest args)
+                             (error "Synchronous DNS lookup: %S" args))))
+                  (let ((result (plist-get (test-niwa-tool-web--call
+                                            "WebFetch" (list :url (concat a-base "/start")))
+                                           :result)))
+                    ;; Give a stray connection time to arrive at B.
+                    (accept-process-output nil 0.2)
+                    (should (equal (list location expected)
+                                   (list location
+                                         (cond ((string-prefix-p "REDIRECT: " result)
+                                                'handed-back)
+                                               ((string-suffix-p "peer A" result)
+                                                'followed)
+                                               (t result)))))
+                    (should (equal (list location nil)
+                                   (list location b-requests))))))))))
+        (should (equal (if (eq expected 'followed) 2 1)
+                       (length a-requests)))))))
+
+(niwa-deftest niwa-tool-web--same-origin-p ()
+  ,test
+  (test)
+  :doc "follows only the same scheme, host and port, or an http to https upgrade"
+  (pcase-dolist
+      (`(,from ,target ,expected)
+       '(("https://a.org/x" "https://a.org/y" t)
+         ("https://a.org/x" "https://A.ORG:443/y" t)
+         ("http://a.org/" "http://a.org:80/z" t)
+         ("http://a.org/" "https://a.org/" t)
+         ("http://127.0.0.1:8080/" "http://127.0.0.1:8080/b" t)
+         ("http://[::1]:8080/" "http://[::1]:8080/b" t)
+         ;; Another port, scheme or host reaches another peer.
+         ("https://a.org/" "https://a.org:8443/" nil)
+         ("http://a.org/" "http://a.org:6379/" nil)
+         ("https://a.org/" "http://a.org/" nil)
+         ("http://a.org:8080/" "https://a.org:8080/" nil)
+         ("http://a.org:8080/" "https://a.org/" nil)
+         ("https://a.org/" "https://www.a.org/" nil)
+         ("https://a.org/" "https://a.org.evil.com/" nil)
+         ("https://a.org/" "https://127.0.0.1/" nil)
+         ("http://127.0.0.1:8080/" "http://localhost:8080/" nil)
+         ("http://127.0.0.1:8080/" "http://2130706433:8080/" nil)
+         ("https://a.org/" "ftp://a.org/" nil)
+         ("https://a.org/" "https:///nohost" nil)))
+    (should (equal (list from target expected)
+                   (list from target
+                         (and (niwa-tool-web--same-origin-p from target) t))))))
 
 (niwa-deftest niwa-tool-web--redirect-decision
   (:before-each (niwa-tool-web--register))
   ,test
   (test)
-  :doc "follows, blocks or hands back according to the target's permission"
+  :doc "blocks a denied target and hands back every other one"
   (let ((niwa-permission-rules nil)
         (niwa-protected-paths nil)
         (niwa-hook-rules nil)
@@ -581,27 +648,21 @@ the requested timeout budget but remove the race with connection/redirect I/O."
                   (niwa-session--create
                    :name "redirect" :permission-mode 'ask
                    :permission-rules '(("WebFetch" :domain "denied.org" :action deny)
-                                       ("WebFetch" :domain "asked.org" :action ask))))
+                                       ("WebFetch" :domain "asked.org" :action ask)
+                                       ("WebFetch" :action allow))))
       (let ((buffer (current-buffer)))
         (with-temp-buffer
-          (should (eq 'follow (niwa-tool-web--redirect-decision
-                               buffer "https://a.org/" "https://b.org/")))
+          (dolist (target '("https://b.org/" "http://127.0.0.1:8080/"
+                            "http://2130706433/" "https://asked.org/x"))
+            (should (equal (list target 'result)
+                           (list target (car (niwa-tool-web--redirect-decision
+                                              buffer "https://a.org/" target))))))
           (should (equal '(error . "Redirect from a.org to https://denied.org/x blocked: the target host is denied by permission rules")
                          (niwa-tool-web--redirect-decision
                           buffer "https://a.org/" "https://denied.org/x")))
-          (should (equal '(result . "REDIRECT: a.org redirects to https://asked.org/x.  That host needs approval; call WebFetch with url=\"https://asked.org/x\" to continue.")
+          (should (equal '(result . "REDIRECT: a.org redirects to https://asked.org/x.  Redirects to another host or port are not followed; call WebFetch with url=\"https://asked.org/x\" to continue.")
                          (niwa-tool-web--redirect-decision
                           buffer "https://a.org/" "https://asked.org/x")))))))
-
-  :doc "hands back a public-to-local redirect even when the target is allowed"
-  (let ((niwa-permission-rules nil) (niwa-hook-rules nil))
-    (with-temp-buffer
-      (setq-local niwa--session
-                  (niwa-session--create :name "local" :permission-mode 'ask))
-      (should (eq 'result (car (niwa-tool-web--redirect-decision
-                                (current-buffer) "https://a.org/" "http://127.0.0.1:8080/"))))
-      (should (eq 'follow (niwa-tool-web--redirect-decision
-                           (current-buffer) "http://localhost:3000/" "http://127.0.0.1:3000/")))))
 
   :doc "hands back without a session"
   (with-temp-buffer

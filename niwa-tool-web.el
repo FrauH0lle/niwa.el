@@ -85,20 +85,18 @@
                (niwa-tool-web--url-host url))
     (format "Unsupported URL (only http and https are retrieved): %s" url)))
 
-(defun niwa-tool-web--local-host-p (host)
-  "Return non-nil when HOST names this machine or a private network address."
-  (when host
-    (let ((host (downcase (string-trim host "\\[" "\\]"))))
-      (or (equal host "localhost")
-          (string-suffix-p ".localhost" host)
-          (member host '("::" "::1" "0.0.0.0"))
-          (string-match-p
-           (rx bos (or "127." "10." "192.168." "169.254."
-                       (seq "172." (or (seq "1" (any "6-9")) (seq "2" digit) "30" "31")
-                            ".")))
-           host)
-          (string-match-p (rx bos (or (seq "f" (any "cd") (= 2 hex) ":") "fe80:"))
-                          host)))))
+(defun niwa-tool-web--same-origin-p (from target)
+  "Return non-nil when TARGET keeps FROM's host and port.
+The scheme must match too, except an http to https upgrade between the
+default ports.  The host is compared by name, never resolved."
+  (let ((from (url-generic-parse-url from))
+        (target (url-generic-parse-url target)))
+    (and (not (string-empty-p (or (url-host from) "")))
+         (string-equal-ignore-case (url-host from) (or (url-host target) ""))
+         (or (and (equal (url-type from) (url-type target))
+                  (eql (url-port from) (url-port target)))
+             (and (equal (url-type from) "http") (eql (url-port from) 80)
+                  (equal (url-type target) "https") (eql (url-port target) 443))))))
 
 
 ;;
@@ -116,7 +114,8 @@ CALLBACK receives (VALUE ERROR), where ERROR is nil on success or an
 error string.  Only http and https URLs are retrieved.
 
 Redirects are followed here, at most `niwa-tool-web--max-redirects'.
-A redirect to the same host is followed.  Otherwise REDIRECT, called
+A same-origin redirect (`niwa-tool-web--same-origin-p') is followed.
+Otherwise REDIRECT, called
 with the redirecting and the target URL, returns `follow', or
 \(result . TEXT) or (error . TEXT) to settle with TEXT instead.
 Without REDIRECT, every redirect is followed.  ACCEPT, when non-nil,
@@ -172,8 +171,7 @@ and response buffers.  Cleanup precedes delivery, exactly once."
                                      niwa-tool-web--max-redirects))
                (cl-incf redirects)
                (pcase (if (or (null redirect)
-                              (equal (downcase (or (niwa-tool-web--url-host from) ""))
-                                     (downcase (or (niwa-tool-web--url-host target) ""))))
+                              (niwa-tool-web--same-origin-p from target))
                           'follow
                         (funcall redirect from target))
                  ('follow (request target method data headers))
@@ -434,23 +432,18 @@ terms to the query and filter the returned results."
 
 (defun niwa-tool-web--redirect-decision (buffer from target)
   "Return how WebFetch handles a redirect from FROM to TARGET.
-A target that a fresh WebFetch call could fetch without prompting under
-BUFFER's permission policy is followed; a denied target is an error.
-Otherwise the target is handed back to the model, whose WebFetch call
-on it gets the ordinary permission check.  A redirect from a public
-host into the local machine or a private network is always handed back."
+A target denied under BUFFER's permission policy is an error; any other
+is handed back to the model, whose WebFetch call on it gets the ordinary
+permission check.  Nothing is followed: a host name approved here could
+resolve to another peer at connect time, so the redirect never connects."
   (let ((host (niwa-tool-web--url-host from)))
-    (pcase (if (and (niwa-tool-web--local-host-p
-                     (niwa-tool-web--url-host target))
-                    (not (niwa-tool-web--local-host-p host)))
-               'ask
-             (niwa-tool-permission-decide-now
-              "WebFetch" (list :url target) buffer 'redirect))
-      ('allow 'follow)
-      ('deny (cons 'error (format "Redirect from %s to %s blocked: the target \
-host is denied by permission rules" host target)))
-      (_ (cons 'result (format "REDIRECT: %s redirects to %s.  That host needs \
-approval; call WebFetch with url=%S to continue." host target target))))))
+    (if (eq 'deny (niwa-tool-permission-decide-now
+                   "WebFetch" (list :url target) buffer 'redirect))
+        (cons 'error (format "Redirect from %s to %s blocked: the target \
+host is denied by permission rules" host target))
+      (cons 'result (format "REDIRECT: %s redirects to %s.  Redirects to \
+another host or port are not followed; call WebFetch with url=%S to \
+continue." host target target)))))
 
 (defvar niwa-tool-web--accept "text/markdown, text/html;q=0.9, */*;q=0.8"
   "Accept header of WebFetch requests; servers able to send markdown do.")
@@ -852,7 +845,7 @@ body."
            (bytes (plist-get render-data :bytes))
            (details
             (cond
-             ((plist-get render-data :redirect) "redirect needs approval")
+             ((plist-get render-data :redirect) "redirect not followed")
              (bytes (string-join
                      (delq nil (list (file-size-human-readable bytes nil " " "B")
                                      (and-let* ((code (plist-get render-data :code)))

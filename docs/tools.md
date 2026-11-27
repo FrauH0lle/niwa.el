@@ -668,14 +668,15 @@ requested URL and as every redirect target, so neither a model-supplied URL nor
 a `Location` header reaches `file:` or other URL handlers. Redirects are followed
 by niwa rather than by `url-http`: each request binds `url-max-redirections`
 to 0 and repeats its method, body and headers, as `url-http` adjusted them for
-the redirect. At most ten redirects are followed. A redirect to the same host is
-followed. WebFetch decides a redirect to another host, including a `www.`
-variant, with `niwa-tool-permission-decide-now` under the dispatching
-buffer's policy: a target a fresh WebFetch call could fetch without a prompt is
-followed, a denied target is a tool error, and any other target is returned as
-a `REDIRECT:` result naming the URL, so the model's next WebFetch call gets the
-ordinary permission check. A redirect from a public host to the local machine
-or a private network address is always returned that way. WebSearch and the
+the redirect. At most ten redirects are followed. WebFetch follows only a
+same-origin redirect: the same scheme, host name and port, or an `http` to
+`https` upgrade between the default ports. Any other redirect, including a
+`www.` variant or another port, is never followed, even when the target is
+allowed: a host name checked in the callback could resolve to a different
+peer when url.el connects, and resolving it there would block Emacs. A target
+denied under the dispatching buffer's policy is a tool error; any other is
+returned as a `REDIRECT:` result naming the URL, so the model's next WebFetch
+call gets the ordinary permission check. WebSearch and the
 YouTube stages contact fixed hosts and follow every redirect. A redirect
 without a `Location` header never completes in `url-http` and ends in the
 timeout.
