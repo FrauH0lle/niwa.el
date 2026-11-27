@@ -30,6 +30,7 @@
 (require 'gptel)
 (require 'niwa-agent-control)
 (require 'niwa-collaboration-agent)
+(require 'niwa-collaboration-background)
 (require 'niwa-collaboration-artifact)
 (require 'niwa-collaboration-discussions)
 (require 'niwa-collaboration-files)
@@ -525,6 +526,55 @@
         (should (equal '(1 2) (sort (mapcar #'car tasks) #'<)))
         (should (equal [] (plist-get (cdr (car tasks)) :tasks)))))))
 
+
+(niwa-deftest niwa-collaboration--handle-hello/latched-facts
+  (:doc "A reconnect receives current room facts without another broadcast")
+  ;; Extend this list whenever another room-wide fact is latched:
+  ;; status, agent roster, background work, tasks, and Goal.
+  (let ((root temporary-file-directory))
+    (with-temp-buffer
+      (let* ((niwa-user-dir (file-name-as-directory root))
+             (session (niwa-session-create "Shared" (test-niwa-collaboration-guest--workspace root)))
+             (guests (make-hash-table :test #'eql))
+             (room (list :session session :data-buffer (current-buffer) :guests guests
+                         :ui-requests (make-hash-table :test #'eql) :transport 'transport))
+             (hello (list :proto niwa-collaboration--protocol-version :guestId "rejoining"))
+             (frames (make-hash-table :test #'equal)))
+        (setq-local niwa--session session)
+        (setf (niwa-session-root-buffer session) (current-buffer)
+              (niwa-session-agent-registry session)
+              (list (cons "/root/child" (niwa-agent-record--create :settled-outcome 'completed)))
+              (niwa-session-tasks session)
+              (list (niwa-task--create :id 1 :subject "Review" :status 'pending))
+              (niwa-session-goal session)
+              (niwa-goal--create :id "goal-1" :objective "Review" :status 'active))
+        (niwa-collaboration--background-retain
+         room '("exec-1" execution (:execution-id "exec-1" :kind bash :state completed :terminal-p t)))
+        (cl-letf (((symbol-function 'niwa-collaboration--transport-send)
+                   (lambda (_transport peer frame)
+                     (puthash (cons peer (plist-get frame :t)) frame frames) t)))
+          (niwa-collaboration--handle-hello room 1 hello)
+          (niwa-collaboration--publish room)
+          (cl-flet ((field (peer type key) (plist-get (gethash (cons peer type) frames) key)))
+            (should (equal "Shared" (field 0 "status" :name)))
+            (should (= 1 (length (field 0 "agents" :agents))))
+            (should (= 1 (length (field 0 "tasks" :tasks))))
+            (should (equal "goal-1" (plist-get (field 0 "goal" :goal) :id)))
+            (should (cl-find "exec-1" (field 0 "background-work" :rows)
+                             :key (lambda (row) (plist-get row :id)) :test #'equal))
+            (remhash 1 guests)
+            (setf (niwa-session-agent-registry session) nil
+                  (niwa-session-tasks session) nil
+                  (niwa-session-goal session) nil)
+            (niwa-collaboration--publish room)
+            (clrhash frames)
+            (niwa-collaboration--handle-hello room 2 hello)
+            (should (equal "Shared" (field 2 "status" :name)))
+            (should (equal [] (field 2 "agents" :agents)))
+            (should (equal [] (field 2 "tasks" :tasks)))
+            (should (equal '(:t "goal" :goal nil) (gethash '(2 . "goal") frames)))
+            (should (equal '("exec-1") (mapcar (lambda (row) (plist-get row :id))
+                                               (field 2 "background-work" :rows))))))))))
 
 (niwa-deftest niwa-collaboration--handle-hello/pending-wake-ups
   (:doc "sends only this session's committed wake-ups and only gives writers the notes")
