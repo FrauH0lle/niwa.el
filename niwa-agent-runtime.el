@@ -226,6 +226,8 @@
 (declare-function niwa-request-end
                   "niwa-turn" (&optional abort-plan-approval))
 (autoload 'niwa-current-turn "niwa-turn")
+(autoload 'niwa-request-cancel "niwa-turn")
+(autoload 'niwa-request-push-canceller "niwa-turn")
 (autoload 'niwa-request-end "niwa-turn")
 
 ;; `niwa-view-agent'
@@ -943,25 +945,42 @@ terminal acknowledgement and will settle the invocation itself."
 ;;
 ;;; Turn hooks
 
+(defconst niwa-agent-runtime--prompt-hook-wait-timeout 300
+  "Maximum seconds to wait for a follow-up prompt decision across handlers.")
+
 (defun niwa-agent-runtime--run-prompt-hook (prompt invocation)
   "Run `UserPromptSubmit' for agent PROMPT and wait for its decision."
   (let* ((session (niwa-agent-invocation-parent-session invocation))
          (workspace (and session (niwa-session-workspace session)))
+         (sender niwa--current-request)
+         ;; Follow the sender's lifetime, not its request-local skill rules.
+         (owner (niwa-request--create :session session))
+         (cancel (lambda () (niwa-request-cancel owner)))
+         (deadline (+ (float-time) niwa-agent-runtime--prompt-hook-wait-timeout))
          done decision)
-    (niwa-hooks-run-event
-     'UserPromptSubmit
-     (niwa-hooks-event-plist
-      'UserPromptSubmit session workspace
-      :agent-path (niwa-agent-invocation-path invocation)
-      :prompt prompt
-      :display-text prompt)
-     (lambda (result)
-       (setq decision result
-             done t))
-     session workspace nil invocation)
-    (while (not done)
-      (accept-process-output nil 0.05))
-    decision))
+    (unwind-protect
+        (progn
+          (niwa-request-push-canceller sender cancel)
+          (unless (niwa-request-cancelled-p owner)
+            (niwa-hooks-run-event
+             'UserPromptSubmit
+             (niwa-hooks-event-plist
+              'UserPromptSubmit session workspace
+              :agent-path (niwa-agent-invocation-path invocation)
+              :prompt prompt :display-text prompt)
+             (lambda (result) (setq decision result done t))
+             session workspace owner invocation))
+          (while (not (or done (niwa-request-cancelled-p owner)))
+            (when (>= (float-time) deadline)
+              (error "Timed out waiting for UserPromptSubmit; follow-up not started"))
+            (sleep-for 0.05))
+          (when (niwa-request-cancelled-p owner)
+            (error "Sender request cancelled; follow-up not started"))
+          decision)
+      (when sender
+        (setf (niwa-request-cancellers sender)
+              (delq cancel (niwa-request-cancellers sender))))
+      (funcall cancel))))
 
 (defun niwa-agent-runtime--run-stop-hook (invocation status)
   "Fire `SubagentStop' hooks for INVOCATION terminal STATUS."

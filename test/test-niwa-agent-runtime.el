@@ -117,6 +117,66 @@
     (should (equal (plist-get event :agent-path) "/root/explore"))
     (should (equal (plist-get event :prompt) "Prompt body"))))
 
+(niwa-deftest niwa-agent-runtime--run-prompt-hook/command ()
+  (let* ((scenario ,case)
+         (user-emacs-directory (file-name-as-directory (expand-file-name "~")))
+         (session (niwa-session--create :name "main"))
+         (invocation (niwa-agent-runtime-test--invocation))
+         (niwa--current-request
+          (niwa-request--create
+           :session session :hook-rules
+           '((UserPromptSubmit ((:hooks ((:type command :command "exit 2"))))))))
+         (niwa-agent-runtime--prompt-hook-wait-timeout
+          (if (eq scenario 'timeout) 0.15 10))
+         (command (if (eq scenario 'success)
+                      "printf '%s' '{\"updatedInput\":\"rewritten\"}'"
+                    "exec sleep 15"))
+         (niwa-hook-rules
+          `((UserPromptSubmit ((:hooks ((:type command :command ,command
+                                         :timeout 20)))))))
+         sender-drained timer)
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (setf (niwa-agent-invocation-parent-session invocation) session)
+    (niwa-request-push-canceller niwa--current-request
+                                 (lambda () (setq sender-drained t)))
+    (unwind-protect
+        (progn
+          (when (eq scenario 'cancel)
+            (setq timer (run-at-time 0.05 nil #'niwa-request-cancel
+                                     niwa--current-request)))
+          (with-timeout (3 (ert-fail "Retained hook wait exceeded watchdog"))
+            (if (eq scenario 'success)
+                (should (equal '(:updated-input "rewritten")
+                               (niwa-agent-runtime--run-prompt-hook "body" invocation)))
+              (let* ((launch (symbol-function 'make-process))
+                     child stderr
+                     (err
+                      (cl-letf (((symbol-function 'make-process)
+                                 (lambda (&rest args)
+                                   (let ((proc (apply launch args)))
+                                     (when (equal "niwa-hook" (plist-get args :name))
+                                       (setq child proc stderr (plist-get args :stderr)))
+                                     proc))))
+                        (should-error
+                         (niwa-agent-runtime--run-prompt-hook "body" invocation)))))
+                (should (string-match-p (if (eq scenario 'cancel) "cancelled" "timed out")
+                                        (downcase (error-message-string err))))
+                (should (eq 'cancelled
+                            (plist-get (car (last (niwa-session-hook-log session))) :status)))
+                (should (processp child))
+                (should (processp stderr))
+                (should-not (process-live-p child))
+                (should-not (process-live-p stderr)))))
+          (should (eq sender-drained (eq scenario 'cancel)))
+          (should (= (if sender-drained 0 1)
+                     (length (niwa-request-cancellers niwa--current-request)))))
+      (when timer (cancel-timer timer))
+      (niwa-request-drain-cancellers niwa--current-request)))
+  (case)
+  :doc "sender cancellation interrupts a running command hook" 'cancel
+  :doc "overall timeout cancels the hook but not the sender" 'timeout
+  :doc "completed command hook returns its decision" 'success)
+
 (niwa-deftest niwa-agent-runtime--prepare-followup ()
   ,test
   (test)

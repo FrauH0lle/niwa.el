@@ -471,7 +471,10 @@ blocked, its additional context remains pending on that retained identity and
 is consumed once by its next accepted task; it cannot enter the root or a
 sibling conversation. Internal root flows that construct their own requests,
 such as note send and plan execution, do not currently fire this
-event.
+event. An idle-agent follow-up uses the recipient's hook rules, not the
+sender's request-local rules. If the sender's request ends during the wait,
+or five minutes pass without a decision, niwa cancels the pending command
+hook and does not start the follow-up. Neither case is a hook refusal.
 
 `SessionStart :additional-context` is pending context for the next request,
 not an immediate transcript event. Its hook audit surface is attached to the
