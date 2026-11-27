@@ -42,6 +42,63 @@ LIBRARIES = {
 
 
 class RunnerTests(unittest.TestCase):
+    def test_worktree_without_timings_falls_back_to_main_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = Path(directory) / 'main'
+            work = Path(directory) / 'work'
+            git = ['git', '-c', 'user.name=t', '-c', 'user.email=t@t', '-C', str(main)]
+            subprocess.run(['git', 'init', '-q', str(main)], check=True)
+            subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', 'x'], check=True)
+            subprocess.run(git + ['worktree', 'add', '-q', str(work)], check=True)
+            history = main / '.scratch/test-suite-performance/latest-durations.csv'
+            history.parent.mkdir(parents=True)
+            history.write_text('test,seconds\n')
+            own = work / '.scratch/test-suite-performance/latest-durations.csv'
+            with patch.object(run_tests, 'ROOT', work), \
+                 patch.object(run_tests, 'REPORTS', work / '.scratch/test-suite-performance'):
+                self.assertEqual(run_tests.default_durations().resolve(), history.resolve())
+                own.parent.mkdir(parents=True)
+                own.write_text('test,seconds\n')
+                self.assertEqual(run_tests.default_durations(), own)
+            with patch.object(run_tests, 'ROOT', main), \
+                 patch.object(run_tests, 'REPORTS', main / '.scratch/test-suite-performance'):
+                self.assertEqual(run_tests.default_durations(), history)
+
+    def test_bare_repository_metadata_is_not_mistaken_for_the_main_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            seed, bare, work = base / 'seed', base / 'meta.git', base / 'work'
+            subprocess.run(['git', 'init', '-q', str(seed)], check=True)
+            subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', '-C', str(seed),
+                            'commit', '-q', '--allow-empty', '-m', 'x'], check=True)
+            subprocess.run(['git', 'clone', '-q', '--bare', str(seed), str(bare)], check=True)
+            subprocess.run(['git', '-C', str(bare), 'worktree', 'add', '-q', '--detach', str(work)],
+                           check=True)
+            # Beside the metadata directory, where a --git-common-dir parent would look.
+            decoy = base / '.scratch/test-suite-performance/latest-durations.csv'
+            decoy.parent.mkdir(parents=True)
+            decoy.write_text('test,seconds\n')
+            reports = work / '.scratch/test-suite-performance'
+            with patch.object(run_tests, 'ROOT', work), patch.object(run_tests, 'REPORTS', reports):
+                self.assertEqual(run_tests.default_durations(), reports / 'latest-durations.csv')
+
+    def test_main_checkout_path_with_a_line_separator_is_kept_whole(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            # U+2028 splits str.splitlines(); the decoy sits under the truncated prefix.
+            main, work = base / 'main tail', base / 'work'
+            git = ['git', '-c', 'user.name=t', '-c', 'user.email=t@t', '-C', str(main)]
+            subprocess.run(['git', 'init', '-q', str(main)], check=True)
+            subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', 'x'], check=True)
+            subprocess.run(git + ['worktree', 'add', '-q', str(work)], check=True)
+            name = '.scratch/test-suite-performance/latest-durations.csv'
+            for parent in (main, base / 'main'):
+                (parent / name).parent.mkdir(parents=True)
+                (parent / name).write_text('test,seconds\n')
+            with patch.object(run_tests, 'ROOT', work), \
+                 patch.object(run_tests, 'REPORTS', work / '.scratch/test-suite-performance'):
+                self.assertEqual(run_tests.default_durations(), main / name)
+
     def test_jobs_default_comes_from_environment_and_explicit_flag_wins(self):
         for environment, arguments, message in (
             ({'NIWA_TEST_JOBS': '0'}, [], '--jobs must be positive'),

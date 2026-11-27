@@ -395,6 +395,7 @@ func TestHostFarewellPrecedesRoomClosed(t *testing.T) {
 	payload := strings.Repeat("x", 16<<10)
 	for round := range 20 {
 		host := dial(t, srv, testRoom, "host")
+		waitRoom(t, rl, testRoom)
 		guest := dial(t, srv, testRoom, "guest")
 		expectText(t, host, `{"t":"peer-joined","peer":1}`)
 		for range 48 {
@@ -440,6 +441,26 @@ func waitEmpty(t *testing.T, rl *relay) {
 			t.Fatalf("rooms not garbage-collected: %d left", n)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// waitRoom waits for the relay to register roomID: a host's dial returns once
+// the upgrade completes, which is before runHost adds the room, and a guest
+// that dials in that gap is refused with closeNoRoom.
+func waitRoom(t *testing.T, rl *relay, roomID string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		rl.mu.Lock()
+		_, ok := rl.rooms[roomID]
+		rl.mu.Unlock()
+		if ok {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("room %q not registered", roomID)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 

@@ -81,6 +81,10 @@
           (view-buf (generate-new-buffer " *menu-view*")))
      (unwind-protect
          (progn
+           ;; A fresh batch frame reports its root window one line taller than
+           ;; the frame allows until a configuration is first restored, which
+           ;; made the first menu case in a worker fail its layout comparison.
+           (set-window-configuration (current-window-configuration))
            (niwa-gptel-bridge--clear-return-state)
            (niwa-gptel-bridge--cleanup-advice)
            (with-current-buffer data-buf

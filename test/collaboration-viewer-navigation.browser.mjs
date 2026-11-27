@@ -12,14 +12,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdir, readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
+import {createServer} from 'node:http';
 import {resolve} from 'node:path';
 import {webcrypto as crypto} from 'node:crypto';
 
 const root = resolve(import.meta.dirname, '..');
 const require = createRequire(resolve(root, 'shared-editing/package.json'));
-const {chromium} = require('playwright');
-
 const TYPES = {html: 'text/html', css: 'text/css', js: 'text/javascript'};
+// The viewer is served by a real local server that the browser reaches as
+// localhost:8765. Routing those requests through Playwright left tabs opened
+// by a native link stuck at their first script under load: the tab never
+// requested it, and the load timed out.
+const viewer = createServer(async (request, response) => {
+  let path = new URL(request.url, 'http://localhost').pathname;
+  if (path === '/') path = '/index.html';
+  const type = TYPES[path.split('.').pop()];
+  try {
+    const body = type ? await readFile(resolve(root, 'relay/viewer', `.${path}`)) : '';
+    response.writeHead(type ? 200 : 204, type ? {'content-type': type} : {}).end(body);
+  } catch { response.writeHead(404).end(); }
+}).unref().listen(0, '127.0.0.1');
+await new Promise(done => viewer.once('listening', done));
+const playwright = require('playwright').chromium;
+const chromium = {launch: () => playwright.launch({
+  args: [`--host-resolver-rules=MAP localhost:8765 127.0.0.1:${viewer.address().port}`]})};
 // Visual evidence is opt-in: NIWA_CAPTURE_SCREENSHOTS=DIR saves PNGs there.
 const CAPTURE_DIR = process.env.NIWA_CAPTURE_SCREENSHOTS;
 async function capture(page, name) {
@@ -191,7 +207,6 @@ async function open(browser, {lobbyRunning = true, records = [], sharedItem = nu
   page.received = [];
   page.requests = [];
   page.network = new Map();
-  page.routes = new Map();
   context.on('request', request => {
     page.requests.push(request.url());
     page.network.set(request, 'requested');
@@ -228,16 +243,6 @@ async function open(browser, {lobbyRunning = true, records = [], sharedItem = nu
         answers[id]?.(frame, response => reply({...response, nonce}), guest);
       });
     });
-  });
-  await context.route('http://localhost:8765/**', async route => {
-    page.routes.set(route.request(), 'handling');
-    let path = new URL(route.request().url()).pathname;
-    if (path === '/') path = '/index.html';
-    const type = TYPES[path.split('.').pop()];
-    await route.fulfill(type
-      ? {body: await readFile(resolve(root, 'relay/viewer', `.${path}`)), contentType: type}
-      : {status: 204, body: ''});
-    page.routes.set(route.request(), 'fulfilled');
   });
   page.urls = [];
   page.on('framenavigated', frame => {
@@ -323,10 +328,13 @@ test('wake-up and late-delivery patches leave the active lobby row and pointer p
     const button = await openRoom.elementHandle();
     await button.evaluate(node => node.scrollIntoView({block: 'center'}));
     await openRoom.hover();
-    const box = await button.boundingBox();
     const y = await page.evaluate(() => scrollY);
     assert.ok(y > 0, 'the active row is below the fold');
     await page.mouse.down();
+    // The pressed button slides 1px over a 120ms transition (viewer-theme.css);
+    // measure the pressed rest position, not a frame inside that slide.
+    await button.evaluate(node => Promise.all(node.getAnimations().map(animation => animation.finished)));
+    const box = await button.boundingBox();
     const assertHeld = async () => {
       assert.ok(await button.evaluate(node => node === document.activeElement));
       assert.deepEqual(await button.boundingBox(), box);
@@ -1495,7 +1503,7 @@ async function newTab(source, link, gesture, {room, length, route, ready}) {
     }
   });
   const [target] = await Promise.all([
-    source.context().waitForEvent('page', {timeout: 10000}),
+    source.context().waitForEvent('page', {timeout: 30000}),
     link.click(gesture.options),
   ]).catch(async error => {
     const events = await clickedAnchor.evaluate(node => ({
@@ -1510,7 +1518,7 @@ async function newTab(source, link, gesture, {room, length, route, ready}) {
     })).catch(() => null);
     const requests = [...source.network].filter(([request]) => {
       try { return request.frame().page() === target; } catch { return true; }
-    }).map(([request, state]) => ({url: request.url(), state, route: source.routes.get(request)}));
+    }).map(([request, state]) => ({url: request.url(), state}));
     throw new Error(`${gesture.name}, ${length}-byte tier, ${JSON.stringify(route)}: load failed; document=${JSON.stringify(documentState)}; requests=${JSON.stringify(requests)}`, {cause: error});
   });
   await ready(target);

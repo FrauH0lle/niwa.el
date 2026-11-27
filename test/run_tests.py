@@ -22,6 +22,29 @@ REPORTS = ROOT / '.scratch/test-suite-performance'
 EASK = ['eask'] if shutil.which('eask') else ['npx', '--offline', '@emacs-eask/cli']
 
 
+def default_durations():
+    """Return this checkout's timing history, else the main checkout's.
+
+    A linked worktree has its own `.scratch`, so without the fallback its full
+    runs would balance without timings and rebuild per-deftest fixtures on
+    every worker.  Runs still write only to this checkout's history."""
+    own = REPORTS / 'latest-durations.csv'
+    if own.exists():
+        return own
+    try:
+        listing = subprocess.run(['git', '-C', str(ROOT), 'worktree', 'list', '--porcelain', '-z'],
+                                 capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return own
+    # Git lists the main worktree first, as NUL-separated fields (paths may hold
+    # any byte but NUL); a bare repository has no checkout.
+    first = listing.split(b'\0\0', 1)[0].split(b'\0')
+    if not first or not first[0].startswith(b'worktree ') or b'bare' in first:
+        return own
+    main = Path(os.fsdecode(first[0][len(b'worktree '):])) / '.scratch/test-suite-performance/latest-durations.csv'
+    return main if main.exists() else own
+
+
 def yield_to_oom_killer(path=Path('/proc/self/oom_score_adj')):
     """Make this runner and the Emacs workers it starts the first OOM victims.
 
@@ -164,7 +187,7 @@ def main():
                         default=os.environ.get('NIWA_TEST_JOBS') or min(8, available_cpus),
                         help=f'worker limit (default: NIWA_TEST_JOBS, else '
                              f'{min(8, available_cpus)}; {available_cpus} CPUs available)')
-    parser.add_argument('--durations', type=Path, default=REPORTS / 'latest-durations.csv')
+    parser.add_argument('--durations', type=Path, default=default_durations())
     parser.add_argument('--output', type=Path)
     parser.add_argument('files', nargs='*', help='test files or quoted glob patterns (default: all)')
     parser.add_argument('--affected', nargs='?', const='', metavar='REV',
