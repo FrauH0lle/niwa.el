@@ -44,7 +44,7 @@
 ;; `niwa-hooks'
 (declare-function niwa-hooks-annotate-rules-source
                   "niwa-hooks"
-                  (rules source &optional source-file source-root))
+                  (rules source &optional source-file source-root trust-key))
 (declare-function niwa-hooks-normalize-rules
                   "niwa-hooks" (rules &optional scope))
 (declare-function niwa-hooks-project-file-snapshot
@@ -746,7 +746,8 @@ YAML parsing fails, attributing the warning to WORKSPACE."
   "Build a `niwa-skill' from NAME and PLIST parsed from SOURCE-FILE.
 SOURCE is the origin tag symbol.  SOURCE-FAMILY is `niwa', `agents',
 or nil.  PROJECT-HOOKS-TRUSTED-P authorizes executable hooks from a
-project manifest.  NAME is the resolved invocation identifier (already
+project manifest; a trust key plist also binds their scripts.  NAME is
+the resolved invocation identifier (already
 validated by the caller).  Description fallback from the body is the
 caller's responsibility -- anything in PLIST's `:description' wins over
 the fallback.  PLUGIN-NAME records plugin ownership when SOURCE is
@@ -821,7 +822,8 @@ supplied, owns local warnings independently of persisted WORKSPACE state."
         rules
         (if (eq source 'project) 'project-file
           (if (eq source 'plugin) 'plugin 'user-file))
-        source-file (file-name-directory source-file)))
+        source-file (file-name-directory source-file)
+        (and (eq source 'project) project-hooks-trusted-p)))
      :dependencies
      (mapcar
       (lambda (dependency)

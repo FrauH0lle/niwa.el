@@ -862,6 +862,341 @@
       (delete-directory root t)
       (delete-directory user-dir t))))
 
+(defun niwa-hooks-test--write-script (root name version)
+  "Write hook script NAME under ROOT that logs NAME and VERSION."
+  (let ((file (file-name-concat root ".niwa" "hooks" name)))
+    (make-directory (file-name-directory file) t)
+    (with-temp-file file
+      (insert (format "#!/bin/sh\ncat >/dev/null\necho %s%s >> log\n"
+                      (file-name-base name) version)))
+    (set-file-modes file #o755)))
+
+(defun niwa-hooks-test--run-logged (root session workspace)
+  "Run PreToolUse Bash hooks for SESSION in WORKSPACE at ROOT.
+Return the words the hook scripts logged to ROOT's log file."
+  (let ((log (file-name-concat root "log")))
+    (when (file-exists-p log) (delete-file log))
+    (niwa-hooks-test--await
+     (lambda (cb)
+       (niwa-hooks-run-event
+        'PreToolUse
+        `(:tool-name "Bash" :cwd ,root :workspace-root ,root)
+        cb session workspace)))
+    (when (file-exists-p log)
+      (with-temp-buffer
+        (insert-file-contents log)
+        (split-string (buffer-string))))))
+
+(defun niwa-hooks-test--write-command-config (root &rest commands)
+  "Write ROOT's project PreToolUse Bash hook config running COMMANDS."
+  (make-directory (file-name-concat root ".niwa") t)
+  (with-temp-file (file-name-concat root ".niwa" "hooks.json")
+    (insert (json-encode
+             `((hooks
+                (PreToolUse
+                 . [((matcher . "Bash")
+                     (hooks
+                      . ,(vconcat
+                          (mapcar (lambda (command)
+                                    `((type . "command")
+                                      (command . ,command)))
+                                  commands))))])))))))
+
+(niwa-deftest niwa-hooks-run-event/project-script-workspace-scope
+  (:doc "binds script trust to the workspace that approved the config")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-script-scope" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-script-scope-user" t)))
+         ;; Two workspace identities share one root and config path.
+         (first (niwa-workspace-get-or-create
+                 'project (format "scope-a:%s" root) root "scope-a"))
+         (second (niwa-workspace-get-or-create
+                  'project (format "scope-b:%s" root) root "scope-b"))
+         (first-session (niwa-session-create "a" first root))
+         (second-session (niwa-session-create "b" second root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (unwind-protect
+        (progn
+          (niwa-hooks-test--write-script root "a.sh" "1")
+          (niwa-hooks-test--write-command-config root "sh .niwa/hooks/a.sh")
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project first))
+          (niwa-hooks-test--write-script root "a.sh" "2")
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project second))
+          ;; The second approval covers only its own workspace, also when
+          ;; it loaded the shared root's rules first.
+          (should (equal '("a2") (niwa-hooks-test--run-logged
+                                  root second-session second)))
+          (let (diagnostics)
+            (niwa-test--with-captured-diagnostics diagnostics
+              (should-not (niwa-hooks-test--run-logged
+                           root first-session first)))
+            (should (string-match-p "a\\.sh is not trusted" diagnostics))))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-hooks-run-event/project-script-paths
+  (:doc "checks the physical script and skips unusable references in the chain")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-script-paths" t)))
+         (outside (file-name-as-directory
+                   (make-temp-file "niwa-hooks-script-outside" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-script-paths-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil)
+         (hooks (file-name-concat root ".niwa" "hooks")))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (unwind-protect
+        (progn
+          (dolist (name '("b.sh" "u.sh" "d.sh"))
+            (niwa-hooks-test--write-script root name "1"))
+          ;; Lexically .niwa/s.sh, physically OUTSIDE/s.sh.
+          (niwa-hooks-test--write-script root "../s.sh" "benign")
+          (make-directory (file-name-concat outside "sub") t)
+          (make-symbolic-link (file-name-concat outside "sub")
+                              (file-name-concat root ".niwa" "link"))
+          (with-temp-file (file-name-concat outside "s.sh")
+            (insert "cat >/dev/null\necho evil >> log\n"))
+          ;; A workspace path whose file lives outside the workspace.
+          (with-temp-file (file-name-concat outside "out.sh")
+            (insert "cat >/dev/null\necho out >> log\n"))
+          (make-symbolic-link (file-name-concat outside "out.sh")
+                              (file-name-concat hooks "out.sh"))
+          (niwa-hooks-test--write-command-config
+           root
+           "sh .niwa/link/../s.sh" "sh .niwa/hooks/out.sh"
+           "sh .niwa/hooks/u.sh" "sh .niwa/hooks/d.sh" "sh .niwa/hooks/b.sh")
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project workspace))
+          ;; Trusted references that stop being readable regular files.
+          (set-file-modes (file-name-concat hooks "u.sh") #o000)
+          (delete-file (file-name-concat hooks "d.sh"))
+          (make-directory (file-name-concat hooks "d.sh"))
+          (let (diagnostics)
+            (niwa-test--with-captured-diagnostics diagnostics
+              (should (equal '("b1") (niwa-hooks-test--run-logged
+                                      root session workspace))))
+            (dolist (name '("s\\.sh" "out\\.sh" "u\\.sh" "d\\.sh"))
+              (should (string-match-p (concat name " is not trusted")
+                                      diagnostics)))))
+      (ignore-errors
+        (set-file-modes (file-name-concat hooks "u.sh") #o644))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory outside t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-hooks-run-event/project-script-retarget
+  (:doc "refuses a trusted script path whose symlink no longer reaches a file")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-script-retarget" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-script-retarget-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil)
+         (hooks (file-name-concat root ".niwa" "hooks"))
+         (link (file-name-concat hooks "l.sh")))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (unwind-protect
+        (progn
+          (niwa-hooks-test--write-script root "real.sh" "1")
+          (niwa-hooks-test--write-script root "b.sh" "1")
+          (make-symbolic-link "real.sh" link)
+          ;; The handler logs before its script, so any start is visible.
+          (niwa-hooks-test--write-command-config
+           root "echo started >> log; sh .niwa/hooks/l.sh"
+           "sh .niwa/hooks/b.sh")
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project workspace))
+          (should (equal '("started" "real1" "b1")
+                         (niwa-hooks-test--run-logged
+                          root session workspace)))
+          (make-directory (file-name-concat hooks "dir.sh"))
+          (dolist (target '("missing.sh" "dir.sh"))
+            (delete-file link)
+            (make-symbolic-link target link)
+            (let (diagnostics)
+              (niwa-test--with-captured-diagnostics diagnostics
+                ;; Both retargets give the same refusal; warn for each.
+                (niwa--warn-once-reset-site
+                 (niwa-diagnostic-scope session) 'hooks-script-untrusted)
+                (should (equal '("b1") (niwa-hooks-test--run-logged
+                                        root session workspace))))
+              (should (string-match-p "l\\.sh is not trusted" diagnostics)))))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-hooks--command-script-hashes
+  (:doc "anchors absolute script words in a remote workspace's filesystem")
+  (let* ((local (file-name-as-directory
+                 (file-truename (make-temp-file "niwa-hooks-remote-word" t))))
+         (remote (format "/niwamock:%s:%s" (system-name) local))
+         (outside (file-name-as-directory
+                   (make-temp-file "niwa-hooks-remote-word-outside" t)))
+         (word (concat local ".niwa/link/../s.sh"))
+         symlink-probes)
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (unwind-protect
+        (progn
+          (niwa-hooks-test--write-script local "../s.sh" "benign")
+          (make-directory (file-name-concat outside "sub") t)
+          (make-symbolic-link (file-name-concat outside "sub")
+                              (file-name-concat local ".niwa" "link"))
+          (with-temp-file (file-name-concat outside "s.sh")
+            (insert "echo evil\n"))
+          (niwa-test--with-local-shell-tramp nil
+            (let ((file-symlink-p (symbol-function 'file-symlink-p)))
+              (cl-letf (((symbol-function 'file-symlink-p)
+                         (lambda (file)
+                           (push file symlink-probes)
+                           (funcall file-symlink-p file))))
+                (should (equal `((,(concat remote ".niwa/s.sh") . ambiguous))
+                               (niwa-hooks--command-script-hashes
+                                (concat "sh " word) remote))))))
+          ;; The walk reads the target's filesystem, never the client's.
+          (should symlink-probes)
+          (dolist (probe symlink-probes)
+            (should (file-remote-p probe))))
+      (delete-directory local t)
+      (delete-directory outside t))))
+
+(niwa-deftest niwa-hooks-run-event/project-script-trust
+  (:doc "runs a project hook script only while its trusted content is unchanged")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-script-ws" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-script-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil)
+         (log (file-name-concat root "log")))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (cl-labels
+        ((run ()
+           (when (file-exists-p log) (delete-file log))
+           (niwa-hooks-test--await
+            (lambda (cb)
+              (niwa-hooks-run-event
+               'PreToolUse
+               `(:tool-name "Bash" :cwd ,root :workspace-root ,root)
+               cb session workspace)))
+           (if (file-exists-p log)
+               (with-temp-buffer
+                 (insert-file-contents log)
+                 (split-string (buffer-string)))
+             nil)))
+      (unwind-protect
+          (progn
+            ;; Interpreter argument, direct path, and a script absent
+            ;; at trust time.
+            (niwa-hooks-test--write-script root "a.sh" "1")
+            (niwa-hooks-test--write-script root "b.sh" "1")
+            (with-temp-file (file-name-concat root ".niwa" "hooks.json")
+              (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\","
+                      "\"hooks\":["
+                      "{\"type\":\"command\",\"command\":\"sh .niwa/hooks/a.sh\"},"
+                      "{\"type\":\"command\",\"command\":\"'.niwa/hooks/b.sh'\"},"
+                      "{\"type\":\"command\",\"command\":\"sh .niwa/hooks/c.sh\"}"
+                      "]}]}}"))
+            (niwa-test--with-captured-messages nil
+              (niwa-hooks-trust-project workspace))
+            (should (equal '("a1" "b1") (run)))
+            ;; A changed script is refused by the memoized rules ...
+            (niwa-hooks-test--write-script root "a.sh" "2")
+            (niwa-hooks-test--write-script root "c.sh" "1")
+            (let (diagnostics)
+              (niwa-test--with-captured-diagnostics diagnostics
+                (should (equal '("b1") (run))))
+              (should (string-match-p "a\\.sh is not trusted" diagnostics))
+              (should (string-match-p "c\\.sh is not trusted" diagnostics)))
+            ;; ... and after a fresh load.
+            (niwa-test--with-captured-diagnostics nil
+              (niwa-hooks-reload)
+              (should (equal '("b1") (run))))
+            ;; Re-trusting is the same command as for a changed config.
+            (niwa-test--with-captured-messages nil
+              (niwa-hooks-trust-project workspace))
+            (should (equal '("a2" "b1" "c1") (run))))
+        (clrhash niwa-hooks--config-rules-cache)
+        (delete-directory root t)
+        (delete-directory user-dir t)
+        (niwa-workspace-clear-registry)))))
+
+(niwa-deftest niwa-hooks--untrusted-project-script
+  (:doc "binds project skill hook scripts to the hashes trusted with the manifest")
+  (let* ((niwa-skills-include-bundled nil)
+         (root (file-name-as-directory
+                (make-temp-file "niwa-hooks-skill-script-ws" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-skill-script-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (event-plist `(:workspace-root ,root))
+         (script (file-name-concat root ".niwa" "hooks" "s.sh"))
+         (skill-file (file-name-concat root ".niwa" "skills" "hooked"
+                                       "SKILL.md")))
+    (require 'niwa-skills-core)
+    (unwind-protect
+        (cl-flet ((handler ()
+                    (car (plist-get
+                          (cadr (assq 'PreToolUse
+                                      (niwa-skill-hooks
+                                       (car (niwa-skills-scan
+                                             root '(".niwa/skills")
+                                             workspace)))))
+                          :hooks))))
+          (niwa-hooks-test--write-script root "s.sh" "1")
+          (make-directory (file-name-directory skill-file) t)
+          (with-temp-file skill-file
+            (insert "---\nname: hooked\ndescription: Hooked\n"
+                    "hooks:\n  PreToolUse:\n"
+                    "    - matcher: Bash\n      hooks:\n"
+                    "        - type: command\n"
+                    "          command: sh .niwa/hooks/s.sh\n"
+                    "---\nBody"))
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project workspace))
+          (let ((handler (handler)))
+            (should (eq 'project-file (plist-get handler :source)))
+            (should-not (niwa-hooks--untrusted-project-script
+                         handler event-plist))
+            (niwa-hooks-test--write-script root "s.sh" "2")
+            (should (equal (cons script "changed since trust")
+                           (niwa-hooks--untrusted-project-script
+                            handler event-plist)))
+            ;; User-file provenance is outside project trust.
+            (should-not (niwa-hooks--untrusted-project-script
+                         (plist-put (copy-sequence handler) :source 'user-file)
+                         event-plist))))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
 (niwa-deftest niwa-hooks--config-rules
   ()
   ,test

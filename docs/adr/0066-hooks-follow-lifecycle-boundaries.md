@@ -52,7 +52,9 @@ parallel handlers would require a conflict rule for competing outputs.
 
 Declarative command handlers support project automation while Elisp handlers
 reuse Emacs integrations. Both use the same decision engine. Project files are
-trusted by content and read as data; command execution follows the resource's
+trusted by content and read as data, and so are the project scripts their
+commands name, checked again before each launch because a script runs from
+disk rather than from the trusted snapshot. Command execution follows the resource's
 origin, so a local user hook does not silently become remote code. Adding each
 new handler transport would require its own permission and cancellation contract.
 
@@ -77,6 +79,23 @@ conversation workspace. Working-directory selection now prefers captured event
 context with same-target fallbacks; bundled paths must use plugin-root variables.
 The change separates work location from executable origin without relaxing
 origin validation or moving client-local plugins onto remote session targets.
+
+Project trust first hashed only hook files and skill manifests. A command such
+as `.niwa/hooks/block-rm.sh` then ran whatever that script contained after a
+pull, without re-trust, although the hooks manual promised re-trust for changed
+hook files. A regression running a changed and a newly created script through
+trusted, memoized rules reproduced it. Trust now records the hashes of the
+project scripts that commands name, and each launch rechecks them; a
+load-time check alone would miss changes during a running session.
+Review then found three gaps. Script hashes matched by path alone, so another
+workspace's approval of the same file applied, and the rule memo keyed by root
+shared one workspace's trust with another. Containment compared lexical paths,
+so `.niwa/link/../s.sh` was checked as `.niwa/s.sh` while the shell ran a file
+outside the workspace. An unreadable trusted script also aborted the handler
+chain. Regressions reproduced all three. Script hashes now bind to the admitting
+record, the memo keys include the workspace id, and checks use the physical
+path and refuse ambiguous references. Each failed check skips its handler. The
+check is a launch preflight, not byte identity at `exec`.
 
 A review probe delivered a local command's exit sentinel while its separate
 stderr pipe still had unread output. The runner destroyed that pipe before

@@ -567,9 +567,40 @@ is trusted. By default:
 - user defcustom and user `.agents/hooks.*` / `.niwa/hooks.*` files are trusted.
 - project `.agents/hooks.*`, `.niwa/hooks.*`, and `SKILL.md` hook declarations
   are ignored until the user trusts them for that workspace.
-- trust state lives under user state, keyed by workspace id and project
-  hook file hashes.
-- changed project hook files or skill manifests require re-trust.
+- trust state lives under user state. Each record holds a workspace id, a
+  project hook file's path and hash, and the hash of each project script
+  that file's commands name. A script hash counts only for the record that
+  admitted the handler's file, so another workspace's approval of the same
+  path does not extend to this one.
+- changed project hook files, skill manifests, or named scripts require
+  re-trust. A command names a script with a whitespace-separated word,
+  optionally quoted, that contains `/`, lies inside the workspace root, and
+  resolves to a regular file or to a script the record names: both
+  `.niwa/hooks/block-rm.sh` and `python3 .niwa/hooks/policy.py check` name
+  their script. An absolute word names a file on the workspace's own
+  filesystem, also when the workspace is remote. niwa checks the physical
+  file the shell would run, and keeps checking a trusted path by the name the
+  command uses, so retargeting its symlink cannot drop it from the check. Before
+  each launch it refuses a command, ignoring that handler with a warning
+  while the rest of the chain runs, when a named script:
+  - changed, or was created, since trust;
+  - resolves through a symlink to a file outside the workspace;
+  - follows a symlinked directory with `..` (`.niwa/link/../x.sh`), which
+    the shell resolves physically and niwa does not guess;
+  - is no longer a readable regular file, including a trusted symlink
+    retargeted to a missing file or a directory.
+
+  This holds while the hook configuration stays memoized. On a remote
+  workspace the target computes each digest with `sha256sum`, so the script
+  is not transferred; without `sha256sum` niwa reads the file instead.
+- the script check detects changes present when the launch preflight runs.
+  It does not guarantee that the shell executes the hashed bytes: a write
+  between the check and `exec`, or by the script's own process, is not
+  detected. Anyone who can write the workspace while hooks run can already
+  change what they do.
+- interpreters and other files outside the workspace are not covered, nor are
+  paths built from variables, `cd` sequences, or files a script loads
+  itself; keep such code in a named script or trust it separately.
 - resolution reads each project config once, checks that snapshot's hash, and
   parses the same bytes; replacing the pathname after the check cannot
   substitute executable rules.
