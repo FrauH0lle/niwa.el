@@ -87,6 +87,41 @@ const allowed = (names) => names.filter((n) => n !== 'doc' && n !== 'text').join
 const attrsOf = (spec) => Object.keys(spec.attrs || {}).join(', ') || 'none';
 export const markdown = new MarkdownManager({ extensions });
 export const documentJSON = (doc) => yXmlFragmentToProsemirrorJSON(doc.getXmlFragment('document'));
+/* On persisted restore only: the former `in` check admitted inherited attribute names. */
+export function repairLegacyDocumentAttrs(doc) {
+  const inherited = (spec, key) => key in (spec.attrs || {}) && !Object.hasOwn(spec.attrs || {}, key);
+  const names = Object.getOwnPropertyNames(Object.prototype);
+  let removed = 0;
+  doc.transact(() => {
+    for (const item of doc.getXmlFragment('document').createTreeWalker(() => true)) {
+      if (item instanceof Y.XmlElement) {
+        const spec = schema.nodes[item.nodeName]?.spec;
+        if (spec) for (const key of names) if (item.hasAttribute(key) && inherited(spec, key)) {
+          item.removeAttribute(key);
+          removed++;
+        }
+      } else if (item instanceof Y.XmlText) {
+        let offset = 0;
+        for (const { insert, attributes } of item.toDelta()) {
+          const length = typeof insert === 'string' ? insert.length : 1;
+          for (const [mark, attrs] of Object.entries(attributes || {})) {
+            // y-tiptap can suffix a mark name with an eight-character hash.
+            const spec = schema.marks[mark.replace(/--[a-zA-Z0-9+/=]{8}$/, '')]?.spec;
+            if (!spec || !attrs || typeof attrs !== 'object' || Array.isArray(attrs)) continue;
+            const keys = Object.keys(attrs).filter(key => inherited(spec, key));
+            if (!keys.length) continue;
+            const clean = { ...attrs };
+            for (const key of keys) delete clean[key];
+            item.format(offset, length, { [mark]: clean });
+            removed += keys.length;
+          }
+          offset += length;
+        }
+      }
+    }
+  });
+  return removed;
+}
 export function selectionPositions(doc, range, parsed) {
   if (!range || JSON.stringify(range).length > 2000) throw new Error('Invalid document selection');
   const root = doc.getXmlFragment('document');
@@ -141,7 +176,7 @@ function checkNodes(json) {
     if (node.attrs) {
       const attrs = schema.nodes[node.type].spec.attrs || {};
       for (const key of Object.keys(node.attrs))
-        if (!(key in attrs))
+        if (!Object.hasOwn(attrs, key))
           throw new Error(`Unknown ${node.type} attribute ${JSON.stringify(key)}; attributes: ${attrsOf(schema.nodes[node.type].spec)}`);
       if (node.attrs.id != null && !/^[a-zA-Z0-9_-]{1,80}$/.test(node.attrs.id))
         throw new Error('Invalid block identity');
@@ -177,7 +212,7 @@ function checkNodes(json) {
       if (mark.type === 'link' && !/^(https?:|mailto:|#)/i.test(mark.attrs?.href || ''))
         throw new Error('Unsafe document link');
       for (const key of Object.keys(mark.attrs || {}))
-        if (!(key in (schema.marks[mark.type].spec.attrs || {})))
+        if (!Object.hasOwn(schema.marks[mark.type].spec.attrs || {}, key))
           throw new Error(`Unknown ${mark.type} attribute ${JSON.stringify(key)}; attributes: ${attrsOf(schema.marks[mark.type].spec)}`);
     }
     for (const child of node.content || []) visit(child, depth + 1);

@@ -21,6 +21,10 @@ mcp     run the MCP server for Claude Code, Codex or another MCP client
 
 class UsageError extends Error {}
 
+function terminalLine(stream, text) {
+  stream.write(text.replace(/[\x00-\x1f\x7f-\x9f]/g, '') + '\n');
+}
+
 function options(args, allowed) {
   const positional = [];
   const flags = {};
@@ -58,7 +62,7 @@ async function attach(args, { env, stdout }) {
   store.artifacts[name] = { link: parsed.link, id, kind, title, guestId, ...(as ? { as } : {}),
     ...(typeof origin === 'string' && origin ? { origin } : {}) };
   writeStore(env, store);
-  stdout.write(`Attached ${name}: ${title} (${kind}, ${parsed.tier} link). Stored in ${storePath(env)}.\n`);
+  terminalLine(stdout, `Attached ${name}: ${title} (${kind}, ${parsed.tier} link). Stored in ${storePath(env)}.`);
 }
 
 function detach(args, { env, stdout }) {
@@ -69,7 +73,7 @@ function detach(args, { env, stdout }) {
   if (!store.artifacts[name]) throw new Error(`No remote artifact named ${name}`);
   delete store.artifacts[name];
   writeStore(env, store);
-  stdout.write(`Detached ${name}.\n`);
+  terminalLine(stdout, `Detached ${name}.`);
 }
 
 /**
@@ -92,7 +96,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout,
       stderr.write(USAGE);
       return 2;
     }
-    stderr.write(`niwa-remote-artifact: ${error.message}\n`);
+    terminalLine(stderr, `niwa-remote-artifact: ${error.message}`);
     return 1;
   }
 }

@@ -2320,7 +2320,7 @@ async function start(event) {
   readOnly = event.data.readOnly;
   online = event.data.online !== false;
   revision = item.revision;
-  doc = restore(bytes(item.crdt));
+  doc = restore(bytes(item.crdt), { persisted: true });
   // Registered first, so every later update listener sees fresh elements.
   doc.on('update', () => { cachedList = cachedScene = null; });
   const recovery = event.data.draft;

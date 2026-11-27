@@ -540,6 +540,12 @@ The edit that was to continue them did not commit."
         (error (niwa-shared-editing--finish
                 runtime job (list :error (error-message-string err))))))))
 
+(defun niwa-shared-editing--trim-stderr (&rest _change)
+  "Keep the latest 65536 characters of helper diagnostics."
+  (when (> (buffer-size) 65536)
+    (with-silent-modifications
+      (delete-region (point-min) (- (point-max) 65536)))))
+
 (defun niwa-shared-editing--process (runtime &optional restart)
   "Return RUNTIME's private helper, starting it if needed or RESTART is non-nil."
   ;; Configuration changes take effect between jobs, without cancelling the
@@ -560,6 +566,10 @@ The edit that was to continue them did not commit."
              (process
               (make-process
                :name "niwa-shared-editing" :buffer nil
+               :stderr (with-current-buffer (get-buffer-create " *niwa-shared-editing stderr*")
+                         (add-hook 'after-change-functions #'niwa-shared-editing--trim-stderr nil t)
+                         (niwa-shared-editing--trim-stderr)
+                         (current-buffer))
                :command (list program "--no-experimental-webstorage"
                               (file-name-concat niwa-shared-editing--directory
                                                 "host.bundle.mjs"))

@@ -316,6 +316,12 @@ function silhouette(e) {
   return `<rect class="hit" width="${n(w)}" height="${n(h)}" fill="transparent"/>`;
 }
 const cache = new Map();
+// Bound retained key + SVG text to 8 Mi UTF-16 code units, plus Map overhead.
+export function rememberSVG(entries, key, svg) {
+  if (key.length + svg.length > 8192) return;
+  if (entries.size >= 1024) entries.delete(entries.keys().next().value);
+  entries.set(key, svg);
+}
 /* SVG group for one resolved element. INTERACTIVE adds editor hit areas. */
 /* SCENE.paper, white by default, is the canvas colour under the elements. */
 export function elementSVG(e, scene, files, interactive = false) {
@@ -348,8 +354,7 @@ export function elementSVG(e, scene, files, interactive = false) {
   const frame = e.frameId && scene.byId.get(e.frameId);
   const opacity = ((frame && ['frame', 'magicframe'].includes(frame.type) ? frame.opacity : 100) * e.opacity) / 10000;
   svg = `<g data-shape="${escape(e.id)}"${LINEAR.includes(e.type) ? ' data-linear="true"' : ''}${opacity < 1 ? ` opacity="${n(opacity)}"` : ''}>${svg}</g>`;
-  if (cache.size > 4000) cache.clear();
-  cache.set(key, svg);
+  rememberSVG(cache, key, svg);
   return svg;
 }
 /* Clip paths for frames, so elements inside a frame stay inside it. */

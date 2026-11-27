@@ -730,6 +730,12 @@ An item is `<workspace>/.niwa/artifacts/.state/ID/state.json`, with `meta.eld`
 naming its kind, title and revision, and `versions/`. Catalogs read these small
 metadata records without parsing the item's CRDT state or history.
 
+Opening an older snapshot (including a saved version) repairs invalid stacking
+keys in the original draw order and removes document attributes that previously
+matched inherited schema properties. The helper or browser logs the repair
+count. Reads and exports leave the snapshot on disk untouched; the next save
+stores the repaired content. New edits still use strict validation.
+
 Every content path reaches items through one artifact-backend interface
 (`niwa-artifact-backend.el`): the model's tools, `shared://` Read and Grep,
 browser rooms, version previews and a turn's versions. Listings come from

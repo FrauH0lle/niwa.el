@@ -288,6 +288,10 @@ test('every block SharedEdit describes is accepted and rejections say what is al
   assert.throws(reject({ type: 'callout' }), /Unknown document node "callout"; nodes: paragraph, .*table/);
   assert.throws(reject({ type: 'heading', attrs: { id: 'x', level: 2, color: 'red' }, content: [text('x')] }),
     /Unknown heading attribute "color"; attributes: id, level/);
+  assert.throws(reject({ type: 'paragraph', attrs: { id: 'x', toString: 'extra' } }),
+    /Unknown paragraph attribute "toString"/);
+  assert.throws(reject({ type: 'paragraph', content: [text('x', [{ type: 'bold', attrs: { constructor: 1 } }])] }),
+    /Unknown bold attribute "constructor"/);
   assert.throws(reject({ type: 'paragraph', content: [text('x', [{ type: 'strong' }])] }),
     /Unknown document mark "strong"; marks: link, bold/);
   assert.throws(reject({ type: 'bulletList', content: [{ type: 'listItem', content: [text('x')] }] }),

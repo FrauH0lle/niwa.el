@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardSVG, elementSVG, resolveScene, extent, bounds, shapesInRegion } from '../render.mjs';
+import { boardSVG, elementSVG, resolveScene, extent, bounds, shapesInRegion, rememberSVG } from '../render.mjs';
 import { linearPath, complete, seedOf } from '../scene.mjs';
 import { wrap, measure, layoutText, lineWidth } from '../text.mjs';
 
@@ -11,6 +11,19 @@ const svgOf = (elements, id = elements[0].id) => {
 };
 const close = (actual, expected, label) => actual.forEach((p, i) => p.forEach((v, j) =>
   assert.ok(Math.abs(v - expected[i][j]) < 0.02, `${label}: ${JSON.stringify(actual)} != ${JSON.stringify(expected)}`)));
+
+test('render cache bounds key and SVG retention without evicting for skipped entries', () => {
+  const cache = new Map();
+  for (let i = 0; i < 1024; i++) rememberSVG(cache, String(i), 'svg');
+  const large = 'x'.repeat(8192);
+  rememberSVG(cache, large, 'svg');
+  rememberSVG(cache, 'big-svg', large);
+  assert.equal(cache.size, 1024);
+  assert.ok(cache.has('0'));
+  rememberSVG(cache, 'new', 'svg');
+  assert.equal(cache.size, 1024);
+  assert.ok(!cache.has('0') && cache.has('new'));
+});
 
 test('elements render as Excalidraw does: seeded roughjs strokes, fills and dashes', () => {
   const hachured = rect('a', 0, 0, 200, 120, { roughness: 2, backgroundColor: '#a5d8ff', fillStyle: 'cross-hatch' });

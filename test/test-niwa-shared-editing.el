@@ -213,6 +213,33 @@
       (should (equal "Later" (plist-get (niwa-artifact-store-meta workspace "board1")
                                         :title)))))
 
+  :doc "opens a legacy snapshot through the helper without mixing its repair notice into the reply"
+  (niwa-shared-editing-test--with-workspace
+    (let* ((id "legacy")
+           (fixture (with-temp-buffer
+                      (insert-file-contents
+                       (file-name-concat niwa-test--worktree-root
+                                         "test/fixtures/shared-editing/legacy-snapshots.json"))
+                      (plist-get (niwa-shared-editing--parse (buffer-string)) :document))))
+      (niwa-shared-editing-test--call
+       workspace `(:action "create" :id ,id :kind "document" :title "Legacy"
+                   :actor "Alice" :opId "one"))
+      (let ((state (niwa-shared-editing--read workspace id)))
+        (niwa-shared-editing--commit workspace (plist-put state :crdt fixture)))
+      (niwa-shared-editing-stop)
+      (with-current-buffer (get-buffer-create " *niwa-shared-editing stderr*")
+        (erase-buffer)
+        (insert (make-string 65536 ?x)))
+      (let* ((reply (niwa-shared-editing-test--call workspace `(:action "export" :id ,id :format "native")))
+             (text (plist-get (plist-get reply :result) :text)))
+        (should-not (plist-get reply :error))
+        (should (string-match-p "Keep this sentence" text))
+        (should-not (string-match-p "obsolete" text)))
+      (with-current-buffer " *niwa-shared-editing stderr*"
+        (should (search-backward "Removed 1 legacy document attributes" nil t))
+        (should (<= (buffer-size) 65536)))
+      (should (equal fixture (plist-get (niwa-shared-editing--read workspace id) :crdt)))))
+
   :doc "uncommitted batched requests still count toward pending request limits"
   (niwa-shared-editing-test--with-workspace
     (let ((runtime (niwa-shared-editing--runtime workspace)))

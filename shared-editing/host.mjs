@@ -418,7 +418,7 @@ export async function handle(request) {
         state.revision >= 0,
       'Invalid persisted editor',
     );
-    doc = restore(bytes(state.crdt));
+    doc = restore(bytes(state.crdt), { persisted: true });
   }
   try {
     const before = inspect(doc),
@@ -706,7 +706,7 @@ export async function handle(request) {
       // A saved version's content becomes the item's content as one ordinary
       // attributed change: lineage, discussions and history stay, and the
       // restore itself can be reverted.
-      const source = restore(bytes(request.target));
+      const source = restore(bytes(request.target), { persisted: true });
       try {
         const target = inspect(source);
         check(target.kind === before.kind, 'A version restores into its own kind of item');

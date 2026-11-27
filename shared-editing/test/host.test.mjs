@@ -5,8 +5,43 @@ import { handle } from '../host.mjs';
 import { restore } from '../model.mjs';
 import { resolveScene } from '../scene.mjs';
 import { contentHash as h } from '../view.mjs';
+import legacy from '../../test/fixtures/shared-editing/legacy-snapshots.json' with { type: 'json' };
 const rect = (id, x, y, extra = {}) => ({ id, type: 'rectangle', x, y, width: 100, height: 50, ...extra });
 const scene = (elements, files = {}) => JSON.stringify({ type: 'excalidraw', version: 2, elements, files });
+
+// Both snapshots were opened and read with the host from e03c0717.
+for (const [kind, crdt] of Object.entries(legacy)) {
+  test(`host opens, exports and restores a legacy ${kind} without admitting new invalid writes`, async () => {
+    const state = { format: 1, id: 'legacy', revision: 1, receipts: {}, transactions: [], crdt };
+    const { result } = await handle({ action: 'read', state });
+    if (kind === 'whiteboard') {
+      assert.deepEqual(result.content.map(e => e.id), ['back', 'front']);
+      assert.notEqual(result.content[1].index, 'zz');
+      assert.equal(result.content[1].width, 4);
+    } else {
+      assert.deepEqual(result.content.content[0], { type: 'paragraph', attrs: { id: 'block' },
+        content: [{ type: 'text', text: 'Keep this sentence.' }] });
+    }
+    const { result: exported } = await handle({ action: 'export', format: 'native', state });
+    assert.match(exported.text, kind === 'whiteboard' ? /front/ : /Keep this sentence/);
+    const peer = restore(Buffer.from(crdt, 'base64'), { persisted: true });
+    const openedAgain = restore(Buffer.from(crdt, 'base64'), { persisted: true });
+    assert.deepEqual(Y.encodeStateAsUpdate(peer), Y.encodeStateAsUpdate(openedAgain));
+    openedAgain.destroy();
+    const vector = Y.encodeStateVector(peer);
+    if (kind === 'whiteboard') peer.getMap('elements').get('front').set('index', 'zz');
+    else peer.getXmlFragment('document').get(0).setAttribute('toString', 'new');
+    await assert.rejects(handle({ action: 'update', state, actor: 'Alice', opId: 'edit',
+      update: Buffer.from(Y.encodeStateAsUpdate(peer, vector)).toString('base64') }),
+      /Invalid .* index|Unknown paragraph attribute/);
+    peer.destroy();
+    const fresh = await handle({ action: 'create', kind, title: 'Empty', id: 'other', actor: 'Alice', opId: 'create' });
+    const recovered = await handle({ action: 'restore', state: fresh.state, target: crdt, actor: 'Alice', opId: 'restore' });
+    assert.deepEqual(recovered.result.content, result.content);
+    assert.doesNotThrow(() => restore(Buffer.from(recovered.state.crdt, 'base64')).destroy());
+    assert.throws(() => restore(Buffer.from(crdt, 'base64')), /Invalid .* index|Unknown paragraph attribute/);
+  });
+}
 
 test('large retained snapshots expire before repeated moves block new saves', async () => {
   const content = Array.from({length:50},(_,i)=>({id:`shape-${i}`,type:'text',x:i*10,y:0,width:100,height:100,text:'x'.repeat(10000)}));

@@ -392,7 +392,9 @@ test('editor interaction regressions', async (t) => {
       assert.ok(Math.abs((await shape.boundingBox()).x - preview.x) < 2, 'release keeps the preview position');
       await frame.locator('#undo').click();
       assert.ok(Math.abs((await shape.boundingBox()).x - before.x) < 2, 'one undo restores the move');
-      const handle = await frame.locator('#selection [data-handle="se"]').boundingBox();
+      const resizeHandle = frame.locator('#selection [data-handle="se"]');
+      await resizeHandle.waitFor({ state: 'visible' });
+      const handle = await resizeHandle.boundingBox();
       await page.mouse.move(handle.x + handle.width/2,handle.y + handle.height/2);
       await page.mouse.down();
       await page.mouse.move(handle.x + handle.width/2 + 60,handle.y + handle.height/2 + 30);

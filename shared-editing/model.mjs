@@ -2,8 +2,8 @@
    Whiteboards hold Excalidraw elements and their image files. */
 import * as Y from 'yjs';
 import { equalityDeep } from 'lib0/function';
-import { generateNKeysBetween } from 'fractional-indexing';
-import { documentJSON, validateDocument } from './document.mjs';
+import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
+import { documentJSON, repairLegacyDocumentAttrs, validateDocument } from './document.mjs';
 import { validateImage } from './image.mjs';
 
 export const LIMIT = 16 * 1024 * 1024;
@@ -47,6 +47,41 @@ export function compareOrder(a, b) {
   if (!a.index !== !b.index) return a.index ? -1 : 1;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
+/* Persisted boards used to accept any short alphanumeric position. */
+export function repairLegacyPositions(doc) {
+  if (doc.getMap('meta').get('kind') !== 'whiteboard') return 0;
+  const rows = [];
+  let count = 0;
+  for (const [id, record] of doc.getMap('elements')) {
+    if (!(record instanceof Y.Map)) return 0;
+    const index = record.get('index');
+    if (index == null) continue;
+    if (typeof index !== 'string' || !/^[0-9A-Za-z]{1,128}$/.test(index)) return 0;
+    const legacy = !fieldValid('index', index);
+    if (legacy) count++;
+    rows.push({ id, record, index, legacy });
+  }
+  if (!count) return 0;
+  rows.sort(compareOrder);
+  try {
+    for (let i = 0; i < rows.length;) {
+      if (!rows[i].legacy) { i++; continue; }
+      const start = i;
+      while (i < rows.length && rows[i].legacy) i++;
+      const keys = generateNKeysBetween(rows[start - 1]?.index ?? null, rows[i]?.index ?? null, i - start);
+      check(keys.every((key) => fieldValid('index', key)), 'Position gap exhausted');
+      keys.forEach((key, j) => { rows[start + j].replacement = key; });
+    }
+  } catch {
+    // A gap between valid neighbours can be too narrow for bounded keys.
+    generateNKeysBetween(null, null, rows.length).forEach((key, i) => { rows[i].replacement = key; });
+  }
+  doc.transact(() => {
+    for (const { record, index, replacement } of rows)
+      if (replacement && replacement !== index) record.set('index', replacement);
+  });
+  return count;
+}
 export function inspect(doc) {
   const background = doc.getMap('meta').get('background');
   return {
@@ -61,12 +96,29 @@ export function inspect(doc) {
   };
 }
 export const filesOf = (doc) => doc.getMap('files').toJSON();
-export function restore(bytes) {
+export function restore(bytes, { persisted = false } = {}) {
   check(bytes.length <= LIMIT, 'Shared content is too large');
   const doc = new Y.Doc();
   try {
     Y.applyUpdate(doc, bytes);
-    validate(doc);
+    try {
+      validate(doc);
+    } catch (error) {
+      if (!persisted) throw error;
+      const document = doc.getMap('meta').get('kind') === 'document';
+      // All peers opening the same snapshot must create the same repair structs;
+      // later incremental updates can reference these Yjs identities.
+      const writer = doc.clientID;
+      let actor = 0;
+      while (doc.store.clients.has(actor)) actor++;
+      doc.clientID = actor;
+      const count = document ? repairLegacyDocumentAttrs(doc) : repairLegacyPositions(doc);
+      doc.clientID = writer;
+      if (!count) throw error;
+      validate(doc);
+      console.warn(document ? `Removed ${count} legacy document attributes on restore` :
+        `Repaired ${count} legacy board positions on restore`);
+    }
     return doc;
   } catch (error) {
     doc.destroy();
@@ -110,7 +162,14 @@ const FIELDS = {
     Object.keys(v).every((k) => ['type', 'value'].includes(k)) && [1, 2, 3].includes(v.type) &&
     (v.value === undefined || finite(0, 1e4)(v.value))),
   seed: (v) => Number.isSafeInteger(v) && v >= 0 && v <= 2 ** 31,
-  index: nullable((v) => typeof v === 'string' && /^[0-9A-Za-z]{1,128}$/.test(v)),
+  index: nullable((v) => {
+    if (typeof v !== 'string' || !/^[0-9A-Za-z]{1,128}$/.test(v)) return false;
+    try {
+      return generateKeyBetween(v, null).length <= 128;
+    } catch {
+      return false;
+    }
+  }),
   groupIds: (v) => Array.isArray(v) && v.length <= 32 && v.every(identifier),
   frameId: nullable(identifier),
   link: nullable(string(2048)),

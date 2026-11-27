@@ -210,6 +210,9 @@ export function serializeLibrary(items, now = Date.now()) {
 /* Copies of library ELEMENTS centred on CENTER with fresh ids, seeds and
    groups; references among the copies follow, others are dropped. */
 export function placeElements(elements, center, indices, seed) {
+  check(indices.length === elements.length && elements.every((_, i) =>
+    indices[i] != null && fieldValid('index', indices[i]) && (!i || indices[i - 1] < indices[i])),
+  'Library placement needs one increasing order key per element');
   const boxes = elements.map((e) => e.points
     ? (([x1, y1, x2, y2]) => [e.x + x1, e.y + y1, e.x + x2, e.y + y2])(pointBounds(e.points))
     : [e.x, e.y, e.x + e.width, e.y + e.height]);

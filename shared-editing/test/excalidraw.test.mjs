@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseScene, parseLibrary, serializeScene, serializeLibrary, exportElements, placeElements } from '../excalidraw.mjs';
+import { generateNKeysBetween } from 'fractional-indexing';
 const BUILTIN = parseLibrary(readFileSync(new URL('../builtin.excalidrawlib', import.meta.url), 'utf8'));
 import { validateElement } from '../model.mjs';
 
@@ -71,7 +72,11 @@ test('libraries read versions 1 and 2 and place copies with fresh identities', (
   assert.deepEqual(v2.map((item) => item.name), ['Database', 'Mine']);
   assert.throws(() => parseLibrary({ type: 'excalidrawlib', version: 3, libraryItems: [] }), /Not an Excalidraw library/);
   let seed = 0;
-  const placed = placeElements(BUILTIN[0].elements, [500, 300], ['b0', 'b1', 'b2', 'b3'], () => ++seed);
+  const elements = BUILTIN[0].elements;
+  const indices = generateNKeysBetween('a4', null, elements.length);
+  assert.throws(() => placeElements(elements, [500, 300], indices.toReversed(), () => ++seed), /order key/);
+  const placed = placeElements(elements, [500, 300], indices, () => ++seed);
+  assert.deepEqual(placed.map((e) => e.index), indices);
   const groups = new Set(placed.flatMap((e) => e.groupIds));
   assert.equal(groups.size, 1, 'an item keeps one fresh group');
   assert.ok(!groups.has('builtin-cylinder'));

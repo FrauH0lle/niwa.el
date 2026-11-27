@@ -54,14 +54,18 @@ test('attach stores no origin when the welcome names none', async (t) => {
 
 test('attach refuses a name collision unless --name chooses another', async (t) => {
   const env = tempEnv(t);
-  const first = await room(t);
+  const title = 'Café\x00\x1b\r\n\x7f\x85\x9f notes';
+  const first = await room(t, { bindings: { $TITLE: title } });
   const second = await room(t);
-  assert.equal((await run(env, 'attach', first.link())).code, 0);
+  const attached = await run(env, 'attach', first.link());
+  assert.equal(attached.code, 0);
+  assert.match(attached.out, /Café notes/);
+  assert.equal(stored(env).artifacts['snt-pipeline'].title, title);
   // The same link again is no collision.
   assert.equal((await run(env, 'attach', first.link())).code, 0);
   const clash = await run(env, 'attach', second.link('view'));
   assert.equal(clash.code, 1);
-  assert.match(clash.err, /snt-pipeline is already attached .*--name/);
+  assert.match(clash.err, /snt-pipeline is already attached \(Café notes\).*--name/);
   assert.equal(stored(env).artifacts['snt-pipeline'].link, first.link());
   const renamed = await run(env, 'attach', second.link('view'), '--name', 'snt-copy');
   assert.equal(renamed.code, 0, renamed.err);
