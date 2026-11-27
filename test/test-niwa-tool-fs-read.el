@@ -538,7 +538,11 @@ An error result is signalled, as a Read that failed before waiting does."
   :doc "renders at most the page cap and removes its output directory"
   (test-niwa-tool-fs-read--with-file ".pdf" "%PDF-1.4\n"
     (let (pages directories)
-      (cl-letf (((symbol-function 'executable-find)
+      (cl-letf (((symbol-function 'gptel--model-capable-p)
+                 (lambda (cap &optional _model) (eq cap 'media)))
+                ((symbol-function 'gptel--model-mime-capable-p)
+                 (lambda (mime &optional _model) (equal mime "image/png")))
+                ((symbol-function 'executable-find)
                  (lambda (name &optional _remote) (equal name "pdftoppm")))
                 ((symbol-function 'niwa-execution-run-helper)
                  (lambda (_name command read-paths writable-roots &rest _)
@@ -561,7 +565,11 @@ An error result is signalled, as a Read that failed before waiting does."
   :doc "errors when rendered pages exceed the media size limit"
   (test-niwa-tool-fs-read--with-file ".pdf" "%PDF-1.4\n"
     (let ((niwa-tool-fs-read-media-max-bytes 1))
-      (cl-letf (((symbol-function 'executable-find)
+      (cl-letf (((symbol-function 'gptel--model-capable-p)
+                 (lambda (cap &optional _model) (eq cap 'media)))
+                ((symbol-function 'gptel--model-mime-capable-p)
+                 (lambda (mime &optional _model) (equal mime "image/png")))
+                ((symbol-function 'executable-find)
                  (lambda (name &optional _remote) (equal name "pdftoppm")))
                 ((symbol-function 'niwa-execution-run-helper)
                  (lambda (_name command &rest _)

@@ -221,6 +221,21 @@
           (insert ")\"\n(:kind read)" niwa-tool-render-data-close)
           (should-not (niwa-tool-render-data-block-at 8 limit)))))))
 
+(niwa-deftest niwa-tool-render-data--next-block
+  (:doc "skip malformed openers and stop before an incomplete block")
+  (with-temp-buffer
+    (insert niwa-tool-render-data-open "\nnot-a-plist\n")
+    (let ((beg (point)))
+      (insert (niwa-tool-render-data-format '(:kind first)))
+      (let ((end (point)))
+        (insert (niwa-tool-render-data-format '(:kind second)))
+        (let ((limit (- (point-max) 3)))
+          (goto-char (point-min))
+          (should (equal (list beg end '(:kind first))
+                         (niwa-tool-render-data--next-block limit)))
+          (should (= end (point)))
+          (should-not (niwa-tool-render-data--next-block limit)))))))
+
 (niwa-deftest niwa-tool-render-data-blocks ()
   ,test
   (test)

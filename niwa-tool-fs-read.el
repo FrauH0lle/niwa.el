@@ -141,8 +141,12 @@ hands its errors here.")
 (defvar niwa-tool-fs-read--cleanups nil
   "Cell whose car lists cleanups the current Read runs when it settles.")
 
+(defvar niwa-tool-fs-read--synchronous nil
+  "Non-nil while a mention needs helper continuations to run inline.")
+
 (defconst niwa-tool-fs-read--continuation-variables
   '(niwa-tool-fs-read--fail
+    niwa-tool-fs-read--synchronous
     niwa-tool-fs-read--cleanups
     niwa-tool-fs-read--resource-address
     niwa-tool-fs-read--local-media-copy
@@ -157,7 +161,8 @@ BODY receives the continuation that settles the Read with a result.  An
 error BODY signals before its first helper propagates to the caller; one
 raised in a helper continuation settles the Read as an error result.
 Either way the Read's temporary media copies are released."
-  (let* ((cleanups (list nil))
+  (let* ((niwa-tool-fs-read--synchronous nil)
+         (cleanups (list nil))
          (settled nil)
          (release (lambda ()
                     (dolist (cleanup (car cleanups))
@@ -193,35 +198,30 @@ could not run, and any error K raises, settle the Read as an error."
   ;; through a pin.  They are safe against a swapped symlink only because they
   ;; run under the same confinement as any process that could swap it, which
   ;; masks protected trees by canonical path -- like Grep and Glob.
-  (let ((values (mapcar (lambda (symbol) (and (boundp symbol) (symbol-value symbol)))
-                        niwa-tool-fs-read--continuation-variables)))
-    (niwa-start-helper-capturing-output
-     (niwa-pipeline-handler-resumable
-      (lambda (exit-code output error)
-        (cl-progv niwa-tool-fs-read--continuation-variables values
-          (condition-case err
-              (if error
-                  (signal (car error) (cdr error))
-                (funcall k exit-code output))
-            (error
-             (if niwa-tool-fs-read--fail
-                 (funcall niwa-tool-fs-read--fail err)
-               (signal (car err) (cdr err))))))))
-     name command read-paths writable-roots)))
-
-(defun niwa-tool-fs-read--helper-now
-    (name command read-paths &optional writable-roots)
-  "Run helper COMMAND as NAME to completion, returning (EXIT-CODE . OUTPUT).
-READ-PATHS and WRITABLE-ROOTS authorize the helper's file access.
-Only for mention expansion, which still builds its text synchronously."
-  (let* ((result (niwa-execution-run-helper
-                  name command read-paths writable-roots
-                  :session (bound-and-true-p niwa--session)
-                  :owner (niwa-current-origin)))
-         (error-data (plist-get result :error)))
-    (when error-data
-      (signal (car error-data) (cdr error-data)))
-    (cons (plist-get result :exit-code) (plist-get result :output))))
+  (if niwa-tool-fs-read--synchronous
+      (let* ((result (niwa-execution-run-helper
+                      name command read-paths writable-roots
+                      :session (bound-and-true-p niwa--session)
+                      :owner (niwa-current-origin)))
+             (error-data (plist-get result :error)))
+        (when error-data
+          (signal (car error-data) (cdr error-data)))
+        (funcall k (plist-get result :exit-code) (plist-get result :output)))
+    (let ((values (mapcar (lambda (symbol) (and (boundp symbol) (symbol-value symbol)))
+                          niwa-tool-fs-read--continuation-variables)))
+      (niwa-start-helper-capturing-output
+       (niwa-pipeline-handler-resumable
+        (lambda (exit-code output error)
+          (cl-progv niwa-tool-fs-read--continuation-variables values
+            (condition-case err
+                (if error
+                    (signal (car error) (cdr error))
+                  (funcall k exit-code output))
+              (error
+               (if niwa-tool-fs-read--fail
+                   (funcall niwa-tool-fs-read--fail err)
+                 (signal (car err) (cdr err))))))))
+       name command read-paths writable-roots))))
 
 (defun niwa-tool-fs-read--visible-path (path)
   "Return PATH in the current Read operation's visible domain."
@@ -569,58 +569,26 @@ directory that this Emacs deletes when it exits."
 (defun niwa-tool-fs-read-pdf-page-count-now (path)
   "Return PDF PATH's page count when `pdfinfo' can determine it.
 Synchronous, for mention expansion; the Read tool waits asynchronously."
-  (niwa-tool-fs-read--with-local-media-source
-   path
-   (lambda (local)
-     (when (executable-find "pdfinfo")
-       (pcase-let ((`(,exit-code . ,output)
-                    (niwa-tool-fs-read--helper-now
-                     "niwa-pdfinfo" (list "pdfinfo" local) (list local))))
-         (niwa-tool-fs-read--pdfinfo-page-count exit-code output))))))
+  (let ((niwa-tool-fs-read--synchronous t))
+    (niwa-tool-fs-read--pdf-page-count path #'identity)))
 
 (defun niwa-tool-fs-read-pdf-page-images-now (path page-count)
-  "Return PNG bytes for PDF PATH's leading pages, one string per page.
-PAGE-COUNT is PATH's page count.  At most `niwa-tool-fs-read--max-pages'
-pages are rendered.  Synchronous, for mention expansion; the Read tool
-renders pages asynchronously."
+  "Return PNG bytes for the leading pages of PDF PATH with PAGE-COUNT pages."
   (unless page-count
     (error "Cannot determine the page count of %s"
            (niwa-tool-fs-read--visible-path path)))
-  (unless (executable-find "pdftoppm")
-    (error "'pdftoppm' not installed; install 'poppler-utils' to read PDF pages as images"))
-  (niwa-tool-fs-read--with-local-media-source
-   path
-   (lambda (local)
-     (let ((directory (make-temp-file "niwa-pdf-pages-" t))
-           (total 0)
-           pages)
-       (unwind-protect
-           (dotimes (index (min page-count niwa-tool-fs-read--max-pages))
-             (let* ((page (1+ index))
-                    (prefix (file-name-concat directory (format "page-%d" page))))
-               (pcase-let ((`(,exit-code . ,output)
-                            (niwa-tool-fs-read--helper-now
-                             "niwa-pdftoppm"
-                             (list "pdftoppm"
-                                   "-f" (number-to-string page)
-                                   "-l" (number-to-string page)
-                                   "-singlefile" "-png" local prefix)
-                             (list local) (list directory))))
-                 (unless (eql 0 exit-code)
-                   (error "'pdftoppm' failed while rendering page %d of %s%s"
-                          page (niwa-tool-fs-read--visible-path path)
-                          (if (string-empty-p output) "" (concat ": " output)))))
-               (let ((bytes (with-temp-buffer
-                              (set-buffer-multibyte nil)
-                              (insert-file-contents-literally (concat prefix ".png"))
-                              (buffer-string))))
-                 (when (> (cl-incf total (length bytes))
-                          niwa-tool-fs-read-media-max-bytes)
-                   (error "Rendered PDF pages exceed media size limit (%d bytes)"
-                          niwa-tool-fs-read-media-max-bytes))
-                 (push bytes pages))))
-         (delete-directory directory t))
-       (nreverse pages)))))
+  (let ((niwa-tool-fs-read--synchronous t)
+        (directory (make-temp-file "niwa-pdf-pages-" t)))
+    (unwind-protect
+        (niwa-tool-fs-read--with-local-media-source
+         path (lambda (local)
+                (niwa-tool-fs-read--render-pdf-pages
+                 local (niwa-tool-fs-read--visible-path path) "1-" nil page-count
+                 (lambda (result)
+                   (mapcar (lambda (page) (base64-decode-string (plist-get page :data)))
+                           (plist-get result :media)))
+                 directory)))
+      (delete-directory directory t))))
 
 (defun niwa-tool-fs-read-large-pdf-p (path page-count)
   "Return non-nil when PDF PATH should get bounded-page guidance.
@@ -876,72 +844,80 @@ Call K with a media result plist once every page is rendered."
        (niwa-tool-fs-read--pdf-page-count
         converter-path
         (lambda (page-count)
-          (let ((range (niwa-tool-fs-read--bounded-pdf-page-range
-                        pages page-count))
-                (results nil)
-                (media nil)
-                (total-base64-chars 0))
-            (unless (executable-find "pdftoppm")
-              (error "'pdftoppm' not installed; install 'poppler-utils' to read PDF pages as images"))
-            (cl-labels
-                ((render (page)
-                   (if (> page (cdr range))
-                       (funcall k (niwa-tool-fs-read--media-read-result
-                                   (concat
-                                    (mapconcat #'identity (nreverse results) "\n\n")
-                                    (when (and page-count (< (cdr range) page-count))
-                                      (format "\n\nRendered pages %d-%d of %d. Use Read(file_path=%S, pages=\"%d-\") to continue."
-                                              (car range) (cdr range) page-count
-                                              model-path (1+ (cdr range)))))
-                                   (nreverse media)))
-                     (let* ((prefix (make-temp-name
-                                     (file-name-concat
-                                      (niwa-tool-fs-read--tool-results-dir)
-                                      (format "Read-pdf-page-%d-" page))))
-                            (output (concat prefix ".png")))
-                       (niwa-tool-fs-read--helper
-                        (lambda (exit-code process-output)
-                          (unless (eql 0 exit-code)
-                            (error "'pdftoppm' failed while rendering page %d of %s%s"
-                                   page model-path
-                                   (if (string-empty-p process-output)
-                                       ""
-                                     (concat ": " process-output))))
-                          (niwa-tool-fs-read--maybe-transform-media
-                           output args
-                           (lambda (prepared)
-                             (let* ((prepared-path (car prepared))
-                                    (prepared-mime (cdr prepared))
-                                    (_ (niwa-tool-fs-read--ensure-media-capable
-                                        prepared-mime))
-                                    (_ (niwa-tool-fs-read--validate-media-file
-                                        prepared-path prepared-mime model-path))
-                                    (base64 (niwa-tool-fs-read--base64-file
-                                             prepared-path nil model-path)))
-                               (setq total-base64-chars
-                                     (+ total-base64-chars (length base64)))
-                               (when (> total-base64-chars
-                                        niwa-tool-fs-read--pdf-pages-max-base64-chars)
-                                 (error "Rendered PDF pages exceed aggregate media size limit (%d chars)"
-                                        niwa-tool-fs-read--pdf-pages-max-base64-chars))
-                               (push (niwa-tool-fs-read--format-media-result
-                                      prepared-path prepared-mime base64
-                                      model-path model-path)
-                                     results)
-                               (push (list :path model-path :mime prepared-mime
-                                           :kind 'image :data base64 :source model-path
-                                           :page page)
-                                     media)
-                               (render (1+ page))))))
-                        "niwa-pdftoppm"
-                        (list "pdftoppm"
-                              "-f" (number-to-string page)
-                              "-l" (number-to-string page)
-                              "-singlefile"
-                              "-png" converter-path prefix)
-                        (list converter-path)
-                        (list (file-name-directory output)))))))
-              (render (car range))))))))))
+          (niwa-tool-fs-read--render-pdf-pages
+           converter-path model-path pages args page-count k)))))))
+
+(defun niwa-tool-fs-read--render-pdf-pages
+    (converter-path model-path pages args page-count k &optional directory)
+  "Render PAGES from CONVERTER-PATH and pass the media result to K.
+Use MODEL-PATH for display, ARGS for transforms and PAGE-COUNT for bounds.
+Write temporary PNGs to DIRECTORY when the caller owns their lifetime."
+  (let ((range (niwa-tool-fs-read--bounded-pdf-page-range
+                pages page-count))
+        (results nil)
+        (media nil)
+        (total-base64-chars 0))
+    (unless (executable-find "pdftoppm")
+      (error "'pdftoppm' not installed; install 'poppler-utils' to read PDF pages as images"))
+    (cl-labels
+        ((render (page)
+           (if (> page (cdr range))
+               (funcall k (niwa-tool-fs-read--media-read-result
+                           (concat
+                            (mapconcat #'identity (nreverse results) "\n\n")
+                            (when (and page-count (< (cdr range) page-count))
+                              (format "\n\nRendered pages %d-%d of %d. Use Read(file_path=%S, pages=\"%d-\") to continue."
+                                      (car range) (cdr range) page-count
+                                      model-path (1+ (cdr range)))))
+                           (nreverse media)))
+             (let* ((prefix (make-temp-name
+                             (file-name-concat
+                              (or directory (niwa-tool-fs-read--tool-results-dir))
+                              (format "Read-pdf-page-%d-" page))))
+                    (output (concat prefix ".png")))
+               (niwa-tool-fs-read--helper
+                (lambda (exit-code process-output)
+                  (unless (eql 0 exit-code)
+                    (error "'pdftoppm' failed while rendering page %d of %s%s"
+                           page model-path
+                           (if (string-empty-p process-output)
+                               ""
+                             (concat ": " process-output))))
+                  (niwa-tool-fs-read--maybe-transform-media
+                   output args
+                   (lambda (prepared)
+                     (let* ((prepared-path (car prepared))
+                            (prepared-mime (cdr prepared))
+                            (_ (niwa-tool-fs-read--ensure-media-capable
+                                prepared-mime))
+                            (_ (niwa-tool-fs-read--validate-media-file
+                                prepared-path prepared-mime model-path))
+                            (base64 (niwa-tool-fs-read--base64-file
+                                     prepared-path nil model-path)))
+                       (setq total-base64-chars
+                             (+ total-base64-chars (length base64)))
+                       (when (> total-base64-chars
+                                niwa-tool-fs-read--pdf-pages-max-base64-chars)
+                         (error "Rendered PDF pages exceed aggregate media size limit (%d chars)"
+                                niwa-tool-fs-read--pdf-pages-max-base64-chars))
+                       (push (niwa-tool-fs-read--format-media-result
+                              prepared-path prepared-mime base64
+                              model-path model-path)
+                             results)
+                       (push (list :path model-path :mime prepared-mime
+                                   :kind 'image :data base64 :source model-path
+                                   :page page)
+                             media)
+                       (render (1+ page))))))
+                "niwa-pdftoppm"
+                (list "pdftoppm"
+                      "-f" (number-to-string page)
+                      "-l" (number-to-string page)
+                      "-singlefile"
+                      "-png" converter-path prefix)
+                (list converter-path)
+                (list (file-name-directory output)))))))
+      (render (car range)))))
 
 (defun niwa-tool-fs-read--missing-file-suggestions (path)
   "Return up to three nearby file suggestions for missing PATH."
@@ -1137,12 +1113,8 @@ PATH is not a readable directory, or rg exits with an unexpected code."
 (defun niwa-tool-fs-read-list-directory-now (path &optional max-entries)
   "Return PATH's listing as for `niwa-tool-fs-read-list-directory'.
 Synchronous, for mention expansion; the Read tool waits asynchronously."
-  (pcase-let ((`(,exit . ,output)
-               (niwa-tool-fs-read--helper-now
-                "niwa-list-directory"
-                (niwa-tool-fs-read--list-directory-command path)
-                (list path))))
-    (niwa-tool-fs-read--directory-listing path exit output max-entries)))
+  (let ((niwa-tool-fs-read--synchronous t))
+    (niwa-tool-fs-read-list-directory path #'identity max-entries)))
 
 (defun niwa-tool-fs-read-slurp-file-contents
     (path &optional offset limit display-path char-offset)

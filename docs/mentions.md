@@ -165,9 +165,9 @@ schema, send-time binding, and dispatch branches.
   `gif`, `webp`, `pdf`) are attached through gptel context when the
   active model advertises compatible media support. A model that takes
   images but not PDF documents receives the PDF's leading pages as PNG images,
-  rendered synchronously with `pdftoppm` up to the Read page cap and attached
-  in document order; a reminder names the `pages` value that continues a
-  longer document. Otherwise the
+  rendered synchronously under Read's limits: at most 20 pages and 10 MiB of
+  base64 data in total. Pages attach in document order; a reminder gives the
+  `pages` value that continues a longer document. Otherwise the
   mention is rejected with an explanatory placeholder. Runs
   `niwa-check-permission "Read"` first — any non-allow yields
   "permission denied". Missing and unreadable files are rejected.

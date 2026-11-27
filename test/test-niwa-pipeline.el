@@ -4168,6 +4168,9 @@ cover, so the permission step's warning about it is captured here."
 			persisted)
 		   (unwind-protect
 		       (with-temp-buffer
+			 (should-not (niwa-pipeline-tool-results-dir
+				      session (current-buffer) nil t))
+			 (should-not (niwa-session-save-path session))
 			 (setq persisted
 			       (niwa-pipeline--persist-result
 				result tool session (current-buffer)))

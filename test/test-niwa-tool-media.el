@@ -5,6 +5,10 @@
 ;;; Code:
 
 (require 'niwa-tool-media)
+(require 'gptel-openai-responses)
+(require 'gptel-openai)
+(require 'gptel-anthropic)
+(require 'gptel-bedrock)
 (require 'niwa-execution-target)
 (require 'niwa-session-artifacts)
 (require 'niwa-session-persistence)
@@ -359,6 +363,36 @@
              (plist-get (niwa-tool-media--openai-media-block item)
                         :image_url)
              :url)))))
+
+(niwa-deftest niwa-tool-media-add-to-provider-result ()
+  ,test
+  (test)
+  :doc "media keeps the provider's wire format and its tool result position"
+  (let* ((media '(nil ((:mime "image/png" :kind image :data "QUJD"))))
+         (calls '((:id "a" :result "first") (:id "b" :result "second")
+                  (:id "c" :result "third")))
+         (text "Tool-result media is attached as native input.")
+         (url "data:image/png;base64,QUJD"))
+    (pcase-dolist (`(,backend ,text-type ,image)
+                   `((,(gptel--make-openai) "text" (:type "image_url" :image_url (:url ,url)))
+                     (,(gptel--make-openai-responses) "input_text" (:type "input_image" :image_url ,url))))
+      (let ((parsed (gptel--parse-tool-results backend calls)))
+        (should (equal (append parsed (list `(:role "user" :content [(:type ,text-type :text ,text) ,image])))
+                       (niwa-tool-media-add-to-provider-result backend parsed media)))))
+    (pcase-dolist (`(,backend ,expected)
+                   `((,(gptel--make-anthropic)
+                      [(:type "text" :text "second")
+                       (:type "image" :source (:type "base64" :media_type "image/png" :data "QUJD"))])
+                     (,(gptel--make-bedrock)
+                      [(:text "second") (:image (:format "png" :source (:bytes "QUJD")))])))
+      (let* ((parsed (gptel--parse-tool-results backend calls))
+             (original (copy-tree (plist-get parsed :content) t))
+             (blocks (plist-get (niwa-tool-media-add-to-provider-result backend parsed media) :content))
+             (second (aref blocks 1)))
+        (should (= 3 (length blocks)))
+        (should (equal (aref original 0) (aref blocks 0)))
+        (should (equal (aref original 2) (aref blocks 2)))
+        (should (equal expected (plist-get (or (plist-get second :toolResult) second) :content)))))))
 
 (provide 'test-niwa-tool-media)
 ;;; test-niwa-tool-media.el ends here

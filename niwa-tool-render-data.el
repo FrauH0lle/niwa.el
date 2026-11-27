@@ -201,6 +201,16 @@ buffer.  Callers must independently establish ownership or provenance."
         (narrow-to-region (point-min) (min (or limit (point-max)) (point-max)))
         (niwa-tool-render-data--read-block nil start (point-max))))))
 
+(defun niwa-tool-render-data--next-block (&optional limit)
+  "Return the next complete block before LIMIT, leaving point at its end.
+Skip malformed openers.  Return nil if no complete block remains."
+  (let (block)
+    (while (and (not block) (search-forward niwa-tool-render-data-open limit t))
+      (setq block (niwa-tool-render-data-block-at (match-beginning 0) limit)))
+    (when block
+      (goto-char (cadr block))
+      block)))
+
 (defun niwa-tool-render-data-blocks (string)
   "Return valid render-data blocks found in STRING, oldest first.
 Each entry is `(BEGIN END DATA)'.  Invalid marker-looking text is skipped.
@@ -307,21 +317,18 @@ plist should be updated when a sub-agent's status changes."
     (save-restriction
       (widen)
       (goto-char (point-min))
-      (let (found)
-        (while (and (not found)
-                    (search-forward niwa-tool-render-data-open nil t))
-          (when-let* ((block (niwa-tool-render-data-block-at (match-beginning 0))))
-            (pcase-let ((`(,block-beg ,block-end ,plist) block))
-              (goto-char block-end)
-              (when (and (eq (plist-get plist :kind) 'collaboration-event)
-                         (eq (plist-get plist :event) 'started)
-                         (if (plist-member plist :niwa-tool-use-id)
-                             (niwa-tool-render-data-call-range-p
-                              plist block-beg block-end)
-                           (niwa-tool-render-data-trusted-range-p
-                            block-beg block-end))
-                         (equal (plist-get plist :agent-id) agent-id))
-                (setq found (cons block-beg block-end))))))
+      (let (found block)
+        (while (and (not found) (setq block (niwa-tool-render-data--next-block)))
+          (pcase-let ((`(,block-beg ,block-end ,plist) block))
+            (when (and (eq (plist-get plist :kind) 'collaboration-event)
+                       (eq (plist-get plist :event) 'started)
+                       (if (plist-member plist :niwa-tool-use-id)
+                           (niwa-tool-render-data-call-range-p
+                            plist block-beg block-end)
+                         (niwa-tool-render-data-trusted-range-p
+                          block-beg block-end))
+                       (equal (plist-get plist :agent-id) agent-id))
+              (setq found (cons block-beg block-end)))))
         found))))
 
 (defun niwa-tool-render-data-patch-block (beg end new-plist)
@@ -447,14 +454,10 @@ model's call order, independently of asynchronous completion order."
 The block must belong to EXPECTED-TOOL-USE-ID; nil selects unbound data."
   (save-excursion
     (goto-char beg)
-    (let (found)
-      (while (and (not found)
-                  (search-forward niwa-tool-render-data-open end t))
-        (when-let* ((block (niwa-tool-render-data-block-at (match-beginning 0) end)))
-          (goto-char (cadr block))
-          (when (niwa-tool-render-data--owner-p (caddr block) expected-tool-use-id)
-            (setq found block))))
-      found)))
+    (cl-loop for block = (niwa-tool-render-data--next-block end)
+             while block
+             when (niwa-tool-render-data--owner-p (caddr block) expected-tool-use-id)
+             return block)))
 
 (defun niwa-tool-render-data--next-segment-start (position tool-use-id)
   "Return the first different tool segment after POSITION.
@@ -656,20 +659,19 @@ Return the number of repaired executions."
           (widen)
           (save-excursion
             (goto-char (point-min))
-            (while (search-forward niwa-tool-render-data-open nil t)
-              (when-let* ((block (niwa-tool-render-data-block-at (match-beginning 0))))
-                (pcase-let* ((`(,begin ,end ,stored) block)
-                            (data
-                             (and (niwa-tool-render-data-call-range-p
-                                   stored begin end)
-                                  (niwa-tool-render-data-without-owner stored)))
-                            (repair
-                             (and data
-                                  (niwa-tool-render-data--reconcile-running
-                                   data successor-execution-ids lost-monitor))))
-                  (goto-char end)
-                  (when (and repair (> (cdr repair) 0))
-                    (push (list begin end repair) records))))))
+            (while-let ((block (niwa-tool-render-data--next-block)))
+              (pcase-let* ((`(,begin ,end ,stored) block)
+                           (data
+                            (and (niwa-tool-render-data-call-range-p
+                                  stored begin end)
+                                 (niwa-tool-render-data-without-owner stored)))
+                           (repair
+                            (and data
+                                 (save-excursion
+                                   (niwa-tool-render-data--reconcile-running
+                                    data successor-execution-ids lost-monitor)))))
+                (when (and repair (> (cdr repair) 0))
+                  (push (list begin end repair) records)))))
           (dolist (record records)
             (pcase-let ((`(,begin ,end ,repair) record))
               (niwa-tool-render-data-patch-block
@@ -727,9 +729,7 @@ the view parser, persistence) keeps seeing the full block."
         (let* ((media-by-index nil)
                (session (bound-and-true-p niwa--session))
                (tool-results-dir
-                (when-let* ((save-path (and session
-                                           (niwa-session-save-path session))))
-                  (file-name-concat save-path "tool-results"))))
+                (niwa-session-tool-results-directory session)))
           (dolist (tc tool-use)
             (let* ((orig (plist-get tc :result))
                    (clean-tc (copy-sequence tc))
@@ -782,10 +782,7 @@ nil when no valid block is present.  Unparseable payloads are treated as
 absent: the original string is returned verbatim in VISIBLE-PART.
 SESSION, EXPECTED-TOOL-USE-ID, and ALLOW-PAYLOAD-TOOL-USE-ID
 control trusted side-channel lookup."
-  (let ((tool-results-dir
-         (when-let* ((save-path (and session
-                                     (niwa-session-save-path session))))
-           (file-name-concat save-path "tool-results"))))
+  (let ((tool-results-dir (niwa-session-tool-results-directory session)))
     (if (not (stringp result-string))
         (cons result-string nil)
       (let* ((blocks

@@ -357,16 +357,14 @@ shallow materialization fails."
     (when (and session
                (not (and request
                          (niwa-request-ephemeral-p request))))
-      (let ((save-path (or (niwa-session-save-path session)
-                           (when (and (not existing-only-p)
-                                      buffer (buffer-live-p buffer))
-                             (niwa-session-persistence-shallow-ensure-files
-                              session buffer)))))
-        (when save-path
-          (unless existing-only-p
-            (niwa-workspace-ensure-generated-state-ignored
-             (niwa-session-workspace session)))
-          (file-name-concat save-path "tool-results"))))))
+      (when (or (niwa-session-save-path session)
+                (and (not existing-only-p) (buffer-live-p buffer)
+                     (niwa-session-persistence-shallow-ensure-files
+                      session buffer)))
+        (unless existing-only-p
+          (niwa-workspace-ensure-generated-state-ignored
+           (niwa-session-workspace session)))
+        (niwa-session-tool-results-directory session)))))
 
 (defun niwa-pipeline--persist-result
     (result tool session &optional buffer existing-only-p)

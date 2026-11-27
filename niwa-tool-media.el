@@ -517,30 +517,14 @@ SESSION control trusted side-channel lookup."
             (when paths
               (concat " Source: " (mapconcat #'identity paths ", "))))))
 
-(defun niwa-tool-media--openai-responses-media-message (media)
-  "Return an OpenAI Responses user message carrying MEDIA."
-  (when-let* ((blocks (delq nil
-                            (mapcar
-                             #'niwa-tool-media--openai-responses-media-block
-                             media))))
-    (list :role "user"
-          :content (vconcat
-                    (list (list :type "input_text"
-                                :text (niwa-tool-media--message-text
-                                       media)))
-                    blocks))))
-
-(defun niwa-tool-media--openai-media-message (media)
-  "Return an OpenAI chat-completions user message carrying MEDIA."
-  (when-let* ((blocks (delq nil
-                            (mapcar #'niwa-tool-media--openai-media-block
-                                    media))))
-    (list :role "user"
-          :content (vconcat
-                    (list (list :type "text"
-                                :text (niwa-tool-media--message-text
-                                       media)))
-                    blocks))))
+(defun niwa-tool-media--openai-media-messages (media-by-index text-type block-fn)
+  "Build OpenAI user messages from MEDIA-BY-INDEX using TEXT-TYPE and BLOCK-FN."
+  (cl-loop for media in media-by-index
+           for blocks = (delq nil (mapcar block-fn media))
+           when blocks collect
+           (list :role "user" :content
+                 (vconcat (list (list :type text-type :text (niwa-tool-media--message-text media)))
+                          blocks))))
 
 (defun niwa-tool-media--backend-class-p (backend class)
   "Return non-nil when BACKEND is a cl-struct of CLASS."
@@ -625,84 +609,52 @@ name: direct ToolCall dispatch retains the outer provider identity.  Return
           (and media (niwa-tool-media--supported-p backend media) media)))
     (cons model-result native-media)))
 
+(defun niwa-tool-media--anthropic-attach (block media)
+  "Attach MEDIA to an Anthropic tool result BLOCK."
+  (if-let* ((native (delq nil (mapcar #'niwa-tool-media--anthropic-media-block media))))
+      (let ((text (plist-get block :content)))
+        (plist-put block :content
+                   (vconcat (list (list :type "text" :text
+                                        (if (stringp text) (niwa-tool-media--envelope-summary text)
+                                          (prin1-to-string text))))
+                            native)))
+    block))
+
+(defun niwa-tool-media--bedrock-attach (block media)
+  "Attach MEDIA to a Bedrock tool result BLOCK."
+  (when-let* ((result (plist-get block :toolResult))
+              (native (delq nil (mapcar #'niwa-tool-media--bedrock-media-block media))))
+    (let ((text (plist-get (aref (plist-get result :content) 0) :text)))
+      (plist-put result :content
+                 (vconcat (list (list :text (niwa-tool-media--envelope-summary (or text ""))))
+                          native))))
+  block)
+
+(defun niwa-tool-media--attach-to-blocks (parsed media-by-index attach)
+  "Apply ATTACH to matching blocks of PARSED and MEDIA-BY-INDEX."
+  (let ((content (plist-get parsed :content)))
+    (when (and (vectorp content) (> (length content) 0))
+      (plist-put parsed :content
+                 (vconcat (cl-loop for block across content
+                                   for media = (pop media-by-index)
+                                   collect (if media (funcall attach block media) block))))))
+  parsed)
+
 (defun niwa-tool-media-add-to-provider-result (backend parsed media-by-index)
   "Attach MEDIA-BY-INDEX to PARSED tool results when BACKEND supports it.
 Returns PARSED unchanged for backends whose tool-result media shape is
 unknown."
   (cond
    ((niwa-tool-media--backend-class-p backend 'gptel-openai-responses)
-    (append parsed
-            (delq nil
-                  (mapcar #'niwa-tool-media--openai-responses-media-message
-                          media-by-index))))
+    (append parsed (niwa-tool-media--openai-media-messages
+                    media-by-index "input_text" #'niwa-tool-media--openai-responses-media-block)))
    ((niwa-tool-media--backend-class-p backend 'gptel-openai)
-    (append parsed
-            (delq nil
-                  (mapcar #'niwa-tool-media--openai-media-message
-                          media-by-index))))
+    (append parsed (niwa-tool-media--openai-media-messages
+                    media-by-index "text" #'niwa-tool-media--openai-media-block)))
    ((niwa-tool-media--backend-class-p backend 'gptel-anthropic)
-    (let* ((content (plist-get parsed :content))
-           (blocks (and (vectorp content) (append content nil)))
-           (i 0))
-      (when blocks
-        (plist-put
-         parsed :content
-         (vconcat
-          (mapcar
-           (lambda (block)
-             (prog1
-                 (if-let* ((media (nth i media-by-index)))
-                     (let* ((text (plist-get block :content))
-                            (native (delq nil
-                                          (mapcar
-                                           #'niwa-tool-media--anthropic-media-block
-                                           media))))
-                       (if native
-                           (plist-put
-                            block :content
-                            (vconcat
-                             (list (list :type "text"
-                                         :text (if (stringp text)
-                                                   (niwa-tool-media--envelope-summary text)
-                                                 (prin1-to-string text))))
-                             native))
-                         block))
-                   block)
-               (cl-incf i)))
-           blocks)))))
-    parsed)
+    (niwa-tool-media--attach-to-blocks parsed media-by-index #'niwa-tool-media--anthropic-attach))
    ((niwa-tool-media--backend-class-p backend 'gptel-bedrock)
-    (let* ((content (plist-get parsed :content))
-           (blocks (and (vectorp content) (append content nil)))
-           (i 0))
-      (when blocks
-        (plist-put
-         parsed :content
-         (vconcat
-          (mapcar
-           (lambda (block)
-             (prog1
-                 (if-let* ((media (nth i media-by-index))
-                           (tool-result (plist-get block :toolResult))
-                           (native (delq nil
-                                         (mapcar
-                                          #'niwa-tool-media--bedrock-media-block
-                                          media))))
-                     (progn
-                       (plist-put
-                        tool-result :content
-                        (vconcat
-                         (list (list :text
-                                     (niwa-tool-media--envelope-summary
-                                      (or (plist-get (aref (plist-get tool-result :content) 0)
-                                                     :text)
-                                          ""))))
-                         native))
-                       block)
-                   block)
-               (cl-incf i)))
-           blocks)))))
-    parsed)
+    (niwa-tool-media--attach-to-blocks parsed media-by-index #'niwa-tool-media--bedrock-attach))
    (t parsed)))
 
 (provide 'niwa-tool-media)

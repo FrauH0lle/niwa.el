@@ -109,6 +109,7 @@
 ;; `niwa-structs'
 (declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
 (declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
+(declare-function niwa-session-tool-results-directory "niwa-structs" (session))
 (declare-function niwa-session-working-directory
                   "niwa-structs" (cl-x) t)
 (declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
@@ -775,10 +776,7 @@ and private media paths therefore do not become history content."
           (niwa-transcript-project-segments
            segments
            :tool-results-dir
-           (and session
-                (niwa-session-save-path session)
-                (file-name-concat (niwa-session-save-path session)
-                                  "tool-results")))))))))
+           (niwa-session-tool-results-directory session))))))))
 
 (defun niwa-agent-conversation-history-markdown (invocation)
   "Return concise Markdown for retained agent INVOCATION's conversation.

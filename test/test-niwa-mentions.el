@@ -9,6 +9,7 @@
 (require 'mcp-hub)
 (require 'niwa-structs)
 (require 'niwa-agents)
+(require 'niwa-execution)
 (require 'niwa-execution-target)
 (require 'niwa-file-state)
 (require 'niwa-overlays)
@@ -792,6 +793,35 @@ Returns (buffer . overlay)."
                                     (plist-get result :reminder)))
             (should (equal (niwa-mentions--file-content-hash tmp)
                            (plist-get result :hash)))))
+      (delete-file tmp)))
+
+  :doc "PDF mentions enforce Read's aggregate encoded limit and remove converter output"
+  (let ((tmp (make-temp-file "niwa-file-" nil ".pdf" "%PDF-1.4\n"))
+        (png (unibyte-string #x89 ?P ?N ?G ?\r ?\n #x1a ?\n))
+        (niwa-tool-fs-read--pdf-pages-max-base64-chars 20)
+        outputs)
+    (unwind-protect
+        (cl-letf (((symbol-function 'gptel--model-capable-p)
+                   (lambda (&rest _) t))
+                  ((symbol-function 'gptel--model-mime-capable-p)
+                   (lambda (mime &rest _) (equal mime "image/png")))
+                  ((symbol-function 'executable-find) #'identity)
+                  ((symbol-function 'niwa-execution-run-helper)
+                   (lambda (name command &rest _)
+                     (if (equal name "niwa-pdfinfo")
+                         (list :exit-code 0 :output "Pages: 2")
+                       (push (concat (car (last command)) ".png") outputs)
+                       (let ((coding-system-for-write 'no-conversion))
+                         (write-region png nil (car outputs) nil 'silent))
+                       (list :exit-code 0 :output "")))))
+          (let ((result (niwa--handle-file-mention
+                         (list :match-text (concat "@file:" tmp) :capture tmp
+                               :workspace-root temporary-file-directory))))
+            (should (= 2 (length outputs)))
+            (should-not (seq-some #'file-exists-p outputs))
+            (should (string-match-p "aggregate media size limit"
+                                    (plist-get result :placeholder)))
+            (should-not (plist-get result :media-contexts))))
       (delete-file tmp)))
 
   :doc "PDF page-image fallback failure yields a graceful placeholder"
