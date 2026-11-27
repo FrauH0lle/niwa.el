@@ -1496,6 +1496,11 @@ An agent's tool list limits which operations it can request. A read-only
 agent can still need a permission prompt for a protected or outside-root
 resource; read-only capability does not confer unrestricted read authority.
 
+When a file tool follows a symlink, the Emacs and guest permission cards show
+the submitted path and its destination on one line, for example
+`site-lisp/config.el → ~/dotfiles/config.el`. Permission still applies to the
+resolved destination.
+
 All queued permission prompts render in the root session's interactive
 view buffer, not inside the sub-agent transcript buffer or a read-only
 transcript inspection view. Queue entries carry a canonical origin (`/root`

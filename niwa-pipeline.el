@@ -901,7 +901,7 @@ target path signals for the pipeline runner to handle."
          (target (and session
                       (niwa-session-execution-target session)))
          (directory (plist-get context :default-directory))
-         updated)
+         updated symlink-spellings)
     (when (listp args)
       (dolist (spec (niwa-tool-args tool))
         (let* ((type (cadr spec))
@@ -918,6 +918,8 @@ target path signals for the pipeline runner to handle."
                    ;; as the workspace path and then read its target.
                    (normalized (niwa-pipeline--canonicalize-path-value
                                 expanded target)))
+              (unless (equal expanded normalized)
+                (push (cons normalized value) symlink-spellings))
               (unless (equal value normalized)
                 (setq updated
                       (plist-put (or updated (copy-sequence args))
@@ -937,14 +939,16 @@ target path signals for the pipeline runner to handle."
                       (plist-get (plist-get normalized-context :args) :patch)
                       directory)))
                 (dolist (operation (plist-get proposal :operations))
-                  (dolist (key '(:path :move-path))
-                    (when-let* ((path (plist-get operation key))
+                  (dolist (keys '((:path . :rel-path) (:move-path . :move-rel-path)))
+                    (when-let* ((path (plist-get operation (car keys)))
                                 (canonical
                                  (niwa-pipeline--canonicalize-path-value
                                   path target)))
                       (unless (equal path canonical)
-                        (push (cons path canonical) path-map))
-                      (plist-put operation key canonical))))
+                        (push (cons path canonical) path-map)
+                        (push (cons canonical (plist-get operation (cdr keys)))
+                              symlink-spellings))
+                      (plist-put operation (car keys) canonical))))
                 (setq normalized-context
                       (plist-put normalized-context :patch-parse proposal)))
             (dolist (path
@@ -972,6 +976,9 @@ target path signals for the pipeline runner to handle."
                                  (cons path (niwa-pipeline--canonicalize-path-value
                                              path target)))
                                reads)))))
+      (when symlink-spellings
+        (setq normalized-context (plist-put normalized-context :symlink-spellings
+                                            (nreverse symlink-spellings))))
       (funcall next normalized-context))))
 
 (defun niwa-pipeline--resource-operation (tool)

@@ -20,6 +20,7 @@
 (require 'niwa-collaboration)
 (require 'niwa-collaboration-guest)
 (require 'niwa-pending-inputs)
+(require 'niwa-permission-prompt)
 (require 'niwa-prompt-submission)
 (require 'niwa-session-persistence)
 (require 'niwa-structs)
@@ -474,6 +475,27 @@
         (should (equal (plist-get frame :notice) "Conflict: file changed."))
         (should (equal (plist-get frame :body) "+selected change"))
         (should (equal (plist-get frame :bodyKind) "diff"))))))
+
+(niwa-deftest niwa-collaboration-guest-permission-path
+  (:doc "publishes the authored symlink and canonical target on one path line")
+  (with-temp-buffer
+    (let* ((data (current-buffer))
+           (target (expand-file-name "config\nfile.el" default-directory))
+           (alias "linked\nconfig.el")
+           (entry (list :path target :authored-path alias)))
+      (org-mode)
+      (setq-local niwa--session (niwa-session--create :name "test"))
+      (with-temp-file target (insert "file contents"))
+      (make-symbolic-link target alias)
+      (with-temp-buffer
+        (niwa-view--setup (current-buffer) data)
+        (with-current-buffer data
+          (let* ((overlay (niwa-permission--prompt-async-attributed
+                           "Read" target nil "/root" #'ignore 1 entry))
+                 (frame (niwa-collaboration--ui-request-frame 42 overlay)))
+            (should (member (concat "Path: linked\\nconfig.el → "
+                                    (file-name-directory target) "config\\nfile.el")
+                            (split-string (plist-get frame :body) "\n")))))))))
 
 (provide 'test-niwa-collaboration-guest-remote)
 ;;; test-niwa-collaboration-guest-remote.el ends here

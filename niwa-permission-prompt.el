@@ -115,14 +115,28 @@
 ;;
 ;;; Permission prompt controls
 
-(defun niwa-permission--display-path (entry path)
-  "Return PATH for display in the execution domain of ENTRY."
-  (if-let* ((session (plist-get entry :session))
-            (target (niwa-session-execution-target session))
-            ((niwa-execution-target-remote-p target))
-            ((file-remote-p path)))
-      (niwa-execution-target-native-path target path)
-    path))
+(defun niwa-permission--escape-path (path)
+  "Return PATH as one card field, distinct from its escape and arrow syntax."
+  (replace-regexp-in-string
+   (rx (any "\0-\x1f" "\x7f-\x9f" "\u061c\u200e\u200f"
+            "\u2028-\u202e" "\u2066-\u2069" "\\→"))
+   (lambda (char)
+     (pcase char
+       ("\n" "\\n") ("\r" "\\r") ("\t" "\\t") ("\\" "\\\\")
+       (_ (format "\\u%04x" (aref char 0)))))
+   path t t))
+
+(defun niwa-permission--display-path (entry path &optional abbreviate)
+  "Format PATH for ENTRY's card.  If ABBREVIATE is non-nil, shorten local paths."
+  (niwa-permission--escape-path
+   (if-let* ((session (plist-get entry :session))
+             (target (niwa-session-execution-target session))
+             ((niwa-execution-target-remote-p target))
+             ((file-remote-p path)))
+       (niwa-execution-target-native-path target path)
+     (if (and abbreviate (not (file-remote-p path)))
+         (abbreviate-file-name path)
+       path))))
 
 (defun niwa-permission--resource-label (entry grant)
   "Return a display label for resource GRANT in ENTRY's path domain."
@@ -856,7 +870,11 @@ REMOTE-P requests them regardless of the local fold state."
   "Display an attributed permission prompt and call CONT with its outcome.
 TOOL-NAME requests PATH; INCLUDE-ALWAYS, ORIGIN, COUNT and ENTRY follow
 the shared permission prompt contract."
-  (let* ((path (and path (niwa-permission--display-path entry path)))
+  (let* ((path (when path
+                 (if-let* ((authored (plist-get entry :authored-path)))
+                     (format "%s → %s" (niwa-permission--escape-path authored)
+                             (niwa-permission--display-path entry path t))
+                   (niwa-permission--display-path entry path))))
          (once-only (and entry (plist-get entry :once-only)))
          (build
           (lambda (remote-p)

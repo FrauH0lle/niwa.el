@@ -250,6 +250,10 @@ FALLBACK-OUTCOME settles an unresolved request without queue admission."
                (niwa-permission-queue-entry
                 (append
 		(list :tool-use-id (plist-get context :tool-use-id)
+                      :authored-path
+                      (and (eq (plist-get entry :specifier-key) :path)
+                           (cdr (assoc (plist-get entry :specifier-value)
+                                       (plist-get context :symlink-spellings))))
                       :approval-decision-cell (list '(:source user))
                       :args (plist-get context :args)
                       :patch-session-only-p

@@ -19,6 +19,7 @@
 (require 'niwa-structs)
 (require 'niwa-tool-registry)
 (require 'niwa-tool-fs)
+(require 'niwa-tool-patch-registration)
 (require 'niwa-workspace)
 (require 'niwa-hooks)
 (require 'niwa-permission-queue)
@@ -90,9 +91,8 @@ Return a plist with the `:attempt' its handler saw for the source address."
     (should (string-match-p "Error:" result))
     (should-not handled)))
 
-(defun niwa-test--read-through-pipeline (session directory path)
-  "Run the real Read tool for PATH in SESSION from DIRECTORY.
-Return (:queued QUEUED :result RESULT); a queued prompt is left unanswered."
+(defun niwa-test--path-card-through-pipeline (session directory tool args)
+  "Run TOOL with ARGS in SESSION from DIRECTORY; capture any unanswered card."
   (let (queued result)
     (cl-letf (((symbol-function 'niwa-hooks-run-event)
                (lambda (_event _payload callback &rest _) (funcall callback nil))))
@@ -101,18 +101,74 @@ Return (:queued QUEUED :result RESULT); a queued prompt is left unanswered."
         (setq default-directory directory)
         (niwa-pq-test--with-view-here view
           (niwa-pipeline-run-tool
-           (niwa-tool-get "Read") (lambda (value) (setq result value))
-           (list :file_path path))
+           (niwa-tool-get tool) (lambda (value) (setq result value)) args)
           (let ((deadline (+ (float-time) 5)))
             (while (and (not (or (niwa-pq-test--cards view) result))
                         (< (float-time) deadline))
               (accept-process-output nil 0.02)))
-          (setq queued (and (niwa-pq-test--cards view) t))
+          (setq queued (car (niwa-pq-test--cards view)))
           ;; Leave the prompt unanswered, and keep nothing on the session.
           (let ((settled result))
             (niwa-permission-queue-abort-all session)
             (setq result settled)))))
     (list :queued queued :result result)))
+
+(defun niwa-test--read-through-pipeline (session directory path)
+  "Run Read on PATH in SESSION from DIRECTORY."
+  (niwa-test--path-card-through-pipeline session directory "Read" (list :file_path path)))
+
+(defun niwa-test--assert-path-card (tool &optional newline-case)
+  "Check TOOL's approval and authority, optionally for NEWLINE-CASE plain or alias."
+  (let* ((root (file-name-as-directory (file-truename (make-temp-file "niwa-card-" t))))
+         (target-name (if newline-case "target\n\u061c\u200e\u200ffile.txt" "target.txt"))
+         (target-label (if newline-case "target\\n\\u061c\\u200e\\u200ffile.txt" "target.txt"))
+         (alias-name (if newline-case "alias\nfile.txt" "alias.txt"))
+         (target (expand-file-name target-name root))
+         (alias (expand-file-name alias-name root))
+         (workspace (niwa-workspace-get-or-create 'project root root "card"))
+         (session (niwa-session-create "main" workspace))
+         (niwa-permission-reviewer 'user)
+         (niwa-permission-rules '(("Read" :action ask) ("ApplyPatch" :action ask))))
+    (unwind-protect
+        (progn
+          (niwa-tool-fs--register)
+          (niwa-tool-patch-register)
+          (setf (niwa-session-permission-mode session) 'ask)
+          (write-region "old\n" nil target nil 'silent)
+          (make-symbolic-link target alias)
+          (dolist (path (pcase newline-case
+                          ('plain (list target-name)) ('alias (list alias-name))
+                          (_ (list target-name alias-name))))
+            (let* ((args (if (equal tool "Read") (list :file_path path)
+                           (list :patch (format "*** Begin Patch\n*** Update File: %s\n@@\n-old\n+new\n*** End Patch" path))))
+                   (run (niwa-test--path-card-through-pipeline session root tool args))
+                   (card (plist-get run :queued))
+                   (text (plist-get card :text)))
+              (ert-info ((format "%s of %s: %s" tool path (or text run)))
+                (should card)
+                (should (equal target (plist-get (plist-get card :entry) :specifier-value)))
+                (should (string-search
+                         (concat "Path: " (if (equal path target-name) root
+                                            (concat (string-replace "\n" "\\n" path)
+                                                    " → " (abbreviate-file-name root)))
+                                 target-label "\n") text))))))
+      (delete-directory root t))))
+
+(niwa-deftest niwa-pipeline/read-path-card
+  (:quiet t :doc "Read shows the requested alias and resolved target")
+  (niwa-test--assert-path-card "Read"))
+
+(niwa-deftest niwa-pipeline/patch-path-card
+  (:quiet t :doc "ApplyPatch shows the requested alias and resolved target")
+  (niwa-test--assert-path-card "ApplyPatch"))
+
+(niwa-deftest niwa-pipeline/read-newline-alias-card
+  (:quiet t :doc "Read renders newlines in alias and target on one path line")
+  (niwa-test--assert-path-card "Read" 'alias))
+
+(niwa-deftest niwa-pipeline/read-newline-plain-card
+  (:quiet t :doc "Read renders a plain target's newline literally without changing authority")
+  (niwa-test--assert-path-card "Read" 'plain))
 
 (niwa-deftest niwa-tool-permission-paths ()
   ,test
