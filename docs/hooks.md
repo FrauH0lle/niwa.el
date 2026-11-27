@@ -687,7 +687,7 @@ Useful commands:
   layers are remembered per workspace for the process — re-resolving
   them costs several target round trips per event on a remote workspace
   — so an edit to a hook file needs this command (or trusting the
-  project, or toggling a plugin, each of which invalidates) to take
-  effect.
+  project, or any plugin state change such as enable, disable, update
+  or remove, each of which invalidates) to take effect.
 
 Quiet successful hooks do not clutter the normal workflow.

@@ -418,7 +418,7 @@ Items include usable plugin manifests and visible metadata errors."
     (buffer-string)))
 
 (defun niwa-plugins--write-state (state &optional workspace)
-  "Persist plugin STATE for WORKSPACE."
+  "Persist plugin STATE for WORKSPACE and invalidate the hook memo."
   (let* ((file (or (niwa-plugins-state-file workspace)
                    (error "No workspace for plugin state")))
          (content (niwa-plugins--state-text state)))
@@ -432,7 +432,12 @@ Items include usable plugin manifests and visible metadata errors."
       ;; hook consent, and `niwa-plugins--read-state' reads a
       ;; truncated file as nil, so a write that died in place would
       ;; silently disable everything.
-      (niwa--write-file-atomically file content))))
+      (niwa--write-file-atomically file content))
+    ;; Enablement and consent decide which plugin hooks resolve, so every
+    ;; state write leaves the memoized hook configuration stale.  Guarded
+    ;; rather than required: hooks depends on plugins, not the other way.
+    (when (fboundp 'niwa-hooks-invalidate-config)
+      (niwa-hooks-invalidate-config))))
 
 (defun niwa-plugins--state-plist (name &optional workspace)
   "Return persisted state plist for plugin NAME in WORKSPACE."
@@ -573,12 +578,7 @@ Relative identities are requalified through the live WORKSPACE root."
       (push (cons name plist) state))
     (niwa-plugins--write-state
      (sort state (lambda (a b) (string< (car a) (car b))))
-     workspace)
-    ;; Enablement decides which plugin hooks resolve, so the memoized
-    ;; hook configuration is stale from here.  Guarded rather than
-    ;; required: hooks depends on plugins, not the other way around.
-    (when (fboundp 'niwa-hooks-invalidate-config)
-      (niwa-hooks-invalidate-config))))
+     workspace)))
 
 (defun niwa-plugins-remove-state-for-source
     (name root &optional workspace)

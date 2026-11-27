@@ -15,6 +15,7 @@
 
 (require 'niwa-hooks)
 (require 'niwa-plugins)
+(require 'niwa-plugin-lifecycle)
 (require 'niwa-agent-control)
 (require 'niwa-execution-target)
 (require 'niwa-session-durability)
@@ -1188,6 +1189,78 @@
                                    handlers)))))
       (delete-directory root t)
       (delete-directory user-dir t))))
+
+(niwa-deftest niwa-hooks-effective-rules/plugin-update-and-remove
+  (:doc "update and remove stop consented plugin hooks until re-consent")
+  (let* ((root (make-temp-file "niwa-hooks-plugin-life-ws" t))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-plugin-life-user" t)))
+         (plugin-root (file-name-as-directory
+                       (file-name-concat user-dir ".agents" "plugins" "repo")))
+         (hooks-file (file-name-concat plugin-root "hooks" "hooks.json"))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory
+          (file-name-concat user-dir ".agents" "plugins")))
+    (cl-labels ((write-hooks (command)
+                  (with-temp-file hooks-file
+                    (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\","
+                            "\"hooks\":[{\"type\":\"command\",\"command\":\""
+                            command "\"}]}]}}")))
+                (plugin-commands ()
+                  (delq nil
+                        (mapcar (lambda (handler)
+                                  (and (eq 'plugin (plist-get handler :source))
+                                       (plist-get handler :command)))
+                                (niwa-hooks--matching-handlers
+                                 'PreToolUse '(:tool-name "Bash")
+                                 (niwa-hooks-effective-rules
+                                  session workspace)))))
+                (pull (command)
+                  (let ((niwa-plugins-git-executor
+                         (lambda (_dir _args) (write-hooks command) (list 0 ""))))
+                    (niwa-plugins-update "demo" workspace))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory hooks-file) t)
+            (write-hooks "echo v1")
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-root
+             "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (niwa-plugins-enable "demo" workspace))
+            (should (equal '("echo v1") (plugin-commands)))
+            ;; Negative control: unchanged hooks keep their consent.
+            (should (equal "Updated plugin demo." (pull "echo v1")))
+            (should (equal '("echo v1") (plugin-commands)))
+            ;; Changed hooks: consent pending, so nothing fires, not the old rule.
+            (should (string-match-p "consent is pending" (pull "echo v2")))
+            (should-not (plugin-commands))
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (should (niwa-plugins-enable-hooks "demo" workspace)))
+            (should (equal '("echo v2") (plugin-commands)))
+            ;; A pull that drops the manifest writes no state, yet the warm
+            ;; memo must not keep the old rule.
+            (let ((niwa-plugins-git-executor
+                   (lambda (_dir _args)
+                     (delete-directory
+                      (file-name-concat plugin-root ".codex-plugin") t)
+                     (list 0 ""))))
+              (should (string-match-p "no Codex plugin manifest"
+                                      (niwa-plugins-update "demo" workspace))))
+            (should-not (plugin-commands))
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-root
+             "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (niwa-hooks-reload)
+            (should (equal '("echo v2") (plugin-commands)))
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (should (equal "Removed plugin demo."
+                             (niwa-plugins-remove "demo" workspace))))
+            (should-not (plugin-commands)))
+        (delete-directory root t)
+        (delete-directory user-dir t)))))
 
 (niwa-deftest niwa-hooks-effective-rules/plugin-hook-manifest-shapes
   (:doc "loads default and explicit string plugin hook files")

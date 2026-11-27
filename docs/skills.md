@@ -390,7 +390,8 @@ Plugin management:
   workspace.
 - `/plugin hooks NAME off` disables executable plugin hooks while leaving
   plugin skills enabled. `/plugin hooks NAME on` re-enables hooks for an
-  already-enabled plugin after the same consent summary. The
+  already-enabled plugin; it shows the same consent summary when the
+  hooks changed since they were last approved. The
   `/plugin hooks enable NAME` and `/plugin hooks disable NAME` forms are
   accepted aliases. These are advanced/scriptable overrides; `/plugin
   enable NAME` is the normal activation path.

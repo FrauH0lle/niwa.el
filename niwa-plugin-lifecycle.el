@@ -49,6 +49,7 @@
 (declare-function niwa-plugins-transfer-state-entry
                   "niwa-plugin-registry"
                   (old-name new-name plist &optional workspace))
+(declare-function niwa-hooks-invalidate-config "niwa-hooks" ())
 
 ;;; Git install/update
 
@@ -167,6 +168,10 @@ Preserve plugin state in WORKSPACE."
                 (format "Failed to update plugin %s: %s"
                         name
                         (if (string-empty-p output) "git failed" output))
+              ;; The pulled tree no longer matches the memoized hook rules, and
+              ;; a missing manifest below skips the state write that would clear them.
+              (when (fboundp 'niwa-hooks-invalidate-config)
+                (niwa-hooks-invalidate-config))
               (if-let* ((updated (niwa-plugins-read-manifest
                                   root workspace)))
                   (let ((updated-name (niwa-plugin-name updated)))
