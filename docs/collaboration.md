@@ -1087,7 +1087,15 @@ is cached.
 `M-x niwa-remote-artifact-attach` reads the link without echo (it never
 enters a chat, `*Messages*` or the minibuffer history), connects once to read
 the welcome, and registers the artifact with the current workspace under its
-origin id, so both sides call it the same thing. With a prefix argument, or
+origin id, so both sides call it the same thing. Attaching waits for that
+welcome, normally one round trip: Emacs is blocked meanwhile, the echo area
+says so, and `C-g` cancels. The bridge has 4 seconds to connect, then answers
+why it could not: the origin is unavailable, or it may run an older protocol.
+Should the bridge itself say nothing for 5 seconds, attaching stops with
+`the remote-artifact bridge did not answer within 5 seconds`. Either way, and
+after `C-g`, nothing is attached, the request is abandoned and its connection
+closed: attaching uses a connection of its own, not the pooled one below, so
+other requests are undisturbed. With a prefix argument, or
 when that id names a local artifact or another attached one, it asks for
 another name, the artifact's alias here. Attaching the same link again
 refreshes it, and under a new name renames it. `M-x

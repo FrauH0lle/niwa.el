@@ -234,6 +234,229 @@ under its origin id."
        (when (buffer-live-p buffer) (kill-buffer buffer))
        (delete-directory directory t))))
 
+;; A stand-in bridge that answers every request late, naming the request.
+(defconst niwa-remote-artifact-test--late-bridge
+  "require('node:readline').createInterface({ input: process.stdin }).on('line', (line) => {
+  const { id } = JSON.parse(line);
+  setTimeout(() => process.stdout.write(JSON.stringify({ id, welcome:
+    { id: 'late', kind: 'whiteboard', title: 'request ' + id, readOnly: false } }) + '\\n'), 700);
+});"
+  "Node source of a bridge whose welcome takes 0.7 seconds.")
+
+(niwa-deftest niwa-remote-artifact-attach-abandoned
+  (:doc "A wait ended by its limit or a quit abandons the request; a retry gets only its own answer"
+   :quiet t)
+  (niwa-remote-artifact-test--with-session
+    (skip-unless (executable-find "node"))
+    (let ((niwa-remote-artifact--transport #'niwa-remote-artifact--bridge-send)
+          (niwa-remote-artifact--process nil)
+          (niwa-remote-artifact--pending (make-hash-table :test #'eql))
+          (niwa-remote-artifact--next-id 0)
+          (niwa-remote-artifact-command
+           (list (executable-find "node") "-e" niwa-remote-artifact-test--late-bridge))
+          (inhibit-message t)
+          shown)
+      (unwind-protect
+          (progn
+            (cl-letf (((symbol-function 'message)
+                       (lambda (format &rest args)
+                         (when format (push (apply #'format-message format args) shown)))))
+              ;; The limit: the wait is announced and its end says what is known.
+              (let* ((niwa-remote-artifact--attach-wait 0.3)
+                     (start (float-time))
+                     (err (should-error (attach) :type 'user-error)))
+                (should (< (- (float-time) start) 0.7))
+                (should (string-search "did not answer within 0.3 seconds" (cadr err)))
+                (should (string-search "Nothing was attached" (cadr err))))
+              (should (cl-some (lambda (line) (string-search "C-g" line)) shown))
+              (should-not (cl-some (lambda (line) (string-search "room-1" line)) shown)))
+            (should (= 0 (hash-table-count niwa-remote-artifact--pending)))
+            ;; A quit.
+            (let ((niwa-remote-artifact--attach-wait 5))
+              (run-at-time 0.1 nil (lambda () (setq quit-flag t)))
+              (should (eq 'quit (condition-case nil (attach) (quit 'quit)))))
+            (should (= 0 (hash-table-count niwa-remote-artifact--pending)))
+            ;; Both welcomes arrive late and reach nobody.
+            (let ((deadline (+ (float-time) 1)))
+              (while (< (float-time) deadline) (accept-process-output nil 0.05)))
+            (should-not (niwa-artifact-backend-registered-p workspace "late"))
+            (should (= 0 (hash-table-count niwa-remote-artifact--status)))
+            ;; The retry is the third request and gets the third answer.
+            (should (equal "late" (attach)))
+            (should (equal "request 3"
+                           (plist-get (niwa-remote-artifact--entry workspace "late") :title)))
+            (should (= 0 (hash-table-count niwa-remote-artifact--pending))))
+        (niwa-remote-artifact-stop)))))
+
+(niwa-deftest niwa-remote-artifact--bridge-send/interrupted
+  (:doc "A send interrupted after its request was registered leaves no pending entry"
+   :quiet t)
+  (let ((niwa-remote-artifact--pending (make-hash-table :test #'eql))
+        (niwa-remote-artifact--next-id 0)
+        (request (list :link "http://relay/#room" :guestId "g" :name "n"))
+        (answers nil))
+    (dolist (condition '(quit error))
+      (cl-letf (((symbol-function 'niwa-remote-artifact--bridge) #'ignore)
+                ((symbol-function 'process-send-string)
+                 (lambda (_process string)
+                   ;; What ends an interrupted line goes through.
+                   (unless (equal string "!\n")
+                     (should (= 1 (hash-table-count niwa-remote-artifact--pending)))
+                     (signal condition nil)))))
+        (should (eq condition
+                    (condition-case nil
+                        (progn (niwa-remote-artifact--bridge-send
+                                request (lambda (answer) (push answer answers)))
+                               'error)
+                      (quit 'quit))))
+        (should (= 0 (hash-table-count niwa-remote-artifact--pending)))))
+    ;; The failed write, unlike the quit, is answered as an error, once.
+    (let ((deadline (+ (float-time) 1)))
+      (while (and (not answers) (< (float-time) deadline))
+        (accept-process-output nil 0.05)))
+    (should (= 1 (length answers)))
+    (should (plist-get (car answers) :error))))
+
+(niwa-deftest niwa-remote-artifact--bridge-send/interrupted-midway
+  (:doc "A send interrupted after part of it reached the bridge does not spoil the next request"
+   :quiet t)
+  (let ((niwa-remote-artifact--process nil)
+        (niwa-remote-artifact--pending (make-hash-table :test #'eql))
+        (niwa-remote-artifact--next-id 0)
+        (niwa-remote-artifact-command nil)
+        (send (symbol-function 'process-send-string))
+        (chunks 0)
+        (answers nil))
+    (skip-unless (executable-find "node"))
+    (unwind-protect
+        (progn
+          ;; The first 1 KiB chunk is written, the second is interrupted.
+          (cl-letf (((symbol-function 'process-send-string)
+                     (lambda (process string)
+                       (if (and (not (equal string "!\n")) (= 2 (cl-incf chunks)))
+                           (signal 'quit nil)
+                         (funcall send process string)))))
+            (should (eq 'quit
+                        (condition-case nil
+                            (niwa-remote-artifact--bridge-send
+                             (list :link "not a link" :guestId "g" :name (make-string 3000 ?n))
+                             (lambda (answer) (push (cons 'first answer) answers)))
+                          (quit 'quit)))))
+          (should (= 2 chunks))
+          (should (= 0 (hash-table-count niwa-remote-artifact--pending)))
+          ;; The retry is answered itself, by the same bridge.
+          (let ((bridge niwa-remote-artifact--process))
+            (niwa-remote-artifact--bridge-send
+             (list :link "not a link" :guestId "g" :name "n")
+             (lambda (answer) (push (cons 'retry answer) answers)))
+            (let ((deadline (+ (float-time) 5)))
+              (while (and (not answers) (< (float-time) deadline))
+                (accept-process-output nil 0.05)))
+            (should (equal '(retry) (mapcar #'car answers)))
+            (should (= 2 (plist-get (cdar answers) :id)))
+            (should (plist-get (cdar answers) :error))
+            (should (eq bridge niwa-remote-artifact--process))
+            (should (process-live-p bridge))))
+      (niwa-remote-artifact-stop))))
+
+(niwa-deftest niwa-remote-artifact--bridge-send/interrupted-before-newline
+  (:doc "A send interrupted with only its newline unwritten is not run by the bridge"
+   :quiet t)
+  (let* ((niwa-remote-artifact--process nil)
+         (niwa-remote-artifact--pending (make-hash-table :test #'eql))
+         (niwa-remote-artifact--next-id 0)
+         (niwa-remote-artifact-command nil)
+         (send (symbol-function 'process-send-string))
+         (clients nil)
+         (answers nil)
+         ;; Skipped before the relay opens, so a skip leaves no listener.
+         (_ (skip-unless (executable-find "node")))
+         ;; A relay that records who connects: the origin's side of an edit.
+         (relay (make-network-process
+                 :name "remote-artifact-test-relay" :server t :host "127.0.0.1"
+                 :service t :family 'ipv4 :noquery t :filter #'ignore
+                 :sentinel (lambda (process _event) (cl-pushnew process clients))))
+         (edit (lambda (name)
+                 (list :link (format "http://127.0.0.1:%d/#abcdefghijkl.%s"
+                                     (process-contact relay :service)
+                                     (base64url-encode-string (make-string 48 ?a) t))
+                       :guestId "g" :name name
+                       :body (list :action "patch" :changes []))))
+         ;; Pad the request so a 1 KiB chunk ends at its closing brace.
+         (size (length (niwa-shared-editing--json (cons :id (cons 1 (funcall edit ""))))))
+         (request (funcall edit (make-string (- 2048 size) ?n)))
+         (written 0))
+    (unwind-protect
+        (progn
+          (cl-letf (((symbol-function 'process-send-string)
+                     (lambda (process string)
+                       (if (equal string "\n")
+                           (signal 'quit nil)
+                         (cl-incf written (length string))
+                         (funcall send process string)))))
+            (should (eq 'quit
+                        (condition-case nil
+                            (niwa-remote-artifact--bridge-send
+                             request (lambda (answer) (push (cons 'first answer) answers)))
+                          (quit 'quit)))))
+          ;; The whole object and what ended its line were written.
+          (should (= (+ 2048 2) written))
+          (let ((bridge niwa-remote-artifact--process))
+            (niwa-remote-artifact--bridge-send
+             (list :link "not a link" :guestId "g" :name "n")
+             (lambda (answer) (push (cons 'retry answer) answers)))
+            (let ((deadline (+ (float-time) 5)))
+              (while (and (not answers) (< (float-time) deadline))
+                (accept-process-output nil 0.05)))
+            ;; Time for an edit the bridge ran to reach the relay.
+            (let ((deadline (+ (float-time) 0.5)))
+              (while (< (float-time) deadline) (accept-process-output nil 0.05)))
+            (should (equal '(retry) (mapcar #'car answers)))
+            (should (= 2 (plist-get (cdar answers) :id)))
+            (should-not clients)
+            (should (eq bridge niwa-remote-artifact--process))
+            (should (process-live-p bridge))))
+      (niwa-remote-artifact-stop)
+      (mapc #'delete-process (cons relay clients)))))
+
+(niwa-deftest niwa-remote-artifact-attach-silent-origin
+  (:doc "The shipped bridge diagnoses a silent origin within the wait and closes its connection"
+   :quiet t)
+  (niwa-remote-artifact-test--with-session
+    (skip-unless (executable-find "node"))
+    (let* ((niwa-remote-artifact--transport #'niwa-remote-artifact--bridge-send)
+           (niwa-remote-artifact--process nil)
+           (niwa-remote-artifact--pending (make-hash-table :test #'eql))
+           (niwa-remote-artifact-command nil)
+           (niwa-remote-artifact--attach-wait 2)
+           (inhibit-message t)
+           (clients nil)
+           ;; A relay that accepts the connection and never says anything.
+           (relay (make-network-process
+                   :name "remote-artifact-test-relay" :server t :host "127.0.0.1"
+                   :service t :family 'ipv4 :noquery t :filter #'ignore
+                   :sentinel (lambda (process _event) (cl-pushnew process clients))))
+           (link (format "http://127.0.0.1:%d/#abcdefghijkl.%s"
+                         (process-contact relay :service)
+                         (base64url-encode-string (make-string 48 ?a) t))))
+      (unwind-protect
+          (let* ((start (float-time))
+                 (err (should-error (niwa-remote-artifact-attach workspace link)
+                                    :type 'user-error)))
+            ;; The bridge's own diagnosis, before the wait's limit.
+            (should (string-search niwa-remote-artifact--unavailable (cadr err)))
+            (should (< (- (float-time) start) 2))
+            (should (= 0 (hash-table-count niwa-remote-artifact--pending)))
+            ;; The bridge closed the connection it tried.
+            (let ((deadline (+ (float-time) 2)))
+              (while (and (cl-some #'process-live-p clients) (< (float-time) deadline))
+                (accept-process-output nil 0.05)))
+            (should clients)
+            (should-not (cl-some #'process-live-p clients))
+            (should (process-live-p niwa-remote-artifact--process)))
+        (niwa-remote-artifact-stop)
+        (mapc #'delete-process (cons relay clients))))))
+
 (niwa-deftest niwa-remote-artifact-attach
   (:doc "Attaching registers the artifact under its origin id or a chosen name, outside the store"
    :quiet t)

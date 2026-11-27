@@ -224,7 +224,11 @@ Return non-nil when the link's reachability changed."
   "Function (REQUEST CALLBACK) sending REQUEST to an origin.
 REQUEST is a plist with `:link', `:guestId', `:name', `:ref' and, unless
 only the welcome is wanted, the origin request `:body'.  CALLBACK
-receives (:welcome WELCOME :reply REPLY) or (:error MESSAGE), later.")
+receives (:welcome WELCOME :reply REPLY) or (:error MESSAGE), later.
+With `:probeMs' the origin's welcome or failure is due within that many
+milliseconds, over a connection closed with the answer.  The function
+may return a function that abandons the request: its CALLBACK is then
+never called.")
 
 (defvar niwa-remote-artifact--process nil
   "The running bridge process, or nil.")
@@ -310,19 +314,37 @@ receives (:welcome WELCOME :reply REPLY) or (:error MESSAGE), later.")
 
 (defun niwa-remote-artifact--bridge-send (request callback)
   "Send REQUEST to the bridge; CALLBACK receives its answer.
-See `niwa-remote-artifact--transport'."
+Return a function that abandons the request.  See
+`niwa-remote-artifact--transport'."
   (condition-case err
       (let* ((process (niwa-remote-artifact--bridge))
              (id (cl-incf niwa-remote-artifact--next-id))
              (text (concat (niwa-shared-editing--json (cons :id (cons id request))) "\n")))
         (puthash id callback niwa-remote-artifact--pending)
-        ;; Small writes avoid Emacs's large pipe-write pauses.
-        (let ((offset 0))
-          (while (< offset (length text))
-            (let ((end (min (length text) (+ offset 1024))))
-              (process-send-string process (substring text offset end))
-              (setq offset end)))))
-    (error (run-at-time 0 nil callback (list :error (error-message-string err))))))
+        ;; An interrupted or failed write leaves no entry behind, and no
+        ;; partial line for the next request to complete.  The line is
+        ;; ended as invalid JSON, since all but its newline may have been
+        ;; written: the bridge rejects it alone and runs nothing, or is
+        ;; restarted if it cannot be ended.
+        (let ((offset 0) (sent nil))
+          (unwind-protect
+              ;; Small writes avoid Emacs's large pipe-write pauses.
+              (progn
+                (while (< offset (length text))
+                  (let ((end (min (length text) (+ offset 1024))))
+                    (process-send-string process (substring text offset end))
+                    (setq offset end)))
+                (setq sent t))
+            (unless sent
+              (remhash id niwa-remote-artifact--pending)
+              (let ((inhibit-quit t))
+                (condition-case nil
+                    (process-send-string process "!\n")
+                  (error (delete-process process)))))))
+        (lambda () (remhash id niwa-remote-artifact--pending)))
+    (error (let ((timer (run-at-time 0 nil callback
+                                     (list :error (error-message-string err)))))
+             (lambda () (cancel-timer timer))))))
 
 (defun niwa-remote-artifact-stop ()
   "Stop the bridge; requests still waiting are answered as failed."
@@ -350,15 +372,35 @@ attributes the edit to that agent."
                   :ref (niwa-remote-artifact--ref (plist-get entry :link)))
             (when body (list :body body)))))
 
+(defvar niwa-remote-artifact--attach-wait 5
+  "Seconds attaching waits for the origin's welcome before giving up.
+A reachable origin answers within a round trip.  The bridge gets four
+fifths of the wait to connect, so its own diagnosis of a silent origin
+arrives within it; the rest covers a bridge that does not answer.")
+
 (defun niwa-remote-artifact--request-sync (request)
-  "Send REQUEST and wait for its answer, at most 30 seconds."
-  (let ((outcome nil)
-        (deadline (+ (float-time) 30)))
-    (funcall niwa-remote-artifact--transport request
-             (lambda (value) (setq outcome value)))
-    (while (and (not outcome) (< (float-time) deadline))
-      (accept-process-output nil 0.05))
-    (or outcome (list :error "The origin did not answer in time; try again"))))
+  "Send REQUEST as a probe and wait for its answer.
+The wait blocks Emacs, so the echo area shows it, \\[keyboard-quit] ends it
+and it gives up after `niwa-remote-artifact--attach-wait' seconds.
+However it ends, the request is abandoned: a late answer reaches nobody."
+  (let* ((outcome nil)
+         (deadline (+ (float-time) niwa-remote-artifact--attach-wait))
+         (progress (make-progress-reporter
+                    "niwa: contacting the artifact's origin (C-g cancels)..."))
+         (abandon (funcall niwa-remote-artifact--transport
+                           (append request
+                                   (list :probeMs
+                                         (round (* 800 niwa-remote-artifact--attach-wait))))
+                           (lambda (value) (setq outcome value)))))
+    (unwind-protect
+        (while (and (not outcome) (< (float-time) deadline))
+          (progress-reporter-update progress)
+          (accept-process-output nil 0.05))
+      (when (functionp abandon) (funcall abandon)))
+    (or outcome
+        (list :error
+              (format "the remote-artifact bridge did not answer within %s seconds. Nothing was attached; try again"
+                      niwa-remote-artifact--attach-wait)))))
 
 
 ;;
@@ -649,7 +691,10 @@ reachability of links not checked lately."
 It is named NAME, by default its id at the origin; return that name.
 Interactively the link is read without echo, so it never enters a chat
 or the minibuffer history, and a prefix argument asks for the name.
-Attaching connects to the origin once to learn what the link shares.
+Attaching connects to the origin once to learn what the link shares and
+waits for its answer: the echo area shows the wait, \\[keyboard-quit] ends
+it, and after `niwa-remote-artifact--attach-wait' seconds without an
+answer nothing is attached.
 Attaching a link again refreshes it and may rename it."
   (interactive
    (list (niwa-workspace-current)

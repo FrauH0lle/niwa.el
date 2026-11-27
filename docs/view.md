@@ -1977,7 +1977,12 @@ titles are identical. Row labels replace title newlines and tabs with spaces;
 the stored title remains unchanged. It opens an artifact locally (`o`, `e`),
 attaches it to the current session (`a`), views or restores a version (`v`),
 duplicates it into an independent artifact (`D`), opens its dedicated session
-(`c`), and deletes it with its versions, discussions and dedicated session (`d`).
+(`c`), and deletes it with its versions, discussions and dedicated session
+(`d`). `S` shares the selected artifact or shows its links, `Z` replaces
+those links and `X` stops sharing it (see
+[artifact links](collaboration.md#artifact-rooms)). `R` attaches a
+[remote artifact](collaboration.md#remote-artifacts-in-niwa) from its link; on a
+remote artifact `d` only detaches it here, leaving the origin untouched.
 `n` (also the session menu's `n New shared item`, or
 `M-x niwa-artifacts-new-shared-item`) creates a whiteboard or document; see
 [shared editing](shared-editing.md).

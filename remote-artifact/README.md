@@ -153,6 +153,7 @@ per line on standard input and answers one JSON line each on standard output:
 
 ```text
 in   {"id", "link", "guestId", "name", "ref"?, "body"?}
+in   {"id", "link", "guestId", "name", "probeMs"}
 out  {"id", "welcome": {"id", "kind", "title", "readOnly"}, "reply"?}
 out  {"id", "error"}
 out  {"ref", "event"}
@@ -165,7 +166,10 @@ room's own artifact id, and `reply` is the origin's answer. `name` is the
 display name the origin attributes edits to; each distinct link and name has
 its own pooled connection with the lifecycle above. Origin change events on
 a connection are written with the `ref` of the request that opened it. The
-link travels only over the pipe and is never written out.
+link travels only over the pipe and is never written out. A request with
+`probeMs`, which niwa sends to attach, returns the welcome or the failure
+within that many milliseconds over a connection of its own that closes with
+the answer, so a caller that stops waiting leaves no connection behind.
 
 ## Licence
 
