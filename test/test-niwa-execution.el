@@ -11,6 +11,8 @@
 (require 'niwa-agents)
 (require 'niwa-execution)
 (require 'niwa-execution-process)
+(require 'niwa-execution-scheduler)
+(require 'niwa-execution-telemetry)
 (require 'niwa-permission-rules)
 (require 'niwa-resource)
 (require 'niwa-sandbox)
@@ -32,6 +34,71 @@
 
 ;;
 ;;; One-shot execution
+
+(defun test-niwa-execution--settle-cases (run session)
+  "Check sandbox settlement through RUN, called with SESSION and a command.
+RUN returns the terminal result after its child settles.  One-shot and
+managed children must settle each preparation the same way."
+  (let (cleaned attempts preparation probed)
+    (cl-letf (((symbol-function 'display-warning) #'ignore)
+              ((symbol-function 'niwa-sandbox-prepare)
+               (lambda (&rest _) (copy-tree preparation)))
+              ((symbol-function 'niwa-sandbox-cleanup)
+               (lambda (prepared) (push (plist-get prepared :marker) cleaned)))
+              ((symbol-function
+                'niwa-execution-telemetry-record-sandbox-attempt)
+               (lambda (_context facts started refused)
+                 (push (list facts (and started t) (and refused t))
+                       attempts))))
+      ;; A confined command that started keeps its facts and loses the marker.
+      (setq preparation
+            '(:state confined :marker "niwa-settle-mark"
+              :command ("sh" "-c" "printf 'niwa-settle-mark\\nstarted'")
+              :facts (:sandbox bubblewrap :network isolated)))
+      (let ((output (plist-get (funcall run session '("true")) :output)))
+        (should (string-match-p "started" output))
+        (should-not (string-match-p "niwa-settle-mark" output)))
+      (should (equal '("niwa-settle-mark") cleaned))
+      (should (equal '((:sandbox bubblewrap :network isolated) t nil)
+                     (car attempts)))
+      (should-not (plist-get (cdr (assoc nil niwa-sandbox--probe-cache))
+                             :retry-on-execution))
+      (setq probed (copy-tree niwa-sandbox--probe-cache))
+      ;; A launcher that failed before the command is a retryable refusal.
+      (setq preparation
+            '(:state confined :marker "niwa-settle-missing"
+              :command ("sh" "-c" "printf 'no bwrap'; exit 125")
+              :facts (:sandbox bubblewrap :network isolated)))
+      (funcall run session '("true"))
+      (should (equal "niwa-settle-missing" (car cleaned)))
+      (pcase-let ((`(,facts ,started ,refused) (car attempts)))
+        (should (plist-get facts :refused))
+        (should-not started)
+        (should refused))
+      (let ((probe (cdr (assoc nil niwa-sandbox--probe-cache))))
+        (should (plist-get probe :retry-on-execution))
+        (should-not (plist-get probe :available))
+        (should (string-match-p "no bwrap" (plist-get probe :reason))))
+      ;; A marker without its newline still proves the command started.
+      (setq niwa-sandbox--probe-cache (copy-tree probed)
+            preparation
+            '(:state confined :marker "niwa-settle-bare"
+              :command ("sh" "-c" "printf niwa-settle-bare; exit 3")
+              :facts (:sandbox bubblewrap :network isolated)))
+      (funcall run session '("true"))
+      (should (equal '((:sandbox bubblewrap :network isolated) t nil)
+                     (car attempts)))
+      (should (equal probed niwa-sandbox--probe-cache))
+      ;; Unavailable sandboxing runs directly and marks the fallback.
+      (setq preparation
+            '(:state unrestricted :command ("sh" "-c" "printf direct")
+              :facts (:sandbox unavailable :reason "test")))
+      (should (string-match-p
+               "direct" (plist-get (funcall run session '("true")) :output)))
+      (pcase-let ((`(,facts ,started ,refused) (car attempts)))
+        (should (plist-get facts :first-direct-fallback))
+        (should started)
+        (should-not refused)))))
 
 (niwa-deftest niwa-execution--diagnostic-scope ()
   ,test
@@ -616,6 +683,18 @@
                :workdir root :writable-roots (list root)
                :timeout timeout))
             (should-not (file-exists-p replayed))))
+      (delete-directory root t)))
+  :doc "settles each sandbox preparation like a managed record"
+  (let* ((root (make-temp-file "niwa-one-shot-settle-" t))
+         (niwa-sandbox--probe-cache nil)
+         (niwa-execution--orphan-state nil))
+    (unwind-protect
+        (test-niwa-execution--settle-cases
+         (lambda (_session command)
+           (niwa-execution-run-one-shot
+            :name "niwa-test-settle" :command command
+            :workdir root :writable-roots (list root)))
+         nil)
       (delete-directory root t)))
   :doc "applies stable child defaults while allowing command overrides"
   (let ((niwa-sandbox-mode 'off))
@@ -1304,6 +1383,26 @@
           (should (= 1 callbacks))
           (should (= 125 (plist-get (plist-get result :facts) :exit-code)))
           (should-not (string-match-p "direct" (plist-get result :output))))
+      (niwa-execution-teardown-session session)
+      (delete-directory root t)))
+  :doc "settles each sandbox preparation like a one-shot child"
+  (let* ((root (make-temp-file "niwa-managed-settle-" t))
+         (session (test-niwa-execution--session root))
+         (niwa-sandbox--probe-cache nil)
+         (niwa-execution--orphan-state nil))
+    (unwind-protect
+        (test-niwa-execution--settle-cases
+         (lambda (session command)
+           (let (result)
+             (niwa-execution-start-bash
+              (lambda (value) (setq result value))
+              :session session :owner "main" :owner-context session
+              :command command :tool-args '(:command "true")
+              :workdir root :writable-roots (list root)
+              :artifact-directory root :yield-time-ms nil)
+             (test-niwa-execution--wait (lambda () result))
+             result))
+         session)
       (niwa-execution-teardown-session session)
       (delete-directory root t)))
 

@@ -1842,6 +1842,25 @@ Return `pending' while acknowledgement is outstanding, else nil."
         :timed-out-p (niwa-execution--record-timed-out-p record)
         :error (niwa-execution--record-error-data record)))
 
+(defun niwa-execution--mark-direct-fallback (session preparation)
+  "Mark PREPARATION's facts when SESSION runs directly for lack of a sandbox."
+  (when (and (eq (plist-get preparation :state) 'unrestricted)
+             (eq (plist-get (plist-get preparation :facts) :sandbox)
+                 'unavailable))
+    (plist-put preparation :facts
+               (niwa-execution-telemetry-mark-direct-fallback
+                session (plist-get preparation :facts)))))
+
+(defun niwa-execution--settle-sandbox (preparation child-result workdir)
+  "Clean up PREPARATION and return its launch-failure facts, or nil.
+CHILD-RESULT is the terminal result, or nil when the command is known to
+have started.  A confined launcher that failed before the command started
+is recorded as a retryable backend failure for WORKDIR's target."
+  (prog1 (and child-result
+              (niwa-sandbox-launch-failed-p preparation child-result)
+              (niwa-sandbox--record-launch-failure child-result workdir))
+    (niwa-sandbox-cleanup preparation)))
+
 (defun niwa-execution--release-scheduler (record)
   "Release RECORD's scheduler lease exactly once."
   (when-let* ((lease (niwa-execution--record-scheduler-lease record)))
@@ -1856,19 +1875,27 @@ returning: their callers expect the outcome settled."
   (unless (niwa-execution--record-finished-p record)
     (let* ((preparation
             (niwa-execution--record-sandbox-preparation record))
-           (child-result (and (eq (plist-get preparation :state) 'confined)
-                              (not (niwa-execution--record-marker-seen-p
-                                    record))
-                              (niwa-execution--sandbox-launch-result record)))
            (launch-failed
-            (and child-result
-                 (niwa-sandbox-launch-failed-p preparation child-result))))
+            (and preparation
+                 (niwa-execution--settle-sandbox
+                  preparation
+                  ;; A seen marker proves the command started.
+                  (and (eq (plist-get preparation :state) 'confined)
+                       (not (niwa-execution--record-marker-seen-p record))
+                       (let ((result (niwa-execution--sandbox-launch-result
+                                      record))
+                             (held (niwa-execution--record-marker-buffer
+                                    record)))
+                         ;; The filter holds an unterminated first line back
+                         ;; from the spool; it is the launcher's last word.
+                         (if (stringp held)
+                             (plist-put result :output
+                                        (concat (plist-get result :output)
+                                                held))
+                           result)))
+                  (niwa-execution--record-workdir record)))))
       (when launch-failed
-        (setf (niwa-execution--record-sandbox-facts record)
-              (niwa-sandbox--record-launch-failure
-               child-result (niwa-execution--record-workdir record))))
-      (when preparation
-        (niwa-sandbox-cleanup preparation))
+        (setf (niwa-execution--record-sandbox-facts record) launch-failed))
       ;; A short-lived monitor can exit inside process startup (notably TRAMP).
       ;; It still has an execution identity and owes one terminal mailbox notice.
       (when (and (eq (niwa-execution--record-kind record) 'monitor)
@@ -2135,15 +2162,9 @@ process-filter appends use the published path."
 
 (defun niwa-execution--start-admitted (record preparation)
   "Start scheduler-admitted RECORD from PREPARATION."
-  (when (and (eq (plist-get preparation :state) 'unrestricted)
-             (eq (plist-get (plist-get preparation :facts) :sandbox)
-                 'unavailable))
-    (plist-put
-     preparation :facts
-     (niwa-execution-telemetry-mark-direct-fallback
-      (niwa-execution--origin-session
-       (niwa-execution--record-origin record))
-      (plist-get preparation :facts))))
+  (niwa-execution--mark-direct-fallback
+   (niwa-execution--origin-session (niwa-execution--record-origin record))
+   preparation)
   (apply #'niwa-execution--telemetry
          record 'execution-admitted
          :queue-duration-ms
@@ -3245,14 +3266,7 @@ its telemetry.  TEARDOWN-FUNCTION handles owner destruction without delivery."
          (started-p nil)
          child
          (current-facts nil)
-         (_
-          (when (and (eq (plist-get preparation :state) 'unrestricted)
-                     (eq (plist-get (plist-get preparation :facts) :sandbox)
-                         'unavailable))
-            (plist-put
-             preparation :facts
-             (niwa-execution-telemetry-mark-direct-fallback
-              session (plist-get preparation :facts))))))
+         (_ (niwa-execution--mark-direct-fallback session preparation)))
     (cl-labels
         ((record-attempt ()
            (unless attempt-recorded-p
@@ -3319,23 +3333,13 @@ its telemetry.  TEARDOWN-FUNCTION handles owner destruction without delivery."
                (setq child
                      (niwa-execution--start-process
                       (lambda (child-result)
-                        (if (eq (plist-get preparation :state) 'unrestricted)
-                            (finish child-result current-facts)
-                          (let* ((launch-failed
-                                  (niwa-sandbox-launch-failed-p
-                                   preparation child-result))
-                                 (facts
-                                  (if launch-failed
-                                      (niwa-sandbox--record-launch-failure
-                                       child-result workdir)
-                                    (plist-get preparation :facts)))
-                                 (clean-result
-                                  (niwa-sandbox-strip-marker
-                                   preparation child-result)))
-                            (setq started-p (not launch-failed)
-                                  current-facts facts)
-                            (niwa-sandbox-cleanup preparation)
-                            (finish clean-result facts))))
+                        (let ((failure (niwa-execution--settle-sandbox
+                                        preparation child-result workdir)))
+                          (setq started-p (not failure)
+                                current-facts (or failure current-facts))
+                          (finish (niwa-sandbox-strip-marker
+                                   preparation child-result)
+                                  current-facts)))
                       name (plist-get preparation :command) workdir timeout
                       session owner #'teardown))))
         (_ (error "Unknown sandbox preparation state: %s"
