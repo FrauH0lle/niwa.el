@@ -123,6 +123,10 @@
 (defconst niwa-schedule-max-failures 3
   "Consecutive failed runs after which a recurring schedule pauses.")
 
+(defconst niwa-schedule-sleep-overdue-grace 600
+  "Seconds past its due time during which a pending wake-up holds sleep.
+A wake-up whose delivery keeps failing retries on, but stops holding sleep.")
+
 (defconst niwa-schedule-retry-delay 60
   "Seconds before retrying a session whose wake-up delivery failed.")
 
@@ -965,13 +969,22 @@ A buffer following a session whose lease another client holds never fires."
 
 (defun niwa-schedule--session-due ()
   "Return the earliest due time of any session wake-up, or nil.
-Workspace schedules and closed-session reopen retries are excluded."
-  (when-let* ((dues (append (cl-loop for (directory . due) in niwa-schedule--closed
-                                     unless (member directory niwa-schedule--retrying)
-                                     collect due)
-                            (delq nil (mapcar #'niwa-schedule--earliest
-                                              niwa-schedule--buffers)))))
-    (apply #'min dues)))
+Excluded: workspace schedules, closed-session reopen retries, and wake-ups
+overdue by more than `niwa-schedule-sleep-overdue-grace' (delivery retries).
+Retry times themselves never count; only the entries' own due times do."
+  (let ((oldest (- (niwa-schedule-now) niwa-schedule-sleep-overdue-grace)))
+    (when-let* ((dues (cl-remove-if
+                       (lambda (due) (< due oldest))
+                       (append
+                        (cl-loop for (directory . due) in niwa-schedule--closed
+                                 unless (member directory niwa-schedule--retrying)
+                                 collect due)
+                        (cl-loop for buffer in niwa-schedule--buffers
+                                 for session = (niwa-schedule--session buffer)
+                                 when session
+                                 append (mapcar (lambda (entry) (plist-get entry :due))
+                                                (niwa-schedule-pending session)))))))
+      (apply #'min dues))))
 
 (defun niwa-schedule-sleep-reasons (horizon)
   "Return a sleep reason when a session wake-up is due within HORIZON seconds.

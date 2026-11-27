@@ -3392,7 +3392,9 @@ Emacs has work that sleep would interrupt. The work that counts is:
   six hours, nil disables), reason `wake-up due HH:MM`. Workspace schedules
   never hold sleep, since cron work would keep the machine awake for good. A
   one-shot timer armed with the wake-ups tells the inhibitor when the earliest
-  one comes into the horizon; nothing runs without wake-ups;
+  one comes into the horizon; nothing runs without wake-ups. A wake-up whose
+  delivery keeps failing holds sleep for only ten minutes past its due time,
+  and a failed reopen retry of a closed session never holds it;
 - an open collaboration share or lobby within its idle allowance (see
   [collaboration](collaboration.md)).
 

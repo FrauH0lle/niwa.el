@@ -524,5 +524,38 @@ after which the stub drains the pending request context like admission does."
         (should-not (funcall horizon-timers))
         (should-not (niwa-schedule-sleep-reasons 86400))))))
 
+(niwa-deftest niwa-schedule-sleep-delivery-retry ()
+  ,test
+  (test)
+  :doc "a failing delivery holds sleep only within the grace; retries go on; others still hold"
+  (niwa-schedule-test--with-session
+    (let ((niwa-sleep-wake-up-horizon 7200)
+          (niwa-sleep-inhibit nil)
+          (retries 0))
+      (cl-letf (((symbol-function 'niwa-schedule--fire)
+                 (lambda (_session buffer _entry)
+                   (cl-incf retries)
+                   (with-current-buffer buffer
+                     (setq niwa-schedule--retry-at
+                           (+ (niwa-schedule-now) niwa-schedule-retry-delay))))))
+        (niwa-schedule-create session data-buf "5m" "stuck")
+        ;; Due, undeliverable, within the grace: still holds.
+        (setq now (+ now 300 niwa-schedule-sleep-overdue-grace -1))
+        (niwa-schedule-run-due)
+        (should (niwa-schedule-sleep-reasons 7200))
+        ;; Repeated failures past the grace: retries continue, no hold.
+        (dotimes (_ 5)
+          (setq now (+ now niwa-schedule-retry-delay 1))
+          (niwa-schedule-run-due))
+        (should (> retries 1))
+        (should (timerp niwa-schedule--timer))
+        (should-not (niwa-schedule-sleep-reasons 7200))
+        ;; A genuine wake-up within the horizon still holds.
+        (niwa-schedule-create session data-buf "30m" "genuine")
+        (should (niwa-schedule-sleep-reasons 7200))
+        (should-not (niwa-schedule-sleep-reasons 600))
+        (setf (niwa-session-schedules session) nil)
+        (niwa-schedule--rearm)))))
+
 (provide 'test-niwa-schedule)
 ;;; test-niwa-schedule.el ends here
