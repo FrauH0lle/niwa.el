@@ -5,7 +5,7 @@
 // niwa keeps its own record of attached links, so a request carries the
 // link itself (over the pipe, never on a command line or in output):
 //
-//   in   {id, link, guestId, name, ref?, body?}
+//   in   {id, link, guestId, name, ref?, body?}  or  {id, link, guestId, name, probeMs}
 //   out  {id, welcome: {id, kind, title, readOnly}, reply?}  or  {id, error}
 //   out  {ref, event}  for an origin's change event
 //
@@ -15,7 +15,9 @@
 // {error, ...}.  NAME is the display name the origin attributes edits to;
 // each distinct (link, name) has its own pooled connection, opened on first
 // use and closed after IDLE-MS without a call.  REF is echoed on the change
-// events that connection receives.
+// events that connection receives.  A request with PROBE-MS (attaching) is
+// answered within that long from a connection of its own, closed with the
+// answer: abandoning it leaves nothing open and nothing watched.
 import { createInterface } from 'node:readline';
 import { connectionPool } from './connections.mjs';
 import { EditingAssembler } from './protocol.mjs';
@@ -44,12 +46,14 @@ export async function bridge({ input, output, idleMs }) {
     open: (entry) => openWatched(entry, write),
     key: (entry) => JSON.stringify([entry.link, entry.name]),
   });
-  const handle = async ({ id, link, guestId, name, ref, body }) => {
-    const room = await pool.connect({ link, guestId, name, ref }, {});
+  const handle = async ({ id, link, guestId, name, ref, body, probeMs }) => {
+    const room = probeMs === undefined
+      ? await pool.connect({ link, guestId, name, ref }, {})
+      : await openRoom(link, { name, guestId, timeoutMs: probeMs });
     try {
       const { id: origin, kind, title, readOnly } = room.welcome;
       const welcome = { id: origin, kind, title, readOnly };
-      if (body === undefined) return { id, welcome };
+      if (body === undefined || probeMs !== undefined) return { id, welcome };
       return { id, welcome, reply: await room.request({ ...body, id: origin }) };
     } finally {
       room.close();

@@ -278,6 +278,8 @@ export async function startFakeRoom({ mode = 'artifact', bindings = {}, welcome 
     received,
     sent,
     get connections() { return connections; },
+    /* How many consumers are connected now. */
+    get open() { return senders.size; },
     /* Write recorded sealed BYTES to CONNECTION, as a replaying relay can. */
     inject: (connection, bytes) => writers.get(connection)(bytes),
     /* Hold editing answers until the returned function is called. */
