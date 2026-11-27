@@ -1040,12 +1040,13 @@
                   (niwa-session-permission-mode niwa--session)))
       (should (eq 'edits niwa-permission-mode))))
 
-  :doc "an explicit permission choice exits Plan mode"
+  :doc "an explicit permission choice keeps Plan mode"
   (niwa-menu-test--with-buffers
     (setf (niwa-session-plan-mode session) t)
     (with-current-buffer view-buf
       (niwa-menu--set-mode 'ask))
-    (should-not (niwa-session-plan-mode session))))
+    (should (niwa-session-plan-mode session))
+    (should (eq 'ask (niwa-session-permission-mode session)))))
 
 (niwa-deftest niwa-menu--model-selection-description ()
   ,test
