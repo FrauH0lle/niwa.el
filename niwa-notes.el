@@ -197,13 +197,10 @@ or observe a store from redisplay."
         (dolist (note (if (bufferp (car entry)) (cdr entry)
                        (plist-get (cdr entry) :instructions)))
           (let ((properties (if (overlayp note) note (plist-get note :properties))))
-            (when (eq (if (overlayp note)
-                          (overlay-get note 'niwa-instruction-type)
-                        (plist-get properties 'niwa-instruction-type)) 'note)
-              (pcase (niwa-notes-attention-state properties)
-                ('working (cl-incf working))
-                ('ready (cl-incf ready))
-                ('stale (cl-incf stale)))))))
+            (pcase (niwa-notes-attention-state properties)
+              ('working (cl-incf working))
+              ('ready (cl-incf ready))
+              ('stale (cl-incf stale))))))
       (when (> (+ working ready stale) 0)
         (concat " Notes: "
                 (string-join
@@ -233,8 +230,7 @@ last observed source; visiting re-anchors it."
               (save-restriction
                 (widen)
                 (dolist (note (cdr entry))
-                  (when (and (overlay-buffer note)
-                             (eq (overlay-get note 'niwa-instruction-type) 'note))
+                  (when (overlay-buffer note)
                     (push (list :file buffer-file-name
                                 :source note
                                 :source-missing niwa--buffer-source-missing
@@ -248,18 +244,17 @@ last observed source; visiting re-anchors it."
         (dolist (note (plist-get (cdr entry) :instructions))
           (let ((properties (plist-get note :properties))
                 (content (plist-get (cdr entry) :original-content)))
-            (when (eq (plist-get properties 'niwa-instruction-type) 'note)
-              (push (list :file (car entry)
-                          :source note
-                          :source-missing (plist-get (cdr entry) :source-missing)
-                          :line (if content
-                                    (1+ (cl-count ?\n content :end
-                                                  (min (length content)
-                                                       (max 0 (1- (plist-get note :overlay-start))))))
-                                  1)
-                          :uuid (plist-get properties 'niwa-uuid)
-                          :properties (copy-tree properties))
-                    notes))))))
+            (push (list :file (car entry)
+                        :source note
+                        :source-missing (plist-get (cdr entry) :source-missing)
+                        :line (if content
+                                  (1+ (cl-count ?\n content :end
+                                                (min (length content)
+                                                     (max 0 (1- (plist-get note :overlay-start))))))
+                                1)
+                        :uuid (plist-get properties 'niwa-uuid)
+                        :properties (copy-tree properties))
+                  notes)))))
     (sort notes (lambda (a b)
                   (< (plist-get (plist-get a :properties) 'niwa-id)
                      (plist-get (plist-get b :properties) 'niwa-id))))))
@@ -329,7 +324,7 @@ Refuse unavailable sources before a caller starts mutating the notes."
   "Announce the note and its next actions when point enters it."
   (unless (or (bound-and-true-p isearch-mode) executing-kbd-macro
               (active-minibuffer-window))
-    (let ((notes (sort (niwa--instructions-at (point) 'note)
+    (let ((notes (sort (niwa--instructions-at (point))
                        (lambda (a b) (< (overlay-get a 'niwa-id)
                                         (overlay-get b 'niwa-id))))))
       (unless (equal notes niwa-notes--last-hinted)
@@ -427,7 +422,7 @@ Refuse unavailable sources before a caller starts mutating the notes."
            line real-priority previous)
       (when labels
         (dolist (note overlays)
-          (when (and (eq 'note (overlay-get note 'niwa-instruction-type))
+          (when (and (niwa-note-overlay-p note)
                      (<= (overlay-start note) position (overlay-end note)))
             (when (< position (overlay-end note))
               (setq real-priority (max (or real-priority 0) (funcall priority note))))
@@ -552,9 +547,7 @@ Refuse unavailable sources before a caller starts mutating the notes."
   "Expand every note label in this buffer, or collapse if all are expanded."
   (interactive)
   (let* ((notes (cl-remove-if-not
-                 (lambda (note)
-                   (and (overlay-buffer note)
-                        (eq 'note (overlay-get note 'niwa-instruction-type))))
+                 #'overlay-buffer
                  (cdr (assq (current-buffer) (niwa--instruction-alist)))))
          (display (if (cl-every (lambda (note)
                                  (eq 'expanded (overlay-get note 'niwa-note-labels)))
@@ -586,7 +579,7 @@ Refuse unavailable sources before a caller starts mutating the notes."
 
 (defun niwa-notes--at-point ()
   "Return the note at point, choosing when notes overlap; refuse if absent."
-  (let ((notes (niwa--instructions-at (point) 'note)))
+  (let ((notes (niwa--instructions-at (point))))
     (unless notes (user-error "No note at point"))
     (if (not (cdr notes)) (car notes)
       (let ((choices (mapcar
@@ -901,14 +894,14 @@ REASON is `done', `deleted' or `dismissed'.  Closing never changes source code."
     (niwa-with-diagnostic-errors (niwa-diagnostic-scope workspace)
       (unless (memq reason '(done deleted dismissed))
         (user-error "Unknown close reason: %s" reason))
-      (unless (and buffer (eq (overlay-get note 'niwa-instruction-type) 'note))
+      (unless (niwa-note-overlay-p note)
         (user-error "Not a live note"))
       (with-current-buffer buffer
         (let* ((properties (niwa--instruction-persisted-properties note))
                (instruction
                 (list :overlay-start (overlay-start note)
                       :overlay-end (overlay-end note)
-                      :anchor (niwa--instruction-anchor-for-instruction note)
+                      :anchor (niwa-note-anchor-capture note)
                       :closed-position
                       (save-excursion
                         (save-restriction
@@ -1040,10 +1033,10 @@ Return its live source overlay, retaining its text, tags and attachments."
 
 (defun niwa-notes--restore-bounds (instruction)
   "Resolve closed INSTRUCTION, falling back to its line or absolute positions."
-  (or (niwa-persistence-resolve-instruction-anchor
+  (or (niwa-note-anchor-resolve
+       (plist-get instruction :anchor)
        (plist-get instruction :overlay-start)
-       (plist-get instruction :overlay-end)
-       (plist-get instruction :anchor) nil)
+       (plist-get instruction :overlay-end))
       (when-let* ((position (plist-get instruction :closed-position)))
         (pcase-let ((`(,line ,column ,end-line ,end-column) position))
           (goto-char (point-min))
@@ -1172,7 +1165,6 @@ BUFFER without a file, never read or change the region, point or selected
 window, and neither write nor touch the store: callers prepare the workspace
 and decide durability."
   (let ((note (niwa--create-instruction-overlay-in buffer beg end span)))
-    (overlay-put note 'niwa-instruction-type 'note)
     (overlay-put note 'niwa-note-text (or text ""))
     (overlay-put note 'niwa-note-author (or author 'user))
     (overlay-put note 'niwa-note-state 'unsent)

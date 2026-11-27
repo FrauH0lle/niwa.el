@@ -40,7 +40,7 @@
           (child (make-overlay 2 4))
           rendered)
       (dolist (overlay (list parent child))
-        (overlay-put overlay 'niwa-instruction-type 'note))
+        (overlay-put overlay 'niwa-instruction t))
       (cl-letf (((symbol-function 'niwa-notes--render)
                  (lambda (note) (push (cons note (overlay-get note 'priority)) rendered)))
                 ((symbol-function 'niwa--child-instructions)

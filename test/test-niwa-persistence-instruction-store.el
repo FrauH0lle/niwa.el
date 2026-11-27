@@ -159,13 +159,17 @@ Return the new workspace struct."
   :doc "a creation is written at once and is back when the workspace activates"
   (test-niwa-instruction-store--with-workspace (workspace source)
     (test-niwa-instruction-store--note source "kept")
+    (let* ((record (niwa--read-instructions-file (niwa-instruction-store-path workspace)))
+           (file (cdar (plist-get record :files)))
+           (note (car (plist-get file :instructions))))
+      (should note)
+      (should-not (plist-member (plist-get note :properties) 'niwa-instruction-type)))
     (let ((fresh (test-niwa-instruction-store--reactivate workspace)))
       (should (equal '("kept") (test-niwa-instruction-store--texts fresh)))
       (should (equal '("kept") (test-niwa-instruction-store--listed fresh)))
       ;; The visited source got its note back; other files wait for a visit.
       (niwa--instruction-activate-workspace fresh)
-      (should (= 1 (cl-count-if (lambda (instruction)
-                               (eq 'note (overlay-get instruction 'niwa-instruction-type)))
+      (should (= 1 (cl-count-if #'niwa-note-overlay-p
                                 (alist-get source (niwa--instruction-alist)))))))
   :doc "control: without activation the restarted workspace lists nothing"
   (test-niwa-instruction-store--with-workspace (workspace source)
@@ -487,6 +491,46 @@ Return the new workspace struct."
                                (buffer-string))))
         (should (equal '("changed")
                        (test-niwa-instruction-store--texts workspace))))))
+  :doc "an old note tag restores and is not a concurrent authored edit"
+  (test-niwa-instruction-store--with-workspace (workspace source)
+    (let* ((note (test-niwa-instruction-store--note source "one"))
+           (uuid (overlay-get note 'niwa-uuid))
+           (_second (test-niwa-instruction-store--note source "two" 2))
+           (untagged (test-niwa-instruction-store--record workspace)))
+      (test-niwa-instruction-store--other-client
+       workspace (lambda (record) (test-niwa-instruction-store--edit-record
+                                   record uuid 'niwa-instruction-type 'note)))
+      (test-niwa-instruction-store--restart workspace)
+      (should (equal '("one" "two") (test-niwa-instruction-store--listed workspace)))
+      (niwa-note-edit "local" (niwa--instruction-with-uuid uuid workspace))
+      ;; A newer client rewrites the same record without the tag.
+      (test-niwa-instruction-store--other-client workspace (lambda (_) untagged))
+      (should (eq 'merged (niwa-instruction-store-sync workspace)))
+      (should (equal "local" (test-niwa-instruction-store--stored-text workspace uuid)))))
+  :doc "a conflicting type anywhere refuses the whole store without writing"
+  (dolist (kind '(visited closed stashed))
+    (test-niwa-instruction-store--with-workspace (workspace source)
+      (test-niwa-instruction-store--note source "valid")
+      (let* ((note (test-niwa-instruction-store--note source "bad" 2))
+             (uuid (overlay-get note 'niwa-uuid))
+             (type (unless (eq kind 'closed) 'directive))
+             (path (niwa-instruction-store-path workspace)))
+        (pcase kind ('closed (niwa-note-delete note)) ('stashed (kill-buffer source)))
+        (niwa-instruction-store-sync workspace)
+        (test-niwa-instruction-store--other-client
+         workspace (lambda (record) (test-niwa-instruction-store--edit-record
+                                     record uuid 'niwa-instruction-type type)))
+        (test-niwa-instruction-store--restart workspace)
+        (let* ((bytes (niwa-session-control-fs-read-file path 'no-conversion))
+               (err (should-error (niwa-instruction-store-observe workspace)
+                                  :type 'niwa-instruction-store-unreadable))
+               (message (error-message-string err)))
+          (should (string-search uuid message))
+          (should (string-search (symbol-name type) message))
+          (should-not (test-niwa-instruction-store--texts workspace))
+          (should-error (niwa-instruction-store-sync workspace)
+                        :type 'niwa-instruction-store-unreadable)
+          (should (equal bytes (niwa-session-control-fs-read-file path 'no-conversion)))))))
   :doc "control: the same change against a readable store is written"
   (test-niwa-instruction-store--with-workspace (workspace source)
     (let ((overlay (test-niwa-instruction-store--note source "one")))
@@ -954,7 +998,6 @@ The overlay properties are what preparing a change leaves behind."
                                      :properties
                                      (list 'niwa-instruction t 'niwa-id 1
                                            'niwa-uuid "N1"
-                                           'niwa-instruction-type 'note
                                            'niwa-note-text text
                                            'niwa-note-author 'user
                                            'niwa-note-state 'sent

@@ -191,8 +191,7 @@ Without NOTE, restore this session's hint during note conversation setup."
     (dolist (item (sort (niwa--wholly-contained-instructions (overlay-buffer note) start end)
                         :key (lambda (ov) (- (overlay-end ov) (overlay-start ov)))
                         :reverse t))
-      (when (and (eq 'note (overlay-get item 'niwa-instruction-type))
-                 (or (> (overlay-start item) start) (< (overlay-end item) end)))
+      (when (or (> (overlay-start item) start) (< (overlay-end item) end))
         ;; The most recently seen containing range is the narrowest parent.
         (let ((parent (cl-find-if (lambda (ov)
                                    (and (<= (overlay-start ov) (overlay-start item))
@@ -313,8 +312,7 @@ sync to the caller's batch."
                       (niwa--instruction-buffer-workspace (overlay-buffer note)))))
     (niwa-with-diagnostic-errors (niwa-diagnostic-scope workspace)
       (dolist (item notes)
-        (unless (and workspace (overlayp item) (overlay-buffer item)
-                     (eq (overlay-get item 'niwa-instruction-type) 'note)
+        (unless (and workspace (niwa-note-overlay-p item)
                      (equal (niwa--instruction-workspace-key workspace)
                             (niwa--instruction-workspace-key
                              (niwa--instruction-buffer-workspace (overlay-buffer item)))))
@@ -375,7 +373,11 @@ sync to the caller's batch."
               (when niwa-note-conversation--origin
                 (set-marker (cdr niwa-note-conversation--origin) nil))
               (setq-local niwa-note-conversation--origin origin))
-            (niwa-note-frame-display note view t)
+            ;; The store flush can replace the source overlay.
+            (niwa-note-frame-display
+             (if (overlay-buffer note) note
+               (niwa-note-resolve (overlay-get note 'niwa-uuid) workspace))
+             view t)
             (with-current-buffer view (goto-char (point-max))))
           view)))))
 
@@ -398,7 +400,6 @@ NO-DISPLAY leaves focus alone; DEFER-WRITE lets a batch caller sync the store."
    (progn
      (niwa--instruction-activate-buffer)
      (let* ((choices (cl-loop for note in (niwa--all-instructions)
-                              when (eq (overlay-get note 'niwa-instruction-type) 'note)
                               collect (cons (number-to-string (overlay-get note 'niwa-id)) note)))
             (completion-extra-properties
              (list :annotation-function

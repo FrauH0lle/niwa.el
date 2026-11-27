@@ -360,6 +360,8 @@ before replacing existing instructions.  QUIET suppresses messages."
       (user-error "Unsupported instruction file version: %s"
                   (or (plist-get save-file :format)
                       (plist-get save-file :version) "missing")))
+    (when (plist-member save-file :format)
+      (niwa-instruction-store--validate save-file workspace))
     (niwa--install-instructions
      save-file (or base-directory (file-name-parent-directory path))
      confirm quiet workspace
@@ -557,116 +559,6 @@ reverted, and restores them afterward."
    'sha256
    (buffer-substring-no-properties (point-min) (point-max))))
 
-(defun niwa--instruction-bounds-valid-p (start end &optional range)
-  "Return non-nil if START and END are valid bounds in current buffer.
-
-When RANGE is non-nil, it is a cons cell limiting valid bounds."
-  (and (integerp start)
-       (integerp end)
-       (<= start end)
-       (<= (point-min) start)
-       (<= end (point-max))
-       (or (null range)
-           (and (<= (car range) start)
-                (<= end (cdr range))))))
-
-(defun niwa--instruction-anchor-context-match-p (start end anchor)
-  "Return non-nil if START/END has ANCHOR prefix and suffix context."
-  (let ((prefix (or (plist-get anchor :prefix) ""))
-        (suffix (or (plist-get anchor :suffix) "")))
-    (and (or (not (string-empty-p prefix))
-             (not (string-empty-p suffix)))
-         (>= start (+ (point-min) (length prefix)))
-         (<= (+ end (length suffix)) (point-max))
-         (string= prefix
-                  (buffer-substring-no-properties
-                   (- start (length prefix)) start))
-         (string= suffix
-                  (buffer-substring-no-properties
-                   end (+ end (length suffix)))))))
-
-(defun niwa--instruction-anchor-raw-match-p
-    (start end anchor &optional range)
-  "Return non-nil if raw START and END still match ANCHOR in RANGE."
-  (when (niwa--instruction-bounds-valid-p start end range)
-    (if (plist-get anchor :bodyless)
-        (niwa--instruction-anchor-context-match-p start end anchor)
-      (let ((text-hash (plist-get anchor :text-hash)))
-        (or (and text-hash
-                 (string=
-                  text-hash
-                  (secure-hash
-                   'sha256
-                   (buffer-substring-no-properties start end))))
-            (niwa--instruction-anchor-context-match-p
-             start end anchor))))))
-
-(defun niwa--instruction-anchor-unique-candidate (candidates)
-  "Return the single candidate in CANDIDATES, or nil when ambiguous."
-  (let ((deduped (delete-dups (copy-sequence candidates))))
-    (and (= (length deduped) 1)
-         (car deduped))))
-
-(defun niwa--instruction-anchor-resolve-bodyless
-    (overlay-start overlay-end anchor range)
-  "Resolve bodyless ANCHOR in RANGE from OVERLAY-START to OVERLAY-END."
-  (or (and (niwa--instruction-anchor-raw-match-p
-            overlay-start overlay-end anchor range)
-           (cons overlay-start overlay-end))
-      (let* ((prefix (or (plist-get anchor :prefix) ""))
-             (suffix (or (plist-get anchor :suffix) ""))
-             (needle (concat prefix suffix))
-             candidates)
-        (when (and (not (string-empty-p needle))
-                   (or (not (string-empty-p prefix))
-                       (not (string-empty-p suffix))))
-          (save-excursion
-            (goto-char (car range))
-            (while (search-forward needle (cdr range) t)
-              (let ((pos (- (point) (length suffix))))
-                (when (niwa--instruction-bounds-valid-p pos pos range)
-                  (push (cons pos pos) candidates))))))
-        (niwa--instruction-anchor-unique-candidate candidates))))
-
-(defun niwa--instruction-anchor-resolve-text
-    (overlay-start overlay-end anchor range)
-  "Resolve text ANCHOR in RANGE from OVERLAY-START to OVERLAY-END."
-  (or (and (niwa--instruction-anchor-raw-match-p
-            overlay-start overlay-end anchor range)
-           (cons overlay-start overlay-end))
-      (when-let* ((text (plist-get anchor :text))
-                  ((not (string-empty-p text))))
-        (let (context-candidates candidates)
-          (save-excursion
-            (goto-char (car range))
-            (while (search-forward text (cdr range) t)
-              (let ((start (match-beginning 0))
-                    (end (match-end 0)))
-                (when (niwa--instruction-bounds-valid-p
-                       start end range)
-                  (push (cons start end) candidates)
-                  (when (niwa--instruction-anchor-context-match-p
-                         start end anchor)
-                    (push (cons start end) context-candidates))))))
-          (or (niwa--instruction-anchor-unique-candidate
-               context-candidates)
-              (niwa--instruction-anchor-unique-candidate
-               candidates))))))
-
-(defun niwa-persistence-resolve-instruction-anchor
-    (overlay-start overlay-end anchor parent-range)
-  "Resolve ANCHOR near OVERLAY-START and OVERLAY-END within PARENT-RANGE."
-  (let ((range (or parent-range (cons (point-min) (point-max)))))
-    (cond
-     ((null anchor) (cons overlay-start overlay-end))
-     ((plist-get anchor :bodyless)
-      (niwa--instruction-anchor-resolve-bodyless
-       overlay-start overlay-end anchor range))
-     (t
-      (niwa--instruction-anchor-resolve-text
-       overlay-start overlay-end anchor range)))))
-
-
 (defun niwa--instruction-restore-order (instructions)
   "Return INSTRUCTIONS ordered so parents are restored before children."
   (sort (copy-sequence instructions)
@@ -690,16 +582,9 @@ Return the restored overlay, or nil when unresolved."
       (let* ((parent-uuid (plist-get anchor :parent-uuid))
              (parent-range (and parent-uuid
                                 (gethash parent-uuid parent-ranges)))
-             (bounds (cond
-                      (raw-position-ok
-                       (and (niwa--instruction-bounds-valid-p
-                             overlay-start overlay-end parent-range)
-                            (cons overlay-start overlay-end)))
-                      ((and parent-uuid (null parent-range))
-                       nil)
-                      (t
-                       (niwa-persistence-resolve-instruction-anchor
-                        overlay-start overlay-end anchor parent-range)))))
+             (bounds (when (or raw-position-ok (not parent-uuid) parent-range)
+                       (niwa-note-anchor-resolve anchor overlay-start overlay-end
+                                                 parent-range raw-position-ok))))
         (when bounds
           (let ((ov (niwa--restore-overlay buffer
                                               (car bounds)
@@ -894,6 +779,18 @@ A workspace keeps its store under its root, beside its sessions."
                                   (natnump (plist-get intent :to))))
                            (plist-get data :rewinds)))
       (error "Malformed instruction store record"))
+    (dolist (entry files)
+      (dolist (record (plist-get (cdr entry) :instructions))
+        (let* ((props (plist-get record :properties))
+               (tag (plist-member props 'niwa-instruction-type)))
+          (when tag
+            (cl-loop for (key type) on tag by #'cddr
+                     when (and (eq key (car tag)) (not (eq type 'note)))
+                     do (error "Record %S in %s has instruction type %S"
+                               (niwa-instruction-store--instruction-uuid record) (car entry) type))
+            ;; The old tag is not an authored difference in a three-way merge.
+            (plist-put record :properties
+                       (niwa-instruction-store--without props (list (car tag))))))))
     data))
 
 (defun niwa-instruction-store--decode (bytes workspace)
@@ -1264,12 +1161,7 @@ with `niwa-load-instructions'."
   "Record that WORKSPACE's store holds DATA with HASH."
   (niwa-notes-remember-remote-root
    (niwa-workspace-root workspace)
-   (cl-some (lambda (entry)
-              (cl-some (lambda (instruction)
-                         (eq (plist-get (plist-get instruction :properties)
-                                        'niwa-instruction-type)
-                             'note))
-                       (plist-get (cdr entry) :instructions)))
+   (cl-some (lambda (entry) (plist-get (cdr entry) :instructions))
             (plist-get data :files)))
   (let ((key (niwa--instruction-workspace-key workspace)))
     (setf (plist-get (niwa--instruction-state key) :store-observation)

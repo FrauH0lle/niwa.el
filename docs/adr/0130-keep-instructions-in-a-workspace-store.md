@@ -74,7 +74,10 @@ has since changed.
 **Format version.** The record carries `:format`, independent of the package
 version. Installations sharing a workspace must understand that format. An
 unknown format or an unreadable record refuses without clearing live state or
-writing. An absent store is told apart from a corrupt one. An unreadable store
+writing. Format-2 instruction records are notes and need no type property.
+Readers accept the older explicit `note` tag; any other explicit type refuses
+the whole store and identifies the record and type. An absent store is told
+apart from a corrupt one. An unreadable store
 is reported once and read again only at the next observation point, not after
 every command. A failed write is likewise not retried after every command: a
 workspace waits `niwa-session-checkpoint-interval` seconds, while exit and

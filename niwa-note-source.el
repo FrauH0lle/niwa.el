@@ -52,18 +52,15 @@
 (declare-function niwa--child-instructions
                   "niwa-overlays" (instruction))
 (declare-function niwa--instructions-at
-                  "niwa-overlays" (point &optional type))
+                  "niwa-overlays" (point))
 (declare-function niwa--instructions-in
-                  "niwa-overlays" (start end &optional type))
+                  "niwa-overlays" (start end))
 (declare-function niwa--parent-instruction
-                  "niwa-overlays" (instruction &optional of-type))
-(declare-function niwa--topmost-instruction
-                  "niwa-overlays" (instruction &optional of-type pred))
+                  "niwa-overlays" (instruction))
 (autoload 'niwa--child-instructions "niwa-overlays")
 (autoload 'niwa--instructions-at "niwa-overlays")
 (autoload 'niwa--instructions-in "niwa-overlays")
 (autoload 'niwa--parent-instruction "niwa-overlays")
-(autoload 'niwa--topmost-instruction "niwa-overlays")
 (defvar niwa--default-instruction-priority)
 
 ;; `niwa-persistence'
@@ -73,14 +70,9 @@
                   "niwa-persistence" (workspace))
 (declare-function niwa-instruction-store-touch
                   "niwa-persistence" (&optional workspace))
-(declare-function niwa-persistence-resolve-instruction-anchor
-                  "niwa-persistence"
-                  (overlay-start overlay-end anchor parent-range))
 (autoload 'niwa--setup-buffer-hooks "niwa-persistence")
 (autoload 'niwa-instruction-store-sync "niwa-persistence")
 (autoload 'niwa-instruction-store-touch "niwa-persistence")
-(autoload 'niwa-persistence-resolve-instruction-anchor
-  "niwa-persistence")
 
 ;; `niwa-structs'
 (defcustom niwa-instruction-anchor-context-chars 160
@@ -148,14 +140,9 @@ the last pending presentation: redo must never reopen a finished scope."
     (when (eq entry (overlay-get overlay 'niwa-replacement-pending))
       (overlay-put overlay 'niwa-replacement-pending nil)
       (when (overlay-buffer overlay)
-        (if (or (< (overlay-start overlay) (overlay-end overlay))
-                (eq (overlay-get overlay 'niwa-instruction-type) 'note))
-            ;; A later hook may have rejected the deletion.  Notes also stay
-            ;; open at an empty anchor until explicitly closed by the user.
-            (progn
-              (overlay-put overlay 'evaporate (plist-get entry :evaporate))
-              overlay)
-          (niwa--delete-instruction overlay))))))
+        ;; Notes stay open at an empty anchor until explicitly closed.
+        (overlay-put overlay 'evaporate (plist-get entry :evaporate))
+        overlay))))
 
 (defun niwa--instruction-replacement-settle-undo ()
   "Finalize pending undo states whose original replacement scope has ended."
@@ -225,7 +212,6 @@ shape and links.  Calls are idempotent."
   '(niwa-instruction
     niwa-id
     niwa-uuid
-    niwa-instruction-type
     niwa-note-text
     niwa-note-tags
     niwa-note-author
@@ -275,13 +261,13 @@ source geometry undo must leave these authored fields on the live note."
                           (overlay-get instruction prop))))))
     properties))
 
-(defun niwa--instruction-anchor-substring (start end)
+(defun niwa-note-anchor--substring (start end)
   "Return buffer substring between START and END, without properties."
   (buffer-substring-no-properties
    (max (point-min) start)
    (min (point-max) end)))
 
-(defun niwa--instruction-anchor-for-instruction (instruction)
+(defun niwa-note-anchor-capture (instruction)
   "Return a lightweight restore anchor for INSTRUCTION."
   (when-let* ((buffer (overlay-buffer instruction)))
     (with-current-buffer buffer
@@ -291,7 +277,7 @@ source geometry undo must leave these authored fields on the live note."
              (length (- end start))
              (parent (niwa--parent-instruction instruction))
              (text (unless bodyless
-                     (niwa--instruction-anchor-substring start end)))
+                     (niwa-note-anchor--substring start end)))
              (stored-text (and text
                                (<= (length text)
                                    niwa-instruction-anchor-text-max-chars)
@@ -304,34 +290,133 @@ source geometry undo must leave these authored fields on the live note."
               :bodyless bodyless
               :text-hash (and text (secure-hash 'sha256 text))
               :text stored-text
-              :prefix (niwa--instruction-anchor-substring
+              :prefix (niwa-note-anchor--substring
                        (- start context) start)
-              :suffix (niwa--instruction-anchor-substring
+              :suffix (niwa-note-anchor--substring
                        end (+ end context))
               :length length)))))
+
+(defun niwa-note-anchor--bounds-valid-p (start end &optional range)
+  "Return non-nil if START and END are valid bounds in current buffer.
+
+When RANGE is non-nil, it is a cons cell limiting valid bounds."
+  (and (integerp start)
+       (integerp end)
+       (<= start end)
+       (<= (point-min) start)
+       (<= end (point-max))
+       (or (null range)
+           (and (<= (car range) start)
+                (<= end (cdr range))))))
+
+(defun niwa-note-anchor--context-match-p (start end anchor)
+  "Return non-nil if START/END has ANCHOR prefix and suffix context."
+  (let ((prefix (or (plist-get anchor :prefix) ""))
+        (suffix (or (plist-get anchor :suffix) "")))
+    (and (or (not (string-empty-p prefix))
+             (not (string-empty-p suffix)))
+         (>= start (+ (point-min) (length prefix)))
+         (<= (+ end (length suffix)) (point-max))
+         (string= prefix
+                  (buffer-substring-no-properties
+                   (- start (length prefix)) start))
+         (string= suffix
+                  (buffer-substring-no-properties
+                   end (+ end (length suffix)))))))
+
+(defun niwa-note-anchor--raw-match-p
+    (start end anchor &optional range)
+  "Return non-nil if raw START and END still match ANCHOR in RANGE."
+  (when (niwa-note-anchor--bounds-valid-p start end range)
+    (if (plist-get anchor :bodyless)
+        (niwa-note-anchor--context-match-p start end anchor)
+      (let ((text-hash (plist-get anchor :text-hash)))
+        (or (and text-hash
+                 (string=
+                  text-hash
+                  (secure-hash
+                   'sha256
+                   (buffer-substring-no-properties start end))))
+            (niwa-note-anchor--context-match-p
+             start end anchor))))))
+
+(defun niwa-note-anchor--unique-candidate (candidates)
+  "Return the single candidate in CANDIDATES, or nil when ambiguous."
+  (let ((deduped (delete-dups (copy-sequence candidates))))
+    (and (= (length deduped) 1)
+         (car deduped))))
+
+(defun niwa-note-anchor--resolve-bodyless
+    (overlay-start overlay-end anchor range)
+  "Resolve bodyless ANCHOR in RANGE from OVERLAY-START to OVERLAY-END."
+  (or (and (niwa-note-anchor--raw-match-p
+            overlay-start overlay-end anchor range)
+           (cons overlay-start overlay-end))
+      (let* ((prefix (or (plist-get anchor :prefix) ""))
+             (suffix (or (plist-get anchor :suffix) ""))
+             (needle (concat prefix suffix))
+             candidates)
+        (when (and (not (string-empty-p needle))
+                   (or (not (string-empty-p prefix))
+                       (not (string-empty-p suffix))))
+          (save-excursion
+            (goto-char (car range))
+            (while (search-forward needle (cdr range) t)
+              (let ((pos (- (point) (length suffix))))
+                (when (niwa-note-anchor--bounds-valid-p pos pos range)
+                  (push (cons pos pos) candidates))))))
+        (niwa-note-anchor--unique-candidate candidates))))
+
+(defun niwa-note-anchor--resolve-text
+    (overlay-start overlay-end anchor range)
+  "Resolve text ANCHOR in RANGE from OVERLAY-START to OVERLAY-END."
+  (or (and (niwa-note-anchor--raw-match-p
+            overlay-start overlay-end anchor range)
+           (cons overlay-start overlay-end))
+      (when-let* ((text (plist-get anchor :text))
+                  ((not (string-empty-p text))))
+        (let (context-candidates candidates)
+          (save-excursion
+            (goto-char (car range))
+            (while (search-forward text (cdr range) t)
+              (let ((start (match-beginning 0))
+                    (end (match-end 0)))
+                (when (niwa-note-anchor--bounds-valid-p
+                       start end range)
+                  (push (cons start end) candidates)
+                  (when (niwa-note-anchor--context-match-p
+                         start end anchor)
+                    (push (cons start end) context-candidates))))))
+          (or (niwa-note-anchor--unique-candidate
+               context-candidates)
+              (niwa-note-anchor--unique-candidate
+               candidates))))))
+
+(defun niwa-note-anchor-resolve (anchor start end &optional range trusted)
+  "Resolve ANCHOR near START and END within RANGE in the current buffer.
+TRUSTED positions need only be valid.  Otherwise a nil ANCHOR passes
+START and END through unchanged.  Return nil when unresolved."
+  (setq range (or range (cons (point-min) (point-max))))
+  (cond
+   (trusted (and (niwa-note-anchor--bounds-valid-p start end range)
+                 (cons start end)))
+   ((null anchor) (cons start end))
+   ((plist-get anchor :bodyless)
+    (niwa-note-anchor--resolve-bodyless start end anchor range))
+   (t (niwa-note-anchor--resolve-text start end anchor range))))
 
 (defun niwa--mark-buffer-source-missing (buffer)
   "Retain BUFFER's open notes when its file is missing."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (niwa--instruction-activate-buffer buffer)
-      (let ((instructions
-             (copy-sequence
-              (alist-get buffer (niwa--instruction-alist)))))
-        (dolist (instruction instructions)
-          (cond
-           ((eq (overlay-get instruction 'niwa-instruction-type) 'note)
-            ;; The buffer is still editable.  Keep notes tracking its code;
-            ;; stashing repeatedly here would duplicate the file entry.
-            nil)
-           (t (niwa--delete-instruction instruction buffer))))
-        (if (alist-get buffer (niwa--instruction-alist))
-            (unless niwa--buffer-source-missing
-              (setq niwa--buffer-source-missing t)
-              (niwa-instruction-store-touch
-               (niwa--instruction-buffer-workspace buffer)))
-          (setf (niwa--instruction-alist)
-                (assq-delete-all buffer (niwa--instruction-alist)))))))
+      (if (alist-get buffer (niwa--instruction-alist))
+          (unless niwa--buffer-source-missing
+            (setq niwa--buffer-source-missing t)
+            (niwa-instruction-store-touch
+             (niwa--instruction-buffer-workspace buffer)))
+        (setf (niwa--instruction-alist)
+              (assq-delete-all buffer (niwa--instruction-alist))))))
   buffer)
 
 (defun niwa--reconcile-note-sources (workspace)
@@ -632,8 +717,7 @@ exception is for automatic retraction, not explicit user deletion."
   (when (overlay-get instruction 'niwa-marked-for-deletion)
     (error "Instruction %s already marked for deletion" instruction))
   (when (and (not forget-note)
-             (buffer-live-p (overlay-buffer instruction))
-             (eq (overlay-get instruction 'niwa-instruction-type) 'note))
+             (buffer-live-p (overlay-buffer instruction)))
     (niwa-note-delete instruction)
     (cl-return-from niwa--delete-instruction instruction))
   (let* ((instruction-buffer
@@ -651,10 +735,9 @@ exception is for automatic retraction, not explicit user deletion."
     (let ((id (niwa--instruction-id instruction)))
       (with-current-buffer instruction-buffer
         (niwa--retire-instruction-identity id workspace)
-        (when (eq (overlay-get instruction 'niwa-instruction-type) 'note)
-          ;; Old mentions must not redirect to another note after retraction.
-          (setf (niwa--instruction-retired-ids)
-                (delq id (niwa--instruction-retired-ids))))))
+        ;; Old mentions must not redirect to another note after retraction.
+        (setf (niwa--instruction-retired-ids)
+              (delq id (niwa--instruction-retired-ids)))))
     (niwa-instruction-store-touch workspace)
     (setf (cdr (assoc instruction-buffer (niwa--instruction-alist)))
           (delq instruction

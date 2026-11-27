@@ -67,10 +67,10 @@
 (declare-function niwa--delete-instruction
                   "niwa-note-source"
                   (instruction &optional buffer))
-(declare-function niwa--instruction-anchor-for-instruction
+(declare-function niwa-note-anchor-capture
                   "niwa-note-source" (instruction))
 (declare-function niwa--instruction-persisted-properties
-                  "niwa-note-source" (instruction))
+                  "niwa-note-source" (instruction &optional source-only))
 
 ;; `niwa-overlay-ui'
 (declare-function niwa--update-instruction-overlay
@@ -152,9 +152,8 @@ deleted.  Throw a user error if no instructions to delete were found."
         (let ((start (region-beginning))
               (end (region-end)))
           (dolist (overlay (niwa--wholly-contained-instructions (current-buffer) start end))
-            (when (overlay-get overlay 'niwa-instruction)
-              (niwa--delete-instruction overlay)
-              (setq deleted-count (1+ deleted-count))))
+            (niwa--delete-instruction overlay)
+            (setq deleted-count (1+ deleted-count)))
           (when (> deleted-count 0)
             (deactivate-mark))
           (unless (> deleted-count 0)
@@ -169,10 +168,13 @@ deleted.  Throw a user error if no instructions to delete were found."
     (when (> deleted-count 0)
       (message "Deleted %d instruction%s" deleted-count (if (> deleted-count 1) "s" "")))))
 
-(defun niwa--delete-all-instructions-of-type (type interactivep)
-  "Delete instructions of TYPE in the current workspace.
-TYPE is `note' or nil.  INTERACTIVEP requests confirmation.
-Return the deleted count."
+;;;###autoload
+(defun niwa-delete-all-instructions ()
+  "Delete notes in the current workspace and return the deleted count.
+All buffers in that workspace are included.  Without a workspace, operate
+on the shared global bucket of all buffers without a workspace instead.
+Interactively, confirm the number of notes and buffers."
+  (interactive)
   (let* ((workspace (niwa--instruction-buffer-workspace (current-buffer)))
          (niwa--instruction-state-key-override
           (niwa--instruction-workspace-key workspace))
@@ -183,21 +185,16 @@ Return the deleted count."
             (dolist (entry (copy-sequence (niwa--instruction-alist)))
               (when (stringp (car entry))
                 (niwa--restore-file-instructions (car entry) nil workspace)))
-            (seq-filter
-             (lambda (instruction)
-               (or (null type)
-                   (eq type (overlay-get instruction 'niwa-instruction-type))))
-             (niwa--all-instructions))))
-         (noun (symbol-name (or type 'instruction)))
+            (niwa--all-instructions)))
          (buffer-count (length (delete-dups (mapcar #'overlay-buffer instructions)))))
     (let* ((count (length instructions))
-           (summary (format "%d %s%s in %d buffer%s"
-                            count noun (if (= count 1) "" "s")
+           (summary (format "%d instruction%s in %d buffer%s"
+                            count (if (= count 1) "" "s")
                             buffer-count (if (= buffer-count 1) "" "s"))))
-      (when interactivep
+      (when (called-interactively-p 'any)
         (when (zerop count)
           (niwa-diagnostic-user-error (niwa-diagnostic-scope (or workspace 'global))
-                                       "No %ss to delete" noun))
+                                       "No instructions to delete"))
         (unless (y-or-n-p (format "Delete %s in %s? " summary
                                  (if workspace "the current workspace"
                                    "the shared global bucket")))
@@ -214,26 +211,17 @@ Return the deleted count."
       count)))
 
 ;;;###autoload
-(defun niwa-delete-all-instructions ()
-  "Delete notes in the current workspace.
-All buffers in that workspace are included.  Without a workspace, operate
-on the shared global bucket of all buffers without a workspace instead.
-Interactively, confirm the number of notes and buffers."
-  (interactive)
-  (niwa--delete-all-instructions-of-type nil (called-interactively-p 'any)))
-
-;;;###autoload
 (defun niwa-next-instruction ()
   "Cycle through instructions in the forward direction."
   (interactive)
-  (unless (niwa--cycle-instruction nil 'next)
-    (niwa--print-instruction-not-found 'next nil)))
+  (unless (niwa--cycle-instruction 'next)
+    (niwa--print-instruction-not-found 'next)))
 
 (defun niwa-previous-instruction ()
   "Cycle through instructions in the backward direction."
   (interactive)
-  (unless (niwa--cycle-instruction nil 'previous)
-    (niwa--print-instruction-not-found 'previous nil)))
+  (unless (niwa--cycle-instruction 'previous)
+    (niwa--print-instruction-not-found 'previous)))
 
 
 (defun niwa--stashed-buffer-instructions (buffer)
@@ -246,7 +234,7 @@ later restoration."
   (niwa--foreach-instruction (instr buffer)
     collect (list :overlay-start (overlay-start instr)
                   :overlay-end (overlay-end instr)
-                  :anchor (niwa--instruction-anchor-for-instruction
+                  :anchor (niwa-note-anchor-capture
                            instr)
                   :properties (niwa--instruction-persisted-properties
                                instr))))
@@ -272,21 +260,16 @@ FILE-CONTENTS."
           (mapc #'niwa--delete-instruction-overlay
                 (niwa--instructions-in (point-min) (point-max))))))))
 
-(defun niwa--print-instruction-not-found (direction type)
-  "Print a not found message for the given DIRECTION and TYPE."
-  (let ((type-string (pcase type
-                       ('note "note")
-                       (_ "instruction")))
-        (scope (niwa-diagnostic-scope
+(defun niwa--print-instruction-not-found (direction)
+  "Print a not found message for DIRECTION."
+  (let ((scope (niwa-diagnostic-scope
                 (niwa--instruction-buffer-workspace (current-buffer)))))
     (niwa-diagnostic-message scope
-             "No %s %s found"
-             (if (eq direction 'next) "next" "previous")
-             type-string)))
+                             "No %s instruction found" direction)))
 
 
-(defun niwa--cycle-instruction (type direction)
-  "Get the next or previous instruction overlay of TYPE.
+(defun niwa--cycle-instruction (direction)
+  "Get the next or previous instruction overlay.
 DIRECTION should be `next' or `previous' from the current point.
 
 If no instruction found in the buffer, checks the next buffers in the
@@ -305,10 +288,6 @@ Returns the found instruction, if any."
       (let* ((buffer (car buffers))
              (instrs (niwa--foreach-instruction (instr buffer) collect instr)))
         (setq buffers (delq buffer buffers))
-        (when type
-          (setq instrs (cl-remove-if-not (lambda (instr)
-                                           (eq (niwa--instruction-type instr) type))
-                                         instrs)))
         (let ((sorting-pred (pcase direction
                               ('next #'<)
                               ('previous #'>))))
@@ -365,28 +344,19 @@ INSTRUCTIONS list."
              instructions
              :initial-value nil))
 
-(defun niwa--instruction-type (instruction)
-  "Return the type of the INSTRUCTION overlay.
-
-The instruction type is `note'."
-  (if-let* ((type (overlay-get instruction 'niwa-instruction-type)))
-      type
-    (error "%s is not an instruction overlay" instruction)))
+(defun niwa-note-overlay-p (object)
+  "Return non-nil if OBJECT is a live Niwa note overlay."
+  (and (overlayp object) (overlay-buffer object) (overlay-get object 'niwa-instruction)))
 
 
-(defun niwa--parent-instruction (instruction &optional of-type)
-  "Return the parent of the given INSTRUCTION overlay.
-
-If OF-TYPE is non-nil, returns the parent with the given type."
+(defun niwa--parent-instruction (instruction)
+  "Return the parent of the given INSTRUCTION overlay."
   (with-current-buffer (overlay-buffer instruction)
     (let ((beg (overlay-start instruction))
           (end (overlay-end instruction)))
       (niwa--highest-priority-instruction
        (cl-remove-if-not (lambda (instr)
                            (and (not (eq instr instruction))
-                                (or (null of-type)
-                                    (eq (niwa--instruction-type instr)
-                                        of-type))
                                 (<= (overlay-start instr) beg
                                     end (overlay-end instr))
                                 ;; Equal ranges can result from replacement.
@@ -418,39 +388,27 @@ If OF-TYPE is non-nil, returns the parent with the given type."
   "Return niwa overlays in BUFFER that are entirely within START and END."
   (with-current-buffer buffer
     (cl-remove-if-not (lambda (ov)
-                        (and (overlay-get ov 'niwa-instruction)
+                        (and (niwa-note-overlay-p ov)
                              (>= (overlay-start ov) start)
                              (<= (overlay-end ov) end)))
                       (overlays-in start end))))
 
-(defun niwa--instructions-at (point &optional type)
+(defun niwa--instructions-at (point)
   "Return a list of instructions at current POINT.
 
-Optionally return only instructions of specific TYPE.  Also returns
-bodyless overlays located right before the point."
-  (niwa--instructions-in point (min (point-max) (1+ point)) type))
+Also return bodyless overlays located right before the point."
+  (niwa--instructions-in point (min (point-max) (1+ point))))
 
-(defun niwa--instructions-in (start end &optional type)
-  "Return a list of instructions in region delimited by START and END.
-
-Optionally return only instructions of specific TYPE."
-  (cl-remove-if-not (lambda (ov)
-                      (and (overlay-get ov 'niwa-instruction)
-                           (or (and type
-                                    (eq (overlay-get ov 'niwa-instruction-type)
-                                        type))
-                               (null type))))
-                    (overlays-in start end)))
+(defun niwa--instructions-in (start end)
+  "Return a list of instructions in region delimited by START and END."
+  (cl-remove-if-not #'niwa-note-overlay-p (overlays-in start end)))
 
 (defun niwa--all-instructions ()
   "Return a list of all currently loaded instructions."
   (niwa--foreach-instruction inst collect inst))
 
-(cl-defun niwa--topmost-instruction (instruction &optional of-type pred)
+(cl-defun niwa--topmost-instruction (instruction &optional pred)
   "Return the topmost instruction containing the INSTRUCTION, if any.
-
-If OF-TYPE is non-nil, filter by the specified instruction OF-TYPE.  If
-OF-TYPE is nil, the instruction returned is the top-level one.
 
 If PRED is non-nil, then the best instruction must also satisfy it.  The
 PRED must be a function which accepts an instruction."
@@ -461,16 +419,13 @@ PRED must be a function which accepts an instruction."
       (cl-labels ((parent-instr (instr)
                     (if-let* ((parent (niwa--parent-instruction instr)))
                         (progn
-                          (when (and (or (null of-type) (eq of-type (niwa--instruction-type parent)))
-                                     (or (null pred) (funcall pred parent)))
+                          (when (or (null pred) (funcall pred parent))
                             (setq best-instruction parent))
                           (parent-instr parent))
                       best-instruction)))
         (setq best-instruction (parent-instr instruction)))
-      (if (and (or (null of-type) (eq of-type (niwa--instruction-type best-instruction)))
-               (or (null pred) (funcall pred best-instruction)))
-          best-instruction
-        nil))))
+      (when (or (null pred) (funcall pred best-instruction))
+        best-instruction))))
 
 
 (provide 'niwa-overlays)

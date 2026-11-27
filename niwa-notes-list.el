@@ -146,10 +146,8 @@ window."
 
 (defun niwa-notes-list--selected-note ()
   "Resolve the selected row's exact live note, or refuse."
-  (or (when-let* ((uuid (tabulated-list-get-id))
-                  (note (niwa-note-resolve
-                         uuid niwa-notes-list--workspace)))
-        (and (eq (overlay-get note 'niwa-instruction-type) 'note) note))
+  (or (when-let* ((uuid (tabulated-list-get-id)))
+        (niwa-note-resolve uuid niwa-notes-list--workspace))
       (niwa-diagnostic-user-error
        (niwa-diagnostic-scope niwa-notes-list--workspace)
        "No open note on this row")))

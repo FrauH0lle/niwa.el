@@ -55,10 +55,10 @@
               (widen)
               (when-let* ((range (if (overlayp source)
                                     (cons (overlay-start source) (overlay-end source))
-                                  (niwa-persistence-resolve-instruction-anchor
+                                  (niwa-note-anchor-resolve
+                                   (plist-get source :anchor)
                                    (plist-get source :overlay-start)
-                                   (plist-get source :overlay-end)
-                                   (plist-get source :anchor) nil))))
+                                   (plist-get source :overlay-end)))))
                 (let* ((text (buffer-substring-no-properties (car range) (cdr range)))
                        (fence (niwa--delimiting-markdown-backticks text)))
                   (list :line (line-number-at-pos (car range))

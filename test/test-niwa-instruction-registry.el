@@ -89,9 +89,7 @@
                        (lambda (instruction)
                          (eq instruction first-reference)))))
           (should-not
-           (niwa--instruction-find-unique-live
-            (lambda (instruction)
-              (eq 'note (overlay-get instruction 'niwa-instruction-type))))))
+           (niwa--instruction-find-unique-live #'niwa-note-overlay-p)))
       (niwa-instruction-test--discard first)
       (niwa-instruction-test--discard second))))
 

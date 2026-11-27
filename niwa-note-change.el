@@ -148,7 +148,7 @@ Return an ordinary tool result immediately; no tool callback is retained."
          (workspace (and session (niwa-session-workspace session))))
     (setq note
           (or note
-              (niwa--highest-priority-instruction (niwa--instructions-at (point) 'note))
+              (niwa--highest-priority-instruction (niwa--instructions-at (point)))
               (when session
                 (when-let* ((entries (cl-remove-if-not
                                      (lambda (entry)
@@ -162,8 +162,7 @@ Return an ordinary tool result immediately; no tool callback is retained."
                                                      'niwa-note-prepared-change)) entries)
                                        (car entries))))
                   (niwa-note-resolve (plist-get entry :uuid) workspace)))))
-    (unless (and (overlayp note) (overlay-buffer note)
-                 (eq (overlay-get note 'niwa-instruction-type) 'note))
+    (unless (niwa-note-overlay-p note)
       (user-error "No live note here"))
     note))
 
@@ -400,7 +399,7 @@ Confirming a partial selection drops the rest of this waiting change."
                                             :closed-reason (plist-get instruction :closed-reason))))
                                   (niwa-notes-closed workspace t))))
          (at-point (niwa--highest-priority-instruction
-                    (niwa--instructions-at (point) 'note)))
+                    (niwa--instructions-at (point))))
          (data (if (buffer-live-p niwa--data-buffer) niwa--data-buffer (current-buffer)))
          (session (buffer-local-value 'niwa--session data))
          (id (or (if (overlayp note) (overlay-get note 'niwa-uuid) note)
@@ -449,7 +448,7 @@ note only after success; do not change the conversation or its history."
                  (overlay-buffer note) (current-buffer)))))
   (niwa-with-diagnostic-errors (niwa-diagnostic-scope workspace)
     (setq note (or note (niwa--highest-priority-instruction
-                        (niwa--instructions-at (point) 'note))))
+                        (niwa--instructions-at (point)))))
     (when (overlayp note)
       (setq note (overlay-get note 'niwa-uuid)))
     (niwa-instruction-store-observe workspace)

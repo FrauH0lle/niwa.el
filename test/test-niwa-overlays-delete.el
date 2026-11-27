@@ -2,7 +2,7 @@
 
 ;;; Commentary:
 
-;; Exercise workspace scope and durable cleanup through interactive commands.
+;; Exercise note recognition, navigation and workspace-scoped deletion.
 
 ;;; Code:
 
@@ -22,7 +22,7 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "niwa-instruction-test-support"))
 
-(niwa-deftest niwa--delete-all-instructions-of-type
+(niwa-deftest niwa-delete-all-instructions
   (:vars ((niwa--instruction-states (make-hash-table :test #'equal))
           (niwa--instruction-current-state-key :global)))
   ,test
@@ -33,6 +33,7 @@
          (first (niwa-instruction-test--make-note "first\n" workspace-a))
          (second (niwa-instruction-test--make-note "second\n" workspace-a))
          (other (niwa-instruction-test--make-note "other\n" workspace-b))
+         (unrelated (make-overlay 1 2 (car first)))
          prompts messages)
     (unwind-protect
         (progn
@@ -46,6 +47,7 @@
           (should (string-search "Deleted 2 instructions in 2 buffers" messages))
           (should-not (overlay-buffer (cdr first)))
           (should-not (overlay-buffer (cdr second)))
+          (should (eq (overlay-buffer unrelated) (car first)))
           (should (overlay-buffer (cdr other))))
       (mapc #'niwa-instruction-test--discard (list first second other))))
 
@@ -70,6 +72,38 @@
       (kill-buffer first)
       (kill-buffer second)
       (niwa-instruction-test--discard project))))
+
+(niwa-deftest niwa-note-overlay-p
+  (:vars ((niwa--instruction-states (make-hash-table :test #'equal))
+          (niwa--instruction-current-state-key :global)))
+  ,test
+  (test)
+  :doc "recognition follows live note anchors, including an empty anchor"
+  (with-temp-buffer
+    (insert "abcdef")
+    (let ((note (niwa-instruction-test--create-note-in (current-buffer) 2 4 'char)))
+      (should (niwa-note-overlay-p note))
+      (should-not (niwa-note-overlay-p (make-overlay 2 4)))
+      (should-not (niwa-note-overlay-p 'note))
+      (move-overlay note 2 2)
+      (should (niwa-note-overlay-p note))
+      (delete-overlay note)
+      (should-not (niwa-note-overlay-p note))))
+  :doc "navigation and parent queries agree on nested note positions"
+  (with-temp-buffer
+    (insert "abcdefghij")
+    (let ((outer (niwa-instruction-test--create-note-in (current-buffer) 2 10 'char))
+          (inner (niwa-instruction-test--create-note-in (current-buffer) 4 7 'char)))
+      (should (eq outer (niwa--parent-instruction inner)))
+      (should (eq outer (niwa--topmost-instruction inner)))
+      (should (eq inner (niwa--topmost-instruction inner (lambda (ov) (eq ov inner)))))
+      (goto-char 1)
+      (niwa-next-instruction)
+      (should (= (point) 2))
+      (niwa-next-instruction)
+      (should (= (point) 4))
+      (niwa-previous-instruction)
+      (should (= (point) 2)))))
 
 (provide 'test-niwa-overlays-delete)
 ;;; test-niwa-overlays-delete.el ends here

@@ -138,11 +138,6 @@
 ;; `niwa-menu'
 (declare-function niwa-menu "niwa-menu" nil)
 
-;; `niwa-overlays'
-(declare-function niwa--topmost-instruction
-                  "niwa-overlays" (instruction &optional of-type pred))
-(autoload 'niwa--topmost-instruction "niwa-overlays")
-
 ;; `niwa-pending-inputs'
 (declare-function niwa-pending-inputs-cancel-resume
                   "niwa-pending-inputs" ())

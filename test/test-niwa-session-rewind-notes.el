@@ -137,7 +137,6 @@
                                  :properties
                                  (list 'niwa-instruction t 'niwa-id id
                                        'niwa-uuid uuid
-                                       'niwa-instruction-type 'note
                                        'niwa-note-text text
                                        'niwa-note-author 'user
                                        'niwa-note-state 'sent

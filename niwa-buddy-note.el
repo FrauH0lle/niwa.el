@@ -123,7 +123,7 @@ CHANGES are the scope's tracked changes."
         (save-restriction
           (widen)
           (dolist (note (overlays-in (point-min) (point-max)))
-            (when (and (eq 'note (overlay-get note 'niwa-instruction-type))
+            (when (and (niwa-note-overlay-p note)
                        (not (eq 'buddy (overlay-get note 'niwa-note-author)))
                        (not (string-blank-p (or (overlay-get note 'niwa-note-text) ""))))
               (let* ((first (line-number-at-pos (overlay-start note)))
@@ -954,7 +954,7 @@ the review, not once per tool call."
 (defun niwa-buddy-note--at-point ()
   "Return a canonical Buddy note at point, independent of the review index."
   (seq-find (lambda (note) (eq 'buddy (overlay-get note 'niwa-note-author)))
-            (niwa--instructions-at (point) 'note)))
+            (niwa--instructions-at (point))))
 
 ;;;###autoload
 (defun niwa-buddy-dismiss-note (&optional note)

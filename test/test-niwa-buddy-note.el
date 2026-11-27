@@ -353,11 +353,10 @@
   (let ((buf (niwa-test--note-buffer "note-instr" "one\ntwo\n")))
     (niwa-test--add-note buf 1 "a shared note")
     (with-current-buffer buf
-      (let ((notes (seq-filter
-                    (lambda (ov) (overlay-get ov 'niwa-instruction))
-                    (overlays-in (point-min) (point-max)))))
+      (let ((notes (seq-filter #'niwa-note-overlay-p
+                               (overlays-in (point-min) (point-max)))))
         (should (= 1 (length notes)))
-        (should (eq 'note (overlay-get (car notes) 'niwa-instruction-type)))))))
+        (should (eq 'buddy (overlay-get (car notes) 'niwa-note-author)))))))
 
 ;;
 ;;; Commands

@@ -48,7 +48,7 @@
                          (find-file-noselect file)))
                (note (with-current-buffer source
                        (let ((overlay (make-overlay (point-min) (1- (point-max)))))
-                         (overlay-put overlay 'niwa-instruction-type 'note)
+                         (overlay-put overlay 'niwa-instruction t)
                          (overlay-put overlay 'niwa-id 1)
                          overlay)))
                (niwa-note-frame-height height)

@@ -36,9 +36,8 @@
 ;; `niwa-note-source'
 
 ;; `niwa-overlays'
-(declare-function niwa--topmost-instruction
-                  "niwa-overlays" (instruction &optional of-type pred))
-(autoload 'niwa--topmost-instruction "niwa-overlays")
+(declare-function niwa-note-overlay-p "niwa-overlays" (ov))
+(autoload 'niwa-note-overlay-p "niwa-overlays")
 
 ;; `niwa-structs'
 ;; `niwa-tools'
@@ -536,8 +535,7 @@ as the transcript re-renders moves under its reader."
 With FOCUS non-nil the frame is selected, which is what an explicit user
 action wants; a request dispatch leaves focus where it is.  Falls back to
 an ordinary right-hand split when child frames are unavailable."
-  (unless (and (overlayp note)
-               (eq (overlay-get note 'niwa-instruction-type) 'note))
+  (unless (niwa-note-overlay-p note)
     (user-error "Select a note to open its conversation"))
   (let ((note-id (format "Note %s" (overlay-get note 'niwa-id))))
     (unless (eq niwa-note-frame--view-buffer view-buffer)

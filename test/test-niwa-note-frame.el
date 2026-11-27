@@ -73,7 +73,6 @@
 ID is the note number, 1 by default."
   (let ((overlay (make-overlay start end)))
     (overlay-put overlay 'niwa-instruction t)
-    (overlay-put overlay 'niwa-instruction-type 'note)
     (overlay-put overlay 'niwa-id (or id 1))
     overlay))
 

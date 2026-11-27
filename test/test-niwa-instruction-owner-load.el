@@ -59,8 +59,6 @@
                         (make-overlay (point-min) (point-max))))
                   (setq-local niwa--workspace workspace)
                   (overlay-put instruction 'niwa-instruction t)
-                  (overlay-put instruction 'niwa-instruction-type
-                               'note)
                   (overlay-put instruction 'niwa-id 1)
                   (overlay-put instruction 'niwa-uuid "cold-note")
                   (niwa--instruction-activate-buffer (current-buffer))

@@ -105,8 +105,7 @@ Mirrors the call in `niwa-session-persistence--restore-buffer'."
 (defun test-niwa-instruction-ws--note-count (workspace source)
   "Return how many live notes SOURCE holds in WORKSPACE."
   (niwa--instruction-activate-workspace workspace)
-  (cl-count-if (lambda (instruction)
-                 (eq 'note (overlay-get instruction 'niwa-instruction-type)))
+  (cl-count-if #'niwa-note-overlay-p
                (alist-get source (niwa--instruction-alist))))
 
 (defun test-niwa-instruction-ws--activity (workspace)

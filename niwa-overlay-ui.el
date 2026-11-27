@@ -86,21 +86,15 @@
 (declare-function niwa--highest-priority-instruction
                   "niwa-overlays"
                   (instructions &optional return-highlighted))
-(declare-function niwa--instruction-type
-                  "niwa-overlays" (instruction))
 (declare-function niwa--instructions-at
-                  "niwa-overlays" (point &optional type))
+                  "niwa-overlays" (point))
 (declare-function niwa--parent-instruction
-                  "niwa-overlays" (instruction &optional of-type))
-(declare-function niwa--topmost-instruction
-                  "niwa-overlays" (instruction &optional of-type pred))
+                  "niwa-overlays" (instruction))
 (declare-function niwa-delete-instructions "niwa-overlays" ())
 (autoload 'niwa--child-instructions "niwa-overlays")
 (autoload 'niwa--highest-priority-instruction "niwa-overlays")
-(autoload 'niwa--instruction-type "niwa-overlays")
 (autoload 'niwa--instructions-at "niwa-overlays")
 (autoload 'niwa--parent-instruction "niwa-overlays")
-(autoload 'niwa--topmost-instruction "niwa-overlays")
 (autoload 'niwa-delete-instructions "niwa-overlays" nil t)
 (defvar niwa--default-instruction-priority)
 (defvar niwa--highlighted-instruction)

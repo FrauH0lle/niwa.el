@@ -34,8 +34,7 @@
     (list :overlay identity
           :start (overlay-start overlay) :end (overlay-end overlay)
           :properties
-          (niwa--instruction-persisted-properties
-           overlay (eq (overlay-get overlay 'niwa-instruction-type) 'note))
+          (niwa--instruction-persisted-properties overlay t)
           :replacement (overlay-get overlay 'niwa-replacement-pending)
           :replacement-growing (overlay-get overlay 'niwa-replacement-growing)
           :edges
@@ -136,9 +135,7 @@ redo, so surviving overlay coordinates are never installed in the wrong text."
              (uuid (overlay-get overlay 'niwa-uuid))
              owned-id)
         ;; Explicit note deletion wins over old source undo.
-        (when (and
-                   (not (and (eq (overlay-get overlay 'niwa-instruction-type) 'note)
-                             (overlay-get overlay 'niwa-marked-for-deletion))))
+        (unless (overlay-get overlay 'niwa-marked-for-deletion)
           (niwa--instruction-replacement-forget overlay)
           (dolist (live (copy-sequence (alist-get buffer (niwa--instruction-alist))))
             (when (equal uuid (overlay-get live 'niwa-uuid))
