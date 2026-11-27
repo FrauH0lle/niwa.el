@@ -432,7 +432,7 @@ explicitly decides and releases its lease."
         (error "Control transfer requires a live portable lease"))
       (when (equal niwa-session-durability--client-id
                    (plist-get lease :client-id))
-        (error "The current lease owner cannot request control transfer"))
+        (user-error "This client already holds the lease; there is no control to request"))
       (let* ((live-request
               (niwa-session-transfer--current-request
                directory lease session-id now))

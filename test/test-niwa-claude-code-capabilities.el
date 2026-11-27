@@ -134,7 +134,6 @@
                         ((symbol-function 'yes-or-no-p)
                          (lambda (&rest _) (ert-fail "Unsupported operation asked for approval"))))
                 (dolist (command `(niwa-compact
-                                   ,(lambda () (niwa-session-control-transfer-request session))
                                    (lambda () (niwa-save-session t))))
                   (ert-info ((format "Direct command %S" command))
                     (should (string-match-p
@@ -154,16 +153,34 @@
                                (error-message-string (should-error (funcall command) :type 'user-error))))))
                   (should-not niwa-view--armed-session-fork)
                   (should (equal "> preserve this draft\nsecond line" (niwa-view-composer-draft-text)))))
-              (let ((lease (copy-tree (niwa-session-lease session))))
+              ;; Control transfer treats native history like any other session:
+              ;; asking for control this client already holds is refused the
+              ;; same way with or without it.
+              (let ((lease (copy-tree (niwa-session-lease session)))
+                    (native (niwa-session-external-conversations session)))
                 (setq-local niwa-session--read-only-mode t)
                 (unwind-protect
                     (cl-letf (((symbol-function 'niwa-session-durability-lease-state)
                                (lambda (_) 'foreign)))
-                      (with-current-buffer view
-                        (dolist (command '(niwa-take-control niwa-menu--take-control))
-                          (should (string-match-p
-                                   "unavailable for external conversations"
-                                   (error-message-string (should-error (funcall command) :type 'user-error)))))))
+                      (should (string-match-p
+                               "already holds the lease"
+                               (error-message-string
+                                (should-error (niwa-session-control-transfer-request session)
+                                              :type 'user-error))))
+                      (dolist (command '(niwa-take-control niwa-menu--take-control))
+                        (let ((outcomes
+                               (mapcar
+                                (lambda (history)
+                                  (setf (niwa-session-external-conversations session) history)
+                                  (with-current-buffer view
+                                    (error-message-string
+                                     (should-error (funcall command) :type 'user-error))))
+                                (list native nil))))
+                          (ert-info ((format "Command %S" command))
+                            (should (equal (car outcomes) (cadr outcomes)))
+                            (should (string-match-p "already holds the lease"
+                                                    (car outcomes)))))))
+                  (setf (niwa-session-external-conversations session) native)
                   (setq-local niwa-session--read-only-mode nil))
                 (should (equal lease (niwa-session-lease session))))
               (should (equal before (buffer-string)))
