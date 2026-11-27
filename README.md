@@ -925,9 +925,10 @@ the patch before applying it.
 
 The chat's top **compact on/off** control toggles automatic compaction for
 that open session without moving the cursor or changing other chats. It does
-not cancel compaction already running; `/compact` remains available for manual
-compaction. Reopening a session restores the configured default. Claude shows
-**compact provider** instead, because its native compaction is provider-managed.
+not cancel compaction already running. With local model history, `/compact`
+still works when automatic compaction is off. Reopening a session restores the
+configured default. Claude Code shows **compact provider** and refuses
+`/compact`. Continue chatting; Claude compacts its own history automatically.
 
 To carry out an accepted plan yourself, cycle **Execution** (`e`) in its approval
 card to **Buddy — Implement myself with notes**, then accept. The assistant reads

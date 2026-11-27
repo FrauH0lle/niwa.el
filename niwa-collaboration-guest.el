@@ -323,7 +323,7 @@ No records still make one empty chunk: a receiver waits for a final one."
 (defconst niwa-collaboration--command-hints
   '(("plan" . "[prompt]")
     ("goal" . "[objective]")
-    ("compact" . "[instructions]")
+    ("compact" . "[instructions] for local history only; on Claude Code, keep chatting for automatic compaction")
     ("stop" . "[execution]")
     ("review" . "uncommitted | HEAD | branch:NAME | commit:REV | instructions")
     ("verify" . "uncommitted | HEAD | branch:NAME | commit:REV | instructions"))

@@ -83,9 +83,10 @@ automatic gates for the open session. This overrides `niwa-compact-auto`
 locally, not its global default or another chat's setting. Closing and reopening
 the session restores the configured default. Re-enabling also clears the
 repeated-failure latch. The toggle neither runs a compaction immediately nor
-cancels one already in progress; manual `/compact` remains available.
-Claude instead shows the non-interactive **compact provider** label: its native
-compaction is provider-managed, and this control does not disable it.
+cancels one already in progress. With local model history, `/compact` still
+works when automatic compaction is off. Claude Code instead shows the
+non-interactive **compact provider** label and refuses `/compact`. Continue
+the conversation; Claude compacts its own history automatically.
 
 During auto-compaction the view reuses the request progress row and
 changes its status to `Compacting...`. When compaction completes, the
