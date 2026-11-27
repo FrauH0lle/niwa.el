@@ -285,7 +285,19 @@ never broaden the child sandbox.
 `.niwa/leases/`, so a model write cannot bypass an item's lease, versions
 and validation. These directory boundaries cover future artifact ids and missing
 bookkeeping files too. Authored files under `.niwa/artifacts/ID/` stay writable,
-including file creation and atomic replacement. Before a confined launch, missing
+including file creation and atomic replacement.
+Stores that grant authority are read-only too, so an agent cannot raise its
+own: the workspace `.niwa/permissions.eld` and `.niwa/plugins.eld`; under
+`niwa-user-dir`, `permissions.eld`, `trusted-hooks.eld` and
+`hooks.el`/`hooks.json`; `~/.agents/hooks.el`/`hooks.json`; and a remote
+target's `~/.niwa/permissions.eld`. The user-level entries derive from
+`niwa-user-dir` when niwa loads, so set it first. Changing these stores through
+tools asks in Edits. The guarantee covers rewriting *existing* stores only. A
+confined child sees an existing store read-only, but an absent one is not a
+mount target, so a confined command can create a missing `permissions.eld` or
+`plugins.eld` in a writable workspace. Closing that gap depends on how project
+permission rules are trusted, which is an open decision for the user.
+Before a confined launch, missing
 protected state directories and their parents are created only in the primary
 workspace root, never in writable memory or additional roots; only the protected
 leaf is mounted read-only. Missing-directory creation and mode changes run

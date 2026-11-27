@@ -42,8 +42,9 @@
   "Global user state directory.
 
 Stores user-wide skills, memory, plugins, global config, and local-target
-global permissions.  The defaults of `niwa-skill-dirs' and
-`niwa-memory-dirs' derive from it when niwa loads, so set it first.
+global permissions.  The defaults of `niwa-skill-dirs',
+`niwa-memory-dirs' and `niwa-protected-paths' derive from it when niwa
+loads, so set it first.
 Remote global permissions live in the target user's ~/.niwa/ instead.
 Project-level state goes in PROJECT/.niwa/ instead.  Lookup functions
 check project dir first, then global."

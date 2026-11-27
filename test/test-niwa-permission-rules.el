@@ -353,7 +353,10 @@
   :doc "git directory is protected"
   (let ((niwa-protected-paths '(("**/.git/**" . read-only))))
     (should (niwa-permission-rules-path-protected-p "/repo/.git"))
-    (should (niwa-permission-rules-path-protected-p "/repo/.git/config")))
+    (should (niwa-permission-rules-path-protected-p "/repo/.git/config"))
+    ;; Protection folds case even when the caller binds it off.
+    (let ((case-fold-search nil))
+      (should (niwa-permission-rules-path-protected-p "/repo/.GIT/config"))))
   :doc "home-relative trailing globstar protects its directory root"
   (let ((niwa-protected-paths '(("~/.ssh/**" . inaccessible))))
     (should (niwa-permission-rules-path-protected-p

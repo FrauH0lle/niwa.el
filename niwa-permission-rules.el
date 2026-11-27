@@ -114,11 +114,30 @@ Example:
   :group 'niwa)
 
 (defcustom niwa-protected-paths
-  '(("**/.git/**" . read-only)
+  `(("**/.git/**" . read-only)
     ;; The artifact store's bookkeeping changes through niwa only, so an
     ;; edit cannot bypass item leases, versions and validation.
     ("**/.niwa/artifacts/.state/**" . read-only)
     ("**/.niwa/leases/**" . read-only)
+    ;; Existing stores that grant authority: an agent edit must not raise
+    ;; its own.  User stores derive from `niwa-user-dir' when niwa loads.
+    ("**/.niwa/permissions.eld" . read-only)
+    ("**/.niwa/plugins.eld" . read-only)
+    ;; Remote global permissions live in the target user's ~/.niwa/.
+    ("~/.niwa/permissions.eld" . read-only)
+    ,@(mapcan (lambda (dir)
+                (mapcar (lambda (name)
+                          (cons (file-name-concat dir name) 'read-only))
+                        '("permissions.eld" "trusted-hooks.eld"
+                          "hooks.el" "hooks.json")))
+              ;; A symlinked user dir also reaches the stores by its
+              ;; physical name, which the checker does not map back.
+              (delete-dups (list niwa-user-dir (file-truename niwa-user-dir))))
+    ,@(mapcan (lambda (dir)
+                (list (cons (file-name-concat dir "hooks.el") 'read-only)
+                      (cons (file-name-concat dir "hooks.json") 'read-only)))
+              ;; Likewise a symlinked ~/.agents.
+              (delete-dups (list "~/.agents/" (file-truename "~/.agents/"))))
     ("~/.ssh/**" . inaccessible)
     ("~/.gnupg/**" . inaccessible)
     ("~/.aws/**" . inaccessible)
@@ -563,7 +582,9 @@ Returns non-nil if the path is protected."
                      ;; Resolves existing ancestors and keeps a missing tail.
                      (let ((file-name-handler-alist nil))
                        (niwa-file-truename unquoted)))))))
-      (cl-loop for (pattern . mode) in
+      ;; Protection folds case to fail closed, whatever the caller binds.
+      (cl-loop with case-fold-search = t
+               for (pattern . mode) in
                (niwa-permission-protected-path-policy)
                thereis
                (and (not (and (eq access 'read) (eq mode 'read-only)))

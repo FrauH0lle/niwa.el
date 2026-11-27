@@ -394,6 +394,110 @@
                      "ApplyPatch" :tool-struct tool :path "/project/a"
                      :mode mode :workspace-root "/project")
                     'ask)))))
+  :doc "Edits asks before rewriting permission and trust stores"
+  (let* ((niwa-permission-rules nil)
+         ;; A non-default user directory: its stores derive from it.
+         (niwa-user-dir "/srv/niwa-user/")
+         (niwa-protected-paths
+          (eval (car (get 'niwa-protected-paths 'standard-value)) t))
+         (tool (niwa-tool--create
+                :name "ApplyPatch" :groups '(edit reviewed-edit)))
+         (home (expand-file-name "~/")))
+    (dolist (case `(("/project" "/project/.niwa/permissions.eld")
+                    ("/project" "/project/.niwa/plugins.eld")
+                    ("/project" "/project/.git/config")
+                    ,@(mapcar (lambda (name)
+                                (list "/srv/" (concat niwa-user-dir name)))
+                              '("permissions.eld" "trusted-hooks.eld"
+                                "hooks.el" "hooks.json"))
+                    ;; A workspace at home must not reach user hook files.
+                    (,home ,(concat home ".agents/hooks.el"))
+                    (,home ,(concat home ".agents/hooks.json"))
+                    (,home ,(concat home ".niwa/permissions.eld"))))
+      (let ((decision (niwa-check-permission-with-metadata
+                       "ApplyPatch" :tool-struct tool :path (cadr case)
+                       :mode 'edits :workspace-root (car case))))
+        (should (eq 'ask (niwa-permission-decision-raw-outcome decision)))
+        (should (eq 'protected-path (plist-get decision :via)))))
+    ;; Controls: ordinary state, and the default dir's trust DB once moved.
+    (dolist (case `(("/project" "/project/.niwa/shared/note.md")
+                    ("/srv/" "/srv/niwa-user/memory/note.md")
+                    (,home ,(concat home ".niwa/trusted-hooks.eld"))))
+      (should (eq 'allow (niwa-check-permission
+                          "ApplyPatch" :tool-struct tool :path (cadr case)
+                          :mode 'edits :workspace-root (car case)))))
+    ;; Remote global permissions keep target-home expansion.
+    (let* ((target (niwa-execution-target-create
+                    "/ssh:user@host:/srv/project/"))
+           (session (niwa-session--create
+                     :name "remote" :execution-target target)))
+      (setf (niwa-execution-target-environment target)
+            '(("HOME" . "/home/user")))
+      (should (plist-get
+               (niwa-permission--preflight
+                "ApplyPatch" :path "/ssh:user@host:/home/user/.niwa/permissions.eld"
+                :session session :mode 'edits)
+               :protected-path-p))))
+  :doc "a symlinked user dir protects both its configured and physical names"
+  (let* ((top (file-name-as-directory
+               (file-truename (make-temp-file "niwa-user-link-" t))))
+         (real (file-name-concat top "real/"))
+         (link (file-name-concat top "link/"))
+         (tool (niwa-tool--create
+                :name "ApplyPatch" :groups '(edit reviewed-edit))))
+    (unwind-protect
+        (progn
+          (make-directory real)
+          (make-symbolic-link (directory-file-name real)
+                              (directory-file-name link))
+          (let* ((niwa-permission-rules nil)
+                 (niwa-user-dir link)
+                 (niwa-protected-paths
+                  (eval (car (get 'niwa-protected-paths 'standard-value)) t)))
+            (dolist (dir (list link real))
+              (dolist (name '("permissions.eld" "trusted-hooks.eld"
+                              "hooks.el" "hooks.json"))
+                (should (eq 'ask (niwa-check-permission
+                                  "ApplyPatch" :tool-struct tool
+                                  :path (concat dir name)
+                                  :mode 'edits :workspace-root top)))))
+            ;; Control: an ordinary file beside the stores stays automatic.
+            (should (eq 'allow (niwa-check-permission
+                                "ApplyPatch" :tool-struct tool
+                                :path (concat real "notes.md")
+                                :mode 'edits :workspace-root top)))))
+      (delete-directory top t)))
+  :doc "a symlinked ~/.agents protects both spellings of its hook files"
+  (let* ((top (file-name-as-directory
+               (file-truename (make-temp-file "niwa-agents-link-" t))))
+         (home (file-name-concat top "home/"))
+         (real (file-name-concat top "real-agents/"))
+         (tool (niwa-tool--create
+                :name "ApplyPatch" :groups '(edit reviewed-edit))))
+    (unwind-protect
+        (progn
+          (make-directory home)
+          (make-directory real)
+          (make-symbolic-link (directory-file-name real)
+                              (file-name-concat home ".agents"))
+          (let* ((process-environment
+                  (cons (concat "HOME=" (directory-file-name home))
+                        process-environment))
+                 (niwa-permission-rules nil)
+                 (niwa-protected-paths
+                  (eval (car (get 'niwa-protected-paths 'standard-value)) t)))
+            (dolist (dir (list (file-name-concat home ".agents/") real))
+              (dolist (name '("hooks.el" "hooks.json"))
+                (should (eq 'ask (niwa-check-permission
+                                  "ApplyPatch" :tool-struct tool
+                                  :path (concat dir name)
+                                  :mode 'edits :workspace-root top)))))
+            ;; Control: other ~/.agents content stays automatic.
+            (should (eq 'allow (niwa-check-permission
+                                "ApplyPatch" :tool-struct tool
+                                :path (concat real "notes.md")
+                                :mode 'edits :workspace-root top)))))
+      (delete-directory top t)))
   :doc "full-auto reviewed edits bypass resource prompts but retain hard denies"
   (let ((niwa-permission-rules nil)
         (niwa-protected-paths nil)
