@@ -1296,7 +1296,7 @@ Return the outcome and the logged entry."
            (equal "request-permission-hook"
                   (plist-get entry :request-id)))
           (should (= 1 hook-count))
-          (niwa-permission-queue--render-head session)
+          (niwa-permission-queue-redraw session)
           (niwa-permission-queue--reevaluate entry)
           (should (= 1 hook-count))))))
   :doc "PreToolUse allow runs PermissionRequest and skips all cards"

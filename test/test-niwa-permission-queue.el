@@ -160,7 +160,7 @@
                                       :file-system)))
             (should-not (niwa-session-resource-grants session))
             (should-not (niwa-session-permission-rules session))
-            (niwa-permission-queue--render-head session)
+            (niwa-permission-queue-redraw session)
             (should (equal selected (car (car (plist-get entry :resource-selection-cell)))))))
       (niwa-permission-queue-abort-all session)
       (delete-directory root t))))
@@ -809,7 +809,7 @@
 ;;
 ;;; Coalesce: rule-creating outcomes
 
-(niwa-deftest niwa-permission-queue--coalesce
+(niwa-deftest niwa-permission-queue-authority-changed
   (:doc "coalesce re-evaluates queued siblings against the just-created rule")
   ,test
   (test)
@@ -836,20 +836,12 @@
              :resource-access 'read
              :origin "/root"
              :callback (lambda (o) (push (cons "Read2" o) resolved-outcomes))))
-      ;; User answers allow-session for the head.  Simulate the exact
-      ;; resource grant written by the normal permission prompt.
+      ;; Install the exact resource grant written by the permission prompt.
       (niwa-permission-add-session-resource-grant
        session "/foo/bar.el" 'read)
-      ;; Coalesce should resolve the queued sibling as 'allow.
-      (niwa-permission-queue--coalesce 'allow-session session))
-    ;; Read2 was coalesced; Read1 (the head) wasn't touched by
-    ;; --coalesce (the head's callback already fired before
-    ;; --coalesce was called).
-    (should (assoc "Read2" resolved-outcomes))
-    (should (eq 'allow (cdr (assoc "Read2" resolved-outcomes))))
+      (niwa-permission-queue-authority-changed session))
+    (should (equal '(("Read2" . allow) ("Read1" . allow)) resolved-outcomes))
     (should (= 2 notified))
-    ;; Queue is now empty (Read1 was already dropped before
-    ;; --coalesce; Read2 was just resolved).
     (should (null (niwa-session-permission-queue session))))
 
   :doc "deny-session coalesces queued siblings to deny"
@@ -870,7 +862,7 @@
              :callback (lambda (o) (push o outcomes))))
       (push '("Read" :path "/x.el" :action deny)
             (niwa-session-permission-rules session))
-      (niwa-permission-queue--coalesce 'deny-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (memq 'deny outcomes)))
 
   :doc "removes coalesced entries before reentrant teardown settles callbacks"
@@ -893,16 +885,16 @@
                      (niwa-permission-queue-abort-all session)))))))
       (niwa-permission-add-session-resource-grant
        session "/reentrant.el" 'read)
-      (niwa-permission-queue--coalesce 'allow-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (equal '((second . allow) (first . allow)) outcomes))
     (should-not (niwa-session-permission-queue session)))
 
   :doc "queued sibling whose rule does not cover it stays queued"
   (let* ((session (test-pq--make-session))
          (niwa--session session)
-         (outcomes nil))
+         outcomes drawn)
     (cl-letf (((symbol-function 'niwa-permission-queue--render-entry)
-               #'ignore))
+               (lambda (entry) (push (plist-get entry :specifier-value) drawn))))
       ;; Two queued entries with different paths.
       (niwa-permission-request
        (list :kind 'generic :tool-name "Read"
@@ -919,7 +911,10 @@
       ;; Resource authority covers /foo.el only.
       (niwa-permission-add-session-resource-grant
        session "/foo.el" 'read)
-      (niwa-permission-queue--coalesce 'allow-session session))
+      (setq drawn nil)
+      (niwa-permission-queue-authority-changed session))
+    (should (equal '(("foo" . allow)) outcomes))
+    (should (equal '("/bar.el") drawn))
     ;; /foo.el's queued sibling resolved; /bar.el stayed.
     (let ((q (niwa-session-permission-queue session)))
       (should (= 1 (length q)))
@@ -939,7 +934,7 @@
              :callback (lambda (o) (push o outcomes))))
       (push '("WebFetch" :domain "example.com" :action allow)
             (niwa-session-permission-rules session))
-      (niwa-permission-queue--coalesce 'allow-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (memq 'allow outcomes))
     (should (null (niwa-session-permission-queue session))))
 
@@ -963,12 +958,12 @@
              :callback (lambda (o) (push o outcomes))))
       (push `("Read" :path ,path :action allow)
             (niwa-session-permission-rules session))
-      (niwa-permission-queue--coalesce 'allow-session session)
+      (niwa-permission-queue-authority-changed session)
       (should-not outcomes)
       (should (= 2 (length (niwa-session-permission-queue session))))
       (setf (niwa-session-permission-rules session)
             (list `("Read" :path ,path :action deny)))
-      (niwa-permission-queue--coalesce 'deny-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (equal '(deny deny) outcomes))
     (should (null (niwa-session-permission-queue session))))
 
@@ -988,7 +983,7 @@
              :specifier-value "/uncovered.el"
              :origin "/root"
              :callback (lambda (o) (push o outcomes))))
-      (niwa-permission-queue--coalesce 'allow-session session))
+      (niwa-permission-queue-authority-changed session))
     (should-not outcomes)
     (should (= 2 (length (niwa-session-permission-queue session)))))
 
@@ -1010,7 +1005,7 @@
                :callback (lambda (outcome) (push outcome outcomes)))))
       (niwa-permission-add-session-resource-grant
        session "/tmp/secret" 'read)
-      (niwa-permission-queue--coalesce 'allow-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (equal '(allow-once allow-once) outcomes))
     (should-not (niwa-session-permission-queue session)))
 
@@ -1036,12 +1031,12 @@
                :callback (lambda (outcome) (push outcome outcomes)))))
       (niwa-permission-add-session-resource-grant
        session "/tmp/input" 'read)
-      (niwa-permission-queue--coalesce 'allow-session session)
+      (niwa-permission-queue-authority-changed session)
       (should-not outcomes)
       (should (= 2 (length (niwa-session-permission-queue session))))
       (niwa-permission-add-session-resource-grant
        session "/tmp/output" 'write)
-      (niwa-permission-queue--coalesce 'allow-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (equal '(allow-once allow-once) outcomes))
     (should-not (niwa-session-permission-queue session)))
 
@@ -1063,7 +1058,7 @@
                :callback (lambda (outcome) (push outcome outcomes)))))
       (push '("Bash" :path "/tmp/secret" :action deny)
             (niwa-session-permission-rules session))
-      (niwa-permission-queue--coalesce 'deny-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (equal '(deny-once deny-once) outcomes))
     (should-not (niwa-session-permission-queue session)))
 
@@ -1084,7 +1079,7 @@
                      :sandbox-permissions require-escalated
                      :action allow)
             (niwa-session-permission-rules session))
-      (niwa-permission-queue--coalesce 'allow-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (equal '(allow-once allow-once) outcomes))
     (should-not (niwa-session-permission-queue session)))
 
@@ -1103,7 +1098,7 @@
                :callback (lambda (outcome) (push outcome outcomes)))))
       (push '("Eval" :sandbox-permissions require-escalated :action deny)
             (niwa-session-permission-rules session))
-      (niwa-permission-queue--coalesce 'deny-session session))
+      (niwa-permission-queue-authority-changed session))
     (should (equal '(deny-once deny-once) outcomes))
     (should-not (niwa-session-permission-queue session))))
 
@@ -1294,7 +1289,7 @@
                         :session session
                         :callback (lambda (o) (setq outcome o)))))
       (setf (niwa-session-permission-queue session) (list entry))
-      (niwa-permission-queue--render-head session)
+      (niwa-permission-queue-redraw session)
       (should (eq 'aborted outcome))
       (should (null (niwa-session-permission-queue session)))))
 
@@ -1358,7 +1353,12 @@
               (should-not (plist-member entry :view-buffer))
               (with-current-buffer view-buf
                 (should (gethash interaction-id
-                                 niwa-view--interaction-overlays))))))
+                                 niwa-view--interaction-overlays)))
+              (niwa-permission-queue--on-head-outcome entry 'deny)
+              (should-not (niwa-session-permission-queue session))
+              (with-current-buffer view-buf
+                (should-not (gethash interaction-id
+                                     niwa-view--interaction-overlays))))))
       (when (buffer-live-p view-buf) (kill-buffer view-buf))
       (when (buffer-live-p data-buf) (kill-buffer data-buf))))
 
@@ -1380,7 +1380,7 @@
           (when saved
             (fmakunbound 'niwa-permission--prompt-async-bash))
           (setf (niwa-session-permission-queue session) (list entry))
-          (niwa-permission-queue--render-head session)
+          (niwa-permission-queue-redraw session)
           (should (equal '(deny . "Bash permission UI unavailable")
                          outcome))
           (should (null (niwa-session-permission-queue session))))
@@ -1417,7 +1417,7 @@
                         :session session
                         :callback (lambda (o) (setq outcome o)))))
       (setf (niwa-session-permission-queue session) (list entry))
-      (niwa-permission-queue--render-head session)
+      (niwa-permission-queue-redraw session)
       (should (eq 'aborted outcome))
       (should (null (niwa-session-permission-queue session)))))
 

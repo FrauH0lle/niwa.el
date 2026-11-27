@@ -661,7 +661,7 @@ ENTRY plist keys:
                                                  (map-delete (copy-sequence entry) :callback))))
                 (niwa-queue--entry-metadata-put entry :lobby-woken woken))
               ;; Re-render the head so its pending count includes new siblings.
-              (niwa-permission-queue--render-head session)))
+              (niwa-permission-queue-redraw session)))
           (error
            (when release
              (funcall release))
@@ -675,11 +675,9 @@ ENTRY plist keys:
      (niwa-permission-queue--on-head-outcome entry outcome))
    (length (niwa-permission-queue--get (plist-get entry :session)))))
 
-(defun niwa-permission-queue--render-head (&optional session)
+(defun niwa-permission-queue-redraw (session)
   "Render the current head of SESSION's permission queue."
-  (when-let* ((session (or session
-                           (niwa-queue--current-session)))
-              (head (car (niwa-permission-queue--get session))))
+  (when-let* ((head (car (niwa-permission-queue--get session))))
     (condition-case err
         (niwa-permission-queue--render-entry head)
       (error
@@ -799,15 +797,9 @@ subsume an exact grant, but this function never broadens selected authority."
                    (cdr queue))
           (niwa-permission-queue--arm session))
         (when (niwa-permission-queue--safe-settle entry outcome (or phase 'pop))
-          (when (memq outcome '(allow-session deny-session always-allow))
-            (condition-case err
-                (niwa-permission-queue--coalesce outcome session)
-              (error
-               (niwa--warn-once
-                (niwa-diagnostic-scope session)
-                'permission-queue-coalesce
-                "permission-queue: coalesce error: %S" err))))
-          (niwa-permission-queue--render-head session)))))))
+          (if (memq outcome '(allow-session deny-session always-allow))
+              (niwa-permission-queue-authority-changed session)
+            (niwa-permission-queue-redraw session))))))))
 
 (defun niwa-permission-queue--on-head-outcome (entry outcome)
   "Settle ENTRY with OUTCOME, then advance ENTRY's session queue.
@@ -837,7 +829,16 @@ the covering authority has already been stored by another approval."
        (_ resolved)))
     (_ resolved)))
 
-(defun niwa-permission-queue--coalesce (_rule-outcome &optional session)
+(defun niwa-permission-queue-authority-changed (session)
+  "Recheck SESSION's queue against current authority, then redraw its head."
+  (condition-case err
+      (niwa-permission-queue--coalesce session)
+    (error
+     (niwa--warn-once (niwa-diagnostic-scope session) 'permission-queue-coalesce
+                      "permission-queue: coalesce error: %S" err)))
+  (niwa-permission-queue-redraw session))
+
+(defun niwa-permission-queue--coalesce (session)
   "Re-evaluate SESSION's queued entries against newly stored authority.
 Entries that resolve to a non-`ask' outcome via
 `niwa-check-permission' fire their callbacks with that outcome
@@ -967,7 +968,7 @@ sweeping."
         (when (and kept
                    (not no-render)
                    (not (eq head-before (car kept))))
-          (niwa-permission-queue--render-head session))))))
+          (niwa-permission-queue-redraw session))))))
 
 (provide 'niwa-permission-queue)
 

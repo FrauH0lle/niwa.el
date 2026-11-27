@@ -56,8 +56,8 @@
                   "niwa-permission-queue" (session))
 (declare-function niwa-permission-queue--log
                   "niwa-permission-queue" (event entry &optional session &rest props))
-(declare-function niwa-permission-queue--render-head
-                  "niwa-permission-queue" (&optional session))
+(declare-function niwa-permission-queue-redraw
+                  "niwa-permission-queue" (session))
 (declare-function niwa-permission-queue-justification
                   "niwa-permission-queue" (entry))
 (declare-function niwa-permission-queue-resource-needs-tree-p
@@ -69,7 +69,7 @@
 (defvar niwa-permission-queue--settled-cells)
 (autoload 'niwa-permission-absence-deadline "niwa-permission-queue")
 (autoload 'niwa-permission-queue--log "niwa-permission-queue")
-(autoload 'niwa-permission-queue--render-head "niwa-permission-queue")
+(autoload 'niwa-permission-queue-redraw "niwa-permission-queue")
 (autoload 'niwa-permission-queue-justification "niwa-permission-queue")
 (autoload 'niwa-permission-queue-resource-needs-tree-p "niwa-permission-queue")
 (autoload 'niwa-permission-queue-select-resource "niwa-permission-queue")
@@ -189,7 +189,7 @@ Selection changes the visible card only; approval chooses its lifetime."
                                           choices nil t)
                          choices))))
         (niwa-permission-queue-select-resource entry previous selected)
-        (niwa-permission-queue--render-head (plist-get entry :session))))))
+        (niwa-permission-queue-redraw (plist-get entry :session))))))
 
 (defun niwa-permission--prompt-self-insert ()
   "Insert the typed permission key when no permission prompt is active."
@@ -212,7 +212,7 @@ Selection changes the visible card only; approval chooses its lifetime."
         (if (and (plist-get entry :mutation-p)
                  (niwa-side-conversation-mutation-warning-pending-p entry))
             (progn
-              (niwa-permission-queue--render-head
+              (niwa-permission-queue-redraw
                (plist-get entry :session)))
           (niwa-permission--prompt-finish 'allow-once)))
     (niwa-permission--prompt-self-insert)))
@@ -333,7 +333,7 @@ Selection changes the visible card only; approval chooses its lifetime."
                (setq selection (plist-put selection :operation t)))))))
       (setcar cell selection)
       (when-let* ((session (plist-get entry :session)))
-        (niwa-permission-queue--render-head session)))))
+        (niwa-permission-queue-redraw session)))))
 
 (defun niwa-permission--prompt-finish (result)
   "Settle the permission prompt overlay at point with RESULT."
@@ -413,7 +413,7 @@ prompt without one is returned whole."
      entry :expanded
      (not (niwa-queue--entry-metadata-get entry :expanded)))
     (when-let* ((session (plist-get entry :session)))
-      (niwa-permission-queue--render-head session))))
+      (niwa-permission-queue-redraw session))))
 
 (defun niwa-permission--prompt-body
     (content include-always &optional suppress-allow-session once-only toggle)

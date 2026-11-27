@@ -985,7 +985,7 @@ additive child permissions are available only to fresh Eval"
                                                           (car (niwa-permission-queue--get session)))))
                                         (setf (niwa-session-resource-grants session)
                                               `((:path ,root :access write :recursive t)))
-                                        (niwa-permission-queue--coalesce 'allow-session session)
+                                        (niwa-permission-queue-authority-changed session)
                                         (should (eq 'allow-once outcome))
                                         (should-not (niwa-permission-queue--get session))))
           (should-not (plist-get settled :approved-resources))

@@ -7,9 +7,13 @@
 
 ;;; Code:
 
+(require 'niwa-execution-target)
 (require 'niwa-permission-mode)
+(require 'niwa-permission-prompt)
+(require 'niwa-permission-queue)
 (require 'niwa-plan-mode)
 (require 'niwa-reminders)
+(require 'niwa-sandbox)
 (require 'niwa-skills-ui)
 (require 'niwa-structs)
 (require 'niwa-tool-exec-permission)
@@ -105,6 +109,42 @@
         (should-not (niwa-session-permission-queue session))
         (niwa-permission-mode-transition 'full-auto)
         (should (equal '(allow) outcomes)))))
+
+  :doc "a mode command contains reevaluation errors and refreshes without approval"
+  (with-temp-buffer
+    (let ((session (niwa-session--create :name "mode-error" :permission-mode 'ask))
+          (niwa-permission-rules nil)
+          (niwa-permission-reviewer 'user)
+          (niwa--warn-once-table (make-hash-table :test #'equal))
+          (refreshes 0) attempts rendered warnings outcomes failures)
+      (setq-local niwa--session session)
+      (cl-letf (((symbol-function 'niwa-permission-prompt-render)
+                 (lambda (entry &rest _) (push entry rendered))))
+        (niwa-tool-exec-permission-check-bash-async
+         nil (list :command "unknown-mode-command"
+                   :permission-context (list :mode 'ask :session session))
+         (lambda (outcome) (push outcome outcomes)))
+        (let ((head (car (niwa-session-permission-queue session))))
+          (should head)
+          (should (equal rendered (list head)))
+          (setq rendered nil)
+          (cl-letf (((symbol-function 'niwa-permission-queue--reevaluate)
+                     (lambda (entry) (push entry attempts) (error "Mode test fault")))
+                    ((symbol-function 'niwa-view-refresh-associated-input-prompt)
+                     (lambda () (cl-incf refreshes)))
+                    ((symbol-function 'display-warning)
+                     (lambda (_ text &rest _) (push text warnings))))
+            (dolist (mode '(full-auto edits))
+              (condition-case err (niwa-cmd--mode (symbol-name mode))
+                (error (push err failures)))
+              (should (eq mode (niwa-session-permission-mode session))))
+            (should (equal attempts (list head head)))
+            (should-not outcomes)
+            (should (equal (niwa-session-permission-queue session) (list head)))
+            (should (equal (list failures (length rendered) refreshes) '(nil 2 2)))
+            (should (equal rendered attempts))
+            (should (length= warnings 1))
+            (should (string-match-p "Mode test fault" (car warnings))))))))
 
   :doc "identity fencing preserves warm confinement readiness and observes each mutation"
   (dolist (reason '(nil sandbox-unavailable))

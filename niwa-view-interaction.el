@@ -37,9 +37,9 @@
 ;; `niwa-permission-queue'
 (declare-function niwa-permission-absence-hold
                   "niwa-permission-queue" (session))
-(declare-function niwa-permission-queue--render-head
-		  "niwa-permission-queue" (&optional session))
-(autoload 'niwa-permission-queue--render-head "niwa-permission-queue")
+(declare-function niwa-permission-queue-redraw
+		  "niwa-permission-queue" (session))
+(autoload 'niwa-permission-queue-redraw "niwa-permission-queue")
 (autoload 'niwa-permission-absence-hold "niwa-permission-queue")
 
 ;; `niwa-permission-mode'
@@ -805,7 +805,7 @@ explicit visitors captured before that writer removed the old zone."
               (when (niwa-session-pending-plan-approval session)
                 (niwa-plan-approval-render session))
               (when (niwa-session-permission-queue session)
-                (niwa-permission-queue--render-head session))
+                (niwa-permission-queue-redraw session))
               (when-let* ((hold (niwa-permission-absence-hold session)))
                 (niwa-view--permission-absence-render hold))
               (when (or (niwa-session-pending-steering session)

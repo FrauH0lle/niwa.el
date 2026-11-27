@@ -835,7 +835,7 @@ With RAW-P, retain the full pipeline result including hidden render data."
      nil
      (lambda (_tool _args cont) (funcall cont 'ask)))
     (test-niwa-ptc-driver--select-probe buffer)
-    (cl-letf (((symbol-function 'niwa-permission-queue--render-head)
+    (cl-letf (((symbol-function 'niwa-permission-queue-redraw)
                #'ignore))
       (dolist (case '((allow-once . "one")
                       (deny-once . "denied")

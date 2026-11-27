@@ -107,7 +107,7 @@
                      'niwa-side-conversation-parent-active-p)
                     (lambda (&optional buffer)
                       (eq buffer side-buffer)))
-                   ((symbol-function 'niwa-permission-queue--render-head)
+                   ((symbol-function 'niwa-permission-queue-redraw)
                     (lambda (_session)
                       (setq rerendered t)
                       (plist-put entry :parent-active-warning-shown-p t))))
@@ -216,7 +216,7 @@
         (overlay-put ov 'niwa-view-interaction-entry entry)
         (goto-char (point-min))
         (cl-letf (((symbol-function
-                    'niwa-permission-queue--render-head)
+                    'niwa-permission-queue-redraw)
                    #'ignore))
           (let ((last-command-event ?n))
             (niwa-permission--prompt-toggle-remember))
@@ -290,7 +290,7 @@
                        (should (assoc choice choices))
                        choice)))
                   ((symbol-function
-                    'niwa-permission-queue--render-head)
+                    'niwa-permission-queue-redraw)
                    #'ignore))
           (let ((last-command-event ?p))
             (niwa-permission--prompt-toggle-remember)))
@@ -323,7 +323,7 @@
                            "Read /srv/tree (recursive)")
                        "With this command")))
                   ((symbol-function
-                    'niwa-permission-queue--render-head)
+                    'niwa-permission-queue-redraw)
                    #'ignore))
           (let ((last-command-event ?p))
             (niwa-permission--prompt-toggle-remember)))
@@ -720,7 +720,7 @@
                              (:path "/srv" :access write :recursive t)))
               (setcar selection (list scope))
               (with-current-buffer data
-                (niwa-permission-queue--render-head session))
+                (niwa-permission-queue-redraw session))
               (with-current-buffer view
                 (let* ((queued (car (niwa-session-permission-queue session)))
                        (ov (gethash (niwa-queue--entry-metadata-get

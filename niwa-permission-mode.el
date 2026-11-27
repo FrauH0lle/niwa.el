@@ -21,12 +21,9 @@
 (autoload 'niwa-implementation-policy-current "niwa-implementation-policy")
 
 ;; `niwa-permission-queue'
-(declare-function niwa-permission-queue--coalesce
-                  "niwa-permission-queue" (rule-outcome &optional session))
-(declare-function niwa-permission-queue--render-head
-                  "niwa-permission-queue" (&optional session))
-(autoload 'niwa-permission-queue--coalesce "niwa-permission-queue")
-(autoload 'niwa-permission-queue--render-head "niwa-permission-queue")
+(declare-function niwa-permission-queue-authority-changed
+                  "niwa-permission-queue" (session))
+(autoload 'niwa-permission-queue-authority-changed "niwa-permission-queue")
 
 ;; `niwa-permission-review'
 (declare-function niwa-permission-review-cancel
@@ -220,8 +217,7 @@ active."
           (when (and (not (eq previous target))
                      (fboundp 'niwa-permission-review-cancel))
             (niwa-permission-review-cancel session nil 'policy))
-          (niwa-permission-queue--coalesce 'mode-change session)
-          (niwa-permission-queue--render-head session)
+          (niwa-permission-queue-authority-changed session)
           ;; Permission mode can change before any view exists; the
           ;; composer module loads with the view, so a missing function
           ;; here just means there is no prompt to refresh yet.
