@@ -1480,6 +1480,41 @@ test('a small upward touchpad scroll releases following inside the bottom thresh
   } finally { await browser.close(); }
 });
 
+// The viewer replaces the bearer fragment with the bare path once the room has
+// joined, after the page's load; wait for that instead of racing it. The
+// caller's equality assertion still decides, so a missing scrub still fails.
+const scrubbed = (target, search) => target.waitForURL(`http://localhost:8765/${search}`,
+  {timeout: 10000, waitUntil: 'commit'}).catch(() => {});
+
+// Under load Chromium can open the tab while Playwright never reports it (the
+// target is attached, yet no `page` event comes). Retry only when the click
+// itself succeeded, the event timed out, and exactly one page target created
+// after the click is unreported: that orphan proves the gesture worked but
+// leaves nothing to inspect, so close it and click again. A failed click, no
+// new target, or several new targets fail without closing anything.
+async function openNativeTab(source, link, gesture) {
+  const context = source.context();
+  const session = await context.newCDPSession(source);
+  const {targetInfo: own} = await session.send('Target.getTargetInfo');
+  const pageTargets = async () => (await session.send('Target.getTargets')).targetInfos
+    .filter(info => info.type === 'page' && info.browserContextId === own.browserContextId)
+    .map(info => info.targetId);
+  for (let attempt = 1; ; attempt++) {
+    const before = new Set(await pageTargets());
+    // A closed orphan's late event must not satisfy the next click.
+    const opened = context.waitForEvent('page', {timeout: 10000, predicate: page => !page.isClosed()});
+    opened.catch(() => {});
+    await link.click(gesture.options);
+    try {
+      return await opened;
+    } catch (error) {
+      const created = (await pageTargets()).filter(id => !before.has(id));
+      if (attempt === 3 || created.length !== 1) throw error;
+      await session.send('Target.closeTarget', {targetId: created[0]});
+    }
+  }
+}
+
 async function newTab(source, link, gesture, {room, length, route, ready}) {
   // Target download/reload checks can activate another tab. Native gestures
   // originate in the visible source tab, as they do when a person clicks.
@@ -1505,10 +1540,7 @@ async function newTab(source, link, gesture, {room, length, route, ready}) {
       }), {once: true});
     }
   });
-  const [target] = await Promise.all([
-    source.context().waitForEvent('page', {timeout: 30000}),
-    link.click(gesture.options),
-  ]).catch(async error => {
+  const target = await openNativeTab(source, link, gesture).catch(async error => {
     const events = await clickedAnchor.evaluate(node => ({
       connected: node.isConnected, events: node.navigationEvents,
     })).catch(() => null);
@@ -1526,6 +1558,7 @@ async function newTab(source, link, gesture, {room, length, route, ready}) {
   });
   await ready(target);
   assert.deepEqual(await sourceState(source), before, `${gesture.name} leaves source URL, state and draft intact`);
+  await scrubbed(target, search);
   assert.equal(target.url(), `http://localhost:8765/${search}`, 'bearer and private route are scrubbed');
   const state = await target.evaluate(() => history.state);
   assert.equal(state.room, room.id);
@@ -1573,6 +1606,7 @@ async function newTab(source, link, gesture, {room, length, route, ready}) {
   // correctly once and then losing its destination on refresh.
   await target.reload();
   await ready(target);
+  await scrubbed(target, search);
   assert.equal(target.url(), `http://localhost:8765/${search}`);
   assert.deepEqual(await sourceState(source), before, 'target reload does not change the source');
   assert.equal(await composer.evaluate(node => node === document.getElementById('composer-input')), true,
