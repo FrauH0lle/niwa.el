@@ -3757,8 +3757,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
   :doc "retains a failed optional probe without treating it as absence"
   (let* ((root (make-temp-file "niwa-control-artifacts-" t))
          (entry (file-name-concat root "session"))
-         (lock (file-name-concat entry ".lock"))
-         (niwa-session-durability--asserted-directories (list nil)))
+         (lock (file-name-concat entry ".lock")))
     (unwind-protect
         (progn
           (make-directory entry)
@@ -3766,10 +3765,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
           (let* ((observed
                   (niwa-session-persistence--control-artifacts (list entry)))
                  (results (cdr (assoc entry observed))))
-            (should (eq 'failed (plist-get (car results) :status))))
-          (should-not
-           (member (niwa-session-control-fs-physical-path entry)
-                   (car niwa-session-durability--asserted-directories))))
+            (should (eq 'failed (plist-get (car results) :status)))))
       (delete-directory root t))))
 
 

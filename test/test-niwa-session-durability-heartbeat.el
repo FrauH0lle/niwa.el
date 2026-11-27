@@ -327,8 +327,8 @@ filesystem.  Subsequent phases retain the ordinary carrier."
   (let* ((guard (lambda () t))
 	 (niwa-session-durability--async-valid-p guard)
 	 (context (niwa-session-durability-capture-context)))
-    (should (= (length context) 6))
-    (should (eq guard (nth 5 context)))
+    (should (= (length context) 5))
+    (should (eq guard (nth 4 context)))
     (let ((niwa-session-durability--async-valid-p nil)
 	  (niwa-session-control-fs--async-wait t))
       (niwa-session-durability-call-in-context
@@ -338,7 +338,7 @@ filesystem.  Subsequent phases retain the ordinary carrier."
       (should-not niwa-session-durability--async-valid-p)
       (should niwa-session-control-fs--async-wait)
       (niwa-session-durability-call-in-context
-       (list nil nil nil nil nil nil)
+       (list nil nil nil nil nil)
        (lambda () (should niwa-session-control-fs--async-wait))))))
 
 (niwa-deftest niwa-session-durability--heartbeat-finish ()
@@ -413,10 +413,9 @@ filesystem.  Subsequent phases retain the ordinary carrier."
   :doc "a delivered timer cannot inherit an unrelated publisher's riders or child owner"
   (test-niwa-heartbeat--with-session
     (let* ((marker (file-name-concat root "unrelated-publisher"))
-           (clock (list nil)) (assertions (list nil)) (recovery (list nil))
+           (clock (list nil)) (recovery (list nil))
            (owners 0) delivered
            (niwa-session-durability--transaction-clock clock)
-           (niwa-session-durability--asserted-directories assertions)
            (niwa-session-recovery--mutation-cache recovery)
            (niwa-session-durability--observed-time (+ (floor (float-time)) 86400))
            (niwa-session-durability--commit-riders
@@ -432,8 +431,8 @@ filesystem.  Subsequent phases retain the ordinary carrier."
                 (accept-process-output nil 0.01)))
             (should delivered)
             (test-niwa-heartbeat--await session)
-            (should (equal '(nil 0 (nil) (nil) (nil))
-                           (list (file-exists-p marker) owners clock assertions recovery)))
+            (should (equal '(nil 0 (nil) (nil))
+                           (list (file-exists-p marker) owners clock recovery)))
             (should (< (plist-get (niwa-session-lease session) :renewed-at)
                        (+ (float-time) 5)))
             (should (eq 'owned (plist-get (niwa-session-lease session) :state))))

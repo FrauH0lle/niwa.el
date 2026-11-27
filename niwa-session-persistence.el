@@ -201,7 +201,6 @@
 (declare-function niwa-session-durability-lease-owned-p "niwa-session-durability" (session))
 (declare-function niwa-session-durability-lease-release "niwa-session-durability" (session-dir &optional session token))
 (declare-function niwa-session-durability-lease-status "niwa-session-durability" (session-dir))
-(defvar niwa-session-durability--asserted-directories)
 (defvar niwa-session-durability--transaction-clock)
 (autoload 'niwa-session-durability-disclose "niwa-session-durability")
 (autoload 'niwa-session-durability-lease-acquire

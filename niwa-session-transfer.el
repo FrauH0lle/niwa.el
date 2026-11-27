@@ -40,8 +40,6 @@
                   "niwa-session-control-fs" (path))
 
 ;; `niwa-session-durability'
-(declare-function niwa-session-durability--assert-no-pid-lock
-                  "niwa-session-durability" (session-dir))
 (declare-function niwa-session-durability--finite-nonnegative-number-p
                   "niwa-session-durability" (value))
 (declare-function niwa-session-durability--bind-lease
@@ -69,14 +67,10 @@
                   "niwa-session-durability" (observed))
 (declare-function niwa-session-durability--owned-lease-record-p
                   "niwa-session-durability" (lease directory &optional now))
-(declare-function niwa-session-durability--pid-lock-operation
-                  "niwa-session-durability" (session-dir))
 (declare-function niwa-session-durability--portable-session-p
                   "niwa-session-durability" (session))
 (declare-function niwa-session-durability--read-plist
                   "niwa-session-durability" (path))
-(declare-function niwa-session-durability--settle-pid-lock
-                  "niwa-session-durability" (session-dir result))
 (declare-function niwa-session-durability--target-time
                   "niwa-session-durability" (directory))
 (declare-function niwa-session-durability--valid-lease-p
@@ -428,7 +422,6 @@ explicitly decides and releases its lease."
                          (error "Session has not been materialized yet")))
         (session-id (or (niwa-session-session-id session)
                         (error "Session has no durable identity"))))
-    (niwa-session-durability--assert-no-pid-lock session-dir)
     (unless (and (stringp session-id) (> (length session-id) 0))
       (error "Control-transfer session ID is required"))
     (unless (niwa-session-transfer--valid-timeout-p
@@ -556,9 +549,8 @@ transfer authority.
 A local owner with no transfer in flight skips the target program while its
 request mailbox is unchanged since a poll that found no request: that program
 spawned a shell every few seconds per view, and lease renewal, not this
-poll, detects a lost lease.  With ADMISSION, carry the recovery-root and
-PID-lock observations in the same program, within the caller's durable
-transaction; the ordinary mutation gate consumes those proofs afterward."
+poll, detects a lost lease.  With ADMISSION, carry the recovery-root probe
+in the same program for the ordinary mutation gate."
   (unless (niwa-session-durability--portable-session-p session)
     (error "Control transfer requires a portable project session"))
   (let ((stamp (niwa-session-transfer--mailbox-stamp session))
@@ -584,25 +576,18 @@ transaction; the ordinary mutation gate consumes those proofs afterward."
            (directory (and session-dir
                            (niwa-session-durability--lease-path
                             session-dir)))
-           (pid-lock (and admission directory
-                          (niwa-session-durability--pid-lock-operation
-                           session-dir)))
            ;; One observation answers the clock, the listing, and the
            ;; bound generation's record; the poll used to pay each as its
            ;; own target process on every tick.
            (observed (and directory
                           (niwa-session-durability--observe-lease
                            directory (plist-get bound :generation)
-                           (append
-                            (list (niwa-session-transfer--requests-operation
-                                   directory))
-                            (when admission
-                              (append
-                               (and pid-lock (list pid-lock))
-                               (list (list :op 'directory-p
-                                           :path (niwa-session-recovery--root
-                                                  session-dir)
-                                           :optional t))))))))
+                           (cons (niwa-session-transfer--requests-operation
+                                  directory)
+                                 (when admission
+                                   (list (list :op 'directory-p
+                                               :path (niwa-session-recovery--root session-dir)
+                                               :optional t)))))))
            (current
             (and observed
                  (let ((record (plist-get observed :record)))
@@ -622,17 +607,10 @@ transaction; the ordinary mutation gate consumes those proofs afterward."
                        (niwa-session-durability--target-time
                         directory)))))
     (when (and admission observed)
-      (let ((results (cdr (plist-get observed :extra))))
-        ;; Before first lease acquisition, the absent lease directory can
-        ;; stop the program before these probes run.  Leave the transaction
-        ;; caches unanswered: the ordinary authority gate must perform its
-        ;; recovery/PID-lock checks before acquiring that first lease.
-        (unless (cl-some (lambda (result)
-                          (eq 'skipped (plist-get result :status)))
-                        results)
-          (when pid-lock
-            (niwa-session-durability--settle-pid-lock session-dir (pop results)))
-          (niwa-session-recovery-refresh session (car results)))))
+      (let ((root (cadr (plist-get observed :extra))))
+        ;; A missing lease directory can skip the probe before acquisition.
+        (unless (eq 'skipped (plist-get root :status))
+          (niwa-session-recovery-refresh session root))))
     (when (and current bound
                (or (equal niwa-session-durability--client-id
                           (plist-get bound :client-id))

@@ -3159,7 +3159,7 @@ rotation never saves through a rebound temporary visited filename or prompts"
 (niwa-deftest niwa-session-artifacts-mixed-authority-controls ()
   ,test
   (test)
-  :doc "surfaces mixed controls as incompatible while restore and admission reject them"
+  :doc "surfaces mixed controls as incompatible and rejects restore"
   (let* ((root (file-name-as-directory
                 (make-temp-file "niwa-mixed-authority-" t)))
          (workspace (test-niwa-session-persistence--make-workspace root))
@@ -3176,12 +3176,6 @@ rotation never saves through a rebound temporary visited filename or prompts"
           (should-error
            (niwa-session-codec-authority-mode-for-path session-dir)
            :type 'error)
-          (with-temp-buffer
-            (setq-local niwa--session session)
-            (should-error
-             (niwa-session-artifacts-assert-mutation-authority
-              session (current-buffer))
-             :type 'error))
           (let ((listing
                  (niwa-session-persistence--enumerate-sessions workspace)))
             (should-not (plist-get listing :sessions))

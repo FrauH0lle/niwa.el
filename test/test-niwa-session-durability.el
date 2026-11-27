@@ -1729,70 +1729,6 @@ holder identity is recorded by an owner lease acquired before the call."
       (when (file-directory-p local-root)
         (delete-directory local-root t)))))
 
-(niwa-deftest niwa-session-durability-note-no-pid-lock ()
-  ,test
-  (test)
-  :doc "outside a transaction there is no memo to seed"
-  (let ((niwa-session-durability--asserted-directories nil))
-    (niwa-session-durability-note-no-pid-lock temporary-file-directory)
-    (should-not niwa-session-durability--asserted-directories))
-
-  :doc "inside a transaction the physical directory is recorded once"
-  (let* ((dir (make-temp-file "niwa-note-no-lock-" t))
-         (physical (niwa-session-control-fs-physical-path dir))
-         (niwa-session-durability--asserted-directories (list nil)))
-    (unwind-protect
-        (progn
-          (niwa-session-durability-note-no-pid-lock dir)
-          (niwa-session-durability-note-no-pid-lock dir)
-          (should (equal (list physical)
-                         (car niwa-session-durability--asserted-directories))))
-      (delete-directory dir t))))
-
-
-(niwa-deftest niwa-session-durability-legacy-lock-proof ()
-  ,test
-  (test)
-  :doc "a batched absence proof is reused within the durable transaction"
-  (let ((root (make-temp-file "niwa-legacy-proof-" t)))
-    (unwind-protect
-        (niwa-session-durability-with-transaction
-          (let* ((operation (niwa-session-durability--pid-lock-operation root))
-                 (result (car (niwa-session-control-fs-run-program
-                               (list operation)))))
-            (should (eq 'absent (plist-get result :status)))
-            (niwa-session-durability--settle-pid-lock root result)
-            (should-not (niwa-session-durability--pid-lock-operation root))
-            (niwa-session-durability--assert-no-pid-lock root)))
-      (delete-directory root t)))
-  :doc "direct and batched legacy-lock checks refuse without modifying bytes"
-  (let* ((root (make-temp-file "niwa-legacy-refusal-" t))
-         (lock (file-name-concat root ".lock")))
-    (unwind-protect
-        (progn
-          (with-temp-file lock (insert "unmigrated"))
-          (should
-           (string-match-p
-            "Unsupported transcript format"
-            (error-message-string
-             (should-error (niwa-session-durability--assert-no-pid-lock root)
-                           :type 'error))))
-          (let* ((operation (niwa-session-durability--pid-lock-operation root))
-                 (result (car (niwa-session-control-fs-run-program
-                               (list operation)))))
-            (should
-             (string-match-p
-              "Unsupported transcript format"
-              (error-message-string
-               (should-error
-                (niwa-session-durability--settle-pid-lock root result)
-                :type 'error)))))
-          (should (equal "unmigrated"
-                         (with-temp-buffer
-                           (insert-file-contents lock)
-                           (buffer-string)))))
-      (delete-directory root t))))
-
 (niwa-deftest niwa-session-durability-lease-renew ()
   ,test
   (test)
@@ -1877,7 +1813,6 @@ holder identity is recorded by an owner lease acquired before the call."
                    host local-root))
          (niwa-session-durability--client-id (make-string 64 ?c))
          (niwa-session-durability--transaction-clock (list nil))
-         (niwa-session-durability--asserted-directories (list nil))
          (programs nil)
          (program-function
           (symbol-function 'niwa-session-control-fs-run-program)))
@@ -5085,69 +5020,6 @@ holder identity is recorded by an owner lease acquired before the call."
         (delete-directory recovery t))
       (when (file-directory-p local-root)
         (delete-directory local-root t)))))
-
-(niwa-deftest niwa-session-durability-mixed-controls ()
-  ,test
-  (test)
-  :doc "retains local recovery and fails closed when target controls are mixed"
-  (let* ((root (file-name-as-directory
-                (make-temp-file "niwa-mixed-recovery-" t)))
-         (workspace
-          (niwa-workspace--create
-           :type 'project :id root :root root :name "mixed-recovery"))
-         (session (niwa-session-create "main" workspace))
-         (session-dir (file-name-as-directory
-                       (file-name-concat root "session")))
-         (recovery (make-temp-file "niwa-mixed-local-recovery-" t)))
-    (unwind-protect
-        (progn
-          (make-directory (file-name-concat session-dir ".lease") t)
-          (with-temp-file (file-name-concat session-dir ".lock")
-            (insert "mixed controls"))
-          (setf (niwa-session-save-path session) session-dir)
-          (with-temp-file (file-name-concat recovery "before.el")
-            (insert "before"))
-          (niwa-test--with-captured-diagnostics nil
-            (niwa-session-recovery-record-failure
-             session "rewind rollback incomplete" recovery))
-          (let ((pending (niwa-session-pending-publication session)))
-            (should (file-directory-p recovery))
-            (should (equal recovery
-                           (plist-get pending :manual-recovery-local)))
-            (should (string-match-p "Unsupported transcript format"
-                                    (plist-get pending :reason)))
-            (should-not
-             (file-exists-p (file-name-concat session-dir ".recovery")))
-            (let* ((id "0123456789abcdef0123456789abcdef")
-                   (recovery-root (file-name-concat session-dir ".recovery"))
-                   (recovery-dir (file-name-concat recovery-root id))
-                   (marker (file-name-concat
-                            recovery-root (concat "recovery-" id ".eld"))))
-              (make-directory recovery-dir t)
-              (with-temp-file marker
-                (prin1 (list :version 1
-                              :kind 'rewind
-                              :directory (file-name-concat ".recovery" id)
-                              :reason "mixed controls"
-                              :created-at "now")
-                       (current-buffer)))
-              ;; A valid recovery marker must still be rejected when the
-              ;; obsolete PID lock is present beside portable controls.
-              (should-error
-               (niwa-session-recovery-read
-                session-dir)
-               :type 'error)
-              (delete-file (file-name-concat session-dir ".lock"))
-              (should
-               (equal recovery-dir
-                      (plist-get
-                       (niwa-session-recovery-read
-                        session-dir)
-                       :directory))))))
-      (when (file-directory-p recovery)
-        (delete-directory recovery t))
-      (when (file-directory-p root)
-        (delete-directory root t)))))
 
 (niwa-deftest niwa-session-publication-status ()
   ,test

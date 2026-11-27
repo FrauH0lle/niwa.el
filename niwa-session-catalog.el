@@ -231,13 +231,7 @@ Each candidate is probed for the three artifacts that make a directory a
 session -- the obsolete PID lock, the portable lease, and the sidecar --
 and every probe of every candidate travels in a single target program.
 Probing them one at a time is one target process each, which is what made
-enumerating a workspace cost hundreds of round trips.
-
-A candidate proved free of a PID lock is recorded through
-`niwa-session-durability-note-no-pid-lock', so the assertions the
-publication read repeats per entry reuse this program's proof instead of
-paying for their own.  Directories that do carry one are left alone: their
-own assertion reports the authority violation at its canonical call site."
+enumerating a workspace cost hundreds of round trips."
   (let* ((names '(".lock" ".lease" "session.meta.eld"))
          (results
           (niwa-session-control-fs-run-program
@@ -253,8 +247,6 @@ own assertion reports the authority violation at its canonical call site."
       ;; Results arrive in the order the operations were emitted: one per
       ;; name, in `names' order, per entry.
       (let ((entry-results (list (pop results) (pop results) (pop results))))
-        (when (eq 'absent (plist-get (car entry-results) :status))
-          (niwa-session-durability-note-no-pid-lock entry))
         (push (cons entry entry-results) observed)))))
 
 (defun niwa-session-persistence--lease-listings (entries)
@@ -365,12 +357,8 @@ controls signal, so the caller keeps an undiscoverable, uninspectable row."
              :diagnostic (format niwa-session-persistence--pre-lease-message entry)))
     (when-let* ((err (plist-get observation :error)))
       (signal (car err) (cdr err)))
-    (when (seq-find (lambda (result) (eq (plist-get result :status) 'ok))
-                   control-results)
-      ;; A shared scan may have run in a separate discovery transaction.
-      (when (eq 'absent (plist-get (car control-results) :status))
-        (niwa-session-durability-note-no-pid-lock entry))
-      (niwa-session-codec-authority-mode-for-path entry nil authority-mode))
+    (when (eq 'ok (plist-get (car control-results) :status))
+      (error "Conflicting legacy PID lock and portable lease: %s" entry))
     (let* ((publication (if observation (plist-get observation :publication)
                           (niwa-session-publication-read entry nil listing)))
            (sidecar (plist-get publication :sidecar))
@@ -411,9 +399,7 @@ OBSERVE-SIDECAR receives each compatible directory and its verified sidecar."
                 (niwa-session-authority-mode-for-workspace workspace))
                sessions
                incompatible)
-          ;; One enumeration is one transaction: the PID-lock proofs and the
-          ;; target clock reading that every entry's publication read repeats
-          ;; are paid once for the whole listing.
+          ;; Share the target clock reading across the listing.
           (niwa-session-durability-with-transaction
            (pcase-let ((`(,entries ,controls ,listings ,observations)
                         (or scan (niwa-session-persistence--scan

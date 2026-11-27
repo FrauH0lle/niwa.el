@@ -2931,7 +2931,6 @@
   :doc "immediate notification runs with fresh transaction observations"
   (let ((session (niwa-agent-control-test--session))
         (niwa-session-durability--transaction-clock '(clock))
-        (niwa-session-durability--asserted-directories '(directories))
         (niwa-session-durability--commit-riders '(riders))
         (niwa-session-durability--final-commit t)
         (niwa-session-durability-async-process-function #'ignore)
@@ -2942,12 +2941,11 @@
      (lambda ()
        (setq observed
              (list niwa-session-durability--transaction-clock
-                   niwa-session-durability--asserted-directories
                    niwa-session-durability--commit-riders
                    niwa-session-durability--final-commit
                    niwa-session-durability-async-process-function
                    niwa-session-recovery--mutation-cache))))
-    (should (equal '(nil nil nil nil nil nil) observed))
+    (should (equal '(nil nil nil nil nil) observed))
     (should (equal '(clock) niwa-session-durability--transaction-clock))
     (should-not (niwa-session-mail-notifications session)))
 

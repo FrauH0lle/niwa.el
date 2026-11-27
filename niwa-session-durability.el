@@ -449,24 +449,16 @@ fails closed instead of falling back to a client clock."
       (niwa-session-durability--note-target-time
        directory (niwa-session-control-fs-target-time directory))))
 
-(defvar niwa-session-durability--asserted-directories nil
-  "Cons cell listing directories proved free of legacy `.lock' files, or nil.
-
-A portable session cannot grow a `.lock' while this client holds its lease,
-and one transaction reaches several entry points that each prove its absence.
-A caller that spans one transaction binds this to a fresh `(list nil)';
-outside such a binding every call proves it against the target.")
-
 ;; `niwa-session-recovery' declares this cache; the transaction macro
 ;; below binds it together with this file's own transaction scopes.
 (defvar niwa-session-recovery--mutation-cache)
 
 (defmacro niwa-session-durability-with-transaction (&rest body)
-  "Run BODY as one durable transaction sharing clock, probe, and recovery reads.
+  "Run BODY as one durable transaction sharing clock and recovery reads.
 
-The target clock reading, legacy `.lock' absence proofs, and the recovery
-mutation lookups repeat across the entry points one user action reaches;
-inside this scope each is paid once.  The bindings nest: an inner
+The target clock reading and recovery mutation lookups repeat across the
+entry points one user action reaches; inside this scope each is paid once.
+The bindings nest: an inner
 transaction joins the outer one instead of starting fresh, and the reads
 are tolerant so the scope works before the lazily loaded modules that own
 the variables are in.  `dlet' keeps the bindings dynamic in callers that do
@@ -474,10 +466,6 @@ not declare the variables; a lexical binding would silently share nothing."
   (declare (indent 0) (debug t))
   `(dlet ((niwa-session-durability--transaction-clock
           (or (bound-and-true-p niwa-session-durability--transaction-clock)
-              (list nil)))
-         (niwa-session-durability--asserted-directories
-          (or (bound-and-true-p
-               niwa-session-durability--asserted-directories)
               (list nil)))
          (niwa-session-recovery--mutation-cache
           (or (bound-and-true-p niwa-session-recovery--mutation-cache)
@@ -488,37 +476,8 @@ not declare the variables; a lexical binding would silently share nothing."
   "Signal when portable SESSION-DIR contains a legacy pre-lease `.lock'."
   (setq session-dir (niwa-session-control-fs-physical-path
                      session-dir))
-  (unless (member session-dir
-                  (car niwa-session-durability--asserted-directories))
-    (when (niwa-session-control-fs-path-exists-p
-           (file-name-concat session-dir ".lock"))
-      (error "Unsupported transcript format (before portable leases): %s"
-             session-dir))
-    (when niwa-session-durability--asserted-directories
-      (push session-dir
-            (car niwa-session-durability--asserted-directories)))))
-
-(defun niwa-session-durability--pid-lock-operation (session-dir)
-  "Return the program operation proving no legacy `.lock' in SESSION-DIR.
-
-Nil means this transaction already proved it.  A caller that runs the
-operation inside its own program settles it with
-`niwa-session-durability--settle-pid-lock', which raises exactly as
-`niwa-session-durability--assert-no-pid-lock' would."
-  (let ((physical (niwa-session-control-fs-physical-path session-dir)))
-    (unless (member physical
-                    (car niwa-session-durability--asserted-directories))
-      (list :op 'path-exists-p
-            :path (file-name-concat physical ".lock")
-            :optional t))))
-
-(defun niwa-session-durability--settle-pid-lock (session-dir result)
-  "Interpret RESULT of SESSION-DIR's legacy `.lock' absence operation."
-  (pcase (plist-get result :status)
-    ('absent (niwa-session-durability-note-no-pid-lock session-dir))
-    ('ok (error "Unsupported transcript format (before portable leases): %s"
-                (niwa-session-control-fs-physical-path session-dir)))
-    (_ (niwa-session-control-fs-program-value result))))
+  (when (niwa-session-control-fs-path-exists-p (file-name-concat session-dir ".lock"))
+    (error "Unsupported transcript format (before portable leases): %s" session-dir)))
 
 (defun niwa-session-durability--clock-operation (directory)
   "Return an operation reading DIRECTORY's target clock for this transaction.
@@ -536,22 +495,6 @@ authoritative as a separate clock program."
   (when (eq 'ok (plist-get result :status))
     (niwa-session-durability--note-target-time
      directory (plist-get result :value))))
-
-(defun niwa-session-durability-note-no-pid-lock (session-dir)
-  "Record SESSION-DIR as already proved free of a legacy pre-lease `.lock'.
-
-A caller that probes many candidates at once -- enumerating a workspace
-probes every one of them in a single program -- seeds its proofs here, so
-the per-entry assertions inside
-`niwa-session-durability-with-transaction' cost no further round trip.
-Outside such a scope there is nowhere to record the proof and this does
-nothing, which leaves the assertion proving it against the target."
-  (when niwa-session-durability--asserted-directories
-    (let ((physical (niwa-session-control-fs-physical-path session-dir)))
-      (unless (member physical
-                      (car niwa-session-durability--asserted-directories))
-        (push physical
-              (car niwa-session-durability--asserted-directories))))))
 
 (defun niwa-session-durability--read-plist (path)
   "Return the plist stored at PATH, or nil when PATH is absent or unreadable.
@@ -1130,7 +1073,6 @@ observation for this read may supply it.
 This read-only operation bypasses remote file caches and does not acquire or
 otherwise mutate the session lease."
   (let* ((remote-file-name-inhibit-cache t)
-         (_ (niwa-session-durability--assert-no-pid-lock session-dir))
          (directory (niwa-session-durability--lease-path session-dir))
          (lease (niwa-session-durability--lease-head directory names)))
     (cond
@@ -2151,7 +2093,6 @@ it, or the last one to hold it when the lease is free, and is nil for a
 session whose lease predates recorded hosts or was never held at all.  Both
 answers come from one head read: a picker asks this per candidate, and on a
 remote target each extra read is a round trip the user waits through."
-  (niwa-session-durability--assert-no-pid-lock session-dir)
   (let ((lease
          (niwa-session-durability--lease-head
           (niwa-session-durability--lease-path session-dir))))
@@ -2189,7 +2130,6 @@ An inactive owned `publishing' generation is releasable, but a live publisher
 is never interrupted.  When SESSION is non-nil, cancel its renewal and clear
 its lease state."
   (niwa-session-durability--gate session token)
-  (niwa-session-durability--assert-no-pid-lock session-dir)
   (if (and session (niwa-session-publication-active-p session))
       (let ((lease (copy-sequence (niwa-session-lease session))))
         (setf (niwa-session-lease session)
@@ -2263,8 +2203,6 @@ describes for TOKEN, and nests inside an enclosing synchronous window."
   (niwa-session-durability--gate session token t)
   (let ((niwa-session-durability--transaction-clock
          (or niwa-session-durability--transaction-clock (list nil)))
-        (niwa-session-durability--asserted-directories
-         (or niwa-session-durability--asserted-directories (list nil)))
         entered failure result)
     (setf (niwa-session-publication-active-p session) t)
     (unwind-protect
@@ -2457,13 +2395,12 @@ carrier runs synchronously has no process and does not call it.")
 (defun niwa-session-durability-capture-context ()
   "Return the dynamic transaction state an asynchronous operation keeps.
 
-The clock, legacy `.lock' absence, and recovery cells and commit riders are
+The clock and recovery cells and the commit riders are
 dynamic bindings that do not survive a returned callback.  Every asynchronous
 operation here captures them at launch and rebinds them through
 `niwa-session-durability-call-in-context' while it advances, so a job can
 do the same for its own continuations."
   (list niwa-session-durability--transaction-clock
-        niwa-session-durability--asserted-directories
         (bound-and-true-p niwa-session-recovery--mutation-cache)
         niwa-session-durability--commit-riders
         niwa-session-durability-async-process-function
@@ -2472,20 +2409,19 @@ do the same for its own continuations."
 (defun niwa-session-durability-call-in-context (context function)
   "Call FUNCTION with the transaction state CONTEXT captured."
   (dlet ((niwa-session-durability--transaction-clock (nth 0 context))
-         (niwa-session-durability--asserted-directories (nth 1 context))
-         (niwa-session-recovery--mutation-cache (nth 2 context))
-         (niwa-session-durability--commit-riders (nth 3 context))
-         (niwa-session-durability-async-process-function (nth 4 context))
-         (niwa-session-durability--async-valid-p (nth 5 context))
+         (niwa-session-recovery--mutation-cache (nth 1 context))
+         (niwa-session-durability--commit-riders (nth 2 context))
+         (niwa-session-durability-async-process-function (nth 3 context))
+         (niwa-session-durability--async-valid-p (nth 4 context))
          ;; Heartbeat continuations cannot borrow a surrounding publisher's flags.
          (niwa-session-durability--observed-time
-          (and (null (nth 5 context)) niwa-session-durability--observed-time))
+          (and (null (nth 4 context)) niwa-session-durability--observed-time))
          (niwa-session-durability--final-commit
-          (and (null (nth 5 context)) niwa-session-durability--final-commit))
+          (and (null (nth 4 context)) niwa-session-durability--final-commit))
          ;; An explicit drain may force ordinary async callers synchronous.
          ;; A heartbeat keeps yielding between every phase, even in that drain.
          (niwa-session-control-fs--async-wait
-          (and (null (nth 5 context)) niwa-session-control-fs--async-wait)))
+          (and (null (nth 4 context)) niwa-session-control-fs--async-wait)))
     (funcall function)))
 
 (defun niwa-session-durability-fresh-context (process-function)
@@ -2493,7 +2429,7 @@ do the same for its own continuations."
 
 Unlike `niwa-session-durability-capture-context' inside
 `niwa-session-durability-with-transaction', it never joins a surrounding
-transaction: its own clock, legacy `.lock' absence, and recovery cells are
+transaction: its own clock and recovery cells are
 shared by every `niwa-session-durability-call-in-context' with it.  It
 carries no commit riders, so a phase sees only riders it binds itself,
 never ones of a publisher whose binding a timer happened to run inside.
@@ -2501,12 +2437,12 @@ PROCESS-FUNCTION
 owns each process a lease step launches; see
 `niwa-session-durability-async-process-function'.  With no async validity
 predicate, observed time, final commit, and the drain flag stay inherited."
-  (list (list nil) (list nil) (list nil) nil process-function nil))
+  (list (list nil) (list nil) nil process-function nil))
 
 (defun niwa-session-durability-call-outside-transaction (function)
   "Call FUNCTION with no transaction state of the caller in effect.
 
-The clock, legacy `.lock' absence and recovery cells, commit riders, final
+The clock and recovery cells, commit riders, final
 commit, and process function are all nil, so arbitrary code called back from
 inside a job or timer opens its own transactions.  Callers, to audit
 whenever these cells change: the publication acknowledgement in
@@ -2514,7 +2450,6 @@ whenever these cells change: the publication acknowledgement in
 `niwa-agent-control-notify', `niwa-agent-control--flush-notifications',
 and `niwa-session-control-transfer-taken-over'."
   (dlet ((niwa-session-durability--transaction-clock nil)
-         (niwa-session-durability--asserted-directories nil)
          (niwa-session-durability--commit-riders nil)
          (niwa-session-durability--final-commit nil)
          (niwa-session-durability-async-process-function nil)
@@ -2571,16 +2506,16 @@ remote command.  A transport that refuses the wait fails the job.
 LOCK-DIRECTORY is the shared target lock for the entire program, or nil."
   (let* ((finish (car job))
          (guard (cadr job))
-         (owner (nth 4 context))
+         (owner (nth 3 context))
          (launch
           (lambda ()
             (niwa-session-durability-call-in-context
              context
              (lambda ()
                (cond
-                ((and (nth 5 context) (not (funcall (nth 5 context))))
+                ((and (nth 4 context) (not (funcall (nth 4 context))))
                  (funcall finish nil '(error "Lease heartbeat superseded")))
-                ((and (nth 5 context)
+                ((and (nth 4 context)
                       (not (niwa-session-durability--heartbeat-carrier-p directory)))
                  (funcall finish nil '(file-error "Lease heartbeat carrier unavailable")))
                 (t
@@ -2594,8 +2529,8 @@ LOCK-DIRECTORY is the shared target lock for the entire program, or nil."
                               (niwa-session-durability-call-in-context
                                context
                                (lambda ()
-                                 (if (and (nth 5 context)
-                                          (not (funcall (nth 5 context))))
+                                 (if (and (nth 4 context)
+                                          (not (funcall (nth 4 context))))
                                      (funcall finish nil '(error "Lease heartbeat superseded"))
                                    (funcall continue results error)))))))
                          (append (list (nth 2 job))
@@ -2975,10 +2910,9 @@ is exactly what a commit of that record put on the target."
   "Admit a mutation of SESSION from one asynchronous target program.
 
 The program is the one the synchronous admission runs: target clock, lease
-listing, the bound generation's record, the transfer request listing, the
-legacy `.lock' absence probe, and the recovery-root probe.  Its absence,
-clock, and recovery observations are recorded in the transaction cells as the
-synchronous admission records them.
+listing, the bound generation's record, the transfer request listing, and the
+recovery-root probe.  As in synchronous admission, the transaction cells
+record the clock and recovery observations.
 
 CALLBACK receives SUCCESS: t when SESSION's bound lease is this client's live
 newest generation, no recovery marker exists, and no live transfer request
@@ -2993,7 +2927,7 @@ unobserved lease directory, a lease record that is not this client's live
 lease, target bytes that differ from the bound ones, a changed publication
 head, a newer generation, a recovery marker, or a live transfer request --
 and otherwise the error of a
-failed program, an invalid request, or a legacy `.lock'.  Local checks (pending
+failed program or an invalid request.  Local checks (pending
 publication, target incarnation, disclosure, materialization) stay with the
 caller."
   (let* ((job (niwa-session-durability--async-job callback (niwa-diagnostic-scope session)))
@@ -3023,30 +2957,25 @@ caller."
            (let* ((directory (niwa-session-durability--lease-path
                               session-dir))
                   (requests-directory
-                   (niwa-session-transfer--path directory "requests"))
-                  (pid-lock (niwa-session-durability--pid-lock-operation
-                             session-dir)))
+                   (niwa-session-transfer--path directory "requests")))
              (niwa-session-durability--observe-lease-async
               directory generation
-              (append
-               (list (niwa-session-transfer--requests-operation directory))
-               (and pid-lock (list pid-lock))
-               (list (list :op 'directory-p
-                           :path (niwa-session-recovery--root session-dir)
-                           :optional t)))
+              (list (niwa-session-transfer--requests-operation directory)
+                    (list :op 'directory-p
+                          :path (niwa-session-recovery--root session-dir)
+                          :optional t))
               job context
               (lambda (observed)
                 (niwa-session-durability--admit-async-settle
-                 session session-dir session-id bound directory
-                 requests-directory pid-lock observed job context)))))))))
+                 session session-id bound directory requests-directory
+                 observed job context)))))))))
   nil)
 
 (defun niwa-session-durability--admit-async-settle
-    (session session-dir session-id bound directory requests-directory
-             pid-lock observed job context)
+    (session session-id bound directory requests-directory observed job context)
   "Settle the admission program's OBSERVED results for SESSION.
-The arguments are what `niwa-session-durability-admit-async' derived
-before launch; JOB and CONTEXT are as for
+SESSION-ID, BOUND lease, lease DIRECTORY and REQUESTS-DIRECTORY are the
+values captured before launch.  JOB and CONTEXT are as for
 `niwa-session-durability--async-program'."
   (let* ((finish (car job))
          (results (plist-get observed :extra))
@@ -3060,11 +2989,8 @@ before launch; JOB and CONTEXT are as for
         (funcall finish nil
                  '(user-error
                    "Portable session lease directory could not be observed"))
-      (let* ((requests (pop results))
-             (_ (when pid-lock
-                  (niwa-session-durability--settle-pid-lock
-                   session-dir (pop results))))
-             (root (car results))
+      (let* ((requests (car results))
+             (root (cadr results))
              (unowned
               (cond
                ((not (niwa-session-durability--owned-lease-record-p
@@ -3337,7 +3263,6 @@ After takeover, retry stopping producers instead of renewing lost authority."
             ;; A timer may interrupt another session's publisher.  Its cells,
             ;; riders and process owner must never become this job's context.
             (dlet ((niwa-session-durability--transaction-clock (list nil))
-                   (niwa-session-durability--asserted-directories (list nil))
                    (niwa-session-recovery--mutation-cache (list nil))
                    (niwa-session-durability--observed-time nil)
                    (niwa-session-durability--commit-riders nil)

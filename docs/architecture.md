@@ -411,8 +411,8 @@ persistence calls it for polling, admission, and committed-state adoption.  `niw
 Save As transaction and live-session adoption.  Project and file-workspace sessions use the same
 authority profile on local and TRAMP targets: a renewable `.lease/` and an
 immutable publication head.  Workspace-free sessions have no durable authority.
-The runtime has no PID-lock reader or writer; legacy file sessions require
-explicit standalone migration. Mixed control artifacts fail closed. The persistence facade and its codec,
+The runtime has no PID-lock reader or writer. Legacy and mixed-control stores
+are refused at entry; the standalone migration script cannot convert them. The persistence facade and its codec,
 artifact, Rewind, and Fork owners form the workflow layer above that boundary.
 
 Before a mutating managed Bash child can start on a portable project target, the execution module

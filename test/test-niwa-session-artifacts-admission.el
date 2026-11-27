@@ -24,7 +24,7 @@
   (dolist (scenario '(fresh fresh-recovery fresh-mixed fresh-redirected-recovery
                      quiet request grant grant-during-check release-during-check
                      plain-release-during-check
-                     grant-during-observation recovery mixed redirected-recovery))
+                     grant-during-observation recovery redirected-recovery))
     (ert-info ((format "Admission scenario: %s" scenario))
       (let* ((root (make-temp-file "niwa-admission-" t))
              (session-dir (file-name-concat root "session"))
@@ -63,7 +63,7 @@
                                                   ".recovery/recovery-ab.eld")
                    (prin1 '(:version 1 :kind rewind :directory ".recovery/undo"
                             :reason "incomplete rewind") (current-buffer))))
-                ((or 'mixed 'fresh-mixed)
+                ('fresh-mixed
                  (with-temp-file (file-name-concat session-dir ".lock")
                    (insert "mixed authority")))
                 ((or 'redirected-recovery 'fresh-redirected-recovery)

@@ -140,7 +140,6 @@
 ;; `niwa-session-durability'
 (declare-function niwa-session-durability-disclose "niwa-session-durability" (session))
 (declare-function niwa-session-durability-lease-owned-p "niwa-session-durability" (session))
-(defvar niwa-session-durability--asserted-directories)
 (defvar niwa-session-durability--transaction-clock)
 (autoload 'niwa-session-durability-disclose "niwa-session-durability")
 (autoload 'niwa-session-durability-lease-owned-p
@@ -2085,10 +2084,6 @@ the caller's gate token."
           ;; loaded it.
           (niwa-session-durability--transaction-clock
            (or (bound-and-true-p niwa-session-durability--transaction-clock)
-               (list nil)))
-          (niwa-session-durability--asserted-directories
-           (or (bound-and-true-p
-                niwa-session-durability--asserted-directories)
                (list nil))))
       ;; The whole save is one transaction on one connection, and every
       ;; segment write, sidecar rewrite, modtime stat, and file-history read
@@ -2162,10 +2157,6 @@ gate token; a deferred preparation receives its own."
           (niwa-session-durability--transaction-clock
            (or (bound-and-true-p
                 niwa-session-durability--transaction-clock)
-               (list nil)))
-          (niwa-session-durability--asserted-directories
-           (or (bound-and-true-p
-                niwa-session-durability--asserted-directories)
                (list nil))))
       (when (niwa-session-artifacts-artifact-present-p session "session.meta.eld" t)
         (niwa--with-gc-batched

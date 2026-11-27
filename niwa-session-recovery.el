@@ -55,16 +55,12 @@
                   "niwa-session-durability" (directory))
 (declare-function niwa-session-durability--lease-path
                   "niwa-session-durability" (session-dir))
-(declare-function niwa-session-durability--pid-lock-operation
-                  "niwa-session-durability" (session-dir))
 (declare-function niwa-session-durability--portable-session-p
                   "niwa-session-durability" (session))
 (declare-function niwa-session-durability--read-plist
                   "niwa-session-durability" (path))
 (declare-function niwa-session-durability--settle-clock
                   "niwa-session-durability" (directory result))
-(declare-function niwa-session-durability--settle-pid-lock
-                  "niwa-session-durability" (session-dir result))
 (declare-function niwa-session-durability--valid-relative-path-p
                   "niwa-session-durability" (path))
 (declare-function niwa-session-durability--write-plist
@@ -183,28 +179,20 @@ An abandonment marker may outlive its explicitly discarded directory."
 
 One directory operation answers existence and kind together, so the
 common no-recovery case costs one target process instead of two.  With
-PREAMBLE, the same process also proves SESSION-DIR has no PID lock and,
-inside a durable transaction, reads the target clock the lease checks that
-follow will need.  ROOT-OBSERVATION is an optional directory probe result
-from the caller's admission program, which already carries that preamble."
+PREAMBLE inside a durable transaction, that process also reads the target
+clock for subsequent lease checks.  ROOT-OBSERVATION is the optional
+directory probe from an admission program that already carried the preamble."
   (let* ((root (niwa-session-control-fs-physical-path
                 (niwa-session-recovery--root session-dir)))
          (lease (and preamble
                      (niwa-session-durability--lease-path session-dir)))
-         (pid-lock (and preamble
-                        (niwa-session-durability--pid-lock-operation
-                         session-dir)))
          (clock (and preamble
                      (niwa-session-durability--clock-operation lease)))
          (results (unless root-observation
                     (niwa-session-control-fs-run-program
-                     (append (and pid-lock (list pid-lock))
-                             (list (list :op 'directory-p :path root
-                                         :optional t))
-                             (and clock (list clock))))))
-         (result (or root-observation (nth (if pid-lock 1 0) results))))
-    (when (and pid-lock (not root-observation))
-      (niwa-session-durability--settle-pid-lock session-dir (car results)))
+                     (cons (list :op 'directory-p :path root :optional t)
+                           (and clock (list clock))))))
+         (result (or root-observation (car results))))
     (when (and clock (not root-observation))
       (niwa-session-durability--settle-clock lease (car (last results))))
     (pcase (plist-get result :status)

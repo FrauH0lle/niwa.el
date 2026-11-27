@@ -90,20 +90,19 @@ run while it is pending."
   :doc "snapshots the transaction cells and riders bound at launch"
   (let (context)
     (let ((niwa-session-durability--transaction-clock (list 'clock))
-          (niwa-session-durability--asserted-directories (list 'asserted))
           (niwa-session-recovery--mutation-cache (list 'recovery))
           (niwa-session-durability--commit-riders (list :before nil)))
       (setq context (niwa-session-durability-capture-context)))
     (should-not niwa-session-durability--transaction-clock)
     (should-not niwa-session-durability--commit-riders)
-    (should (equal '((clock) (asserted) (recovery) (:before nil) nil nil)
+    (should (equal '((clock) (recovery) (:before nil) nil nil)
                    context)))
   :doc "captures the process owner function in effect at launch"
   (let ((owner (lambda (_process) nil))
         context)
     (let ((niwa-session-durability-async-process-function owner))
       (setq context (niwa-session-durability-capture-context)))
-    (should (eq owner (nth 4 context)))))
+    (should (eq owner (nth 3 context)))))
 
 (niwa-deftest niwa-session-durability-call-in-context ()
   ,test
@@ -111,19 +110,17 @@ run while it is pending."
   :doc "rebinds the transaction cells and riders after the launch binding ends"
   (let (context)
     (let ((niwa-session-durability--transaction-clock (list 'clock))
-          (niwa-session-durability--asserted-directories (list 'asserted))
           (niwa-session-recovery--mutation-cache (list 'recovery))
           (niwa-session-durability--commit-riders (list :before nil)))
       (setq context (niwa-session-durability-capture-context)))
     (should-not niwa-session-durability--transaction-clock)
     (should-not niwa-session-durability--commit-riders)
     (should
-     (equal '((clock) (asserted) (recovery) (:before nil))
+     (equal '((clock) (recovery) (:before nil))
             (niwa-session-durability-call-in-context
              context
              (lambda ()
                (list niwa-session-durability--transaction-clock
-                     niwa-session-durability--asserted-directories
                      niwa-session-recovery--mutation-cache
                      niwa-session-durability--commit-riders)))))
     (should-not niwa-session-durability--transaction-clock))
@@ -131,7 +128,7 @@ run while it is pending."
   (let ((owner (lambda (_process) nil)))
     (should (eq owner
                 (niwa-session-durability-call-in-context
-                 (list nil nil nil nil owner)
+                 (list nil nil nil owner)
                  (lambda ()
                    niwa-session-durability-async-process-function))))
     (should-not niwa-session-durability-async-process-function)))
@@ -143,16 +140,15 @@ run while it is pending."
   (let (fresh captured outer)
     (niwa-session-durability-with-transaction
       (setq outer (list niwa-session-durability--transaction-clock
-                        niwa-session-durability--asserted-directories
                         niwa-session-recovery--mutation-cache)
             captured (niwa-session-durability-capture-context)
             fresh (niwa-session-durability-fresh-context #'ignore)))
     ;; Discriminating control: the captured composition shares every cell.
-    (dotimes (index 3)
+    (dotimes (index 2)
       (should (eq (nth index outer) (nth index captured)))
       (should (consp (nth index fresh)))
       (should-not (eq (nth index outer) (nth index fresh)))))
-  :doc "shares one real target clock reading and its proofs across phases only"
+  :doc "shares one real target clock reading and recovery cell across phases only"
   (let* ((directory (make-temp-file "niwa-fresh-context-" t))
          (read (symbol-function 'niwa-session-control-fs-target-time))
          (first (niwa-session-durability-fresh-context #'ignore))
@@ -163,7 +159,6 @@ run while it is pending."
                    context
                    (lambda ()
                      (list (niwa-session-durability--target-time directory)
-                           (car niwa-session-durability--asserted-directories)
                            niwa-session-recovery--mutation-cache))))))
     (unwind-protect
         (cl-letf (((symbol-function 'niwa-session-control-fs-target-time)
@@ -171,26 +166,20 @@ run while it is pending."
           (let ((one (funcall phase first)))
             (should (numberp (car one)))
             (should (= 1 reads))
-            (niwa-session-durability-call-in-context
-             first
-             (lambda () (niwa-session-durability-note-no-pid-lock directory)))
-            ;; A later phase of the same job reuses the reading and proof.
             (let ((two (funcall phase first)))
               (should (= 1 reads))
               (should (equal (car one) (car two)))
-              (should (cadr two))
-              (should (eq (nth 2 one) (nth 2 two))))
-            ;; Another job's context reads and proves for itself.
+              (should (eq (cadr one) (cadr two))))
+            ;; Another job's context reads for itself.
             (let ((other (funcall phase second)))
               (should (= 2 reads))
-              (should-not (cadr other))
-              (should-not (eq (nth 2 one) (nth 2 other))))))
+              (should-not (eq (cadr one) (cadr other))))))
       (delete-directory directory t)))
   :doc "carries no riders or validity predicate, inheriting the remaining flags"
   (let* ((owner (lambda (_process) nil))
          (context (niwa-session-durability-fresh-context owner)))
-    (should-not (nth 3 context))
-    (should-not (nth 5 context))
+    (should-not (nth 2 context))
+    (should-not (nth 4 context))
     (should
      (equal (list nil nil owner 42 t t)
             (let ((niwa-session-durability--commit-riders (list :before nil))
@@ -213,16 +202,14 @@ run while it is pending."
   (test)
   :doc "calls with every transaction cell of the caller cleared, then restores them"
   (let ((niwa-session-durability--transaction-clock '(sentinel))
-        (niwa-session-durability--asserted-directories '(sentinel))
         (niwa-session-durability--commit-riders '(sentinel))
         (niwa-session-durability--final-commit 'sentinel)
         (niwa-session-durability-async-process-function 'sentinel)
         (niwa-session-recovery--mutation-cache '(sentinel)))
-    (should (equal '(nil nil nil nil nil nil)
+    (should (equal '(nil nil nil nil nil)
                    (niwa-session-durability-call-outside-transaction
                     (lambda ()
                       (list niwa-session-durability--transaction-clock
-                            niwa-session-durability--asserted-directories
                             niwa-session-durability--commit-riders
                             niwa-session-durability--final-commit
                             niwa-session-durability-async-process-function
@@ -717,21 +704,20 @@ run while it is pending."
 (niwa-deftest niwa-session-durability-admit-async ()
   ,test
   (test)
-  :doc "admits a warm owned session from one program"
+  :doc "admits a warm owned session from one program without probing the legacy lock"
   (test-niwa-durability-async--with-lease (root session)
     (let ((programs 0)
+          (legacy (file-name-concat (niwa-session-control-fs-physical-path root) ".lock"))
           (run (symbol-function 'niwa-session-control-fs-run-program-async)))
       (cl-letf (((symbol-function 'niwa-session-control-fs-run-program-async)
                  (lambda (operations callback &optional scope)
+                   (should-not (cl-find legacy operations :test #'equal
+                                        :key (lambda (op) (plist-get op :path))))
                    (cl-incf programs)
                    (funcall run operations callback scope))))
-        (niwa-session-durability-with-transaction
-          (should (equal '(t nil)
-                         (test-niwa-durability-async--call
-                          #'niwa-session-durability-admit-async session)))
-          ;; The program's PID-lock proof is recorded for the transaction.
-          (should (member (niwa-session-control-fs-physical-path root)
-                          (car niwa-session-durability--asserted-directories)))))
+        (should (equal '(t nil)
+                       (test-niwa-durability-async--call
+                        #'niwa-session-durability-admit-async session))))
       (should (= 1 programs))))
   :doc "admits from one observed program without binding missing lease bytes"
   (test-niwa-durability-async--with-lease (root session)
@@ -788,14 +774,6 @@ run while it is pending."
       (should (equal '(nil (user-error "Portable session has a pending recovery marker"))
                      (test-niwa-durability-async--call
                       #'niwa-session-durability-admit-async session)))))
-  :doc "reports a PID lock as an error"
-  (test-niwa-durability-async--with-lease (root session)
-    (progn
-      (with-temp-file (file-name-concat root ".lock") (insert "1"))
-      (let ((result (test-niwa-durability-async--call
-                     #'niwa-session-durability-admit-async session)))
-        (should-not (car result))
-        (should (cadr result)))))
   :doc "declines while the session is quiescing or released for control transfer"
   (test-niwa-durability-async--with-lease (root session)
     (dolist (without-bytes '(nil t))

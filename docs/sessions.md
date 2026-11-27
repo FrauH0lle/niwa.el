@@ -1248,9 +1248,8 @@ publication thereby takes three programs instead of six.
 Enumerating a workspace's sessions obeys the same budget. Every candidate
 directory's control artifacts are probed in one program and every lease
 directory is listed in one more, and both observations are then shared with
-the reads they feed: legacy-control absence proofs are recorded in the durable
-transaction, so repeated refusal checks cost nothing, and each listing is
-handed to the publication read in place of its own listing round trip.
+the reads they feed: discovery rejects legacy controls from the batch, and
+each listing replaces the publication read's own listing round trip.
 Lease records, manifests, and sidecars are then read in batches rather than
 separate programs for each session. Over TRAMP, each read stage uses one
 program even when its request needs the input-file or direct-pipe carrier.
@@ -1877,8 +1876,8 @@ outcome. Emacs exit also cleans up jobs whose delivery never ran and retries
 failed staged-file deletions. A hard process kill cannot run exit cleanup.
 
 Admission is one program carrying the clock, the lease listing and the bound
-generation's record, the transfer-request listing, and the legacy-control
-refusal and recovery-root probes. It admits only the warm case: an owned, newest
+generation's record, the transfer-request listing, and the recovery-root
+probe. It admits only the warm case: an owned, newest
 generation whose target record proves this client's live ownership, no recovery
 marker, no live transfer request naming this client, and no quiescing or released
 state. Remembered lease bytes must match when present; absent remembered bytes

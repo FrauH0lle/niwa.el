@@ -333,7 +333,6 @@ a missing directory chain, and the sidecar commit marker carrying CHECKPOINT."
           (push (list ok err) acknowledgements)
           (setq inherited-cells
                 (list niwa-session-durability--transaction-clock
-                      niwa-session-durability--asserted-directories
                       niwa-session-recovery--mutation-cache
                       niwa-session-durability--commit-riders
                       niwa-session-durability--final-commit
@@ -343,7 +342,7 @@ a missing directory chain, and the sidecar commit marker carrying CHECKPOINT."
                                :content "ACK staged transcript")))))
        (test-niwa-publication-async--wait (lambda () acknowledgements))
        (should (equal '((t nil)) acknowledgements))
-       (should (equal '(nil nil nil nil nil nil) inherited-cells))
+       (should (equal '(nil nil nil nil nil) inherited-cells))
        (should (niwa-session-publication-uncommitted-artifact session logical))
        (niwa-session-artifacts-save session buffer nil t)
        (should-not (niwa-session-publication-uncommitted-artifact session logical))
@@ -1685,19 +1684,17 @@ QUEUED adds a second completion while the first job is unresolved."
         (lambda ()
           (setq inherited
                 (list niwa-session-durability--transaction-clock
-                      niwa-session-durability--asserted-directories
                       niwa-session-durability--commit-riders
                       niwa-session-durability--final-commit
                       niwa-session-durability-async-process-function
                       niwa-session-recovery--mutation-cache))))
        (let ((niwa-session-durability--transaction-clock '(sentinel))
-             (niwa-session-durability--asserted-directories '(sentinel))
              (niwa-session-durability--commit-riders '(sentinel))
              (niwa-session-durability--final-commit 'sentinel)
              (niwa-session-durability-async-process-function #'ignore)
              (niwa-session-recovery--mutation-cache '(sentinel)))
          (test-niwa-publication-async--wait (lambda () inherited)))
-       (should (equal '(nil nil nil nil nil nil) inherited))))))
+       (should (equal '(nil nil nil nil nil) inherited))))))
 
 (niwa-deftest niwa-agent-control--cancel-notifications/async (:quiet t)
   ,test

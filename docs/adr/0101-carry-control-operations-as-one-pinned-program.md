@@ -435,7 +435,9 @@ protocol, extraction directory, or generic resolver cache is needed.
   independently: 491 processes for 66 directories, taking 2.4 local seconds.
   Batched probes/listings and reuse within the caller's durable transaction reduced
   that listing to 87 processes and 0.82 seconds. A PID-lock memo and passed-down
-  observed listing share evidence only in its owning observation.
+  observed listing shared evidence only in its owning observation. The
+  [2026-11-27 authority amendment](0100-portable-project-session-authority.md#2026-11-27-refuse-legacy-stores-at-entry-not-on-every-lease-operation)
+  retired the PID-lock memo and the admission and recovery probes above.
 - **Local stderr files caused remote copies.** A remote-turn profile attributed
   about one twelfth of time to that path and about twice as much to request files.
   Target-collected diagnostics with a distinct trailing frame and argument delivery

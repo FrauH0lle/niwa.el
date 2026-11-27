@@ -75,8 +75,6 @@
 (autoload 'niwa-session-codec-write "niwa-session-codec")
 
 ;; `niwa-session-durability'
-(declare-function niwa-session-durability--assert-no-pid-lock
-                  "niwa-session-durability" (session-dir))
 (declare-function niwa-session-durability--create-plist
                   "niwa-session-durability" (path plist))
 (declare-function niwa-session-durability--lease-head
@@ -105,7 +103,6 @@
                   "niwa-session-durability" (session &optional token))
 (declare-function niwa-session-durability-publication-head
                   "niwa-session-durability" (session-dir &optional names))
-(defvar niwa-session-durability--asserted-directories)
 (defvar niwa-session-durability--final-commit)
 (defvar niwa-session-durability--transaction-clock)
 
@@ -1843,12 +1840,10 @@ LISTINGS must be observations from this discovery, never a retained cache."
     (dolist (directory directories)
       (let ((row (list :directory directory)))
         (condition-case err
-            (progn
-              (niwa-session-durability--assert-no-pid-lock directory)
-              (plist-put row :paths
-                         (niwa-session-durability--generation-paths
-                          (niwa-session-durability--lease-path directory)
-                          (cdr (assoc directory listings)))))
+            (plist-put row :paths
+                      (niwa-session-durability--generation-paths
+                       (niwa-session-durability--lease-path directory)
+                       (cdr (assoc directory listings))))
           (error (plist-put row :error err)))
         (push row rows)))
     (setq rows (nreverse rows)
@@ -1931,7 +1926,6 @@ Manifest structure and control paths are validated uncached.  Only the
 sidecar bytes are verified eagerly; consumers verify other artifact hashes
 when they read those artifacts."
   (let* ((remote-file-name-inhibit-cache t)
-         (_ (niwa-session-durability--assert-no-pid-lock session-dir))
          (publication
           (niwa-session-publication--read-publication-raw
            session-dir head names))
@@ -2458,15 +2452,11 @@ as the reservation that opens a publication does."
         (niwa-session-publication--proved (list proved))
         (niwa-session-publication--ensured-directories (list nil))
         ;; One drain is one transaction: the per-artifact lease renewals
-        ;; inside it share the clock reading and the pid-lock assertions,
+        ;; inside it share the clock reading,
         ;; which is what lets a renewal assume instead of re-observing.
         ;; Read tolerantly: the durability module loads lazily.
         (niwa-session-durability--transaction-clock
          (or (bound-and-true-p niwa-session-durability--transaction-clock)
-             (list nil)))
-        (niwa-session-durability--asserted-directories
-         (or (bound-and-true-p
-              niwa-session-durability--asserted-directories)
              (list nil)))
         current
         committed

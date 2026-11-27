@@ -229,32 +229,17 @@ an error rather than an implicit PID-lock fallback."
   (unless (and (stringp session-dir)
                (file-name-absolute-p session-dir))
     (error "Session path is unavailable: %S" session-dir))
-  (let* ((lease (file-name-concat session-dir ".lease"))
-         ;; A decided profile needs no inference probes, and every control
-         ;; probe is one target process.
-         (decided (or explicit-mode
-                      (and session
-                           (niwa-session-authority-mode-for-session
-                            session))))
-         (mode
-          (or decided
-              (progn
-                (niwa-session-durability--assert-no-pid-lock session-dir)
-                (if (niwa-session-control-fs-path-exists-p lease)
-                    'portable
-                  (let ((sidecar
-                         (file-name-concat session-dir "session.meta.eld")))
-                    (unless (niwa-session-control-fs-path-exists-p sidecar)
-                      (error "Session authority profile is unavailable: %s"
-                             session-dir))
-                    (let ((plist (niwa-session-codec-read sidecar)))
-                      (niwa-session-codec-validate-authority-mode
-                       (plist-get plist :authority-mode)))))))))
-    ;; Preserve the transaction's batched proof of legacy `.lock' absence.
-    (when decided
-      (niwa-session-codec-validate-authority-mode mode)
-      (niwa-session-durability--assert-no-pid-lock session-dir))
-    mode))
+  (niwa-session-durability--assert-no-pid-lock session-dir)
+  (niwa-session-codec-validate-authority-mode
+   (or explicit-mode
+       (and session (niwa-session-authority-mode-for-session session))
+       (and (niwa-session-control-fs-path-exists-p
+             (file-name-concat session-dir ".lease"))
+            'portable)
+       (let ((sidecar (file-name-concat session-dir "session.meta.eld")))
+         (unless (niwa-session-control-fs-path-exists-p sidecar)
+           (error "Session authority profile is unavailable: %s" session-dir))
+         (plist-get (niwa-session-codec-read sidecar) :authority-mode)))))
 
 
 ;;

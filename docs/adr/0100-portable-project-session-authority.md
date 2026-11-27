@@ -128,6 +128,15 @@ accepts one current format without automatic migration or a dual reader. The
 [standalone migration command](../sessions.md#explicit-session-migration)
 has no upgrade steps and does not convert PID-lock sessions.
 
+### 2026-11-27: Refuse legacy stores at entry, not on every lease operation
+
+All participating machines now run the lease protocol. Discovery, opening,
+acquisition and cleanup still refuse legacy `.lock` evidence without changing
+it. Once a lease is held, saves, polls and publication reads rely on the lease
+and its generation fences; they neither probe `.lock` nor cache its absence.
+Starting a PID-lock writer against an open store is unsupported. The standalone
+migration script does not convert PID-lock stores.
+
 ## Decision history
 
 The same 2026-11-14 change removed the runtime PID-lock implementation after
