@@ -1145,7 +1145,61 @@ Return the words the hook scripts logged to ROOT's log file."
         (delete-directory user-dir t)
         (niwa-workspace-clear-registry)))))
 
-(niwa-deftest niwa-hooks--untrusted-project-script
+(niwa-deftest niwa-hooks-run-event/project-script-punctuated-name
+  (:doc "checks a quoted script whose real name ends in punctuation")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-script-punct" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-script-punct-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (unwind-protect
+        (progn
+          ;; The shell runs `x.sh;' and `x.sh)'; `x.sh' is only their
+          ;; stripped look-alike.
+          (niwa-hooks-test--write-script root "x.sh;" "p1")
+          (niwa-hooks-test--write-script root "x.sh)" "r1")
+          (niwa-hooks-test--write-script root "x.sh" "q1")
+          ;; A single-quoted name ending in a literal double quote.
+          (niwa-hooks-test--write-script root "y.sh\"" "s1")
+          (niwa-hooks-test--write-script root "y.sh" "t1")
+          (niwa-hooks-test--write-command-config
+           root "sh '.niwa/hooks/x.sh;'" "sh \".niwa/hooks/x.sh)\""
+           "sh '.niwa/hooks/y.sh\"'")
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project workspace))
+          (should (equal '("xp1" "xr1" "ys1") (niwa-hooks-test--run-logged
+                                               root session workspace)))
+          ;; A word that is one quoted string names only itself, whatever
+          ;; punctuation it holds: the look-alike may change freely.
+          (niwa-hooks-test--write-script root "x.sh" "q2")
+          (niwa-hooks-test--write-script root "y.sh" "t2")
+          (niwa-test--with-captured-diagnostics nil
+            (should (equal '("xp1" "xr1" "ys1") (niwa-hooks-test--run-logged
+                                                 root session workspace))))
+          (niwa-hooks-test--write-script root "y.sh\"" "s2")
+          (let (diagnostics)
+            (niwa-test--with-captured-diagnostics diagnostics
+              (should (equal '("xp1" "xr1") (niwa-hooks-test--run-logged
+                                             root session workspace))))
+            (should (string-match-p "y\\.sh\" is not trusted" diagnostics)))
+          (niwa-hooks-test--write-script root "x.sh;" "p2")
+          (let (diagnostics)
+            (niwa-test--with-captured-diagnostics diagnostics
+              (should (equal '("xr1") (niwa-hooks-test--run-logged
+                                       root session workspace))))
+            (should (string-match-p "x\\.sh; is not trusted" diagnostics))))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-hooks--unapproved-script
   (:doc "binds project skill hook scripts to the hashes trusted with the manifest")
   (let* ((niwa-skills-include-bundled nil)
          (root (file-name-as-directory
@@ -1182,14 +1236,14 @@ Return the words the hook scripts logged to ROOT's log file."
             (niwa-hooks-trust-project workspace))
           (let ((handler (handler)))
             (should (eq 'project-file (plist-get handler :source)))
-            (should-not (niwa-hooks--untrusted-project-script
+            (should-not (niwa-hooks--unapproved-script
                          handler event-plist))
             (niwa-hooks-test--write-script root "s.sh" "2")
             (should (equal (cons script "changed since trust")
-                           (niwa-hooks--untrusted-project-script
+                           (niwa-hooks--unapproved-script
                             handler event-plist)))
             ;; User-file provenance is outside project trust.
-            (should-not (niwa-hooks--untrusted-project-script
+            (should-not (niwa-hooks--unapproved-script
                          (plist-put (copy-sequence handler) :source 'user-file)
                          event-plist))))
       (clrhash niwa-hooks--config-rules-cache)
@@ -1596,6 +1650,127 @@ Return the words the hook scripts logged to ROOT's log file."
             (should-not (plugin-commands)))
         (delete-directory root t)
         (delete-directory user-dir t)))))
+
+(niwa-deftest niwa-hooks-run-event/plugin-script-consent
+  (:doc "runs a plugin hook script only while its consented content is unchanged")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-plugin-script-ws" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-plugin-script-user" t)))
+         (plugin-root (file-name-as-directory
+                       (file-name-concat user-dir ".agents" "plugins" "repo")))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory
+          (file-name-concat user-dir ".agents" "plugins"))
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil)
+         (prompts 0))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (cl-labels ((write-script (name version)
+                  ;; Scripts log to the hook's cwd, the workspace root.
+                  (let ((file (file-name-concat plugin-root "hooks" name)))
+                    (with-temp-file file
+                      (insert (format "#!/bin/sh\ncat >/dev/null\necho %s%s >> log\n"
+                                      (file-name-base name) version)))
+                    (set-file-modes file #o755)))
+                (consent ()
+                  (cl-letf (((symbol-function 'yes-or-no-p)
+                             (lambda (_prompt) (cl-incf prompts) t)))
+                    (niwa-plugins-enable-hooks "demo" workspace))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-concat plugin-root "hooks") t)
+            (write-script "a.sh" "1")
+            (write-script "b.sh" "1")
+            ;; Root variables in three spellings, and a script absent at
+            ;; consent time.
+            (with-temp-file (file-name-concat plugin-root "hooks" "hooks.json")
+              (insert
+               (json-encode
+                `((hooks
+                   (PreToolUse
+                    . [((matcher . "Bash")
+                        (hooks
+                         . [((type . "command")
+                             (command . "sh ${CLAUDE_PLUGIN_ROOT}/hooks/a.sh"))
+                            ((type . "command")
+                             (command . "sh \"$PLUGIN_ROOT/hooks/b.sh\""))
+                            ((type . "command")
+                             (command . "sh $NIWA_PLUGIN_ROOT/hooks/c.sh"))]))]))))))
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-root "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (should (niwa-plugins-enable "demo" workspace)))
+            (should (equal '("a1" "b1")
+                           (niwa-hooks-test--run-logged root session workspace)))
+            ;; A changed or new script is refused by the memoized rules ...
+            (write-script "a.sh" "2")
+            (write-script "c.sh" "1")
+            (let (diagnostics)
+              (niwa-test--with-captured-diagnostics diagnostics
+                (should (equal '("b1") (niwa-hooks-test--run-logged
+                                        root session workspace))))
+              (should (string-match-p "a\\.sh is not consented" diagnostics))
+              (should (string-match-p "c\\.sh is not consented" diagnostics))
+              (should (string-match-p "/plugin hooks demo on" diagnostics)))
+            ;; ... and after a fresh load.
+            (niwa-test--with-captured-diagnostics nil
+              (niwa-hooks-reload)
+              (should (equal '("b1") (niwa-hooks-test--run-logged
+                                      root session workspace))))
+            ;; The handler list is unchanged, yet re-consent asks once.
+            (should (consent))
+            (should (= 1 prompts))
+            (should (equal '("a2" "b1" "c1")
+                           (niwa-hooks-test--run-logged root session workspace)))
+            (should (consent))
+            (should (= 1 prompts))
+            ;; Consent keeps the hashes it showed: a change while the
+            ;; prompt is open stays unconsented ...
+            (write-script "a.sh" "3")
+            (cl-letf (((symbol-function 'yes-or-no-p)
+                       (lambda (_prompt) (write-script "a.sh" "4") t)))
+              (should (niwa-plugins-enable-hooks "demo" workspace)))
+            (niwa-test--with-captured-diagnostics nil
+              (should (equal '("b1" "c1") (niwa-hooks-test--run-logged
+                                           root session workspace))))
+            ;; ... and so does one between an unprompted check and its write.
+            (write-script "a.sh" "3")
+            (require 'niwa-plugin-registry)
+            (let ((write (symbol-function 'niwa-plugins--write-state-entry)))
+              (cl-letf (((symbol-function 'niwa-plugins--write-state-entry)
+                         (lambda (&rest args)
+                           (write-script "a.sh" "5")
+                           (apply write args))))
+                (should (consent))))
+            (should (= 1 prompts))
+            (niwa-test--with-captured-diagnostics nil
+              (should (equal '("b1" "c1") (niwa-hooks-test--run-logged
+                                           root session workspace)))))
+        (clrhash niwa-hooks--config-rules-cache)
+        (delete-directory root t)
+        (delete-directory user-dir t)
+        (niwa-workspace-clear-registry)))))
+
+(niwa-deftest niwa-hooks-plugin-script-hashes
+  (:doc "finds plugin scripts named through the root variable or a JS path")
+  (let ((root (file-name-as-directory
+               (file-truename (make-temp-file "niwa-hooks-plugin-words" t)))))
+    (unwind-protect
+        (progn
+          (make-directory (file-name-concat root "hooks"))
+          (with-temp-file (file-name-concat root "hooks" "x.js")
+            (insert "1"))
+          (dolist (command
+                   '("node \"${CLAUDE_PLUGIN_ROOT}/hooks/x.js\""
+                     ;; The shape of a real plugin's command.
+                     "node -e \"require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT.split(String.fromCharCode(92)).join('/'), 'hooks/x.js'))\""))
+            (should (equal (list (file-name-concat root "hooks" "x.js"))
+                           (mapcar #'car (niwa-hooks-plugin-script-hashes
+                                          command root))))))
+      (delete-directory root t))))
 
 (niwa-deftest niwa-hooks-effective-rules/plugin-hook-manifest-shapes
   (:doc "loads default and explicit string plugin hook files")

@@ -22,6 +22,8 @@
 
 ;; `niwa-hooks'
 (declare-function niwa-hooks-invalidate-config "niwa-hooks" ())
+(declare-function niwa-hooks-rules-script-hashes "niwa-hooks"
+                  (rules root &optional plugin))
 (declare-function niwa-hooks-read-config-file
                   "niwa-hooks" (file &optional content))
 
@@ -641,6 +643,12 @@ Relative identities are requalified through the live WORKSPACE root."
   (niwa-plugins--hook-rules-from-hooks
    (niwa-plugin-hooks plugin)))
 
+(defun niwa-plugins--hook-script-hashes (plugin)
+  "Return the (FILE . DIGEST) scripts PLUGIN's hook commands name."
+  (when (require 'niwa-hooks nil t)
+    (niwa-hooks-rules-script-hashes
+     (niwa-plugins--hook-rules plugin) (niwa-plugin-root plugin) t)))
+
 (defun niwa-plugins-hook-rule-events (plugin)
   "Return event names declared by PLUGIN hooks."
   (sort
@@ -699,15 +707,31 @@ Relative identities are requalified through the live WORKSPACE root."
      "\n")))
 
 (defun niwa-plugins--ensure-hook-consent (plugin &optional workspace)
-  "Return non-nil when PLUGIN hooks may be enabled in WORKSPACE."
+  "Return PLUGIN's approved hook snapshot in WORKSPACE, or nil if refused.
+Ask again when the handlers or the content of a script they name
+changed since the consent recorded in WORKSPACE.  The snapshot, a plist
+of `:fingerprint' and `:scripts', is what was compared or shown, so a
+change after that stays unconsented."
   (let* ((fingerprint (niwa-plugins--hook-fingerprint plugin workspace))
          (state (niwa-plugins--state-plist
-                 (niwa-plugin-name plugin) workspace)))
-    (or (not fingerprint)
-        (equal fingerprint (plist-get state :hooks-fingerprint))
-        (yes-or-no-p
-         (concat (niwa-plugins-hook-consent-summary plugin workspace)
-                 " ")))))
+                 (niwa-plugin-name plugin) workspace))
+         (scripts (and fingerprint
+                       (niwa-plugins--hook-script-hashes plugin)))
+         (unconsented (and fingerprint
+                           (cl-set-difference
+                            scripts
+                            (plist-get state :hooks-scripts)
+                            :test #'equal))))
+    (and (or (not fingerprint)
+             (and (equal fingerprint (plist-get state :hooks-fingerprint))
+                  (not unconsented))
+             (yes-or-no-p
+              (concat (niwa-plugins-hook-consent-summary plugin workspace)
+                      (when unconsented
+                        (format "\nNew or changed scripts: %s"
+                                (mapconcat #'car unconsented ", ")))
+                      " ")))
+         (list :fingerprint fingerprint :scripts scripts))))
 
 (defun niwa-plugins--ensure-source-switch-consent
     (plugin &optional workspace)
@@ -725,32 +749,30 @@ Relative identities are requalified through the live WORKSPACE root."
                  (niwa-plugin-root plugin))))))
 
 (defun niwa-plugins--write-enabled-state
-    (plugin hooks-enabled &optional workspace)
-  "Persist PLUGIN as enabled, with HOOKS-ENABLED in WORKSPACE."
-  (let ((fingerprint (niwa-plugins--hook-fingerprint plugin workspace)))
+    (plugin consent &optional workspace)
+  "Persist PLUGIN as enabled in WORKSPACE, with hooks per CONSENT.
+CONSENT is the snapshot `niwa-plugins--ensure-hook-consent' approved;
+hooks are enabled when it has a fingerprint, recording exactly its
+fingerprint and script hashes."
+  (let ((fingerprint (plist-get consent :fingerprint)))
     (niwa-plugins--write-state-entry
      (niwa-plugin-name plugin)
      (list :enabled t
-           :hooks-enabled (and hooks-enabled fingerprint t)
+           :hooks-enabled (and fingerprint t)
            :source-root (niwa-plugins-source-root
                          (niwa-plugin-root plugin)
                          workspace)
-           :hooks-fingerprint (and hooks-enabled fingerprint))
+           :hooks-fingerprint fingerprint
+           :hooks-scripts (and fingerprint (plist-get consent :scripts)))
      workspace)))
 
 (defun niwa-plugins-enable (plugin-name &optional workspace)
   "Persist PLUGIN-NAME as enabled in WORKSPACE."
-  (when-let* ((plugin (niwa-plugins-find plugin-name workspace)))
-    (if (and (niwa-plugins--ensure-source-switch-consent
-              plugin workspace)
-             (niwa-plugins--ensure-hook-consent plugin workspace))
-        (progn
-          (niwa-plugins--write-enabled-state
-           plugin
-           (niwa-plugin-hooks plugin)
-           workspace)
-          t)
-      nil)))
+  (when-let* ((plugin (niwa-plugins-find plugin-name workspace))
+              ((niwa-plugins--ensure-source-switch-consent plugin workspace))
+              (consent (niwa-plugins--ensure-hook-consent plugin workspace)))
+    (niwa-plugins--write-enabled-state plugin consent workspace)
+    t))
 
 (defun niwa-plugins-disable (plugin-name &optional workspace)
   "Persist PLUGIN-NAME as disabled in WORKSPACE."
@@ -769,12 +791,11 @@ Relative identities are requalified through the live WORKSPACE root."
 (defun niwa-plugins-enable-hooks (plugin-name &optional workspace)
   "Persist hooks as enabled for PLUGIN-NAME in WORKSPACE."
   (when-let* ((plugin (niwa-plugins-find plugin-name workspace)))
-    (and (niwa-plugin-hooks plugin)
-         (niwa-plugins-enabled-p plugin workspace)
-         (niwa-plugins--ensure-hook-consent plugin workspace)
-         (progn
-           (niwa-plugins--write-enabled-state plugin t workspace)
-           t))))
+    (when-let* (((niwa-plugin-hooks plugin))
+                ((niwa-plugins-enabled-p plugin workspace))
+                (consent (niwa-plugins--ensure-hook-consent plugin workspace)))
+      (niwa-plugins--write-enabled-state plugin consent workspace)
+      t)))
 
 (defun niwa-plugins-disable-hooks (plugin-name &optional workspace)
   "Persist hooks as disabled for PLUGIN-NAME in WORKSPACE."

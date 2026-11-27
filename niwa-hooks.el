@@ -59,6 +59,8 @@
                   (&optional workspace))
 (declare-function niwa-plugins-plugin-data-dir "niwa-plugin-registry"
                   (plugin-name &optional workspace))
+(declare-function niwa-plugins-state-entry "niwa-plugin-registry"
+                  (plugin &optional workspace))
 
 ;; `niwa-reminders'
 (declare-function niwa-reminders-queue-turn-event
@@ -711,11 +713,16 @@ An absolute WORD starts at the root of ROOT's filesystem, remote or not."
                            (setq seen-link t)))))))))
 
 (defun niwa-hooks--command-script-hashes (command root &optional trusted)
-  "Return (FILE . DIGEST) for each project script COMMAND names under ROOT.
-A word of COMMAND, without surrounding quotes, names a script when it
+  "Return (FILE . DIGEST) for each script COMMAND names under ROOT.
+A word of COMMAND without surrounding quotes names a script when it
 contains a slash, lies lexically inside ROOT, and resolves to a regular
 file, or when its FILE is in TRUSTED, an alist of trusted (FILE . DIGEST)
-pairs.  FILE is the absolute path the command names, in ROOT's
+pairs.  Unless the word is entirely one quoted string, which the shell
+passes as written whatever it holds, the word also stripped of
+parentheses, commas, and semicolons, as in embedded code such as
+`require(\\='x/y.js\\')', is an extra candidate under the same rule; the
+literal word always stays one.
+FILE is the absolute path the command names, in ROOT's
 filesystem; commands run from ROOT.  DIGEST is the SHA256 of the readable
 regular file FILE physically resolves to inside ROOT, otherwise a symbol:
 `ambiguous' for a `..' after a symlink, `outside' for a file outside
@@ -728,29 +735,64 @@ retargeted to something that is no regular file."
          (physical-root (file-name-as-directory (file-truename root)))
          scripts)
     (when (stringp command)
-      (dolist (word (split-string command) (nreverse scripts))
-        (let* ((word (string-trim word "[\"']+" "[\"']+"))
-               ;; An absolute word names a file on ROOT's filesystem.
-               (lexical (expand-file-name
-                         (if (string-prefix-p "/" word)
-                             (concat (file-remote-p root) word)
-                           word)
-                         root)))
-          (when (and (string-search "/" word)
-                     (string-prefix-p root lexical))
-            (if (niwa-hooks--dotdot-after-symlink-p word root)
-                (push (cons lexical 'ambiguous) scripts)
-              (let* ((file (file-truename lexical))
-                     (regular (file-regular-p file)))
-                (when (and (or regular (assoc lexical trusted))
-                           (not (assoc lexical scripts)))
-                  (push (cons lexical
-                              (cond
-                               ((not (string-prefix-p physical-root file))
-                                'outside)
-                               ((and regular (niwa-hooks--file-sha256 file)))
-                               (t 'unavailable)))
-                        scripts))))))))))
+      (dolist (raw (split-string command) (nreverse scripts))
+        ;; A quoted literal keeps its punctuation in the shell.
+        (dolist (word (if (string-match-p
+                           "\\`\\(?:'[^']*'\\|\"[^\"]*\"\\)\\'" raw)
+                          (list (substring raw 1 -1))
+                        (delete-dups
+                         (list (string-trim raw "[\"']+" "[\"']+")
+                               (string-trim raw "[\"'(]+" "[\"'),;]+")))))
+          (let ((lexical (expand-file-name
+                          ;; An absolute word names a file on ROOT's filesystem.
+                          (if (string-prefix-p "/" word)
+                              (concat (file-remote-p root) word)
+                            word)
+                          root)))
+            (when (and (string-search "/" word)
+                       (string-prefix-p root lexical)
+                       (not (assoc lexical scripts)))
+              (if (niwa-hooks--dotdot-after-symlink-p word root)
+                  (push (cons lexical 'ambiguous) scripts)
+                (let* ((file (file-truename lexical))
+                       (regular (file-regular-p file)))
+                  (when (or regular (assoc lexical trusted))
+                    (push (cons lexical
+                                (cond
+                                 ((not (string-prefix-p physical-root file))
+                                  'outside)
+                                 ((and regular (niwa-hooks--file-sha256 file)))
+                                 (t 'unavailable)))
+                          scripts)))))))))))
+
+(defun niwa-hooks-plugin-script-hashes (command root &optional trusted)
+  "Return `niwa-hooks--command-script-hashes' for plugin COMMAND at ROOT.
+The plugin root variables in COMMAND name ROOT, and relative words are
+read against ROOT, where a plugin keeps its scripts.  TRUSTED is as for
+`niwa-hooks--command-script-hashes'."
+  (niwa-hooks--command-script-hashes
+   (and (stringp command)
+        (replace-regexp-in-string
+         "\\${?\\(?:CLAUDE_\\|NIWA_\\)?PLUGIN_ROOT}?"
+         (directory-file-name (file-local-name (expand-file-name root)))
+         command t t))
+   root trusted))
+
+(defun niwa-hooks-rules-script-hashes (rules root &optional plugin)
+  "Return the readable (FILE . DIGEST) scripts RULES' commands name.
+ROOT is the workspace root, or the plugin root when PLUGIN is non-nil.
+This is what trust or consent records for the commands."
+  (let (scripts)
+    (dolist (entry rules scripts)
+      (dolist (group (cdr-safe entry))
+        (dolist (handler (plist-get group :hooks))
+          (dolist (script (funcall (if plugin
+                                       #'niwa-hooks-plugin-script-hashes
+                                     #'niwa-hooks--command-script-hashes)
+                                   (plist-get handler :command) root))
+            ;; Refused references stay unrecorded, so launch refuses them.
+            (when (stringp (cdr script))
+              (cl-pushnew script scripts :test #'equal))))))))
 
 (defun niwa-hooks--snapshot-script-hashes (workspace snapshot)
   "Return script hashes for the commands in WORKSPACE's project SNAPSHOT."
@@ -762,51 +804,55 @@ retargeted to something that is no regular file."
                                  file content workspace)
                                 :hooks))
                   (niwa-hooks-read-config-file
-                   file content (niwa-diagnostic-scope workspace))))
-         scripts)
-    (dolist (entry rules scripts)
-      (dolist (group (cdr entry))
-        (dolist (handler (plist-get group :hooks))
-          (dolist (script (niwa-hooks--command-script-hashes
-                           (plist-get handler :command)
-                           (niwa-workspace-root workspace)))
-            ;; Refused references stay unrecorded, so launch refuses them.
-            (when (stringp (cdr script))
-              (cl-pushnew script scripts :test #'equal))))))))
+                   file content (niwa-diagnostic-scope workspace)))))
+    (niwa-hooks-rules-script-hashes rules (niwa-workspace-root workspace))))
 
-(defun niwa-hooks--untrusted-project-script (handler event-plist)
-  "Return (FILE . REASON) when project HANDLER's command may not run.
-Its scripts must match those of the trust record that admitted the
-handler's config, named by its `:trust-key'.  EVENT-PLIST supplies the
-workspace root the command runs from.  A failed check is a refusal."
-  (when (and niwa-hooks-require-project-trust
-             (eq (plist-get handler :source) 'project-file))
-    (condition-case err
-        (let* ((key (plist-get handler :trust-key))
-               (trusted (and (consp key)
-                             (plist-get
-                              (niwa-hooks--trust-entry
-                               (plist-get key :workspace-id)
-                               (plist-get key :path)
-                               (plist-get key :hash))
-                              :scripts)))
-               (script (cl-find-if-not
-                        (lambda (script) (member script trusted))
-                        (niwa-hooks--command-script-hashes
-                         (plist-get handler :command)
-                         (or (plist-get event-plist :workspace-root)
-                             (plist-get event-plist :cwd)
-                             default-directory)
-                         trusted))))
-          (when script
-            (cons (car script)
-                  (pcase (cdr script)
-                    ('ambiguous "`..' after a symlink")
-                    ('outside "outside the workspace")
-                    ('unavailable "not a readable file")
-                    (_ "changed since trust")))))
-      (error (cons (plist-get handler :command)
-                   (error-message-string err))))))
+(defun niwa-hooks--unapproved-script (handler event-plist)
+  "Return (FILE . REASON) when HANDLER's command may not run.
+Its scripts must match those its approval recorded: for a project
+handler, the trust record that admitted its config, named by its
+`:trust-key'; for a plugin handler, its plugin's hook consent, carried
+as `:consented-scripts'.  EVENT-PLIST supplies the workspace root a
+project command runs from.  A failed check is a refusal."
+  (let ((plugin (eq (plist-get handler :source) 'plugin)))
+    (when (or plugin
+              (and niwa-hooks-require-project-trust
+                   (eq (plist-get handler :source) 'project-file)))
+      (condition-case err
+          (let* ((key (plist-get handler :trust-key))
+                 (trusted
+                  (cond
+                   (plugin (plist-get handler :consented-scripts))
+                   ((consp key)
+                    (plist-get (niwa-hooks--trust-entry
+                                (plist-get key :workspace-id)
+                                (plist-get key :path)
+                                (plist-get key :hash))
+                               :scripts))))
+                 (script (cl-find-if-not
+                          (lambda (script) (member script trusted))
+                          (if plugin
+                              (niwa-hooks-plugin-script-hashes
+                               (plist-get handler :command)
+                               (plist-get handler :plugin-root)
+                               trusted)
+                            (niwa-hooks--command-script-hashes
+                             (plist-get handler :command)
+                             (or (plist-get event-plist :workspace-root)
+                                 (plist-get event-plist :cwd)
+                                 default-directory)
+                             trusted)))))
+            (when script
+              (cons (car script)
+                    (pcase (cdr script)
+                      ('ambiguous "`..' after a symlink")
+                      ('outside (if plugin "outside the plugin"
+                                  "outside the workspace"))
+                      ('unavailable "not a readable file")
+                      (_ (if plugin "changed since consent"
+                           "changed since trust"))))))
+        (error (cons (plist-get handler :command)
+                     (error-message-string err)))))))
 
 (defun niwa-hooks--project-config-candidates (workspace)
   "Return existing project hook files for WORKSPACE in load order."
@@ -888,13 +934,17 @@ the trust record whose script hashes bind project commands."
 
 (defun niwa-hooks--annotate-plugin-rules (rules plugin &optional workspace)
   "Return RULES with every handler annotated for PLUGIN execution.
-Plugin runtime data is scoped to WORKSPACE when provided."
+Plugin runtime data and the scripts PLUGIN's hook consent recorded are
+scoped to WORKSPACE when provided."
   (niwa-hooks--annotate-handlers
    rules (list :source 'plugin
                :plugin-name (niwa-plugin-name plugin)
                :plugin-root (niwa-plugin-root plugin)
                :plugin-data (niwa-plugins-plugin-data-dir
-                             (niwa-plugin-name plugin) workspace))))
+                             (niwa-plugin-name plugin) workspace)
+               :consented-scripts (plist-get (niwa-plugins-state-entry
+                                              plugin workspace)
+                                             :hooks-scripts))))
 
 (defun niwa-hooks--plugin-manifest-rules (plugin &optional workspace)
   "Return normalized manifest rules for PLUGIN in WORKSPACE."
@@ -2413,16 +2463,26 @@ stable public event payload."
               (niwa-hooks--run-elisp-handler
                event handler event-plist session)))
             ('command
-             (if-let* ((refusal (niwa-hooks--untrusted-project-script
+             (if-let* ((refusal (niwa-hooks--unapproved-script
                                  handler event-plist)))
                  ;; Ignored like an untrusted config, also when the
                  ;; memoized rules predate the script change.
                  (progn
-                   (niwa--warn-once
-                    (niwa-diagnostic-scope session)
-                    (list 'hooks-script-untrusted refusal)
-                    "Project hook script %s is not trusted (%s); ignoring"
-                    (car refusal) (cdr refusal))
+                   (if-let* ((plugin (and (eq (plist-get handler :source)
+                                              'plugin)
+                                          (plist-get handler :plugin-name))))
+                       (niwa--warn-once
+                        (niwa-diagnostic-scope session)
+                        (list 'hooks-script-untrusted refusal)
+                        "Plugin %s hook script %s is not consented (%s); \
+ignoring until /plugin hooks %s on"
+                        plugin (car refusal) (cdr refusal) plugin)
+                     (niwa--warn-once
+                      (niwa-diagnostic-scope session)
+                      (list 'hooks-script-untrusted refusal)
+                      "Project hook script %s is not trusted (%s); \
+ignoring until M-x niwa-hooks-trust-project"
+                      (car refusal) (cdr refusal)))
                    (advance nil))
                (condition-case err
                    (niwa-hooks--run-command-handler

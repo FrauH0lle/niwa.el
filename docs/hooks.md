@@ -577,7 +577,12 @@ is trusted. By default:
   optionally quoted, that contains `/`, lies inside the workspace root, and
   resolves to a regular file or to a script the record names: both
   `.niwa/hooks/block-rm.sh` and `python3 .niwa/hooks/policy.py check` name
-  their script. An absolute word names a file on the workspace's own
+  their script. A word that is entirely one quoted string names only itself,
+  whatever punctuation it holds, as the shell passes it unchanged. Any other
+  word, such as a path inside embedded code
+  (`require('hooks/x.js')`), is also checked stripped of parentheses,
+  commas, and semicolons. An
+  absolute word names a file on the workspace's own
   filesystem, also when the workspace is remote. niwa checks the physical
   file the shell would run, and keeps checking a trusted path by the name the
   command uses, so retargeting its symlink cannot drop it from the check. Before
@@ -601,6 +606,17 @@ is trusted. By default:
 - interpreters and other files outside the workspace are not covered, nor are
   paths built from variables, `cd` sequences, or files a script loads
   itself; keep such code in a named script or trust it separately.
+- plugin hook consent covers scripts the same way, inside the plugin root
+  rather than the workspace. A plugin-root variable (`$PLUGIN_ROOT`,
+  `${CLAUDE_PLUGIN_ROOT}`, `$NIWA_PLUGIN_ROOT`) names that root, and a
+  relative word is read against it, so both
+  `sh "$NIWA_PLUGIN_ROOT/scripts/check.sh"` and a `node -e` command joining
+  `'hooks/x.js'` to the root name their script. Consent records each named
+  script's hash beside the hook fingerprint. A script that changed, appeared,
+  or fails the path checks above skips only its handler, with a warning that
+  names `/plugin hooks NAME on`; that command asks once more, listing the new
+  or changed scripts, and records the hashes it compared or showed. A script
+  changed after that stays unconsented.
 - resolution reads each project config once, checks that snapshot's hash, and
   parses the same bytes; replacing the pathname after the check cannot
   substitute executable rules.

@@ -9,6 +9,12 @@ Consent identifies each executable handler by its source, event, matcher,
 type, and command or function. Changing matcher scope therefore invalidates
 the prior consent even when the handler itself is unchanged.
 
+Consent also records the hash of each script the handlers' commands name, as
+project hook trust does. A changed script does not withhold the whole plugin:
+its handler alone is skipped with a warning until `/plugin hooks NAME on` asks
+again. The command line alone does not show what runs, so approving it would
+approve whatever a later pull puts in its script.
+
 Interactive session startup or resume actively notifies the user when any
 enabled plugin has pending hook consent. Because withheld hooks can make an
 enabled plugin behave incorrectly, niwa reports this as a warning/message

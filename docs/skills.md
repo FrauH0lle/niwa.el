@@ -140,6 +140,10 @@ Activation survives updates when the plugin name and source root stay the
 same. Executable hook consent is tied to a fingerprint of the hook surface;
 when an update changes hook files, events, matchers, commands, or functions,
 skills remain enabled but hooks require consent again before running.
+Consent also records the hash of each script the hook commands name (see
+[Trust and permissions](hooks.md#trust-and-permissions)). A script whose
+content changed skips only its own handler, with a warning naming
+`/plugin hooks NAME on`, until consent is given again.
 Plugin runtime data stays workspace-scoped and keyed by plugin name, so
 switching an activation between roots with the same manifest name reuses
 the same `<workspace>/.niwa/state/plugin-data/<plugin-name>` directory.
@@ -391,7 +395,8 @@ Plugin management:
 - `/plugin hooks NAME off` disables executable plugin hooks while leaving
   plugin skills enabled. `/plugin hooks NAME on` re-enables hooks for an
   already-enabled plugin; it shows the same consent summary when the
-  hooks changed since they were last approved. The
+  hooks or a script they name changed since they were last approved,
+  listing the new or changed scripts. The
   `/plugin hooks enable NAME` and `/plugin hooks disable NAME` forms are
   accepted aliases. These are advanced/scriptable overrides; `/plugin
   enable NAME` is the normal activation path.
