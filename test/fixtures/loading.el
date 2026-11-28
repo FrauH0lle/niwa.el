@@ -165,7 +165,7 @@ temporary one."
              (should-not (featurep 'niwa-notes))
              (let ((source (find-file-noselect "source.el")))
                (with-current-buffer source (niwa-note-create "Cold note"))
-               (should (file-exists-p ".niwa/instructions.eld"))
+               (should (file-exists-p ".niwa/state/instructions.eld"))
                (kill-buffer source))
              (with-current-buffer (find-file-noselect "source.el")
                (should (seq-some (lambda (ov)

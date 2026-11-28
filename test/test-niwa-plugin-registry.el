@@ -343,7 +343,7 @@
             '(("demo" :enabled t)) workspace)
            :type 'user-error)
           (should-not
-           (file-exists-p (file-name-concat root ".niwa" "plugins.eld"))))
+           (file-exists-p (file-name-concat root ".niwa" "state" "plugins.eld"))))
       (delete-directory root t)))
 
   :doc "remote plugin state discloses, leases, and publishes on the target"
