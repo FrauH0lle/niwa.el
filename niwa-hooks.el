@@ -743,7 +743,7 @@ An absolute WORD starts at the root of ROOT's filesystem, remote or not."
                          (when (file-symlink-p dir)
                            (setq seen-link t)))))))))
 
-(defun niwa-hooks--command-script-hashes (command root &optional trusted)
+(defun niwa-hooks--command-script-hashes (command root &optional trusted record)
   "Return (FILE . DIGEST) for each script COMMAND names under ROOT.
 A word of COMMAND without surrounding quotes names a script when it
 contains a slash, lies lexically inside ROOT, and resolves to a regular
@@ -762,7 +762,10 @@ regular file FILE physically resolves to inside ROOT, otherwise a symbol:
 `ambiguous' for a `..' after a symlink, `outside' for a file outside
 ROOT, and `unavailable' for an unreadable, missing, or non-regular file.
 A symlinked word that resolves to no regular file stays checked as
-`unavailable', so retargeting it fails closed."
+`unavailable', so retargeting it fails closed.  With RECORD, a script
+named through a different spelling is also listed under that spelling,
+so an approved reference whose link later vanishes is still recognized
+as `unavailable'; checks without RECORD compare physical files only."
   ;; shortcut: words only, no shell parsing; `$VAR/x', `cd x && ./y' and
   ;; files a script sources are not references.  Upgrade if hooks need them.
   (let* ((root (file-name-as-directory (expand-file-name root)))
@@ -794,6 +797,8 @@ A symlinked word that resolves to no regular file stays checked as
                        (digest (and regular inside (niwa-hooks--file-sha256 file))))
                   (when (or regular (assoc lexical trusted) (assoc file trusted)
                             (file-symlink-p lexical))
+                    (when (and record digest (not (equal file lexical)))
+                      (push (cons lexical digest) scripts))
                     (push (cons (if digest file lexical)
                                 (cond
                                  ((not inside) 'outside)
@@ -801,18 +806,18 @@ A symlinked word that resolves to no regular file stays checked as
                                  (t 'unavailable)))
                           scripts)))))))))))
 
-(defun niwa-hooks-plugin-script-hashes (command root &optional trusted)
+(defun niwa-hooks-plugin-script-hashes (command root &optional trusted record)
   "Return `niwa-hooks--command-script-hashes' for plugin COMMAND at ROOT.
 The plugin root variables in COMMAND name ROOT, and relative words are
-read against ROOT, where a plugin keeps its scripts.  TRUSTED is as for
-`niwa-hooks--command-script-hashes'."
+read against ROOT, where a plugin keeps its scripts.  TRUSTED and RECORD
+are as for `niwa-hooks--command-script-hashes'."
   (niwa-hooks--command-script-hashes
    (and (stringp command)
         (replace-regexp-in-string
          "\\${?\\(?:CLAUDE_\\|NIWA_\\)?PLUGIN_ROOT}?"
          (directory-file-name (file-local-name (expand-file-name root)))
          command t t))
-   root trusted))
+   root trusted record))
 
 (defun niwa-hooks-rules-script-hashes (rules root &optional plugin)
   "Return the readable (FILE . DIGEST) scripts RULES' commands name.
@@ -825,7 +830,7 @@ This is what trust or consent records for the commands."
           (dolist (script (funcall (if plugin
                                        #'niwa-hooks-plugin-script-hashes
                                      #'niwa-hooks--command-script-hashes)
-                                   (plist-get handler :command) root))
+                                   (plist-get handler :command) root nil t))
             ;; Refused references stay unrecorded, so launch refuses them.
             (when (stringp (cdr script))
               (cl-pushnew script scripts :test #'equal))))))))

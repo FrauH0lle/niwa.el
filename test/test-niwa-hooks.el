@@ -2227,6 +2227,50 @@ Return the words the hook scripts logged to ROOT's log file."
         (niwa-hooks-invalidate-config)
         (delete-directory root t)))))
 
+(niwa-deftest niwa-hooks-run-event/plugin-script-vanished-link
+  (:doc "an approved script link that vanishes refuses its handler")
+  (let* ((top (file-name-as-directory (make-temp-file "niwa-hooks-plugin-vanish" t)))
+         (root (file-name-concat top "ws/"))
+         (alias (file-name-concat top "alias/"))
+         (hooks (file-name-concat root ".niwa" "plugins" "repo" "hooks/"))
+         (niwa-user-dir (file-name-concat top "user/"))
+         (niwa-plugin-install-directory (file-name-concat top "user" ".agents" "plugins"))
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (cl-flet ((runs (dir)
+                (niwa-hooks-invalidate-config)
+                (let ((workspace (niwa-hooks-test--workspace dir)))
+                  (niwa-hooks-test--run-logged
+                   dir (niwa-session-create "s" workspace dir) workspace))))
+      (unwind-protect
+          (progn
+            (make-directory hooks t)
+            (with-temp-file (file-name-concat hooks "real.sh")
+              (insert "#!/bin/sh\ncat >/dev/null\necho a1 >> log\n"))
+            (set-file-modes (file-name-concat hooks "real.sh") #o755)
+            (make-symbolic-link "real.sh" (file-name-concat hooks "a.sh"))
+            (with-temp-file (file-name-concat hooks "hooks.json")
+              (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":"
+                      "[{\"type\":\"command\",\"command\":\"sh ${CLAUDE_PLUGIN_ROOT}/hooks/a.sh\"}]}]}}"))
+            (niwa-hooks-test--write-plugin-manifest
+             (file-name-directory (directory-file-name hooks))
+             "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (make-symbolic-link (directory-file-name root) (directory-file-name alias))
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (should (niwa-plugins-enable "demo" (niwa-hooks-test--workspace root))))
+            ;; The unchanged script runs through either spelling.
+            (should (equal '("a1") (runs root)))
+            (should (equal '("a1") (runs alias)))
+            ;; The approved link itself is gone: the handler is refused.
+            (delete-file (file-name-concat hooks "a.sh"))
+            (let (diagnostics)
+              (niwa-test--with-captured-diagnostics diagnostics
+                (should-not (runs root)))
+              (should (string-match-p "a\\.sh is not consented" diagnostics))))
+        (niwa-hooks-invalidate-config)
+        (delete-directory top t)))))
+
 (niwa-deftest niwa-hooks-run-event/plugin-script-consent
   (:doc "runs a plugin hook script only while its consented content is unchanged")
   (let* ((root (file-name-as-directory
