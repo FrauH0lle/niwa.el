@@ -58,16 +58,14 @@
 (declare-function niwa-session-artifacts-call-fenced
                   "niwa-session-artifacts" (session function))
 (autoload 'niwa-session-artifacts-call-fenced "niwa-session-artifacts")
+(declare-function niwa-session-artifacts-fenced-results
+                  "niwa-session-artifacts" (proof results))
+(autoload 'niwa-session-artifacts-fenced-results "niwa-session-artifacts")
 
 ;; `niwa-session-control-fs'
 (declare-function niwa-session-control-fs-make-directory
                   "niwa-session-control-fs" (path &optional parents))
-(declare-function niwa-session-control-fs-write-file
-                  "niwa-session-control-fs"
-                  (path content &optional coding-system))
 (autoload 'niwa-session-control-fs-make-directory
-  "niwa-session-control-fs")
-(autoload 'niwa-session-control-fs-write-file
   "niwa-session-control-fs")
 
 ;; `niwa-transport'
@@ -616,28 +614,31 @@ the bytes written, or nil when FILE changed and nothing was written."
            (buffer-string))))
     (when
      (let ((write
-            (lambda ()
+            (lambda (&optional proof)
               (niwa-session-control-fs-make-directory
                (directory-file-name (file-name-directory file)) t)
-              (pcase expected
-                ('nil (niwa-session-control-fs-write-file file content 'utf-8-unix))
-                ('missing (niwa-session-control-fs-create-file file content 'utf-8-unix))
-                (_
-                 ;; One target program stops at a failed proof, and the state
-                 ;; directory's lock serializes every niwa writer of this file,
-                 ;; whichever session or workspace it serves, across proof and
-                 ;; write.  An editor outside niwa takes no lock and can still race.
-                 (let ((results (niwa-session-control-fs-run-program
-                                 (list (niwa-permission--store-precondition file expected)
-                                       (list :op 'write :path file :content content
-                                             :coding 'utf-8-unix))
-                                 (niwa-session-control-fs-physical-path
-                                  (directory-file-name (file-name-directory file))))))
-                   (pcase (plist-get (car results) :status)
-                     ((or 'mismatch 'absent) nil)
-                     (_ (niwa-session-control-fs-program-value (car results))
-                        (niwa-session-control-fs-program-value (cadr results))
-                        t))))))))
+              ;; One target program stops at a failed proof, and the state
+              ;; directory's lock serializes every niwa writer of this file,
+              ;; whichever session or workspace it serves, across the lease
+              ;; PROOF, the expected bytes or absence, and the write.  An
+              ;; editor outside niwa takes no lock and can still race.
+              (let* ((results
+                      (niwa-session-artifacts-fenced-results
+                       proof
+                       (niwa-session-control-fs-run-program
+                        (append proof
+                                (and expected
+                                     (list (niwa-permission--store-precondition
+                                            file expected)))
+                                (list (list :op 'write :path file :content content
+                                            :coding 'utf-8-unix)))
+                        (niwa-session-control-fs-physical-path
+                         (directory-file-name (file-name-directory file))))))
+                     (check (and expected (car results))))
+                (if (memq (plist-get check :status) '(mismatch absent))
+                    nil
+                  (mapc #'niwa-session-control-fs-program-value results)
+                  t)))))
       (if (file-remote-p file)
         (let* ((data-buf (niwa-permission-mode-data-buffer))
                (session (and data-buf

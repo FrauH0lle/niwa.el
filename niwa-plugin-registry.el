@@ -47,6 +47,9 @@
 (declare-function niwa-session-artifacts-call-fenced
                   "niwa-session-artifacts" (session function))
 (autoload 'niwa-session-artifacts-call-fenced "niwa-session-artifacts")
+(declare-function niwa-session-artifacts-fenced-results
+                  "niwa-session-artifacts" (proof results))
+(autoload 'niwa-session-artifacts-fenced-results "niwa-session-artifacts")
 
 ;; `niwa-utilities'
 (declare-function niwa--write-file-atomically
@@ -751,20 +754,23 @@ The write proves the bytes read are unchanged in one program under the
                                    (memq (plist-get result :status)
                                          '(mismatch absent conflict)))
                                  (seq-take (cdr results) (length files)))))))
-    (cl-flet ((write ()
+    (cl-flet ((write (&optional proof)
                 ;; The lock opens `.niwa/', so the state directory must exist.
                 (niwa-session-control-fs-make-directory
                  (directory-file-name (file-name-directory local)) t)
                 ;; Each file is a whole record, read as nil when truncated, so
-                ;; the program's rename-into-place write matters.
-                (let ((results (niwa-session-control-fs-run-program
-                                (append program
-                                        (mapcar (lambda (write)
-                                                  (list :op 'write :path (car write)
-                                                        :content (cdr write)
-                                                        :coding 'utf-8-unix))
-                                                writes))
-                                (niwa-plugins--lock-directory workspace))))
+                ;; the program's rename-into-place write matters.  A remote
+                ;; session's lease PROOF leads it, checked under the lock.
+                (let ((results (niwa-session-artifacts-fenced-results
+                                proof
+                                (niwa-session-control-fs-run-program
+                                 (append proof program
+                                         (mapcar (lambda (write)
+                                                   (list :op 'write :path (car write)
+                                                         :content (cdr write)
+                                                         :coding 'utf-8-unix))
+                                                 writes))
+                                 (niwa-plugins--lock-directory workspace)))))
                   (when (funcall proved results)
                     (mapc #'niwa-session-control-fs-program-value
                           (nthcdr (1+ (length files)) results))

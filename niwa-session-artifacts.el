@@ -114,9 +114,11 @@
 
 ;; `niwa-session-control-fs'
 (declare-function niwa-session-control-fs-physical-path "niwa-session-control-fs" (path))
+(declare-function niwa-session-control-fs-program-value "niwa-session-control-fs" (result))
 (declare-function niwa-session-control-fs-read-file "niwa-session-control-fs" (path &optional coding-system max-bytes))
 (declare-function niwa-session-control-fs-write-file "niwa-session-control-fs" (path content &optional coding-system))
 (autoload 'niwa-session-control-fs-physical-path "niwa-session-control-fs")
+(autoload 'niwa-session-control-fs-program-value "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-read-file "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-write-file "niwa-session-control-fs")
 
@@ -133,6 +135,10 @@
 (declare-function niwa-session-durability-lease-owned-p "niwa-session-durability" (session))
 (declare-function niwa-session-durability-call-with-reserved-lease
                   "niwa-session-durability" (session function &optional token))
+(declare-function niwa-session-durability--lease-path
+                  "niwa-session-durability" (session-dir))
+(declare-function niwa-session-durability-record-generation-path
+                  "niwa-session-durability" (directory generation))
 (defvar niwa-session-durability--transaction-clock)
 (autoload 'niwa-session-durability-disclose "niwa-session-durability")
 (autoload 'niwa-session-durability-call-with-reserved-lease
@@ -1541,13 +1547,38 @@ Writes enter the session publication queue.  Return the publication outcome."
 (defun niwa-session-artifacts-call-fenced (session function)
   "Call FUNCTION as SESSION's fenced target mutation and return its value.
 The fence is `niwa-session-artifacts-publish-text''s: disclosure, admission
-and SESSION's lease.  FUNCTION writes through its own control program, so a
-file other sessions share can prove its bytes under that file's own lock;
-the publication queue has neither a precondition nor such a lock."
+and SESSION's lease.  FUNCTION receives the lease proof, a list of control
+operations to run first in its own locked program, and checks their results
+with `niwa-session-artifacts-fenced-results'.  So ownership is proven at the
+write itself, after any wait for the destination's lock; the reservation
+alone is checked only before and after."
   (niwa-session-artifacts--barrier session nil)
   (niwa-session-durability-with-transaction
     (niwa-session-artifacts-assert-mutation-authority session)
-    (niwa-session-durability-call-with-reserved-lease session function)))
+    (niwa-session-durability-call-with-reserved-lease
+     session (lambda () (funcall function (niwa-session-artifacts--lease-proof session))))))
+
+(defun niwa-session-artifacts--lease-proof (session)
+  "Return the operations proving SESSION still holds its lease generation.
+The same `verify-latest' proof precedes publication's fixed writes."
+  (let ((generation (plist-get (niwa-session-lease session) :generation))
+        (session-dir (niwa-session-save-path session)))
+    (unless (and (natnump generation) session-dir)
+      (user-error "Portable session lease has no generation to prove"))
+    (list (list :op 'verify-latest
+                :path (niwa-session-durability-record-generation-path
+                       (niwa-session-durability--lease-path session-dir)
+                       generation)
+                :content ".eld"))))
+
+(defun niwa-session-artifacts-fenced-results (proof results)
+  "Check the RESULTS of a program led by lease PROOF; return the rest.
+Signal when a newer lease generation exists, so a lost lease never retries."
+  (dolist (result (seq-take results (length proof)))
+    (if (eq 'mismatch (plist-get result :status))
+        (user-error "Portable session lease was lost before the write")
+      (niwa-session-control-fs-program-value result)))
+  (nthcdr (length proof) results))
 
 (defun niwa-session-artifacts--sidecar-publication-artifact
     (session root-buffer &optional checkpoint)

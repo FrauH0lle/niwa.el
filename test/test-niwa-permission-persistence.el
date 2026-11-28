@@ -1102,5 +1102,64 @@ which A then published the older rules over B's revocation."
            (format "/niwamock:perm-race:%s" local))
         (delete-directory local t)))))
 
+(niwa-deftest niwa-permission-persistence-write-store/lease-lost-while-locked
+  (:doc "refuses a remote write whose lease was taken over while it waited on the lock")
+  (niwa-test--with-local-shell-tramp '("perm-lease")
+    (skip-unless (executable-find "flock"))
+    (let* ((local (file-name-as-directory (make-temp-file "niwa-perm-lease-" t)))
+           (root (format "/niwamock:perm-lease:%s" local))
+           (workspace (niwa-workspace--create :type 'project :id root :root root))
+           (session (niwa-session--create
+                     :workspace workspace :lease (list :generation 1)
+                     :save-path (file-name-concat root ".niwa/sessions/s")))
+           (lease (niwa-session-durability--lease-path (niwa-session-save-path session)))
+           (file (niwa-permission-persistence-file workspace 'workspace))
+           (held (file-name-concat local "held"))
+           process)
+      (unwind-protect
+          (with-temp-buffer
+            (setq-local niwa--session session)
+            ;; Only the reservation is stubbed; the lease proof is the real one.
+            (cl-letf (((symbol-function 'niwa-permission-mode-data-buffer)
+                       (let ((buffer (current-buffer))) (lambda () buffer)))
+                      ((symbol-function 'niwa-session-artifacts-call-fenced)
+                       (lambda (session function)
+                         (funcall function
+                                  (niwa-session-artifacts--lease-proof session)))))
+              (make-directory lease t)
+              (write-region "" nil (niwa-session-durability-record-generation-path lease 1)
+                            nil 'silent)
+              (niwa-permission-persistence-write-store
+               file '(:rules (("Bash" :pattern "make a" :action allow))
+                      :resource-grants nil))
+              (let* ((before (with-temp-buffer
+                               (insert-file-contents-literally file)
+                               (buffer-string)))
+                     (hash (secure-hash 'sha256 before)))
+                ;; Another client takes the lease over while holding the lock
+                ;; this write needs.
+                (setq process
+                      (make-process
+                       :name "niwa-lease-takeover" :noquery t
+                       :command
+                       (list "flock" (file-local-name (file-name-directory file))
+                             "sh" "-c" "touch \"$1\"; sleep 1; touch \"$2\""
+                             "sh" held
+                             (file-local-name
+                              (niwa-session-durability-record-generation-path
+                               lease 2)))))
+                (with-timeout (10 (ert-fail "Takeover never held the lock"))
+                  (while (not (file-exists-p held))
+                    (accept-process-output nil 0.02)))
+                (should-error
+                 (niwa-permission-persistence-write-store
+                  file '(:rules nil :resource-grants nil) nil nil hash)
+                 :type 'user-error)
+                (should (equal before (with-temp-buffer
+                                        (insert-file-contents-literally file)
+                                        (buffer-string)))))))
+        (when (process-live-p process) (delete-process process))
+        (delete-directory local t)))))
+
 (provide 'test-niwa-permission-persistence)
 ;;; test-niwa-permission-persistence.el ends here

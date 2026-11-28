@@ -528,6 +528,9 @@ orders that session's own writers, and the remote account's global store is
 shared by every workspace on the account. So the target-side lock and proof,
 not the lease, are what exclude other niwa writers. Plugin state writes work
 the same way.
+The same locked program first proves the session still holds its lease
+generation, so a takeover while the write waited on the lock refuses the
+write. Creating an absent store goes through this program too.
 
 The permissions cockpit lists only authority in effect, so open the file to
 review what trust would add. A store with only deny and ask rules needs no
