@@ -30,6 +30,8 @@
 ;; `niwa-view'
 (declare-function niwa-view-rerender "niwa-view" (&optional buffer))
 
+(autoload 'niwa-session-persistence-autosave-soon "niwa-session-persistence")
+
 (defconst niwa-acp-turn--lost-reply-limit 8
   "Lost MCP replies one turn records for diagnosis.")
 
@@ -296,7 +298,9 @@ for it; duplicate or late continuations cannot start a cancelled turn."
                (when-let* ((view niwa--view-buffer) ((buffer-live-p view)))
                  (niwa-view-rerender view))
                ;; Views, rooms and live agent transcripts follow stream edits here.
-               (run-hooks 'gptel-post-stream-hook))))
+               (run-hooks 'gptel-post-stream-hook))
+             ;; A checkpoint may already hold the abandoned text; replace it.
+             (niwa-session-persistence-autosave-soon buffer)))
          (enqueue (operation &optional terminal reject)
            (if (or finished (and (not terminal) (cancelled)))
                (when reject (funcall reject))

@@ -930,16 +930,35 @@ BODY delivers the receipt and a Read call through `connection', `content' and
       (should (string-match-p "had already acted, so it was not retried"
                               (format "%s" (plist-get (niwa-engine-info request) :error))))))
 
-  :doc "a re-sent prompt retracts its abandoned attempt from the transcript, rooms and native identity"
+  :doc "a re-sent prompt retracts its abandoned attempt from the transcript, checkpoint, guests and native identity"
   (niwa-engine-test--with-session
     ;; Longer than the retry's 1.5 s of silence, so only the first attempt stalls.
     (let* ((niwa-provider-stall-timeout 2.0)
+           (guests (make-hash-table :test #'eql))
            (room (list :session session :data-buffer buffer
-                       :guests (make-hash-table :test #'eql) :transport 'transport))
+                       :guests guests :transport 'transport))
            (niwa-collaboration--rooms (niwa-test-room-registry room))
-           (projection (lambda () (format "%S" (plist-get room :records)))))
+           ;; What guest 1 holds, rebuilt from the frames it is sent.
+           (guest (make-hash-table :test #'equal))
+           (guest-text (lambda ()
+                         (let (parts)
+                           (maphash (lambda (_id record) (push (format "%S" record) parts)) guest)
+                           (apply #'concat parts))))
+           (disk (lambda ()
+                   (or (ignore-errors
+                         (niwa-session-artifacts-read-artifact session "segment-0001.chat.org" t))
+                       ""))))
+      (puthash 1 (list :ready t) guests)
       (add-hook 'gptel-post-stream-hook #'niwa-collaboration--safe-post-response nil t)
-      (cl-letf (((symbol-function 'niwa-collaboration--transport-send) (lambda (&rest _) t))
+      (cl-letf (((symbol-function 'niwa-collaboration--transport-send)
+                 (lambda (_transport peer frame)
+                   ;; Peer 0 is the broadcast every guest receives.
+                   (when (memql peer '(0 1))
+                     (pcase (plist-get frame :t)
+                       ("record" (let ((record (plist-get frame :record)))
+                                   (puthash (cdr (assoc "id" record)) record guest)))
+                       ("remove" (seq-doseq (id (plist-get frame :ids)) (remhash id guest)))))
+                   t))
                 ((symbol-function 'niwa-collaboration--transport-control) #'ignore))
         (niwa-acp-turn-start
          request
@@ -947,14 +966,22 @@ BODY delivers the receipt and a Read call through `connection', `content' and
            (list :command (executable-find "python3")
                  :args (list niwa-test--acp-peer) :cwd root :mcp mcp))
          [((type . "text") (text . "stall-boundary"))] nil)
-        ;; The peer first sees the abandoned attempt, reasoning included.
-        (niwa-test--await 5 "Peer did not see the abandoned attempt"
-          (string-search "stalling" (funcall projection)))
-        (should (string-search "pondering" (funcall projection)))
-        ;; It loses all of it while the retry is still silent.
-        (niwa-test--await 5 "Peer kept the abandoned attempt"
-          (not (string-search "stalling" (funcall projection))))
-        (should-not (string-search "pondering" (funcall projection)))
+        ;; The guest first receives the abandoned attempt, reasoning included,
+        ;; and a real checkpoint persists it.
+        (niwa-test--await 5 "Guest did not receive the abandoned attempt"
+          (string-search "stalling" (funcall guest-text)))
+        (should (string-search "pondering" (funcall guest-text)))
+        (niwa-session-persistence-checkpoint-buffer buffer)
+        (niwa-test--await 5 "Checkpoint did not persist the abandoned attempt"
+          (string-search "stalling" (funcall disk)))
+        ;; Before the retry emits anything, the guest's frames drop all of it
+        ;; and the persisted transcript follows.
+        (niwa-test--await 5 "Guest kept the abandoned attempt"
+          (not (string-search "stalling" (funcall guest-text))))
+        (should-not (string-search "pondering" (funcall guest-text)))
+        (niwa-test--await 5 "Checkpoint kept the abandoned attempt"
+          (not (string-search "stalling" (funcall disk))))
+        (should-not (string-search "pondering" (funcall disk)))
         (should-not (string-search "recovered" (buffer-string)))
         (should (niwa-turn-busy-p buffer))
         (niwa-test--await 8 "Retried turn did not settle" (not (niwa-turn-busy-p buffer))))
