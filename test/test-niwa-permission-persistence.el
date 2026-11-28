@@ -1161,5 +1161,39 @@ which A then published the older rules over B's revocation."
         (when (process-live-p process) (delete-process process))
         (delete-directory local t)))))
 
+(niwa-deftest niwa-permission-persistence-write-store/competing-creator
+  (:doc "keeps a file an unlocked creator made just before niwa's creating write")
+  (let* ((root (file-name-as-directory (make-temp-file "niwa-perm-create-" t)))
+         (file (file-name-concat root ".niwa/permissions.eld"))
+         (theirs ";; created outside niwa\n(:rules nil :resource-grants nil)\n")
+         (run (symbol-function 'niwa-session-control-fs-run-program)))
+    (unwind-protect
+        (progn
+          (make-directory (file-name-directory file) t)
+          ;; Split niwa's program right before the operation that writes the
+          ;; file; a creator taking no lock lands exactly there.
+          (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                     (lambda (operations &rest args)
+                       (let ((at (cl-position-if
+                                  (lambda (op)
+                                    (and (memq (plist-get op :op) '(write create))
+                                         (equal file (plist-get op :path))))
+                                  operations)))
+                         (if (not at)
+                             (apply run operations args)
+                           (let ((before (and (> at 0)
+                                              (apply run (seq-take operations at) args))))
+                             (write-region theirs nil file nil 'silent)
+                             (append before
+                                     (apply run (nthcdr at operations) args))))))))
+            (should-not (niwa-permission-persistence-write-store
+                         file '(:rules (("Bash" :pattern "make a" :action allow))
+                                :resource-grants nil)
+                         nil nil 'missing)))
+          (should (equal theirs (with-temp-buffer
+                                  (insert-file-contents-literally file)
+                                  (buffer-string)))))
+      (delete-directory root t))))
+
 (provide 'test-niwa-permission-persistence)
 ;;; test-niwa-permission-persistence.el ends here

@@ -583,10 +583,8 @@ ON-ERROR receives a refresh error instead of leaving deferred work unsettled."
       t)))
 
 (defun niwa-permission--store-precondition (file expected)
-  "Return the control operation proving FILE still holds EXPECTED.
-EXPECTED is the hash of the bytes read, or `missing' for an absent FILE."
-  (list :op 'verify-hash :path file :snapshot-bytes 0
-        :content (unless (eq expected 'missing) expected)))
+  "Return the control operation proving FILE still has the EXPECTED hash."
+  (list :op 'verify-hash :path file :snapshot-bytes 0 :content expected))
 
 (defun niwa-permission-persistence-write-store
     (file store &optional target workspace-root expected)
@@ -620,22 +618,25 @@ the bytes written, or nil when FILE changed and nothing was written."
               ;; One target program stops at a failed proof, and the state
               ;; directory's lock serializes every niwa writer of this file,
               ;; whichever session or workspace it serves, across the lease
-              ;; PROOF, the expected bytes or absence, and the write.  An
-              ;; editor outside niwa takes no lock and can still race.
-              (let* ((results
+              ;; PROOF, the expected bytes, and the write.  An absent file is
+              ;; created exclusively, so even a creator outside the lock keeps
+              ;; its file; an editor outside niwa can still race a replacement.
+              (let* ((missing (eq expected 'missing))
+                     (results
                       (niwa-session-artifacts-fenced-results
                        proof
                        (niwa-session-control-fs-run-program
                         (append proof
-                                (and expected
+                                (and expected (not missing)
                                      (list (niwa-permission--store-precondition
                                             file expected)))
-                                (list (list :op 'write :path file :content content
+                                (list (list :op (if missing 'create 'write)
+                                            :path file :content content
                                             :coding 'utf-8-unix)))
                         (niwa-session-control-fs-physical-path
                          (directory-file-name (file-name-directory file))))))
                      (check (and expected (car results))))
-                (if (memq (plist-get check :status) '(mismatch absent))
+                (if (memq (plist-get check :status) '(mismatch absent conflict))
                     nil
                   (mapc #'niwa-session-control-fs-program-value results)
                   t)))))
