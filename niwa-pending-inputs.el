@@ -721,17 +721,22 @@ that arrived meanwhile, then release each removed entry's reserved context."
   (dolist (entry entries)
     (niwa-pending-inputs--assert-removable session entry))
   (when validate (funcall validate))
-  ;; Write the queues before releasing context: a failed write must not leave
-  ;; a queued entry whose reservation is already gone.
+  ;; Release exactly the entries the queue write removed, even when an observer
+  ;; it notifies afterwards signals; a write that failed keeps its reservations.
   (cl-flet ((keep (queue)
               (if (cl-some (lambda (entry) (memq entry entries)) queue)
                   (cl-remove-if (lambda (entry) (memq entry entries)) queue)
                 queue)))
-    (niwa-pending-inputs--set-queues
-     session
-     'steering (keep (niwa-session-pending-steering session))
-     'follow-up (keep (niwa-session-pending-follow-ups session))))
-  (niwa-pending-inputs--discard entries))
+    (unwind-protect
+        (niwa-pending-inputs--set-queues
+         session
+         'steering (keep (niwa-session-pending-steering session))
+         'follow-up (keep (niwa-session-pending-follow-ups session)))
+      (niwa-pending-inputs--discard
+       (cl-remove-if (lambda (entry)
+                       (memq entry (append (niwa-session-pending-steering session)
+                                           (niwa-session-pending-follow-ups session))))
+                     entries)))))
 
 ;;;###autoload
 (defun niwa-pending-inputs-drop-at-point ()

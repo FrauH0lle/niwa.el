@@ -141,7 +141,38 @@
       (cl-letf (((symbol-function 'niwa-session-artifacts-assert-new-mutation-authority)
                  (lambda (_) (user-error "Session is read-only"))))
         (should-error (niwa-pending-inputs--remove session (list entry)) :type 'user-error))
-      (should (eq entry (car (niwa-session-pending-follow-ups session)))))))
+      (should (eq entry (car (niwa-session-pending-follow-ups session))))))
+  :doc "releases a reservation only when the queue mutation happened, and then once"
+  (dolist (failure '(before-mutation notification))
+    (niwa-pending-management-test--with-session
+      (let* ((submission (niwa-prompt-submission-create
+                          :session session :state 'reserved))
+             (entry (niwa-session-enqueue-pending-input
+                     session 'steering (list :input "reserved" :submission submission)))
+             (restore (symbol-function 'niwa-prompt-submission-restore))
+             (set-inputs (symbol-function 'niwa-session-set-pending-inputs))
+             (releases 0))
+        (cl-letf (((symbol-function 'niwa-session-artifacts-assert-new-mutation-authority) #'ignore)
+                  ((symbol-function 'niwa-prompt-submission-restore)
+                   (lambda (&rest args) (cl-incf releases) (apply restore args)))
+                  ((symbol-function 'niwa-session-set-pending-inputs)
+                   (lambda (&rest args)
+                     (if (eq failure 'before-mutation)
+                         (error "Injected queue write failure")
+                       (apply set-inputs args))))
+                  ;; The steering queue's observer runs after the mutation.
+                  ((symbol-function 'niwa-recovery-save)
+                   (lambda (&rest _)
+                     (when (eq failure 'notification)
+                       (error "Injected notification failure")))))
+          (should-error (niwa-pending-inputs--remove session (list entry))))
+        (if (eq failure 'before-mutation)
+            (progn
+              (should (equal (list entry) (niwa-session-pending-steering session)))
+              (should (= 0 releases))
+              (should (eq 'reserved (niwa-prompt-submission-state submission))))
+          (should-not (niwa-session-pending-steering session))
+          (should (= 1 releases)))))))
 
 (niwa-deftest niwa-pending-inputs-drop-at-point ()
   ,test
