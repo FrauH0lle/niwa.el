@@ -71,7 +71,6 @@
 (autoload 'niwa-execution-unsettled-mutation-p "niwa-execution")
 
 ;; `niwa-execution-target'
-(autoload 'niwa-execution-target-remote-p "niwa-execution-target")
 
 ;; `niwa-hooks'
 (declare-function niwa-hooks-flush-log "niwa-hooks" (session))
@@ -263,18 +262,11 @@
 
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))
-(declare-function niwa-workspace-ensure-generated-state-ignored "niwa-workspace" (workspace))
 (declare-function niwa-workspace-get-or-create "niwa-workspace" (type id root name))
 (defvar niwa-workspace-additional-roots)
 (defvar niwa-workspace--registry)
 (autoload 'niwa-workspace "niwa-workspace")
-(autoload 'niwa-workspace-ensure-generated-state-ignored
-  "niwa-workspace")
 (autoload 'niwa-workspace-get-or-create "niwa-workspace")
-
-;; `niwa-workspace-identity'
-(declare-function niwa-workspace-identity-ensure "niwa-workspace-identity" (root))
-(autoload 'niwa-workspace-identity-ensure "niwa-workspace-identity")
 
 ;; `org'
 (defvar org-agenda-file-menu-enabled)
@@ -528,42 +520,10 @@ root snapshot and sidecar publication.
 Returns SESSION's `save-path' on success, or nil on failure.  Idempotent."
   (or (niwa-session-save-path session)
       (condition-case err
-          (let* ((_disclosure
-                  (when (niwa-execution-target-remote-p
-                         (niwa-session-execution-target session))
-                    (niwa-session-durability-disclose session)))
-                 (_workspace-identity
-                  (progn
-                    (niwa-workspace-identity-ensure
-                     (niwa-workspace-root
-                      (niwa-session-workspace session)))))
-                 (sessions-dir (niwa-session-artifacts-sessions-dir
-                                (niwa-session-workspace session)))
-                 (session-id
-                  (or (niwa-session-session-id session)
-                      (error "Session has no identity")))
-                 (save-path (file-name-as-directory
-                             (file-name-concat sessions-dir session-id)))
-                 (segment-path (niwa-session-artifacts-segment-path
-                                save-path 1))
-                 (now (format-time-string "%FT%H-%M-%S")))
-            (make-directory sessions-dir t)
-            (make-directory save-path)
-            (make-directory (file-name-concat save-path "agents") t)
-            (make-directory (file-name-concat save-path "file-history") t)
-            (niwa-session-persistence-lock-acquire
-             save-path (buffer-name buffer) session)
-            (setf (niwa-session-session-id session)      session-id)
-            (setf (niwa-session-save-path session)       save-path)
-            (setf (niwa-session-created-at session)      now)
-            (setf (niwa-session-updated-at session)      now)
-            (setf (niwa-session-current-segment session) 1)
-            (niwa-session-persistence-flush-diagnostic-logs session)
-            (niwa-workspace-ensure-generated-state-ignored
-             (niwa-session-workspace session))
+          (let ((save-path (niwa-session-artifacts-allocate session buffer)))
             (with-current-buffer buffer
               (unless buffer-file-name
-                (setq buffer-file-name segment-path))
+                (setq buffer-file-name (niwa-session-artifacts-segment-path save-path 1)))
               (niwa-session-artifacts-disown-save-machinery))
             (niwa-session-control-transfer-register-root-buffer
              session buffer)

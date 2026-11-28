@@ -1006,11 +1006,22 @@ ENTRIES is an alist of logical names and their content strings."
                (wrong-buf (generate-new-buffer "*test-wrong-buf*"))
                (data-buf (generate-new-buffer "*test-data-buf*")))
           (unwind-protect
-              (let ((path (with-current-buffer wrong-buf
-                            (org-mode)
-                            (niwa-session-persistence-shallow-ensure-files
-                             session wrong-buf))))
+              (cl-letf* ((claims 0)
+                         (acquire (symbol-function 'niwa-session-durability-lease-acquire))
+                         ((symbol-function 'niwa-session-durability-lease-acquire)
+                          (lambda (&rest args)
+                            (cl-incf claims)
+                            (apply acquire args)))
+                         (path (with-current-buffer wrong-buf
+                                 (org-mode)
+                                 (insert "Shallow caller only\n")
+                                 (niwa-session-persistence-shallow-ensure-files
+                                  session wrong-buf))))
                 (should path)
+                (should (= claims 1))
+                (should-not (file-exists-p (file-name-concat path "session.meta.eld")))
+                (should-not (niwa-session-artifacts-artifact-present-p
+                             session "session.meta.eld"))
                 (should-not
                  (file-exists-p
                   (file-name-concat path "segment-0001.chat.org")))
@@ -1025,10 +1036,11 @@ ENTRIES is an alist of logical names and their content strings."
                                   path "segment-0001.chat.org")
                                  buffer-file-name))
                   (niwa-session-artifacts-save session data-buf)
-                  (should (string-match-p
-                           "Hello after shallow materialization"
-                           (niwa-session-artifacts-read-artifact
-                            session "segment-0001.chat.org" t)))))
+                  (should (= claims 1))
+                  (let ((segment (niwa-session-artifacts-read-artifact
+                                  session "segment-0001.chat.org" t)))
+                    (should (string-match-p "Hello after shallow materialization" segment))
+                    (should-not (string-match-p "Shallow caller only" segment)))))
             (when (buffer-live-p wrong-buf) (kill-buffer wrong-buf))
             (when (buffer-live-p data-buf) (kill-buffer data-buf))))
       (delete-directory tempdir t)

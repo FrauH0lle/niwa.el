@@ -839,87 +839,66 @@ history to the receiving child's own transcript."
 ;;
 ;;; Lazy materialization
 
+(defun niwa-session-artifacts-allocate (session buffer)
+  "Allocate a new durable directory for SESSION and return its path.
+Claim the lease for BUFFER without attaching it to a segment or publishing
+a sidecar."
+  (when (niwa-execution-target-remote-p (niwa-session-execution-target session))
+    (niwa-session-durability-disclose session))
+  (let ((workspace (niwa-session-workspace session)))
+    (niwa-workspace-identity-ensure (niwa-workspace-root workspace))
+    (let* ((sessions-dir (niwa-session-artifacts-sessions-dir workspace))
+           (session-id (or (niwa-session-session-id session)
+                           (error "Session has no identity")))
+           (path (file-name-as-directory (file-name-concat sessions-dir session-id)))
+           (now (format-time-string "%FT%H-%M-%S")))
+      (make-directory sessions-dir t)
+      (make-directory path)
+      (make-directory (file-name-concat path "agents") t)
+      (make-directory (file-name-concat path "file-history") t)
+      (niwa-session-persistence-lock-acquire path (buffer-name buffer) session)
+      (setf (niwa-session-session-id session) session-id
+            (niwa-session-save-path session) path
+            (niwa-session-created-at session) now
+            (niwa-session-updated-at session) now
+            (niwa-session-current-segment session) 1)
+      (niwa-session-persistence-flush-diagnostic-logs session)
+      (niwa-workspace-ensure-generated-state-ignored workspace)
+      path)))
+
 (defun niwa-session-artifacts-ensure-files (session buffer)
-  "Lazily materialize SESSION's on-disk artifacts.
-
-If SESSION has no `save-path' yet, allocate a fresh session id,
-create the session directory tree (session dir + `agents/' +
-`file-history/'), acquire its portable lease, set
-BUFFER's variable `buffer-file-name' to the first segment file, and save the
-buffer.
-
-Does NOT write the sidecar -- the caller (always
-`niwa-session-artifacts-save') is expected to do that once it
-has updated the prompt-index and snapshot maps.  Keeping the write
-in one place avoids double-writing the sidecar on first save.
-
-Idempotent -- if SESSION already has a `save-path', repairs BUFFER's
-variable `buffer-file-name' so it visits the current segment before any save.
-Returns SESSION's `save-path' (allocated or existing)."
-  (let* ((existing-save-path (niwa-session-save-path session))
-           (save-path
-            (or existing-save-path
-                (let* ((_disclosure
-                        (when (niwa-execution-target-remote-p
-                               (niwa-session-execution-target session))
-                          (niwa-session-durability-disclose session)))
-                       (_workspace-identity
-                        (progn
-                          (niwa-workspace-identity-ensure
-                           (niwa-workspace-root
-                            (niwa-session-workspace session)))))
-                       (sessions-dir
-                        (niwa-session-artifacts-sessions-dir
-                         (niwa-session-workspace session)))
-                       (session-id
-                        (or (niwa-session-session-id session)
-                            (error "Session has no identity")))
-                       (new-save-path
-                        (file-name-as-directory
-                         (file-name-concat sessions-dir session-id)))
-                       (now (format-time-string "%FT%H-%M-%S")))
-                  (make-directory sessions-dir t)
-                  (make-directory new-save-path)
-                  (make-directory (file-name-concat new-save-path "agents") t)
-                  (make-directory (file-name-concat new-save-path "file-history") t)
-                  (niwa-session-persistence-lock-acquire
-                   new-save-path (buffer-name buffer) session)
-                  (setf (niwa-session-session-id session)      session-id)
-                  (setf (niwa-session-save-path session)       new-save-path)
-                  (setf (niwa-session-created-at session)      now)
-                  (setf (niwa-session-updated-at session)      now)
-                  (setf (niwa-session-current-segment session) 1)
-                  (niwa-session-persistence-flush-diagnostic-logs session)
-                  (niwa-workspace-ensure-generated-state-ignored
-                   (niwa-session-workspace session))
-                  (setf (niwa-session-durable-tree-ensured session) t)
-                  new-save-path)))
-           (segment-number (or (niwa-session-current-segment session) 1))
-           (segment-path (niwa-session-artifacts-segment-path
-                          save-path segment-number)))
-      ;; The tree and the workspace ignore entries are established once per
-      ;; process.  Re-establishing them on every save is several target round
-      ;; trips plus a re-parse of the ignore file for a settled answer.
-      (unless (niwa-session-durable-tree-ensured session)
-        (make-directory save-path t)
-        (make-directory (file-name-concat save-path "agents") t)
-        (make-directory (file-name-concat save-path "file-history") t)
-        (niwa-workspace-ensure-generated-state-ignored
-         (niwa-session-workspace session))
-        (setf (niwa-session-durable-tree-ensured session) t))
-      (when (and (buffer-live-p buffer)
-                 (eq buffer (niwa-session-root-buffer session)))
-        (niwa-session-control-transfer-register-root-buffer session buffer))
-      (with-current-buffer buffer
-        (unless (and buffer-file-name
-                     (equal (expand-file-name buffer-file-name)
-                            (expand-file-name segment-path)))
-          (setq buffer-file-name segment-path))
-        (niwa-session-artifacts-disown-save-machinery)
-        (unless (niwa-session-artifacts-artifact-present-p
-                 session (file-name-nondirectory segment-path))
-          (set-buffer-modified-p t)))
-      save-path))
+  "Ensure SESSION's durable tree and attach BUFFER to its current segment.
+Return the existing or newly allocated save path.  Leave sidecar publication
+to `niwa-session-artifacts-save' after it updates the prompt and snapshot maps."
+  (let* ((save-path (or (niwa-session-save-path session)
+                        (prog1 (niwa-session-artifacts-allocate session buffer)
+                          (setf (niwa-session-durable-tree-ensured session) t))))
+         (segment-number (or (niwa-session-current-segment session) 1))
+         (segment-path (niwa-session-artifacts-segment-path
+                        save-path segment-number)))
+    ;; The tree and the workspace ignore entries are established once per
+    ;; process.  Re-establishing them on every save is several target round
+    ;; trips plus a re-parse of the ignore file for a settled answer.
+    (unless (niwa-session-durable-tree-ensured session)
+      (make-directory save-path t)
+      (make-directory (file-name-concat save-path "agents") t)
+      (make-directory (file-name-concat save-path "file-history") t)
+      (niwa-workspace-ensure-generated-state-ignored
+       (niwa-session-workspace session))
+      (setf (niwa-session-durable-tree-ensured session) t))
+    (when (and (buffer-live-p buffer)
+               (eq buffer (niwa-session-root-buffer session)))
+      (niwa-session-control-transfer-register-root-buffer session buffer))
+    (with-current-buffer buffer
+      (unless (and buffer-file-name
+                   (equal (expand-file-name buffer-file-name)
+                          (expand-file-name segment-path)))
+        (setq buffer-file-name segment-path))
+      (niwa-session-artifacts-disown-save-machinery)
+      (unless (niwa-session-artifacts-artifact-present-p
+               session (file-name-nondirectory segment-path))
+        (set-buffer-modified-p t)))
+    save-path))
 
 (defvar niwa-session-artifacts--checking-incarnation nil
   "Non-nil while publishing a replacement target incarnation.")
