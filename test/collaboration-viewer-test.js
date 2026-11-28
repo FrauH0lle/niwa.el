@@ -231,6 +231,7 @@ async function testTransportLifecycle() {
   const finishSeals = [];
   const finishDecrypts = [];
   const received = [];
+  const events = [];
   let opens = 0;
   class TestSocket extends Socket {
     constructor(url) { super(); this.url = url; sockets.push(this); }
@@ -259,7 +260,8 @@ async function testTransportLifecycle() {
             sealed[0] === 9 ? {t: 'challenge', challenge: 'c'}
               : sealed[0] === 7 ? {id: 7, nonce: 'A'.repeat(22)}
                 : sealed[0] === 8 ? {id: 8, nonce: 'another-connection'}
-                  : {id: sealed[0]}));
+                  : sealed[0] === 3 ? {t: 'bye', reason: 'handoff', link: 'next-room'}
+                    : {id: sealed[0]}));
           if (sealed[0] !== 3) return Promise.resolve(plaintext);
           return new Promise(resolve => {
             finishDecrypts.push(() => resolve(plaintext));
@@ -271,8 +273,9 @@ async function testTransportLifecycle() {
   vm.runInNewContext(fs.readFileSync('relay/viewer/transport.js', 'utf8'), context);
   const transport = window.niwaViewerTransport.create({
     roomId: 'roomroomroomroom', key: {}, giveUpMs: 60000,
-    hello: () => ({t: 'hello'}), onConnection() {},
+    hello: () => ({t: 'hello'}), onConnection: status => events.push(status),
     onFrame(frame) {
+      if (frame.t === 'bye') { events.push(frame.link); return; }
       if (frame.id === 1) throw new Error('bad frame');
       received.push(frame.id);
     },
@@ -382,11 +385,30 @@ async function testTransportLifecycle() {
 
   const staleInbound = new Uint8Array(33);
   staleInbound[16] = 3;
-  latest.dispatch('message', {data: staleInbound.buffer});
-  await waitFor(() => finishDecrypts.length, 'stale frame decryption');
-  latest.close();
-  retry();
-  const finalSocket = sockets[4];
+  for (const control of [true, false]) {
+    for (const closeFirst of [false, true]) {
+      const socket = sockets.at(-1);
+      events.length = 0;
+      const close = () => control
+        ? socket.dispatch('message', {data: '{"t":"room-closed"}'}) : socket.close();
+      socket.dispatch('message', {data: staleInbound.buffer});
+      await tick(); // Decryption is now held by the test, not a timer.
+      if (closeFirst) close();
+      finishDecrypts.shift()();
+      await tick();
+      if (!closeFirst) { close(); await tick(); }
+      assert.deepEqual(events, ['next-room', 'Reconnecting…']);
+      retry();
+    }
+  }
+
+  const draining = sockets.at(-1);
+  draining.dispatch('message', {data: staleInbound.buffer});
+  await tick();
+  events.length = 0;
+  draining.close();
+  transport.connect(); // An explicit replacement supersedes the pending drain.
+  const finalSocket = sockets.at(-1);
   const replacementInbound = new Uint8Array(33);
   replacementInbound[16] = 4;
   finalSocket.dispatch('message', {data: replacementInbound.buffer});
@@ -394,10 +416,11 @@ async function testTransportLifecycle() {
   finishDecrypts.shift()();
   await tick();
   assert.deepEqual(received, [2, 4]);
+  assert.deepEqual(events, ['Connecting…']); // Neither frame nor close leaked from the old socket.
 
   retry = null;
   transport.end();
-  assert.equal(finalSocket.readyState, Socket.CLOSED);
+  assert.equal(sockets.at(-1).readyState, Socket.CLOSED);
   assert.equal(retry, null);
 }
 

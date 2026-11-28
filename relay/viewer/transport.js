@@ -60,7 +60,6 @@
     let backoffMs = 1000;
     let downSince = null;
     let joinSince = null;
-    let inbound = Promise.resolve();
     let outbound = Promise.resolve();
     let sending = 0;
     // The host's challenge for the current socket, the last sequence number
@@ -151,7 +150,7 @@
 
     function connect() {
       if (ended) return;
-      inbound = Promise.resolve();
+      let inbound = Promise.resolve();
       outbound = Promise.resolve();
       binding = null;
       options.onConnection('Connecting…');
@@ -201,9 +200,10 @@
           window.niwaViewerApplied = (window.niwaViewerApplied || 0) + 1;
         }).catch(() => {}).finally(()=>{queuedBytes-=event.data.byteLength;queuedFrames--;});
       });
-      nextSocket.addEventListener('close', event => {
+      nextSocket.addEventListener('close', async event => {
+        // A final handoff may be on the wire before close but still decrypting.
+        if (queuedFrames) await inbound;
         if (socket !== nextSocket || ended) return;
-        // Do not deliver an in-flight decrypt after reporting this socket down.
         socket = null;
         binding = null;
         // An initial 4004 that outlasts the short join window identifies a
