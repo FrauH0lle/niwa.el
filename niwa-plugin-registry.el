@@ -20,6 +20,9 @@
                   "niwa-session-control-fs" (path &optional parents))
 (declare-function niwa-session-control-fs-physical-path
                   "niwa-session-control-fs" (path))
+(declare-function niwa-session-control-fs-call-with-locks
+                  "niwa-session-control-fs" (paths function))
+(autoload 'niwa-session-control-fs-call-with-locks "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-run-program "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-program-value "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-make-directory "niwa-session-control-fs")
@@ -403,8 +406,79 @@ Items include usable plugin manifests and visible metadata errors."
 (defconst niwa-plugins--consent-keys
   '(:hooks-enabled :hooks-fingerprint :hooks-scripts)
   "Plugin state keys that enable executable hooks or approve their scripts.
-Only the state file under `state/' supplies them: the top level of `.niwa/'
-is writable to confined children and may be tracked.")
+No workspace file supplies them: a copy or restore of a workspace must
+not carry consent.  They live in the user's consent store, see
+`niwa-plugins--user-consent'.")
+
+(defun niwa-plugins--consent-file ()
+  "Return the user's plugin hook consent store, beside project trust."
+  (file-name-concat niwa-user-dir "plugin-consent.eld"))
+
+(defun niwa-plugins--workspace-key (workspace)
+  "Return WORKSPACE's identity in the consent store, as project trust keys it.
+A remote workspace's identity includes its TRAMP prefix, so consent is
+per client machine."
+  (format "%S:%s" (niwa-workspace-type workspace) (niwa-workspace-id workspace)))
+
+(defun niwa-plugins--read-consent ()
+  "Return the records in the user's consent store."
+  (let ((file (niwa-plugins--consent-file)))
+    (and (file-readable-p file)
+         (niwa-plugins--parse-state
+          (with-temp-buffer (insert-file-contents file) (buffer-string))))))
+
+(defun niwa-plugins--user-consent (state workspace)
+  "Return STATE with WORKSPACE's hook consent taken only from the user's store.
+Consent in any workspace file, including one written by older versions,
+is ignored.  A record applies to the workspace, plugin and source it was
+given for; the registry also compares its fingerprint and scripts."
+  (let ((records (niwa-plugins--read-consent))
+        (key (niwa-plugins--workspace-key workspace)))
+    (mapcar (lambda (entry)
+              (let* ((plist (niwa-plugins--keys (cdr entry)))
+                     (record (cl-find-if
+                              (lambda (record)
+                                (and (equal key (plist-get record :workspace))
+                                     (equal (car entry) (plist-get record :plugin))
+                                     (equal (plist-get plist :source-root)
+                                            (plist-get record :source))))
+                              records)))
+                (cons (car entry)
+                      (append plist (niwa-plugins--keys record t)))))
+            state)))
+
+(defun niwa-plugins--store-consent (workspace old new)
+  "Record in the user's store the WORKSPACE hook consent NEW changed from OLD.
+The read, merge and replacement run under the store directory's lock,
+as project trust writes do, and touch only the plugins this write
+changed, so another client's consent or revocation survives."
+  (let* ((key (niwa-plugins--workspace-key workspace))
+         (consent (lambda (state name)
+                    (let ((plist (cdr (assoc name state))))
+                      (list (plist-get plist :source-root)
+                            (niwa-plugins--keys plist t)))))
+         (changes (cl-loop for name in (delete-dups (mapcar #'car (append old new)))
+                           for after = (funcall consent new name)
+                           unless (equal after (funcall consent old name))
+                           collect (cons name after))))
+    (when changes
+      (make-directory niwa-user-dir t)
+      (niwa-session-control-fs-call-with-locks
+       (list (directory-file-name (expand-file-name niwa-user-dir)))
+       (lambda (_lock)
+         (let ((records (cl-remove-if
+                         (lambda (record)
+                           (and (equal key (plist-get record :workspace))
+                                (assoc (plist-get record :plugin) changes)))
+                         (niwa-plugins--read-consent)))
+               (print-length nil) (print-level nil))
+           (pcase-dolist (`(,name ,source ,plist) changes)
+             ;; A revocation is kept too, so it reads back as written.
+             (when plist
+               (push (append (list :workspace key :plugin name :source source) plist)
+                     records)))
+           (niwa--write-file-atomically (niwa-plugins--consent-file)
+                                        (prin1-to-string records))))))))
 
 (defun niwa-plugins--parse-state (text)
   "Return the plugin state alist TEXT holds, or nil when it is unreadable."
@@ -425,14 +499,6 @@ is writable to confined children and may be tracked.")
   (cl-loop for (key value) on plist by #'cddr
            when (eq (and consent t) (and (memq key niwa-plugins--consent-keys) t))
            append (list key value)))
-
-(defun niwa-plugins--with-consent (activation local)
-  "Return ACTIVATION entries with hook consent taken from LOCAL only."
-  (mapcar (lambda (entry)
-            (cons (car entry)
-                  (append (niwa-plugins--keys (cdr entry))
-                          (niwa-plugins--keys (cdr (assoc (car entry) local)) t))))
-          activation))
 
 (defvar niwa-plugins--tracked-cache (make-hash-table :test #'equal)
   "Recent Git answers for project plugin files, by path.")
@@ -535,23 +601,25 @@ more.  A concurrent change leaves the file for the next read."
 
 (defun niwa-plugins--read-state (&optional workspace)
   "Read persistent plugin state for WORKSPACE.
-A tracked top-level file supplies activation, and the file under
-`state/' only hook consent.  An untracked one is an older client's
+A tracked top-level file supplies activation, otherwise the file under
+`state/' does.  Hook consent comes from the user's store only, see
+`niwa-plugins--user-consent'.  An untracked top-level file is an older client's
 and is adopted first; until that succeeds it lists plugins without
 enabling hooks.  When Git cannot say, the file is left alone and read
 as tracked."
   (when workspace
     (let ((project (niwa-plugins--project-state-file workspace))
           (local (niwa-plugins-state-file workspace)))
-      (cond
-       ((not (file-exists-p project)) (niwa-plugins--read-file local))
-       ((not (eq 'untracked (niwa-plugins--tracking workspace project)))
-        (niwa-plugins--with-consent (niwa-plugins--read-file project)
-                                    (niwa-plugins--read-file local)))
-       ((ignore-errors (niwa-plugins--adopt-legacy workspace))
-        (niwa-plugins--read-file local))
-       (t (or (niwa-plugins--read-file local)
-              (niwa-plugins--with-consent (niwa-plugins--read-file project) nil)))))))
+      (niwa-plugins--user-consent
+       (cond
+        ((not (file-exists-p project)) (niwa-plugins--read-file local))
+        ((not (eq 'untracked (niwa-plugins--tracking workspace project)))
+         (niwa-plugins--read-file project))
+        ((ignore-errors (niwa-plugins--adopt-legacy workspace))
+         (niwa-plugins--read-file local))
+        (t (or (niwa-plugins--read-file local)
+               (niwa-plugins--read-file project))))
+       workspace))))
 
 (defun niwa-plugins--state-session (workspace)
   "Return the live session authorized to mutate WORKSPACE plugin state."
@@ -601,24 +669,19 @@ the `.niwa/' lock, remotely just before the lease-checked publication."
                        (mapcar (lambda (entry)
                                  (cons (car entry) (niwa-plugins--keys (cdr entry))))
                                state)))
-         (new (funcall function
-                       (copy-tree (if project
-                                      (niwa-plugins--with-consent (nth 1 parsed) (car parsed))
-                                    (car parsed)))))
+         (old (niwa-plugins--user-consent (if project (nth 1 parsed) (car parsed))
+                                          workspace))
+         (new (funcall function (copy-tree old)))
          (writes
-          (cons (cons local
-                      (niwa-plugins--state-text
-                       (if project
-                           (cl-loop for (name . plist) in new
-                                    for consent = (niwa-plugins--keys plist t)
-                                    when consent collect (cons name consent))
-                         new)))
-                ;; Unchanged tracked activation is not rewritten.
-                (and project
-                     (not (equal (funcall activation new)
-                                 (funcall activation (nth 1 parsed))))
-                     (list (cons project (niwa-plugins--state-text
-                                          (funcall activation new)))))))
+          ;; Workspace files hold activation only; consent goes to the
+          ;; user's store once this write lands.
+          (if project
+              ;; Unchanged tracked activation is not rewritten.
+              (and (not (equal (funcall activation new)
+                               (funcall activation (nth 1 parsed))))
+                   (list (cons project (niwa-plugins--state-text
+                                        (funcall activation new)))))
+            (list (cons local (niwa-plugins--state-text (funcall activation new))))))
          (program
           (cons (list :op 'make-directory
                       :path (directory-file-name (file-name-directory local))
@@ -652,9 +715,11 @@ the `.niwa/' lock, remotely just before the lease-checked publication."
                                         (list :op 'verify-hash :path file :optional t
                                               :content (secure-hash 'sha256 data))
                                       (list :op 'path-exists-p :path file :optional t))))))
-            (dolist (write writes t)
+            (dolist (write writes)
               (niwa-session-artifacts-publish-text
-               session (car write) (cdr write) 'utf-8-unix))))
+               session (car write) (cdr write) 'utf-8-unix))
+            (niwa-plugins--store-consent workspace old new)
+            t))
       ;; Each file is a whole record, read as nil when truncated, so the
       ;; program's rename-into-place write matters.
       (let ((results (niwa-session-control-fs-run-program
@@ -667,6 +732,7 @@ the `.niwa/' lock, remotely just before the lease-checked publication."
         (when (funcall proved results)
           (mapc #'niwa-session-control-fs-program-value
                 (nthcdr (1+ (length files)) results))
+          (niwa-plugins--store-consent workspace old new)
           t)))))
 
 (defun niwa-plugins--change-state (workspace function)

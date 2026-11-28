@@ -919,7 +919,7 @@ See [`address-to-resource.md`](address-to-resource.md) and
 ## Generated workspace state
 
 `.niwa/state/` contains the note store (`instructions.eld`), plugin activation
-and hook consent (`plugins.eld`), internal journal records (`journal/`), target
+(`plugins.eld`; hook consent is in `niwa-user-dir`), internal journal records (`journal/`), target
 write coordination (`memory-write/`), shared-note extraction state
 (`shared-notes/`), clipboard images (`media/`), Git evidence packages
 (`review-packages/`), workspace telemetry (`diagnostics/`), and plugin runtime data

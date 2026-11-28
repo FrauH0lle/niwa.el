@@ -551,7 +551,7 @@
                        (niwa-plugins--hook-fingerprint plugin workspace)))
         (should (niwa-plugins-hooks-enabled-p plugin workspace)))))
 
-  :doc "keeps project activation and hook consent across equivalent TRAMP aliases"
+  :doc "keeps project activation across TRAMP aliases; hook consent is per alias"
   (let* ((root (file-name-as-directory
                 (make-temp-file "niwa-plugins-alias-" t)))
          (root-a (concat "/niwamock:plugin-a:" root))
@@ -592,13 +592,12 @@
                   (should (stringp fingerprint))
                   (should (equal '("demo")
                                  (mapcar #'niwa-plugin-name enabled-b)))
-                  (should (niwa-plugin-hooks-enabled-p plugin-b))
+                  ;; Consent is keyed by the workspace identity, TRAMP
+                  ;; prefix included, as project trust is.
                   (should (niwa-plugins-hooks-enabled-p
-                           plugin-b workspace-b))
-                  (should-not (niwa-plugins-hooks-stale-p
+                           (niwa-plugins-find "demo" workspace-a) workspace-a))
+                  (should-not (niwa-plugins-hooks-enabled-p
                                plugin-b workspace-b))
-                  (should-not
-                   (niwa-plugins-pending-consent workspace-b))
                   (should (equal fingerprint
                                  (niwa-plugins--hook-fingerprint
                                   plugin-b workspace-b)))))
@@ -832,8 +831,10 @@
      '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f")) workspace)
     (should (equal bytes (with-temp-buffer (insert-file-contents-literally project)
                                            (buffer-string))))
-    (should (equal '(("demo" :hooks-enabled t :hooks-fingerprint "f"))
-                   (niwa-plugins-test--read-state workspace)))
+    ;; Consent goes to the user's store, never into the workspace.
+    (should-not (niwa-plugins-test--read-state workspace))
+    (should (equal '(:hooks-enabled t :hooks-fingerprint "f")
+                   (niwa-plugins--keys (car (niwa-plugins--read-consent)) t)))
     (should (equal '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f"))
                    (niwa-plugins--read-state workspace)))))
 

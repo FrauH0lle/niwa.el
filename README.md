@@ -1639,7 +1639,7 @@ or external setup encrypts them.
 | `.niwa/input-history.eld` | Workspace chat input history. |
 | `.niwa/memory/`, `.agents/memory/` | Memory index and topic files. |
 | `.niwa/permissions.eld` | Persistent permission decisions. |
-| `.niwa/state/` | niwa's local state: notes, plugin activation and hook consent, journal, media, plugin data. Never commit it. |
+| `.niwa/state/` | niwa's local state: notes, plugin activation, journal, media, plugin data. Never commit it. Plugin hook consent lives in `niwa-user-dir`. |
 | `<session>/tool-results/` | Oversized tool outputs saved outside the transcript. |
 | `.niwa/hooks.el`, `.niwa/hooks.json` | Project hook configuration. |
 | `<session>/session.meta.eld` | Session sidecar, including the current durable Goal record. |

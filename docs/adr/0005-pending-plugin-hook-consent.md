@@ -29,3 +29,18 @@ consent state. Noninteractive and batch contexts do not block; they report the p
 Pending consent is user configuration and security state, not model context.
 It is shown in the user-facing session/view surfaces and messages, not
 injected as a model-visible reminder.
+
+Consent is stored outside the workspace, in `plugin-consent.eld` under
+`niwa-user-dir` beside project hook trust, keyed by workspace identity, plugin
+and source, with the approved fingerprint and script hashes. Workspace files
+hold activation only, so a copied or restored workspace carries no consent and
+a revocation cannot be undone by restoring old state. Remote workspaces are
+keyed by their TRAMP identity, so consent is per client machine.
+
+## Decision history
+
+Consent first lived in the workspace's plugin state file. A checkout or
+restored workspace could then carry what looked like the user's approval, and
+restoring old state undid a revocation. Signing that file with a per-user key
+was considered and dropped; the user chose to move consent to user storage
+(needs-user #10, 2026-11-28).

@@ -115,11 +115,20 @@ the plugin identity/source, exposed skills, each executable hook handler's
 event and matcher, and the workspace plugin data directory rather than dumping
 the full manifest.
 
-Hook consent is honoured only from `.niwa/state/plugins.eld`, which confined
-children cannot write. A project may track a top-level `.niwa/plugins.eld` to
-share its activation set: niwa then reads which plugins are enabled from it
-and writes activation changes back to it, but keeps hook consent in
-`state/`, so a tracked file can list plugins and never enable their hooks.
+Hook consent lives outside the workspace, in the user's store
+`plugin-consent.eld` under `niwa-user-dir`, beside project hook trust. Each
+approval names the workspace (its identity as project trust keys it; for a
+remote workspace that includes the TRAMP prefix, so consent is per client
+machine), the plugin, its source and the approved hook fingerprint and
+script hashes. A copy or restore of a workspace therefore never carries
+consent, and a revocation stays revoked whatever an old `.niwa/state/` holds.
+Consent fields in any workspace file, including those older versions wrote
+into `.niwa/state/plugins.eld`, are ignored, so those plugins ask again.
+Writes to the store hold its directory's lock across read, merge and write,
+as project trust writes do, and change only the plugins they touch.
+Activation stays in the workspace: `.niwa/state/plugins.eld`, or a tracked
+top-level `.niwa/plugins.eld` that a project shares; niwa then reads which
+plugins are enabled from it and writes activation changes back to it.
 An untracked top-level `.niwa/plugins.eld` is where older versions kept the
 state. niwa moves it into `state/` on the next read only when Git proves it
 untracked, rechecking the index right before; if Git cannot answer, the file

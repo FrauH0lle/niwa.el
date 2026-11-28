@@ -2040,6 +2040,95 @@ Return the words the hook scripts logged to ROOT's log file."
         (delete-directory root t)
         (delete-directory user-dir t)))))
 
+(niwa-deftest niwa-hooks-run-event/plugin-consent-user-store
+  (:doc "hook consent lives in user storage: copies, restores and races keep it right")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-plugin-store-ws" t)))
+         (copy (file-name-as-directory
+                (make-temp-file "niwa-hooks-plugin-store-copy" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-plugin-store-user" t)))
+         (plugin-root (file-name-as-directory
+                       (file-name-concat root ".niwa" "plugins" "repo")))
+         (script (file-name-concat plugin-root "hooks" "a.sh"))
+         (workspace (niwa-hooks-test--workspace root))
+         (session (niwa-session-create "main" workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory
+          (file-name-concat user-dir ".agents" "plugins"))
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil)
+         (held (file-name-concat user-dir "held"))
+         competitor)
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (cl-labels ((consent ()
+                  (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+                    (niwa-plugins-enable-hooks "demo" workspace)))
+                (runs (ws dir)
+                  (niwa-hooks-invalidate-config)
+                  (niwa-test--with-captured-diagnostics nil
+                    (niwa-hooks-test--run-logged
+                     dir (niwa-session-create "s" ws dir) ws))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory script) t)
+            (with-temp-file script (insert "#!/bin/sh\ncat >/dev/null\necho a1 >> log\n"))
+            (set-file-modes script #o755)
+            (with-temp-file (file-name-concat plugin-root "hooks" "hooks.json")
+              (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":"
+                      "[{\"type\":\"command\",\"command\":\"sh ${CLAUDE_PLUGIN_ROOT}/hooks/a.sh\"}]}]}}"))
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-root "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (should (niwa-plugins-enable "demo" workspace)))
+            (should (equal '("a1") (runs workspace root)))
+            ;; A copy of the workspace, its state file planted with the
+            ;; very consent fields this user approved, runs no hook.
+            (copy-directory root copy nil t t)
+            (let ((planted (niwa-plugins--state-plist "demo" workspace))
+                  (other (niwa-hooks-test--workspace copy)))
+              (write-region (niwa-plugins--state-text (list (cons "demo" planted))) nil
+                            (niwa-plugins-state-file other) nil 'silent)
+              (should-not (runs other copy))
+              (should-not (niwa-plugins-hooks-enabled-p
+                           (niwa-plugins-find "demo" other) other)))
+            ;; Revocation survives restoring the workspace state from before it.
+            (let ((saved (make-temp-file "niwa-hooks-plugin-store-saved" t))
+                  (state (file-name-concat root ".niwa" "state")))
+              (copy-directory state saved nil t t)
+              (niwa-plugins-disable-hooks "demo" workspace)
+              (delete-directory state t)
+              (copy-directory saved state nil t t)
+              (delete-directory saved t)
+              (should-not (runs workspace root)))
+            ;; Another client holds the store lock and is about to write the
+            ;; records it computed: this client's consent waits and merges.
+            (when (executable-find "flock")
+              (setq competitor
+                    (start-process
+                     "consent-competitor" nil "flock" (directory-file-name user-dir)
+                     "sh" "-c"
+                     (format "touch %s; sleep 0.5; printf '%%s' %s > %s"
+                             (shell-quote-argument held)
+                             (shell-quote-argument
+                              "((:workspace \"other\" :plugin \"x\" :source \"s\" :hooks-enabled t))")
+                             (shell-quote-argument (niwa-plugins--consent-file)))))
+              (with-timeout (5 (ert-fail "Competitor never took the lock"))
+                (while (not (file-exists-p held))
+                  (accept-process-output nil 0.01)))
+              (should (consent))
+              (should (equal (sort (list "other" (niwa-plugins--workspace-key workspace))
+                                   #'string<)
+                             (sort (mapcar (lambda (record) (plist-get record :workspace))
+                                           (niwa-plugins--read-consent))
+                                   #'string<)))
+              (should (equal '("a1") (runs workspace root)))))
+        (when (process-live-p competitor) (delete-process competitor))
+        (niwa-hooks-invalidate-config)
+        (delete-directory root t)
+        (delete-directory copy t)
+        (delete-directory user-dir t)))))
+
 (niwa-deftest niwa-hooks-run-event/plugin-script-consent
   (:doc "runs a plugin hook script only while its consented content is unchanged")
   (let* ((root (file-name-as-directory

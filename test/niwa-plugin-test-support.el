@@ -79,8 +79,9 @@
         (read (current-buffer))))))
 
 (defun niwa-plugins-test--state-plist (workspace name)
-  "Return persisted test state plist for plugin NAME in WORKSPACE."
-  (cdr (assoc name (niwa-plugins-test--read-state workspace))))
+  "Return plugin NAME's persisted state in WORKSPACE, consent included.
+Consent lives in the user's store, not the workspace file."
+  (niwa-plugins--state-plist name workspace))
 
 (provide 'niwa-plugin-test-support)
 ;;; niwa-plugin-test-support.el ends here

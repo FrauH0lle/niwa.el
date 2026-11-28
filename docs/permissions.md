@@ -297,7 +297,8 @@ and grants on resume, including a takeover from another machine) and
 `.niwa/schedules/`. niwa's local authority-bearing state lives in
 `.niwa/state/`, which is read-only as a whole: the note store
 `instructions.eld` (a note conversation's settings), the plugin state
-`plugins.eld` (the only source of hook consent), and niwa's journal, memory
+`plugins.eld` (activation only; hook consent lives in the user's store, see
+[plugin activation](skills.md)), and niwa's journal, memory
 write coordination, media, diagnostics and review packages, all written from
 Emacs. Plugin runtime data, `state/plugin-data/`, stays writable to confined
 commands, though a tool edit there still asks. niwa writes all of these stores
