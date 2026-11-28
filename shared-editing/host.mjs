@@ -287,18 +287,27 @@ function modelResult(state, after, transaction, extra = {}) {
     ...(changed.length ? { changed } : {}), ...(hashes.length ? { changedHashes: hashes } : {}),
     ...(deleted.length ? { deleted } : {}), ...extra };
 }
-function differences(before, after) {
+export function differences(before, after) {
   const a = before.kind === 'whiteboard' ? before.content : before.content.content || [];
   const b = after.kind === 'whiteboard' ? after.content : after.content.content || [];
   const id = (value) => (before.kind === 'whiteboard' ? value.id : value.attrs?.id);
-  const ids = new Set([...a.map(id), ...b.map(id)]);
+  function index(items) {
+    const byId = new Map();
+    for (const item of items) {
+      const key = id(item);
+      if (!byId.has(key)) byId.set(key, item);
+    }
+    return byId;
+  }
+  const oldItems = index(a), newItems = index(b);
+  const ids = new Set([...oldItems.keys(), ...newItems.keys()]);
   return [...ids]
     .filter(Boolean)
     .map((key) => {
       const change = {
         id: key,
-        before: a.find((n) => id(n) === key) || null,
-        after: b.find((n) => id(n) === key) || null,
+        before: oldItems.get(key) || null,
+        after: newItems.get(key) || null,
       };
       if (before.kind === 'document' && change.before && !change.after) {
         change.restoreAfterId =
@@ -309,7 +318,7 @@ function differences(before, after) {
             )
             .reverse()
             .map(id)
-            .find((previous) => b.some((n) => id(n) === previous)) || null;
+            .find((previous) => newItems.has(previous)) || null;
       }
       return change;
     })

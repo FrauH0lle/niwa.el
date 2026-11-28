@@ -1,13 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as Y from 'yjs';
-import { handle } from '../host.mjs';
+import { differences, handle } from '../host.mjs';
 import { restore } from '../model.mjs';
 import { resolveScene } from '../scene.mjs';
 import { contentHash as h } from '../view.mjs';
 import legacy from '../../test/fixtures/shared-editing/legacy-snapshots.json' with { type: 'json' };
 const rect = (id, x, y, extra = {}) => ({ id, type: 'rectangle', x, y, width: 100, height: 50, ...extra });
 const scene = (elements, files = {}) => JSON.stringify({ type: 'excalidraw', version: 2, elements, files });
+
+test('one changed shape does not rescan both snapshots per ID', () => {
+  let reads = 0;
+  const snapshot = (lastX) => ({ kind: 'whiteboard', content: Array.from({ length: 64 }, (_, i) => ({
+    get id() { reads++; return `shape-${i}`; }, x: i === 63 ? lastX : i,
+  })) });
+  assert.deepEqual(differences(snapshot(0), snapshot(1)).map(c => c.id), ['shape-63']);
+  assert.ok(reads < 64 * 10, `expected linear ID lookup, got ${reads} reads`);
+});
+
+test('board history keeps old IDs in order, then new IDs, and omits unchanged shapes', () => {
+  const [gone, same, old, added] = ['z', 'u', 'c', 'a'].map(id => rect(id, 0, 0));
+  const moved = { ...old, x: 1 };
+  const before = { kind: 'whiteboard', content: [gone, same, old] };
+  const after = { kind: 'whiteboard', content: [added, moved, { ...same }] };
+  assert.deepEqual(differences(before, after), [
+    { id: gone.id, before: gone, after: null },
+    { id: old.id, before: old, after: moved },
+    { id: added.id, before: null, after: added },
+  ]);
+  assert.deepEqual(differences(before, structuredClone(before)), []);
+});
 
 // Both snapshots were opened and read with the host from e03c0717.
 for (const [kind, crdt] of Object.entries(legacy)) {
