@@ -1051,6 +1051,48 @@
       (delete-directory user-dir t)
       (delete-directory workspace-root t))))
 
+(niwa-deftest niwa-plugins--adopt-legacy/baseline-settled-first
+  (:doc "a baseline creator winning during adoption cannot publish a merge on the wrong base")
+  (let* ((user-dir (file-name-as-directory (make-temp-file "niwa-plugins-base-" t)))
+         (workspace-root (file-name-as-directory
+                          (make-temp-file "niwa-plugins-base-ws-" t)))
+         (workspace (niwa-plugins-test--workspace workspace-root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory (file-name-concat user-dir ".agents" "plugins"))
+         (legacy (niwa-plugins--project-state-file workspace))
+         (local (niwa-plugins-state-file workspace))
+         (base (file-name-concat (file-name-directory local) "plugins-legacy.eld"))
+         (run (symbol-function 'niwa-session-control-fs-run-program))
+         competed)
+    (unwind-protect
+        (progn
+          ;; Legacy enables X, local disables it, and there is no baseline.
+          (make-directory (file-name-directory local) t)
+          (write-region (niwa-plugins--state-text '(("x" :enabled t))) nil legacy nil 'silent)
+          (write-region (niwa-plugins--state-text '(("x" :enabled nil))) nil local nil 'silent)
+          (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                     (lambda (operations &rest args)
+                       (let ((at (cl-position-if
+                                  (lambda (op) (and (memq (plist-get op :op) '(write create))
+                                                    (equal base (plist-get op :path))))
+                                  operations)))
+                         (if (or competed (not at))
+                             (apply run operations args)
+                           (setq competed t)
+                           (let ((done (apply run (seq-take operations at) args)))
+                             ;; Another tool creates a baseline that also enables X
+                             ;; just before the adoption's first baseline write.
+                             (write-region (niwa-plugins--state-text '(("x" :enabled t)))
+                                           nil base nil 'silent)
+                             (append done (apply run (nthcdr at operations) args))))))))
+            (niwa-plugins--write-state-entry "y" '(:enabled t) workspace))
+          (should competed)
+          (should-not (file-exists-p legacy))
+          ;; Against that baseline the legacy file changed nothing: X stays off.
+          (should (equal '(:enabled nil) (niwa-plugins--state-plist "x" workspace))))
+      (delete-directory user-dir t)
+      (delete-directory workspace-root t))))
+
 (niwa-deftest niwa-plugins-plugin-data-dir
   (:vars* ((workspace-root (file-name-as-directory
                             (make-temp-file "niwa-plugins-root-ws-" t)))

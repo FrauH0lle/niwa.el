@@ -694,6 +694,13 @@ migrates and deletes shared files."
                          when data
                          collect (list :op 'verify-hash :path path
                                        :content (secure-hash 'sha256 data)))
+                ;; The merge depends on the base, so an absent one is settled
+                ;; before the merge is published: created exclusively as an
+                ;; empty state, which merges like none.  A creator winning it
+                ;; stops the program with nothing published.
+                (unless (nth 2 bytes)
+                  (list (funcall put base nil (niwa-plugins--state-text nil)
+                                 'utf-8-unix)))
                 ;; State, then base, then removal: after a crash or conflict
                 ;; at any point the next attempt rereads and merges again.
                 (list (funcall put local (nth 1 bytes)
@@ -701,7 +708,8 @@ migrates and deletes shared files."
                                 (niwa-plugins--merge-legacy
                                  (nth 2 state) (car state) (nth 1 state)))
                                'utf-8-unix)
-                      (funcall put base (nth 2 bytes) (car bytes) 'no-conversion)
+                      (list :op 'write :path base :content (car bytes)
+                            :coding 'no-conversion)
                       (list :op 'delete-file :path legacy)))
                (niwa-plugins--lock-directory workspace)))))
         (unless (cl-some (lambda (result)
