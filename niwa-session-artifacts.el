@@ -151,6 +151,7 @@
 (autoload 'niwa-session-naming-cancel "niwa-session-naming")
 
 ;; `niwa-session-persistence'
+(autoload 'niwa-session-persistence-autosave-soon "niwa-session-persistence")
 (declare-function niwa-session-persistence-authoritative-buffer "niwa-session-persistence" (buffer))
 (declare-function niwa-session-persistence-first-user-message "niwa-session-persistence" (buffer))
 (declare-function niwa-session-persistence-flush-diagnostic-logs "niwa-session-persistence" (session))
@@ -849,47 +850,57 @@ history to the receiving child's own transcript."
 ;;
 ;;; Lazy materialization
 
-(defvar niwa-session-artifacts--allocation-locks
-  (make-hash-table :test #'eq :weakness 'key)
-  "Mutexes for first saves of the same live session in different threads.")
+(defun niwa-session-artifacts--call-with-first-allocation (session function)
+  "Call FUNCTION under SESSION's first allocation, including its enclosing save."
+  (if (or (niwa-session-save-path session) (niwa-session-allocation-in-progress session))
+      (funcall function)
+    (let ((pending (list nil)))
+      (setf (niwa-session-allocation-in-progress session) pending)
+      (unwind-protect (funcall function)
+        (setf (niwa-session-allocation-in-progress session) nil)
+        (dolist (buffer (cdr pending))
+          (when (buffer-live-p buffer)
+            (niwa-session-persistence-autosave-soon buffer)))))))
 
-(cl-defun niwa-session-artifacts-allocate (session buffer)
-  "Allocate SESSION's durable directory, or reuse a concurrent first save's.
+(defun niwa-session-artifacts-defer-first-save (session buffer)
+  "If SESSION is allocating, queue BUFFER for a checkpoint and return non-nil."
+  (when-let* ((pending (niwa-session-allocation-in-progress session)))
+    (when (buffer-live-p buffer)
+      (cl-pushnew buffer (cdr pending)))
+    t))
+
+(defun niwa-session-artifacts-allocate (session buffer)
+  "Allocate a new durable directory for SESSION and return its path.
 Claim the lease for BUFFER without attaching it to a segment or publishing
 a sidecar."
-  (when (niwa-execution-target-remote-p (niwa-session-execution-target session))
-    (niwa-session-durability-disclose session))
-  (let ((workspace (niwa-session-workspace session)))
-    (niwa-workspace-identity-ensure (niwa-workspace-root workspace))
-    (let* ((sessions-dir (niwa-session-artifacts-sessions-dir workspace))
-           (session-id (or (niwa-session-session-id session)
-                           (error "Session has no identity")))
-           (path (file-name-as-directory (file-name-concat sessions-dir session-id)))
-           (now (format-time-string "%FT%H-%M-%S")))
-      (make-directory sessions-dir t)
-      ;; A contender must not observe the new directory before lease installation.
-      (with-mutex (or (gethash session niwa-session-artifacts--allocation-locks)
-                      (puthash session (make-mutex)
-                               niwa-session-artifacts--allocation-locks))
-        (condition-case err
-            (make-directory path)
-          (file-already-exists
-           ;; Target I/O can run another first save before our mkdir returns.
-           (if (and (equal path (niwa-session-save-path session))
-                    (niwa-session-durability-lease-owned-p session))
-               (cl-return-from niwa-session-artifacts-allocate path)
-             (signal (car err) (cdr err)))))
-        (make-directory (file-name-concat path "agents") t)
-        (make-directory (file-name-concat path "file-history") t)
-        (niwa-session-persistence-lock-acquire path (buffer-name buffer) session)
-        (setf (niwa-session-session-id session) session-id
-              (niwa-session-save-path session) path
-              (niwa-session-created-at session) now
-              (niwa-session-updated-at session) now
-              (niwa-session-current-segment session) 1)
-        (niwa-session-persistence-flush-diagnostic-logs session)
-        (niwa-workspace-ensure-generated-state-ignored workspace)
-        path))))
+  (niwa-session-artifacts--call-with-first-allocation
+   session
+   (lambda ()
+     (when-let* ((pending (niwa-session-allocation-in-progress session)))
+       (when (car pending) (user-error "Session allocation is in progress"))
+       (setcar pending t))
+     (when (niwa-execution-target-remote-p (niwa-session-execution-target session))
+       (niwa-session-durability-disclose session))
+     (let ((workspace (niwa-session-workspace session)))
+       (niwa-workspace-identity-ensure (niwa-workspace-root workspace))
+       (let* ((sessions-dir (niwa-session-artifacts-sessions-dir workspace))
+              (session-id (or (niwa-session-session-id session)
+                              (error "Session has no identity")))
+              (path (file-name-as-directory (file-name-concat sessions-dir session-id)))
+              (now (format-time-string "%FT%H-%M-%S")))
+         (make-directory sessions-dir t)
+         (make-directory path)
+         (make-directory (file-name-concat path "agents") t)
+         (make-directory (file-name-concat path "file-history") t)
+         (niwa-session-persistence-lock-acquire path (buffer-name buffer) session)
+         (setf (niwa-session-session-id session) session-id
+               (niwa-session-save-path session) path
+               (niwa-session-created-at session) now
+               (niwa-session-updated-at session) now
+               (niwa-session-current-segment session) 1)
+         (niwa-session-persistence-flush-diagnostic-logs session)
+         (niwa-workspace-ensure-generated-state-ignored workspace)
+         path)))))
 
 (defun niwa-session-artifacts-ensure-files (session buffer)
   "Ensure SESSION's durable tree and attach BUFFER to its current segment.
@@ -2048,17 +2059,26 @@ mark the latest assistant response
 A portable session whose durable state is byte for byte the committed one
 performs no target transaction.  FORCE publishes anyway, for a caller that
 must materialize a snapshot rather than record a change.  TOKEN is the caller's
-gate token."
-  ;; Explicitly synchronous: drain async work before anything is captured.
-  (niwa-session-artifacts--barrier session token)
-  (niwa-session-artifacts-call-with-checkpoint
-   session
-   (lambda ()
-     (niwa-telemetry-measure
-      session 'session-save 0
-      (lambda ()
-        (niwa-session-artifacts--save session buffer settled force token))
-      :kind 'full :settled (and settled t)))))
+gate token.  A save requested during first allocation returns nil and queues
+its authoritative buffer for a checkpoint after the owner exits."
+  (if (niwa-session-allocation-in-progress session)
+      (progn
+        (niwa-session-artifacts-defer-first-save
+         session (niwa-session-persistence-authoritative-buffer buffer))
+        nil)
+    (niwa-session-artifacts--call-with-first-allocation
+     session
+     (lambda ()
+       ;; Explicitly synchronous: drain async work before anything is captured.
+       (niwa-session-artifacts--barrier session token)
+       (niwa-session-artifacts-call-with-checkpoint
+        session
+        (lambda ()
+          (niwa-telemetry-measure
+           session 'session-save 0
+           (lambda ()
+             (niwa-session-artifacts--save session buffer settled force token))
+           :kind 'full :settled (and settled t))))))))
 
 (defun niwa-session-artifacts--save (session buffer settled force &optional token)
   "Save SESSION from BUFFER as `niwa-session-artifacts-save' documents.

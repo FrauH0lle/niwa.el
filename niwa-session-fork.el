@@ -283,7 +283,7 @@ only through PICKED-CUM-TURN.  Entries with non-integer
     forked-from-fork-point-id worktree-source-root worktree-directory
     worktree-branch worktree-base-commit prompt-index chapters file-snapshots
     untracked-effects
-    ptc-checkpoints durable-tree-ensured
+    ptc-checkpoints durable-tree-ensured allocation-in-progress
     agent-transcripts invoked-skills permission-queue permission-absence
     pending-plan-approval
     plan-metadata goal attached-artifacts dedicated-artifact note-conversation

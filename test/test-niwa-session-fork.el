@@ -50,7 +50,7 @@
 
   :doc "covers every session slot and isolates both clone policies"
   (progn
-    (should (= 107
+    (should (= 108
                (length
                 (cdr (cl-struct-slot-info 'niwa-session)))))
     (should (niwa-session-fork--assert-clone-slot-completeness))

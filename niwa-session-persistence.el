@@ -518,19 +518,22 @@ identity exists.  The later acknowledged registry commit performs the full
 root snapshot and sidecar publication.
 
 Returns SESSION's `save-path' on success, or nil on failure.  Idempotent."
-  (or (niwa-session-save-path session)
-      (condition-case err
-          (let ((save-path (niwa-session-artifacts-allocate session buffer)))
-            (with-current-buffer buffer
-              (unless buffer-file-name
-                (setq buffer-file-name (niwa-session-artifacts-segment-path save-path 1)))
-              (niwa-session-artifacts-disown-save-machinery))
-            (niwa-session-control-transfer-register-root-buffer
-             session buffer)
-            save-path)
-        (error
-         (niwa-diagnostic-message (niwa-diagnostic-scope session) "Shallow session materialization failed: %S" err)
-         nil))))
+  (unless (car (niwa-session-allocation-in-progress session))
+    (or (niwa-session-save-path session)
+        (condition-case err
+            (let ((save-path (niwa-session-artifacts-allocate session buffer)))
+              (with-current-buffer buffer
+                (unless buffer-file-name
+                  (setq buffer-file-name (niwa-session-artifacts-segment-path save-path 1)))
+                (niwa-session-artifacts-disown-save-machinery))
+              ;; Startup can materialize on behalf of an already registered root.
+              (niwa-session-control-transfer-register-root-buffer
+               session (if (buffer-live-p (niwa-session-root-buffer session))
+                              (niwa-session-root-buffer session) buffer))
+              save-path)
+          (error
+           (niwa-diagnostic-message (niwa-diagnostic-scope session) "Shallow session materialization failed: %S" err)
+           nil)))))
 
 (defun niwa-session-persistence-record-running-transcript
     (session entry)
@@ -889,7 +892,8 @@ deferred save runs with its own."
                  (not (bound-and-true-p niwa-session--read-only-mode))
                  (not (bound-and-true-p niwa-session--inspection-buffer-p))
                  (or niwa--agent-invocation
-                     (eq buffer (niwa-session-root-buffer niwa--session))))
+                     (eq buffer (niwa-session-root-buffer niwa--session)))
+                 (not (niwa-session-artifacts-defer-first-save niwa--session buffer)))
         (let ((scope (niwa-diagnostic-scope niwa--session)))
         (unless (and (niwa-session-persistence--gate-owner-p niwa--session)
                      (niwa-session-publication-defer
@@ -965,6 +969,7 @@ Explicit saves and teardown keep using the synchronous writer and its barrier."
                      (eq buffer (niwa-session-root-buffer niwa--session)))
                  (not (niwa-session-publication-stopping-p niwa--session))
                  (not niwa-session--checkpoint-pending)
+                 (not (niwa-session-artifacts-defer-first-save niwa--session buffer))
                  (or (buffer-modified-p) niwa-session--save-failed
                      (niwa-session-publication-uncommitted-batches niwa--session)))
         (if (not (niwa-session-publication-async-eligible-p niwa--session))

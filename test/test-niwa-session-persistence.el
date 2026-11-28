@@ -5851,6 +5851,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
             (setq-local niwa--session session)
             (should-error (niwa-session-artifacts-ensure-files session buffer)
                           :type 'file-already-exists)
+            (should-not (niwa-session-allocation-in-progress session))
             (should (equal id (niwa-session-session-id session)))
             (should-not (niwa-session-save-path session))
             (should (equal '("." "..") (directory-files path)))))
