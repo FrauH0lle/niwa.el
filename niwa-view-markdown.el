@@ -223,7 +223,7 @@ deferrable check; the next redraw then links it."
 
 `niwa-session-artifacts-artifact-present-p' cannot be used here: on a
 portable session it takes a lease reading through
-`niwa-session-durability--target-time', which runs a control-filesystem
+`niwa-session-durability-target-time', which runs a control-filesystem
 program.  From a redraw that both nests and contends with publication for
 the same control filesystem -- the \"target is already in use\" refusal.
 Both sources consulted here are already in memory."

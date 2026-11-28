@@ -158,7 +158,7 @@ run while it is pending."
                   (niwa-session-durability-call-in-context
                    context
                    (lambda ()
-                     (list (niwa-session-durability--target-time directory)
+                     (list (niwa-session-durability-target-time directory)
                            niwa-session-recovery--mutation-cache))))))
     (unwind-protect
         (cl-letf (((symbol-function 'niwa-session-control-fs-target-time)
@@ -296,9 +296,9 @@ run while it is pending."
           (lease (niwa-session-lease session)))
       (let ((niwa-session-durability--client-id (make-string 64 ?b)))
         (niwa-session-durability--write-plist
-         (niwa-session-durability--generation-path
+         (niwa-session-durability-record-generation-path
           directory (plist-get lease :generation))
-         (niwa-session-durability--lease-record
+         (niwa-session-durability-lease-record
           "*thief*" (plist-get lease :generation) 'active nil nil
           (plist-get lease :renewed-at))))
       (should (equal '(nil (user-error "Portable session lease belongs to another client"))
@@ -613,7 +613,7 @@ run while it is pending."
                    (niwa-session-durability--strip-assumption
                     (niwa-session-lease session))
                    :publication-head ".publications/unseen/manifest.eld"))
-           (path (niwa-session-durability--generation-path
+           (path (niwa-session-durability-record-generation-path
                   directory (plist-get bound :generation))))
       (niwa-session-durability--write-generation directory bound)
       (let ((bytes (niwa-session-control-fs-read-file path)))
@@ -678,9 +678,9 @@ run while it is pending."
           (lease (niwa-session-lease session)))
       (let ((niwa-session-durability--client-id (make-string 64 ?b)))
         (niwa-session-durability--create-plist
-         (niwa-session-durability--generation-path
+         (niwa-session-durability-record-generation-path
           directory (1+ (plist-get lease :generation)))
-         (niwa-session-durability--lease-record
+         (niwa-session-durability-lease-record
           "*thief*" (1+ (plist-get lease :generation)) 'active
           ".publications/9999/manifest.eld" nil
           (plist-get lease :renewed-at)))
@@ -807,9 +807,9 @@ run while it is pending."
           (lease (niwa-session-lease session)))
       (let ((niwa-session-durability--client-id (make-string 64 ?b)))
         (niwa-session-durability--create-plist
-         (niwa-session-durability--generation-path
+         (niwa-session-durability-record-generation-path
           directory (1+ (plist-get lease :generation)))
-         (niwa-session-durability--lease-record
+         (niwa-session-durability-lease-record
           "*thief*" (1+ (plist-get lease :generation)) 'active nil nil
           (plist-get lease :renewed-at))))
       (dolist (without-bytes '(nil t))
@@ -826,9 +826,9 @@ run while it is pending."
           (lease (niwa-session-lease session)))
       (let ((niwa-session-durability--client-id (make-string 64 ?b)))
         (niwa-session-durability--write-plist
-         (niwa-session-durability--generation-path
+         (niwa-session-durability-record-generation-path
           directory (plist-get lease :generation))
-         (niwa-session-durability--lease-record
+         (niwa-session-durability-lease-record
           "*thief*" (plist-get lease :generation) 'active nil nil
           (plist-get lease :renewed-at))))
       (dolist (without-bytes '(nil t))
@@ -1036,8 +1036,8 @@ Each takes the session and returns non-nil only when it committed.")
                                     :generation))))
           (let ((niwa-session-durability--client-id (make-string 64 ?b)))
             (niwa-session-durability--create-plist
-             (niwa-session-durability--generation-path directory next)
-             (niwa-session-durability--lease-record
+             (niwa-session-durability-record-generation-path directory next)
+             (niwa-session-durability-lease-record
               "*claimant*" next 'claiming nil nil
               (plist-get (niwa-session-lease session) :renewed-at))))
           (when without-bytes
@@ -1054,11 +1054,11 @@ Each takes the session and returns non-nil only when it committed.")
     (test-niwa-durability-async--with-lease (root session)
       (let* ((directory (niwa-session-durability--lease-path root))
              (head (niwa-session-lease session))
-             (aborted (niwa-session-durability--lease-record
+             (aborted (niwa-session-durability-lease-record
                        "*owner*" (1+ (plist-get head :generation)) 'aborted
                        nil nil (plist-get head :renewed-at))))
         (niwa-session-durability--create-plist
-         (niwa-session-durability--generation-path
+         (niwa-session-durability-record-generation-path
           directory (plist-get aborted :generation))
          aborted)
         (niwa-session-durability--bind-lease session aborted 'owned)
@@ -1080,7 +1080,7 @@ Each takes the session and returns non-nil only when it committed.")
       (should (eq 'owned (niwa-session-durability-bind-observed-lease
                           session observed)))
       (should (eq 'owned (plist-get (niwa-session-lease session) :state)))
-      (should (equal (niwa-session-durability--record-bytes head)
+      (should (equal (niwa-session-durability-record-bytes head)
                      (plist-get (niwa-session-lease session) :bytes)))
       (niwa-session-durability--cancel-renewal session)))
   :doc "binds an unactivated claim beside the lease as contested"
@@ -1108,7 +1108,7 @@ Each takes the session and returns non-nil only when it committed.")
       (let* ((directory (file-name-concat root ".lease"))
              (parent (niwa-session-control-fs-physical-path
                       (file-name-directory (directory-file-name root))))
-             (head (niwa-session-durability--lease-head directory))
+             (head (niwa-session-durability-lease-head directory))
              (run (symbol-function 'niwa-session-control-fs-run-program-async))
              (claim nil)
              warnings
@@ -1152,8 +1152,8 @@ Each takes the session and returns non-nil only when it committed.")
   (:doc "async reclaim refuses unreadable predecessors without pruning their evidence")
   (test-niwa-durability-async--with-lease (root session)
     (let* ((directory (file-name-concat root ".lease"))
-           (head (niwa-session-durability--lease-head directory))
-           (path (niwa-session-durability--generation-path directory 2))
+           (head (niwa-session-durability-lease-head directory))
+           (path (niwa-session-durability-record-generation-path directory 2))
            warnings)
       (plist-put head :renewed-at 0)
       (plist-put head :expires-at 1)
@@ -1168,14 +1168,14 @@ Each takes the session and returns non-nil only when it committed.")
       (should (file-exists-p path))
       (should (equal "(:generation"
                      (with-temp-buffer (insert-file-contents path) (buffer-string))))
-      (should (equal head (niwa-session-durability--lease-head directory))))))
+      (should (equal head (niwa-session-durability-lease-head directory))))))
 
 (niwa-deftest niwa-session-durability-heartbeat/reclaim-scratch
   (:doc "async own-expiry reclaim preserves both carrier scratch families")
   (dolist (scratch '(nil t))
     (test-niwa-durability-async--with-lease (root session)
       (let* ((directory (file-name-concat root ".lease"))
-             (head (niwa-session-durability--lease-head directory))
+             (head (niwa-session-durability-lease-head directory))
              (staged (list nil))
              paths warnings)
         (plist-put head :renewed-at 0)
@@ -1184,7 +1184,7 @@ Each takes the session and returns non-nil only when it committed.")
         (when scratch
           (niwa-session-control-fs--stage-payloads
            (list (list :op 'write
-                       :path (niwa-session-durability--generation-path directory 2)
+                       :path (niwa-session-durability-record-generation-path directory 2)
                        :content "crash payload")) staged)
           (should (car staged))
           (setq paths (cons (file-name-concat directory ".niwa-control-fs-Ab09Zx")

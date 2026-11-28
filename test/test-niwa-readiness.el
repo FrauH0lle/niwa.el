@@ -220,5 +220,13 @@
       (with-current-buffer view-buf
         (should (equal "> retained draft\nsecond line" (niwa-view-composer-draft-text)))))))
 
+(niwa-deftest niwa-readiness-failed-p ()
+  (with-temp-buffer
+    (should-not (niwa-readiness-failed-p))
+    (setq niwa-readiness--claude '(:state checking))
+    (should-not (niwa-readiness-failed-p))
+    (setq niwa-readiness--claude '(:state failed :message "x"))
+    (should (niwa-readiness-failed-p))))
+
 (provide 'test-niwa-readiness)
 ;;; test-niwa-readiness.el ends here

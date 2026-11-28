@@ -239,7 +239,7 @@ since its private converted copy is validated in full."
                      (directory-files lease-dir t "\\`[0-9]\\{20\\}\\.[a-z]+\\'")))
          (records (mapcar #'niwa-migrate-session--read (reverse files)))
          (latest (cl-find-if (lambda (row) (not (eq 'aborted (plist-get row :status)))) records)))
-    (unless (or liveness-only (cl-every #'niwa-session-durability--valid-lease-p records))
+    (unless (or liveness-only (cl-every #'niwa-session-durability-valid-lease-p records))
       (error "Invalid portable lease record"))
     (when (and (file-directory-p lease-dir)
                (not (and latest

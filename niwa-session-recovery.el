@@ -57,7 +57,7 @@
                   "niwa-session-durability" (session-dir))
 (declare-function niwa-session-durability--portable-session-p
                   "niwa-session-durability" (session))
-(declare-function niwa-session-durability--read-plist
+(declare-function niwa-session-durability-record-read
                   "niwa-session-durability" (path))
 (declare-function niwa-session-durability--settle-clock
                   "niwa-session-durability" (directory result))
@@ -145,7 +145,7 @@ An abandonment marker may outlive its explicitly discarded directory."
   (unless (niwa-session-recovery--marker-name-p marker-path)
     (error "Invalid specialized recovery marker: %s" marker-path))
   (let* ((root (niwa-session-recovery--root session-dir))
-         (marker (niwa-session-durability--read-plist marker-path))
+         (marker (niwa-session-durability-record-read marker-path))
          (abandoning (plist-get marker :abandoning))
          (relative (and marker (plist-get marker :directory)))
          (directory (and relative

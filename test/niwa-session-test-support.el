@@ -482,7 +482,7 @@ WORKSPACE owns SESSION-DIR."
   "Call FUNCTION with the target clock thirty days ahead.
 Lease cleanup also requires the last renewal to be older than the cap."
   (let ((later (+ (floor (float-time)) (* 30 24 60 60))))
-    (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+    (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                (lambda (&optional _) later)))
       (funcall function))))
 
@@ -494,7 +494,7 @@ Lease cleanup also requires the last renewal to be older than the cap."
 (defun test-niwa-session-persistence--lease-released-p (save-path)
   "Return non-nil when SAVE-PATH's lease head is released."
   (eq 'released
-      (plist-get (niwa-session-durability--lease-head
+      (plist-get (niwa-session-durability-lease-head
                   (niwa-session-durability--lease-path save-path))
                  :status)))
 

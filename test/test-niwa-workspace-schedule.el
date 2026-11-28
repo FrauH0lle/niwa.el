@@ -941,7 +941,7 @@ sessions, as an Emacs restart would."
       (let ((dir (niwa-session-save-path
                   (buffer-local-value 'niwa--session (nth 3 (car submitted))))))
         (restart)
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time) (lambda (&rest _) clock)))
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time) (lambda (&rest _) clock)))
           (let ((niwa-session-durability--client-id (make-string 64 ?e))
                 (niwa-session-durability--holder-cache (cons (emacs-pid) nil)))
             (should (niwa-session-durability-lease-acquire dir "Other client")))

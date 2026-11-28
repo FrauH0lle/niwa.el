@@ -229,7 +229,7 @@ and the publication fails closed at the next ownership check."
                  (emacs-pid) (system-name))))
   "Opaque identity of this live niwa client.")
 
-(defun niwa-session-durability--client-host ()
+(defun niwa-session-durability-client-host ()
   "Return this client's bounded display host name.
 
 The value is written into durable lease records, so it is trimmed to the
@@ -386,7 +386,7 @@ project sessions need no disclosure."
 A batched observation reads the target clock in the same process as the lease
 records it inspects, so the value is target-authoritative and needs no second
 round trip.  It is still delivered through
-`niwa-session-durability--target-time', which stays the single seam for
+`niwa-session-durability-target-time', which stays the single seam for
 the target clock.")
 
 (defconst niwa-session-durability--clock-reuse-seconds 1
@@ -431,7 +431,7 @@ results.  AFTER results are left for the binder, which must handle a
           (cons seconds (float-time))))
   seconds)
 
-(defun niwa-session-durability--target-time (directory)
+(defun niwa-session-durability-target-time (directory)
   "Return the target filesystem's current time for control DIRECTORY.
 
 The modification timestamp of a freshly created marker is supplied by the
@@ -496,7 +496,7 @@ authoritative as a separate clock program."
     (niwa-session-durability--note-target-time
      directory (plist-get result :value))))
 
-(defun niwa-session-durability--read-plist (path)
+(defun niwa-session-durability-record-read (path)
   "Return the plist stored at PATH, or nil when PATH is absent or unreadable.
 
 Control records live on the target, so a truncated or planted record must
@@ -517,13 +517,13 @@ accept still passes its own validator."
   "Atomically replace PATH with PLIST through a nearby temporary file."
   (niwa-session-control-fs-write-file
    (niwa-session-control-fs-physical-path path)
-   (niwa-session-durability--record-bytes plist)))
+   (niwa-session-durability-record-bytes plist)))
 
 (defun niwa-session-durability--create-plist (path plist)
   "Atomically create PATH with PLIST, returning non-nil on success."
   (niwa-session-control-fs-create-file
    (niwa-session-control-fs-physical-path path)
-   (niwa-session-durability--record-bytes plist)))
+   (niwa-session-durability-record-bytes plist)))
 
 (defun niwa-session-durability--valid-relative-path-p (path)
   "Return non-nil when PATH is a normalized session-relative file path."
@@ -541,12 +541,13 @@ accept still passes its own validator."
   "Return non-nil when SESSION has portable durable workspace authority."
   (eq (niwa-session-authority-mode-for-session session) 'portable))
 
-(defun niwa-session-durability--lease-record
+(defun niwa-session-durability-lease-record
     (buffer-name generation &optional status publication-head
                  unsettled-mutation now transfer-generation)
   "Return a fresh lease record for BUFFER-NAME and GENERATION.
 STATUS defaults to `active'.  PUBLICATION-HEAD is an immutable manifest path.
 UNSETTLED-MUTATION records target mutation whose outcome is not yet proved.
+NOW is the target-authoritative time and must be a number.
 TRANSFER-GENERATION identifies the request round open for this owner and
 defaults to GENERATION."
   (unless (numberp now)
@@ -560,14 +561,14 @@ defaults to GENERATION."
         ;; The client id is opaque and per-process: it answers "is this me,
         ;; now" and nothing else.  One session directory is reached from
         ;; several machines, so name the holder in terms the user shares.
-        :host (niwa-session-durability--client-host)
+        :host (niwa-session-durability-client-host)
         ;; Lets a later client on this host reclaim a crashed holder at once.
         :holder (niwa-session-durability--holder)
         :renewed-at now
         :expires-at (+ now niwa-session-lease-seconds)
         :buffer buffer-name))
 
-(defun niwa-session-durability--generation-path (directory generation)
+(defun niwa-session-durability-record-generation-path (directory generation)
   "Return GENERATION's immutable record path below DIRECTORY."
   (let ((path
          (file-name-concat
@@ -671,7 +672,7 @@ record can never hide an older live one.  STRICT rejects trailing bytes as
     (error "Incomplete portable lease generation reads"))
   (cl-mapc
    (lambda (path record)
-     (unless (and (niwa-session-durability--valid-lease-p record)
+     (unless (and (niwa-session-durability-valid-lease-p record)
                   (= (niwa-session-durability--generation path)
                      (plist-get record :generation)))
        (error "Unreadable or invalid portable lease generation")))
@@ -692,7 +693,7 @@ pruned every listed generation.  Unchanged unreadable records stay nil."
             (error "Portable session lease changed during discovery")))))
     head))
 
-(defun niwa-session-durability--lease-head (directory &optional names)
+(defun niwa-session-durability-lease-head (directory &optional names)
   "Return DIRECTORY's latest non-aborted lease record.
 
 NAMES, when non-nil, is an already-observed listing that replaces the
@@ -723,11 +724,11 @@ two writers apart."
 (defun niwa-session-durability--write-generation (directory record)
   "Atomically replace RECORD's own generation below DIRECTORY."
   (niwa-session-durability--write-plist
-   (niwa-session-durability--generation-path
+   (niwa-session-durability-record-generation-path
     directory (plist-get record :generation))
    record))
 
-(defun niwa-session-durability--record-bytes (record)
+(defun niwa-session-durability-record-bytes (record)
   "Return the complete printed content of control RECORD."
   (with-temp-buffer
     (let ((print-length nil)
@@ -771,13 +772,13 @@ the lease directory cannot present itself as a newer generation."
 operations it carries.  FORCE-CLOCK reads the target clock even when the
 transaction holds a fresh reading, for a caller that cannot read the target
 again if that reading ages out before the result is used.  GENERATION and
-EXTRA are as for `niwa-session-durability--observe-lease'."
+EXTRA are as for `niwa-session-durability-observe-lease'."
   (let* ((clocked (or force-clock
                       (not (niwa-session-durability--target-time-cached-p
                             directory))))
          (reading (and (natnump generation)
                        (list :op 'read
-                             :path (niwa-session-durability--generation-path
+                             :path (niwa-session-durability-record-generation-path
                                     directory generation)
                              :optional t))))
     (list :clocked clocked
@@ -794,7 +795,7 @@ EXTRA are as for `niwa-session-durability--observe-lease'."
 (defun niwa-session-durability--observe-lease-settle
     (directory plan results)
   "Interpret RESULTS of the observation program PLAN for DIRECTORY.
-Return the plist `niwa-session-durability--observe-lease' documents."
+Return the plist `niwa-session-durability-observe-lease' documents."
   (let* ((clocked (plist-get plan :clocked))
          (reading (plist-get plan :reading))
          (results (copy-sequence results))
@@ -821,7 +822,7 @@ Return the plist `niwa-session-durability--observe-lease' documents."
                  (error nil)))
           :extra results)))
 
-(defun niwa-session-durability--observe-lease
+(defun niwa-session-durability-observe-lease
     (directory generation &optional extra)
   "Observe DIRECTORY's clock, records, and GENERATION's own record at once.
 
@@ -854,9 +855,9 @@ GENERATION, EXPECTED, RECORD, and DEADLINE are as for
                     (list (list :op 'before-time :path directory
                                 :content (number-to-string (floor deadline)))))))
          (after (plist-get riders :after))
-         (path (niwa-session-durability--generation-path
+         (path (niwa-session-durability-record-generation-path
                 directory generation))
-         (bytes (niwa-session-durability--record-bytes record))
+         (bytes (niwa-session-durability-record-bytes record))
          (changed (not (equal expected bytes)))
          (refresh-time (not (niwa-session-durability--target-time-cached-p directory)))
          ;; `verify' opens the commit's own operations: the takeover race
@@ -998,7 +999,7 @@ still holds expire for real."
       (unless (when-let* ((job (niwa-session-lease-renewal-job session)))
                 (eq session (niwa-session-durability--heartbeat-shadow job)))
         (when (and (memq state '(lost foreign))
-                   (niwa-session-durability--valid-lease-p lease)
+                   (niwa-session-durability-valid-lease-p lease)
                    (memq (plist-get lease :status) '(active publishing released))
                    (not (equal niwa-session-durability--client-id
                                (plist-get lease :client-id)))
@@ -1036,7 +1037,7 @@ every comparison, and an infinity never expires."
        (>= value 0)
        (<= value most-positive-fixnum)))
 
-(defun niwa-session-durability--valid-lease-p (lease)
+(defun niwa-session-durability-valid-lease-p (lease)
   "Return non-nil when LEASE has the current portable representation."
   (and (proper-list-p lease)
        (natnump (plist-get lease :generation))
@@ -1067,17 +1068,17 @@ every comparison, and an infinity never expires."
 
 NAMES, when non-nil, is a listing of SESSION-DIR's lease directory already
 observed by the caller, and replaces the list round trip exactly as it does
-for `niwa-session-durability--lease-head'.  Only a caller that took the
+for `niwa-session-durability-lease-head'.  Only a caller that took the
 observation for this read may supply it.
 
 This read-only operation bypasses remote file caches and does not acquire or
 otherwise mutate the session lease."
   (let* ((remote-file-name-inhibit-cache t)
          (directory (niwa-session-durability--lease-path session-dir))
-         (lease (niwa-session-durability--lease-head directory names)))
+         (lease (niwa-session-durability-lease-head directory names)))
     (cond
      ((null lease) nil)
-     ((niwa-session-durability--valid-lease-p lease)
+     ((niwa-session-durability-valid-lease-p lease)
       (plist-get lease :publication-head))
      (t
       (error "Invalid portable session lease: %s" directory)))))
@@ -1113,13 +1114,13 @@ function's own."
          ;; complete predecessor universe.  That holds for any observation
          ;; taken before the create, including the caller's.
          (observed (or observed
-                       (niwa-session-durability--observe-lease
+                       (niwa-session-durability-observe-lease
                         directory nil)))
          ;; The observed reading flows through the clock seam, so a test
          ;; that stubs the seam still governs every deadline.
          (now (let ((niwa-session-durability--observed-time
                      (plist-get observed :now)))
-                (niwa-session-durability--target-time directory)))
+                (niwa-session-durability-target-time directory)))
          (names (progn
                   (unless (plist-get observed :listed)
                     (error "Unreadable portable lease directory"))
@@ -1129,7 +1130,7 @@ function's own."
          (generation
           (1+ (niwa-session-durability--newest-generation
                (plist-get observed :names))))
-         (candidate-path (niwa-session-durability--generation-path
+         (candidate-path (niwa-session-durability-record-generation-path
                           directory generation))
          (older (seq-filter
                  (lambda (path)
@@ -1142,7 +1143,7 @@ function's own."
                  (if (eq status 'publishing)
                      niwa-session-publication-lease-seconds
                    niwa-session-lease-seconds)))
-             (niwa-session-durability--lease-record
+             (niwa-session-durability-lease-record
               buffer-name generation 'claiming
               (plist-get expected :publication-head)
               (if unsettled-mutation-p
@@ -1154,7 +1155,7 @@ function's own."
                        (equal niwa-session-durability--client-id
                               (plist-get expected :client-id))
                        (plist-get expected :transfer-generation))))))
-         (claiming-bytes (niwa-session-durability--record-bytes candidate))
+         (claiming-bytes (niwa-session-durability-record-bytes candidate))
          (expected-bytes
           ;; One strictly validated predecessor needs only an exact byte proof;
           ;; multiple predecessors must all be read before any can be pruned.
@@ -1176,7 +1177,7 @@ function's own."
             ;; settle write must still raise.
             (append (list (list :op 'verify :path candidate-path :content claiming-bytes)
                           (list :op 'write :path candidate-path
-                        :content (niwa-session-durability--record-bytes
+                        :content (niwa-session-durability-record-bytes
                                   candidate)))
                   (mapcar (lambda (path)
                             (list :op 'delete-file :path path :optional t))
@@ -1189,7 +1190,7 @@ function's own."
                    (list (list :op 'verify :path candidate-path :content claiming-bytes)
                          (list :op 'write :path candidate-path
                                :content
-                               (niwa-session-durability--record-bytes
+                               (niwa-session-durability-record-bytes
                                 candidate))
                          (list :op 'delete-file :path candidate-path
                                :optional t)) lock-directory))
@@ -1199,7 +1200,7 @@ function's own."
                 (niwa-session-control-fs-program-value (cadr results))))
             nil))
          (create (list :op 'create :path candidate-path
-                       :content (niwa-session-durability--record-bytes
+                       :content (niwa-session-durability-record-bytes
                                  candidate))))
     (if expected-bytes
         ;; Fence, prove, settle and prune in one program.  A failed proof
@@ -1208,7 +1209,7 @@ function's own."
                 (niwa-session-control-fs-run-program
                  (append (list create
                                (list :op 'verify
-                                     :path (niwa-session-durability--generation-path
+                                     :path (niwa-session-durability-record-generation-path
                                             directory (plist-get expected :generation))
                                      :content expected-bytes))
                          (funcall settle)) lock-directory))
@@ -1259,8 +1260,8 @@ function's own."
 DIRECTORY supplies the target-authoritative clock.  NOW may reuse a reading
 already taken for the surrounding operation."
   (let ((now (or now
-                 (niwa-session-durability--target-time directory))))
-    (and (niwa-session-durability--valid-lease-p lease)
+                 (niwa-session-durability-target-time directory))))
+    (and (niwa-session-durability-valid-lease-p lease)
          (memq (plist-get lease :status) '(active publishing))
          (equal niwa-session-durability--client-id
                 (plist-get lease :client-id))
@@ -1287,11 +1288,11 @@ Only an explicit user takeover command should pass FORCE."
          (_ (niwa-session-durability--ensure-lease-directory directory))
          ;; One observation answers the clock and the listing the head
          ;; reads work from.
-         (observed (niwa-session-durability--observe-lease directory nil))
+         (observed (niwa-session-durability-observe-lease directory nil))
          (now (let ((niwa-session-durability--observed-time
                      (plist-get observed :now)))
-                (niwa-session-durability--target-time directory)))
-         (existing (niwa-session-durability--lease-head
+                (niwa-session-durability-target-time directory)))
+         (existing (niwa-session-durability-lease-head
                     directory
                     (niwa-session-durability--observed-names observed)))
          (lease
@@ -1299,14 +1300,14 @@ Only an explicit user takeover command should pass FORCE."
            ((null existing)
             (niwa-session-durability--claim-next
              directory nil buffer-name))
-           ((not (niwa-session-durability--valid-lease-p existing))
+           ((not (niwa-session-durability-valid-lease-p existing))
             (error "Invalid portable session lease: %s" directory))
            ((and (equal niwa-session-durability--client-id
                         (plist-get existing :client-id))
                  (eq 'active (plist-get existing :status))
                  (> (plist-get existing :expires-at) now))
             (let ((record
-                   (niwa-session-durability--lease-record
+                   (niwa-session-durability-lease-record
                     buffer-name (plist-get existing :generation) 'active
                     (plist-get existing :publication-head)
                     (plist-get existing :unsettled-mutation)
@@ -1315,7 +1316,7 @@ Only an explicit user takeover command should pass FORCE."
               (niwa-session-durability--write-generation directory record)
               (and (niwa-session-durability--same-generation-p
                     record
-                    (niwa-session-durability--lease-head directory))
+                    (niwa-session-durability-lease-head directory))
                    record)))
            ((and (equal niwa-session-durability--client-id
                         (plist-get existing :client-id))
@@ -1405,8 +1406,8 @@ Only an explicit user takeover command should pass FORCE."
            (t
             (niwa-session-durability--claim-next
              directory existing buffer-name)))))
-    (let* ((current (niwa-session-durability--lease-head directory))
-           (current-now (niwa-session-durability--target-time directory))
+    (let* ((current (niwa-session-durability-lease-head directory))
+           (current-now (niwa-session-durability-target-time directory))
            (owned
             (and lease
                  (equal lease current)
@@ -1433,7 +1434,7 @@ Only an explicit user takeover command should pass FORCE."
            'foreign)
           (t 'expired))
          ;; An owned head is the record this client's claim just wrote.
-         (and owned (niwa-session-durability--record-bytes current))
+         (and owned (niwa-session-durability-record-bytes current))
          (and owned existing)))
       (and owned t))))
 
@@ -1517,7 +1518,7 @@ The returned observations belong to this call only, never a status cache."
           (setq now
                 (let ((niwa-session-durability--observed-time
                        (floor (niwa-session-control-fs-program-value (nth 1 results)))))
-                  (niwa-session-durability--target-time directory)))
+                  (niwa-session-durability-target-time directory)))
           (unless (memq (plist-get listing :status) '(ok absent))
             (error "Unreadable portable lease directory"))
           (when (eq 'absent (plist-get listing :status))
@@ -1601,12 +1602,12 @@ Reobserve all blockers, then prove their absence under the election lock."
   (let* ((assessment (niwa-session-durability-cleanup-assessment session-dir))
          (head (plist-get assessment :head))
          (directory (niwa-session-durability--lease-path session-dir))
-         (path (niwa-session-durability--generation-path
+         (path (niwa-session-durability-record-generation-path
                 directory (plist-get lease :generation)))
          (bytes (or (plist-get lease :bytes)
-                    (niwa-session-durability--record-bytes lease))))
+                    (niwa-session-durability-record-bytes lease))))
     (unless (and (eq 'owned (plist-get assessment :state))
-                 (equal bytes (niwa-session-durability--record-bytes head))
+                 (equal bytes (niwa-session-durability-record-bytes head))
                  (null (remq 'live-owner (copy-sequence (plist-get assessment :reasons)))))
       (error "Session deletion blocked: %S" (plist-get assessment :reasons)))
     (let* ((results
@@ -1662,7 +1663,7 @@ The caller must ensure the previous client and its child writers have stopped."
     (unwind-protect
         (progn
           (niwa-session-durability--bind-lease
-           session lease 'owned (niwa-session-durability--record-bytes lease))
+           session lease 'owned (niwa-session-durability-record-bytes lease))
           (unless (niwa-session-durability-lease-owned-p session)
             (error "Session discard lost authority before preparation"))
           (funcall prepare-function)
@@ -1714,9 +1715,9 @@ lease, including on nonlocal exit; never publish a new session head."
          (_ (niwa-session-durability--assert-no-pid-lock session-dir))
          (directory (niwa-session-durability--lease-path session-dir))
          (_ (niwa-session-durability--ensure-lease-directory directory))
-         (existing (niwa-session-durability--lease-head directory))
-         (now (niwa-session-durability--target-time directory)))
-    (when (and existing (not (niwa-session-durability--valid-lease-p existing)))
+         (existing (niwa-session-durability-lease-head directory))
+         (now (niwa-session-durability-target-time directory)))
+    (when (and existing (not (niwa-session-durability-valid-lease-p existing)))
       (error "Invalid portable session lease: %s" directory))
     (when (niwa-session-durability--abandoned-head-p directory existing now)
       (when-let* ((lease (niwa-session-durability--claim-next
@@ -1745,7 +1746,7 @@ client's valid, unexpired head in one of ACCEPTED-STATUS; with
 EXPECTED-HEAD-P its publication head must also equal EXPECTED-HEAD.  The
 reason is a key of `niwa-session-durability--lease-declines'."
   (cond
-   ((not (niwa-session-durability--valid-lease-p existing)) 'record)
+   ((not (niwa-session-durability-valid-lease-p existing)) 'record)
    ((not (memq (plist-get existing :status) accepted-status)) 'status)
    ((not (equal niwa-session-durability--client-id
                 (plist-get existing :client-id)))
@@ -1761,7 +1762,7 @@ reason is a key of `niwa-session-durability--lease-declines'."
   "Return EXISTING renewed at NOW for SECONDS in STATUS.
 A non-nil PUBLICATION-HEAD replaces its preserved head."
   (let ((niwa-session-lease-seconds seconds))
-    (niwa-session-durability--lease-record
+    (niwa-session-durability-lease-record
      (plist-get existing :buffer)
      (plist-get existing :generation)
      status
@@ -1827,14 +1828,14 @@ asynchronous update reports; the latest authority is still bound to SESSION."
                  bound))
            (observed (unless assumed
                        (condition-case nil
-                           (niwa-session-durability--observe-lease
+                           (niwa-session-durability-observe-lease
                             directory generation)
                          (error nil))))
            ;; The clock arrives from the same process as the records, and still
            ;; through the single target-clock seam.
            (now (let ((niwa-session-durability--observed-time
                        (plist-get observed :now)))
-                  (niwa-session-durability--target-time directory)))
+                  (niwa-session-durability-target-time directory)))
            (existing (if assumed assumed (plist-get observed :record)))
            (existing-bytes (if assumed
                                (plist-get assumed :bytes)
@@ -1847,7 +1848,7 @@ asynchronous update reports; the latest authority is still bound to SESSION."
                 (niwa-session-durability--observed-head
                  existing (plist-get observed :names))
                 (condition-case nil
-                    (niwa-session-durability--lease-head directory)
+                    (niwa-session-durability-lease-head directory)
                   (error nil))))
            (decline (niwa-session-durability--update-decline
                      existing head now accepted-status
@@ -1868,7 +1869,7 @@ asynchronous update reports; the latest authority is still bound to SESSION."
                          ;; Retried below without reading anything.
                          ((and assumed (null verdict)) nil)
                          (decline (or head existing))
-                         (t (niwa-session-durability--lease-head
+                         (t (niwa-session-durability-lease-head
                              directory)))))
       (cond
        ;; An assumed precondition that no longer holds is not a lost lease:
@@ -1885,7 +1886,7 @@ asynchronous update reports; the latest authority is still bound to SESSION."
        ((and verdict (equal record latest))
         (niwa-session-durability--bind-lease
          session record 'owned
-         (niwa-session-durability--record-bytes record))
+         (niwa-session-durability-record-bytes record))
         t)
        (t
         (niwa-session-durability--bind-latest session latest directory now)
@@ -1932,16 +1933,16 @@ Return non-nil only when the current owned lease generation commits VALUE."
            (bound (niwa-session-lease session))
            ;; One observation answers the clock, the listing, and the
            ;; bound generation's record.
-           (observed (niwa-session-durability--observe-lease
+           (observed (niwa-session-durability-observe-lease
                       directory (plist-get bound :generation)))
            (now (let ((niwa-session-durability--observed-time
                        (plist-get observed :now)))
-                  (niwa-session-durability--target-time directory)))
+                  (niwa-session-durability-target-time directory)))
            (existing (plist-get observed :record))
            (head
             (or (niwa-session-durability--observed-head
                  existing (plist-get observed :names))
-                (niwa-session-durability--lease-head
+                (niwa-session-durability-lease-head
                  directory
                  (niwa-session-durability--observed-names observed)))))
       (if (niwa-session-durability--update-decline
@@ -1962,10 +1963,10 @@ Return non-nil only when the current owned lease generation commits VALUE."
                 ;; renewal or ownership proof can state them.
                 (niwa-session-durability--bind-lease
                  session successor 'owned
-                 (niwa-session-durability--record-bytes successor))
+                 (niwa-session-durability-record-bytes successor))
                 t)
             (niwa-session-durability--bind-latest
-             session (niwa-session-durability--lease-head directory)
+             session (niwa-session-durability-lease-head directory)
              directory now)
             nil)))))
 
@@ -2077,7 +2078,7 @@ the installed timer uses `niwa-session-durability-heartbeat' instead."
           (plist-get lease :expires-at))
          (condition-case nil
              (> (plist-get lease :expires-at)
-                (niwa-session-durability--target-time
+                (niwa-session-durability-target-time
                  (niwa-session-durability--lease-path session-dir)))
            (error nil)))))
 
@@ -2094,7 +2095,7 @@ session whose lease predates recorded hosts or was never held at all.  Both
 answers come from one head read: a picker asks this per candidate, and on a
 remote target each extra read is a round trip the user waits through."
   (let ((lease
-         (niwa-session-durability--lease-head
+         (niwa-session-durability-lease-head
           (niwa-session-durability--lease-path session-dir))))
     (list :state (niwa-session-durability--lease-state-of session-dir lease)
           :host (plist-get lease :host))))
@@ -2103,7 +2104,7 @@ remote target each extra read is a round trip the user waits through."
   "Return this client's lease state for SESSION-DIR given its head LEASE."
   (cond
    ((null lease) 'available)
-   ((not (niwa-session-durability--valid-lease-p lease))
+   ((not (niwa-session-durability-valid-lease-p lease))
     (error "Invalid portable session lease: %s" session-dir))
    ((eq (plist-get lease :status) 'released)
     (let ((fence
@@ -2116,7 +2117,7 @@ remote target each extra read is a round trip the user waits through."
           'foreign
         'available)))
    ((<= (plist-get lease :expires-at)
-        (niwa-session-durability--target-time
+        (niwa-session-durability-target-time
          (niwa-session-durability--lease-path session-dir)))
     'expired)
    ((equal niwa-session-durability--client-id
@@ -2138,13 +2139,13 @@ its lease state."
            (directory (niwa-session-durability--lease-path session-dir))
            (lease
             (condition-case nil
-                (niwa-session-durability--lease-head directory)
+                (niwa-session-durability-lease-head directory)
               (error nil))))
-      (when (and (niwa-session-durability--valid-lease-p lease)
+      (when (and (niwa-session-durability-valid-lease-p lease)
                  (memq (plist-get lease :status) '(active publishing))
                  (equal niwa-session-durability--client-id
                         (plist-get lease :client-id)))
-        (let ((now (niwa-session-durability--target-time directory)))
+        (let ((now (niwa-session-durability-target-time directory)))
           (setq lease (plist-put lease :status 'released)
                 lease (plist-put lease :expires-at now)))
         (niwa-session-durability--write-generation directory lease))
@@ -2291,7 +2292,7 @@ bytes so the next renewal observes the target instead of assuming."
               (niwa-session-control-fs-run-program
                (append
                 (list (list :op 'verify
-                            :path (niwa-session-durability--generation-path
+                            :path (niwa-session-durability-record-generation-path
                                    directory generation)
                             :content bytes)
                       (list :op 'list-directory :path directory :optional t))
@@ -2307,7 +2308,7 @@ bytes so the next renewal observes the target instead of assuming."
              ;; A newer generation appeared.  An aborted claim leaves this
              ;; client the head; anything else is decided by the next
              ;; renewal, which observes instead of assuming.
-             (let ((head (niwa-session-durability--lease-head
+             (let ((head (niwa-session-durability-lease-head
                           directory (plist-get listing :value))))
                (unless (niwa-session-durability--same-generation-p
                         head lease)
@@ -2348,7 +2349,7 @@ assuming."
         (niwa-session-control-fs-run-program-async
          (append
           (list (list :op 'verify
-                      :path (niwa-session-durability--generation-path
+                      :path (niwa-session-durability-record-generation-path
                              directory generation)
                       :content bytes)
                 (list :op 'list-directory :path directory :optional t))
@@ -2566,7 +2567,7 @@ transaction's still-fresh reading answers."
 
 (defun niwa-session-durability--observe-lease-async
     (directory generation extra job context continue)
-  "Observe DIRECTORY as `niwa-session-durability--observe-lease' does.
+  "Observe DIRECTORY as `niwa-session-durability-observe-lease' does.
 CONTINUE receives its plist.  The program always reads the target clock: the
 transaction's reading can age out before the result is used, and the
 synchronous reading it would fall back to is not available here."
@@ -2584,7 +2585,7 @@ synchronous reading it would fall back to is not available here."
 (defun niwa-session-durability--lease-head-async
     (directory names job context continue &optional previous-paths)
   "Pass CONTINUE DIRECTORY's latest non-aborted lease record, or nil.
-NAMES is an observed listing, as for `niwa-session-durability--lease-head'.
+NAMES is an observed listing, as for `niwa-session-durability-lease-head'.
 JOB and CONTEXT belong to `niwa-session-durability--async-program'.
 PREVIOUS-PATHS marks the one refresh after those paths yielded no head."
   (if (null names)
@@ -2743,7 +2744,7 @@ assumption that no longer held.  The rest is as for
                         (lambda ()
                           (niwa-session-durability--bind-lease
                            session record 'owned
-                           (niwa-session-durability--record-bytes record))
+                           (niwa-session-durability-record-bytes record))
                           (funcall finish t nil))))
                   (niwa-session-durability--async-program
                    directory (plist-get plan :operations) job context
@@ -2903,7 +2904,7 @@ is exactly what a commit of that record put on the target."
     (niwa-session-durability--bind-lease
      session head state
      (and (eq state 'owned)
-          (niwa-session-durability--record-bytes head)))
+          (niwa-session-durability-record-bytes head)))
     state))
 
 (defun niwa-session-durability-admit-async (session callback)
@@ -3126,7 +3127,7 @@ not a completed result: process failure itself invalidates that cache."
               (lambda (head)
                 (let ((owned
                        (and (equal (plist-get proposed :bytes)
-                                   (niwa-session-durability--record-bytes head))
+                                   (niwa-session-durability-record-bytes head))
                             (niwa-session-durability--owned-lease-record-p
                              head directory (plist-get observed :now)))))
                   (niwa-session-durability--bind-lease
@@ -3134,7 +3135,7 @@ not a completed result: process failure itself invalidates that cache."
                    (cond (owned 'owned)
                          ((eq 'claiming (plist-get head :status)) 'contested)
                          (t 'lost))
-                   (and owned (niwa-session-durability--record-bytes head)))
+                   (and owned (niwa-session-durability-record-bytes head)))
                   (funcall (car job) owned nil)))))
          (if (eql (plist-get proposed :generation)
                   (niwa-session-durability--newest-generation
@@ -3164,7 +3165,7 @@ abort follow `niwa-session-durability--claim-next', using real programs."
        (niwa-session-durability--lease-head-async
         directory (niwa-session-durability--observed-names observed) job context
         (lambda (head)
-          (if (not (and (niwa-session-durability--valid-lease-p head)
+          (if (not (and (niwa-session-durability-valid-lease-p head)
                         (equal niwa-session-durability--client-id
                                (plist-get head :client-id))
                         (memq (plist-get head :status) '(claiming active))
@@ -3173,10 +3174,10 @@ abort follow `niwa-session-durability--claim-next', using real programs."
               (funcall (car job) nil nil)
             (let* ((generation (1+ (niwa-session-durability--newest-generation
                                     (plist-get observed :names))))
-                   (path (niwa-session-durability--generation-path directory generation))
+                   (path (niwa-session-durability-record-generation-path directory generation))
                    (older (niwa-session-durability--generation-paths
                            directory (niwa-session-durability--observed-names observed)))
-                   (candidate (niwa-session-durability--lease-record
+                   (candidate (niwa-session-durability-lease-record
                                (plist-get head :buffer) generation 'claiming
                                (plist-get head :publication-head)
                                (plist-get head :unsettled-mutation)
@@ -3185,7 +3186,7 @@ abort follow `niwa-session-durability--claim-next', using real programs."
               (niwa-session-durability--async-program
                directory
                (cons (list :op 'create :path path
-                           :content (niwa-session-durability--record-bytes candidate))
+                           :content (niwa-session-durability-record-bytes candidate))
                      (niwa-session-durability--read-operations older))
                job context
                (lambda (results error)
@@ -3206,9 +3207,9 @@ abort follow `niwa-session-durability--claim-next', using real programs."
                        (niwa-session-durability--async-program
                         directory
                         (append (list (list :op 'verify :path path
-                                            :content (niwa-session-durability--record-bytes candidate))
+                                            :content (niwa-session-durability-record-bytes candidate))
                                       (list :op 'write :path path
-                                            :content (niwa-session-durability--record-bytes record)))
+                                            :content (niwa-session-durability-record-bytes record)))
                               (mapcar (lambda (old)
                                         (list :op 'delete-file :path old :optional t))
                                       (if same older (list path))))
@@ -3220,7 +3221,7 @@ abort follow `niwa-session-durability--claim-next', using real programs."
                           (when same
                             (niwa-session-durability--bind-lease
                              shadow record 'owned
-                             (niwa-session-durability--record-bytes record)))
+                             (niwa-session-durability-record-bytes record)))
                           (funcall (car job) same validation-error)) lock-directory)))))
                lock-directory)))))))))
 

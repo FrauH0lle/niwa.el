@@ -450,7 +450,7 @@ lease and disk the arming reaches stay real and local."
 (defun test-niwa-execution-ack--disk-latch (session)
   "Return the unsettled-mutation flag of SESSION's lease head on disk."
   (and (plist-get
-        (niwa-session-durability--lease-head
+        (niwa-session-durability-lease-head
          (niwa-session-durability--lease-path
           (niwa-session-save-path session)))
         :unsettled-mutation)

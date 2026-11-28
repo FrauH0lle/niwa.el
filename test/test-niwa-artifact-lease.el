@@ -108,7 +108,7 @@
       (niwa-artifact-lease-acquire workspace "board")
       (niwa-artifact-lease-test--as-other
         (ignore-errors (niwa-artifact-lease-acquire workspace "board")))
-      (let ((request (niwa-session-durability--read-plist
+      (let ((request (niwa-session-durability-record-read
                       (niwa-artifact-lease--request-path directory))))
         (should (numberp (plist-get request :at)))
         (niwa-session-durability--write-plist
@@ -306,7 +306,7 @@
       (setq next (plist-put next :client-id niwa-artifact-lease-test--other))
       (niwa-session-durability--write-generation directory next)
       (should-not (niwa-artifact-lease-release workspace "board"))
-      (should (equal next (niwa-session-durability--lease-head directory)))
+      (should (equal next (niwa-session-durability-lease-head directory)))
       (should-not (gethash directory niwa-artifact-lease--held)))))
 
 (provide 'test-niwa-artifact-lease)

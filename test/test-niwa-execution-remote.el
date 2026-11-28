@@ -2030,7 +2030,7 @@ answer, so the known-dead clients are confirmed away."
         (when (> (float-time) deadline)
           (ert-fail
            (format "Journey never reclaimed its session lease from %S"
-                   (niwa-session-durability--lease-head
+                   (niwa-session-durability-lease-head
                     (niwa-session-durability--lease-path
                      (niwa-session-save-path session))))))
         (accept-process-output nil 0.2)))))

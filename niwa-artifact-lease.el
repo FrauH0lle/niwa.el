@@ -68,7 +68,7 @@ while a fenced target program is in progress.")
 
 (defun niwa-artifact-lease--now (directory)
   "Return the target clock for lease DIRECTORY."
-  (niwa-session-durability--target-time directory))
+  (niwa-session-durability-target-time directory))
 
 (defun niwa-artifact-lease--live-p (record now)
   "Return non-nil when RECORD is an unexpired active lease at NOW."
@@ -91,9 +91,9 @@ the item from someone still editing it."
   (ignore-errors
     (niwa-session-control-fs-write-file
      (niwa-artifact-lease--request-path directory)
-     (niwa-session-durability--record-bytes
+     (niwa-session-durability-record-bytes
       (list :client-id niwa-session-durability--client-id
-            :host (niwa-session-durability--client-host)
+            :host (niwa-session-durability-client-host)
             :at now)))))
 
 (defun niwa-artifact-lease--hold (workspace id directory record)
@@ -109,7 +109,7 @@ the item from someone still editing it."
                  (plist-get record :generation))
       (plist-put held :holding (list (plist-get record :generation))))
     (plist-put held :record record)
-    (plist-put held :bytes (niwa-session-durability--record-bytes record))
+    (plist-put held :bytes (niwa-session-durability-record-bytes record))
     (plist-put held :renewed (float-time))
     (plist-put held :touched (float-time))
     record))
@@ -124,31 +124,31 @@ the item from someone still editing it."
 (defun niwa-artifact-lease--observe (directory)
   "Observe lease DIRECTORY's clock and listing in one target program.
 A missing directory is created first."
-  (let ((observed (niwa-session-durability--observe-lease directory nil)))
+  (let ((observed (niwa-session-durability-observe-lease directory nil)))
     (if (plist-get observed :listed)
         observed
       (niwa-session-control-fs-make-directory directory t)
-      (niwa-session-durability--observe-lease directory nil))))
+      (niwa-session-durability-observe-lease directory nil))))
 
 (defun niwa-artifact-lease--claim (directory head id &optional now)
   "Claim lease DIRECTORY after HEAD for item ID, or return nil.
 NOW, the target clock when already observed, dates the new record."
   (let* ((generation (1+ (or (plist-get head :generation) 0)))
-         (record (niwa-session-durability--lease-record
+         (record (niwa-session-durability-lease-record
                   (niwa-artifact-lease--label id) generation 'active nil nil
                   (or now (niwa-artifact-lease--now directory))))
-         (previous (and head (niwa-session-durability--generation-path
+         (previous (and head (niwa-session-durability-record-generation-path
                               directory (plist-get head :generation))))
          (results
           (niwa-session-control-fs-run-program
            (append
             (when head
               (list (list :op 'verify :path previous
-                          :content (niwa-session-durability--record-bytes head))
+                          :content (niwa-session-durability-record-bytes head))
                     (list :op 'verify-latest :path previous :content ".eld")))
             (list (list :op 'create
-                        :path (niwa-session-durability--generation-path directory generation)
-                        :content (niwa-session-durability--record-bytes record)))
+                        :path (niwa-session-durability-record-generation-path directory generation)
+                        :content (niwa-session-durability-record-bytes record)))
             (when previous (list (list :op 'delete-file :path previous :optional t))))
            ;; This parent survives deleting an item and its lease directory.
            (file-name-directory directory))))
@@ -169,13 +169,13 @@ stopped renewing, such as a suspended laptop, is taken over."
              (now (let ((niwa-session-durability--observed-time
                          (plist-get observed :now)))
                     (niwa-artifact-lease--now directory)))
-             (head (niwa-session-durability--lease-head
+             (head (niwa-session-durability-lease-head
                     directory (niwa-session-durability--observed-names observed)))
              (claim (lambda () (niwa-artifact-lease--claim directory head id now)))
              (record
               (cond
                ((null head) (funcall claim))
-               ((not (niwa-session-durability--valid-lease-p head))
+               ((not (niwa-session-durability-valid-lease-p head))
                 (error "Invalid artifact lease: %s" directory))
                ((niwa-artifact-lease--live-p head now)
                 (unless (niwa-artifact-lease--own-p head)
@@ -244,7 +244,7 @@ so a takeover cannot interleave with the operations.  Return their results."
          (held (or (gethash directory niwa-artifact-lease--held)
                    (error "This Emacs does not hold %s" id)))
          (record (plist-get held :record))
-         (path (niwa-session-durability--generation-path
+         (path (niwa-session-durability-record-generation-path
                 directory (plist-get record :generation)))
          (results
           (let ((writing (plist-get held :writing)))
@@ -289,13 +289,13 @@ TO, a client id, reserves the item for that client for one lease period."
         (setq record (plist-put record :renewed-at (min now (plist-get record :expires-at))))
         (setq record (plist-put record :expires-at (plist-get record :renewed-at)))
         (when to (setq record (plist-put record :released-to to)))
-        (let* ((path (niwa-session-durability--generation-path
+        (let* ((path (niwa-session-durability-record-generation-path
                       directory (plist-get record :generation)))
                (results (niwa-session-control-fs-run-program
                          (list (list :op 'verify :path path :content (plist-get held :bytes))
                                (list :op 'verify-latest :path path :content ".eld")
                                (list :op 'write :path path
-                                     :content (niwa-session-durability--record-bytes record)))
+                                     :content (niwa-session-durability-record-bytes record)))
                          (file-name-directory directory))))
           (if-let* ((failed (cl-find-if-not
                             (lambda (result) (eq 'ok (plist-get result :status))) results)))
@@ -314,7 +314,7 @@ TO, a client id, reserves the item for that client for one lease period."
                  (request (and (not busy)
                                (> (- (float-time) (plist-get held :touched))
                                   niwa-artifact-lease--hand-over-quiet-seconds)
-                               (niwa-session-durability--read-plist
+                               (niwa-session-durability-record-read
                                 (niwa-artifact-lease--request-path directory))))
                  (request
                   ;; Compared with the target time of the last renewal.
@@ -346,20 +346,20 @@ TO, a client id, reserves the item for that client for one lease period."
                   (setq record (plist-put record :renewed-at now))
                   (setq record (plist-put record :expires-at
                                           (+ now niwa-session-lease-seconds)))
-                  (if (let* ((path (niwa-session-durability--generation-path
+                  (if (let* ((path (niwa-session-durability-record-generation-path
                                    directory (plist-get record :generation)))
                              (results
                               (niwa-session-control-fs-run-program
                                (list (list :op 'verify :path path :content (plist-get held :bytes))
                                      (list :op 'verify-latest :path path :content ".eld")
                                      (list :op 'write :path path
-                                           :content (niwa-session-durability--record-bytes record)))
+                                           :content (niwa-session-durability-record-bytes record)))
                                (file-name-directory directory))))
                         (cl-every (lambda (result) (eq 'ok (plist-get result :status))) results))
                       (progn
                         (plist-put held :record record)
                         (plist-put held :bytes
-                                   (niwa-session-durability--record-bytes record))
+                                   (niwa-session-durability-record-bytes record))
                         (plist-put held :renewed (float-time)))
                     (niwa-artifact-lease--forget directory)
                     (niwa-diagnostic-message (or (plist-get held :diagnostic-scope) (niwa-diagnostic-scope workspace)) "Lost the editing lease on %s" id)))))))

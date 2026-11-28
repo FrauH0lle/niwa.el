@@ -57,7 +57,7 @@
       (plist-put record key (- (plist-get record key) 120)))
     (niwa-session-durability--write-generation directory record)
     (niwa-session-durability--bind-lease
-     session record 'owned (niwa-session-durability--record-bytes record))
+     session record 'owned (niwa-session-durability-record-bytes record))
     (niwa-session-durability--cancel-renewal session)))
 
 (defmacro test-niwa-heartbeat--held (&rest body)
@@ -127,8 +127,8 @@ filesystem.  Subsequent phases retain the ordinary carrier."
 	    (should (= adoptions 1))
 	    (should (niwa-session-durability-lease-owned-p session))
 	    (should (equal (plist-get (niwa-session-lease session) :bytes)
-			   (niwa-session-durability--record-bytes
-			    (niwa-session-durability--lease-head
+			   (niwa-session-durability-record-bytes
+			    (niwa-session-durability-lease-head
 			     (niwa-session-durability--lease-path root))))))
 	(when event (cancel-timer event))
 	(delete-process watchdog)
@@ -200,7 +200,7 @@ filesystem.  Subsequent phases retain the ordinary carrier."
 	(test-niwa-heartbeat--await session))
       (should (eq 'lost (plist-get (niwa-session-lease session) :state)))
       (should (equal (make-string 64 ?b)
-		     (plist-get (niwa-session-durability--lease-head
+		     (plist-get (niwa-session-durability-lease-head
 				 (niwa-session-durability--lease-path root)) :client-id)))))
 
   :doc "a named lease-update decline is a lost lease: it reclaims and is no failure"
@@ -211,10 +211,10 @@ filesystem.  Subsequent phases retain the ordinary carrier."
         ;; Another client takes the bound generation after the program read it.
         (let ((niwa-session-durability--client-id (make-string 64 ?b)))
           (niwa-session-durability--write-plist
-           (niwa-session-durability--generation-path
+           (niwa-session-durability-record-generation-path
             (niwa-session-durability--lease-path root)
             (plist-get lease :generation))
-           (niwa-session-durability--lease-record
+           (niwa-session-durability-lease-record
             "*thief*" (plist-get lease :generation) 'active nil nil
             (plist-get lease :renewed-at))))
         (cl-letf (((symbol-function 'display-warning)
@@ -249,7 +249,7 @@ filesystem.  Subsequent phases retain the ordinary carrier."
 	  ('release
 	   (should-not (niwa-session-lease-renewal-timer session))
 	   (should (eq 'released
-		       (plist-get (niwa-session-durability--lease-head
+		       (plist-get (niwa-session-durability-lease-head
 				   (niwa-session-durability--lease-path root)) :status))))))))
 
   :doc "accepted publication preparation cannot enter beside a heartbeat"
@@ -287,13 +287,13 @@ filesystem.  Subsequent phases retain the ordinary carrier."
       (plist-put record :status 'claiming)
       (niwa-session-durability--write-generation directory record)
       (niwa-session-durability--bind-lease
-       session record 'owned (niwa-session-durability--record-bytes record))
+       session record 'owned (niwa-session-durability-record-bytes record))
       (niwa-session-durability--cancel-renewal session)
       (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
 		 (lambda (&rest _) (ert-fail "Claiming head used synchronous reclaim"))))
 	(funcall tick session)
 	(test-niwa-heartbeat--await session))
-      (let ((head (niwa-session-durability--lease-head directory)))
+      (let ((head (niwa-session-durability-lease-head directory)))
 	(should (= (plist-get before :generation) (plist-get head :generation)))
 	(should (eq 'claiming (plist-get head :status))))))
 

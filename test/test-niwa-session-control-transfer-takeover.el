@@ -48,7 +48,7 @@ other client's unpublished work."
   (declare (indent 1))
   `(let ((niwa-session-durability--client-id
           (make-string 64 (pcase ,host ('desktop ?a) ('laptop ?b) (_ ?c)))))
-     (cl-letf (((symbol-function 'niwa-session-durability--client-host)
+     (cl-letf (((symbol-function 'niwa-session-durability-client-host)
                 (lambda () (symbol-name ,host)))
                ((symbol-function 'yes-or-no-p)
                 (lambda (prompt)
@@ -77,7 +77,7 @@ KIND is `project' or `file'.  The holder renews once as host desktop."
                          (niwa-session-workspace session))))
        (test-niwa-publication-async--wait
         (lambda () (not (niwa-session-publication-busy-p session))))
-       (cl-letf (((symbol-function 'niwa-session-durability--client-host)
+       (cl-letf (((symbol-function 'niwa-session-durability-client-host)
                   (lambda () "desktop")))
          (should (niwa-session-durability-lease-renew session)))
        (should (equal "desktop"
@@ -88,7 +88,7 @@ KIND is `project' or `file'.  The holder renews once as host desktop."
 
 (defun test-niwa-takeover--head (session)
   "Return the lease head record of SESSION's directory."
-  (niwa-session-durability--lease-head
+  (niwa-session-durability-lease-head
    (niwa-session-durability--lease-path (niwa-session-save-path session))))
 
 (defun test-niwa-takeover--follower (owner)
@@ -246,7 +246,7 @@ With SETTLE, the canceller lets the real terminal settlement run as well."
             (puthash (niwa-execution-target-identity
                       (niwa-session-execution-target session))
                      t niwa-session-durability--disclosed-targets))
-          (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+          (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                      (lambda (&optional _) now)))
             (test-niwa-takeover--as 'desktop
               (should (niwa-session-durability-lease-acquire
@@ -267,7 +267,7 @@ With SETTLE, the canceller lets the real terminal settlement run as well."
               (should (equal (make-string 64 ?b) (plist-get head :client-id)))
               (should (= 1010.0 (plist-get head :renewed-at)))
               (should (file-exists-p
-                       (niwa-session-durability--generation-path
+                       (niwa-session-durability-record-generation-path
                         (niwa-session-durability--lease-path session-dir)
                         (plist-get head :generation)))))))
       (dolist (session (list owner successor))
@@ -755,7 +755,7 @@ With SETTLE, the canceller lets the real terminal settlement run as well."
        (setf (niwa-session-sandbox-mode owner) 'off)
        (niwa-session-control-transfer-register-root-buffer owner buffer)
        (unwind-protect
-           (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+           (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                       (lambda (&rest _) now)))
              (dolist (kind (if (eq scenario 'mixed) '(monitor bash) '(monitor monitor)))
                (let (initial)

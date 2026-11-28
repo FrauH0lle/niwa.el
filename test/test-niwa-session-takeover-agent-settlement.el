@@ -79,7 +79,7 @@
                         (niwa-session-save-path successor) "successor"
                         successor nil t)))
              (niwa-session-durability--cancel-renewal successor))
-           (setq head (niwa-session-durability--lease-head
+           (setq head (niwa-session-durability-lease-head
                        (niwa-session-durability--lease-path
                         (niwa-session-save-path session)))))
          (cl-letf (((symbol-function 'niwa-session-artifacts-publish-agent-terminal-state)
@@ -106,7 +106,7 @@
                (should-not (niwa-agent-conversation--write invocation))
                (should (eq 'following (plist-get (niwa-session-control-transfer session) :state)))
                (should-not (niwa-session-lease-renewal-timer session))
-               (should (equal head (niwa-session-durability--lease-head
+               (should (equal head (niwa-session-durability-lease-head
                                     (niwa-session-durability--lease-path
                                      (niwa-session-save-path session)))))
                (with-current-buffer child
@@ -179,7 +179,7 @@
            (setf (niwa-session-ownership-epoch snapshot) 0)
            (niwa-session-rewind--copy-rewind-session-state snapshot session)
            (should (= epoch (niwa-session-ownership-epoch session))))
-         (setq head (niwa-session-durability--lease-head
+         (setq head (niwa-session-durability-lease-head
                      (niwa-session-durability--lease-path (niwa-session-save-path session))))
          ;; Isolate request-end's identity guard, not a full new provider turn.
          (with-current-buffer child
@@ -192,7 +192,7 @@
            (funcall (cdr (assq invocation callbacks)) "Late old answer.")
            (should (niwa-agent-invocation-runtime-settled-p invocation))
            (should (= 0 publications))
-           (should (equal head (niwa-session-durability--lease-head
+           (should (equal head (niwa-session-durability-lease-head
                                 (niwa-session-durability--lease-path (niwa-session-save-path session)))))
            (with-current-buffer child
              (should (eq new-request niwa--current-request))
@@ -218,7 +218,7 @@
                             (niwa-agent-invocation-ownership-epoch fresh)))
              ;; A real renewal error is not evidence of another owner.
              (let ((warnings 0))
-               (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+               (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                           (lambda (&rest _) (error "Injected target clock failure")))
                          ((symbol-function 'niwa-diagnostic-warning)
                           (lambda (&rest _) (cl-incf warnings))))
@@ -293,7 +293,7 @@
                   (niwa-session-durability--cancel-renewal successor))
                 (should-not (niwa-session-durability-lease-renew session))
                 (should (niwa-session-control-transfer-acquire session root t))
-                (setq head (niwa-session-durability--lease-head
+                (setq head (niwa-session-durability-lease-head
                             (niwa-session-durability--lease-path (niwa-session-save-path session))))))
            (cl-letf (((symbol-function 'niwa-agent-control--stage-invocation)
                       (lambda (_session &rest args)
@@ -315,7 +315,7 @@
            (should (niwa-agent-invocation-runtime-settled-p invocation))
            (should-not (niwa-agent-control--active-p record))
            (should-not (test-niwa-publication-async--mail session))
-           (should (equal head (niwa-session-durability--lease-head
+           (should (equal head (niwa-session-durability-lease-head
                                 (niwa-session-durability--lease-path (niwa-session-save-path session)))))
            (with-current-buffer child
              (should (equal-including-properties before (buffer-string)))
@@ -363,23 +363,23 @@
            (pcase transition
              ('latch
               (should (niwa-session-durability-set-unsettled-mutation session t))
-              (should (= 2 (plist-get (niwa-session-durability--lease-head directory) :generation)))
+              (should (= 2 (plist-get (niwa-session-durability-lease-head directory) :generation)))
               (should (niwa-session-durability-unsettled-mutation-p session))
               (should (niwa-session-durability-set-unsettled-mutation session nil))
-              (should (= 3 (plist-get (niwa-session-durability--lease-head directory) :generation)))
+              (should (= 3 (plist-get (niwa-session-durability-lease-head directory) :generation)))
               (should-not (niwa-session-durability-unsettled-mutation-p session)))
              ('reclaim
-              (let ((expired (copy-sequence (niwa-session-durability--lease-head directory)))
+              (let ((expired (copy-sequence (niwa-session-durability-lease-head directory)))
                     (now (float-time)))
                 (plist-put expired :renewed-at (- now 601))
                 (plist-put expired :expires-at (- now 1))
                 ;; Only disk time changes; renewal must observe and bind the real record.
                 (niwa-session-durability--write-generation directory expired))
               (should (niwa-session-durability-lease-renew session))
-              (should (= 2 (plist-get (niwa-session-durability--lease-head directory) :generation)))))
+              (should (= 2 (plist-get (niwa-session-durability-lease-head directory) :generation)))))
            (should (eq 'owned (plist-get (niwa-session-lease session) :state)))
            (should (equal niwa-session-durability--client-id
-                          (plist-get (niwa-session-durability--lease-head directory) :client-id)))
+                          (plist-get (niwa-session-durability-lease-head directory) :client-id)))
            (should (= epoch (niwa-session-ownership-epoch session)))
            (should (= epoch (niwa-agent-invocation-ownership-epoch invocation)))
            (should-not (niwa-agent-conversation-fenced-p invocation))

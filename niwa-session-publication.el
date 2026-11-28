@@ -77,11 +77,11 @@
 ;; `niwa-session-durability'
 (declare-function niwa-session-durability--create-plist
                   "niwa-session-durability" (path plist))
-(declare-function niwa-session-durability--lease-head
+(declare-function niwa-session-durability-lease-head
                   "niwa-session-durability" (directory))
 (declare-function niwa-session-durability--lease-path
                   "niwa-session-durability" (session-dir))
-(declare-function niwa-session-durability--read-plist
+(declare-function niwa-session-durability-record-read
                   "niwa-session-durability" (path))
 (declare-function niwa-session-durability--renew-publication-lease
                   "niwa-session-durability" (session))
@@ -478,7 +478,7 @@ ABANDONED explicitly discards recovery instead of retaining a failed checkpoint.
 (defun niwa-session-publication--foreign-successor-p (job lease)
   "Return non-nil when activated foreign LEASE irreversibly fences JOB."
   (let ((origin (niwa-session-publication--job-expected-lease job)))
-    (and (niwa-session-durability--valid-lease-p lease)
+    (and (niwa-session-durability-valid-lease-p lease)
          (memq (plist-get lease :status) '(active publishing released))
          (not (equal niwa-session-durability--client-id
                      (plist-get lease :client-id)))
@@ -905,7 +905,7 @@ generation to compare against."
       (let ((root (file-name-as-directory (expand-file-name session-dir))))
         (setq operations
               (list (list :op 'verify-latest
-                          :path (niwa-session-durability--generation-path
+                          :path (niwa-session-durability-record-generation-path
                                  (niwa-session-durability--lease-path session-dir)
                                  generation)
                           :content ".eld")))
@@ -1338,7 +1338,7 @@ passed through to `niwa-session-durability-publication-head'."
         (error "Invalid session publication head: %s" head))
       (let* ((path (niwa-session-publication--publication-path
                     session-dir head))
-             (manifest (niwa-session-durability--read-plist path)))
+             (manifest (niwa-session-durability-record-read path)))
         (unless manifest
           (error "Missing session publication manifest: %s" path))
         (setq manifest
@@ -1445,7 +1445,7 @@ The returned plist carries `:turn-count', `:segment', `:turn',
 `:preview', and `:fork-point-id' for the head's latest prompt."
   (when-let*
       ((sidecar (and published (ignore-errors
-                  (niwa-session-durability--read-plist
+                  (niwa-session-durability-record-read
                    (niwa-session-publication--publication-path
                     session-dir published))))))
     (let (latest)
@@ -1861,7 +1861,7 @@ LISTINGS must be observations from this discovery, never a retained cache."
                          (plist-get row :directory))
                         (plist-get row :paths) row-records)))
                   (when lease
-                    (unless (niwa-session-durability--valid-lease-p lease)
+                    (unless (niwa-session-durability-valid-lease-p lease)
                       (error "Invalid portable session lease"))
                     (when-let* ((head (plist-get lease :publication-head)))
                       (plist-put row :head head)
@@ -2159,7 +2159,7 @@ another name."
                    payloads)
            (list (list :op 'create :path manifest-path
                        :content
-                       (niwa-session-durability--record-bytes
+                       (niwa-session-durability-record-bytes
                         manifest)))))))
 
 (defun niwa-session-publication--commit-marker-publication
@@ -2333,7 +2333,7 @@ nil when SESSION has no bound generation to compare against."
       (let ((directory (file-name-directory (expand-file-name path))))
         (niwa-session-control-fs-physical-path directory)
         (list (list :op 'verify-latest
-                    :path (niwa-session-durability--generation-path
+                    :path (niwa-session-durability-record-generation-path
                            (niwa-session-durability--lease-path session-dir)
                            generation)
                     :content ".eld")

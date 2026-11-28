@@ -16,9 +16,9 @@
   (test)
   :doc "identical renewal proves bytes and observes successors without rewriting"
   (let* ((root (make-temp-file "niwa-renewal-proof-" t))
-         (path (niwa-session-durability--generation-path root 1))
+         (path (niwa-session-durability-record-generation-path root 1))
          (record '(:proof "same"))
-         (bytes (niwa-session-durability--record-bytes record))
+         (bytes (niwa-session-durability-record-bytes record))
          (run (symbol-function 'niwa-session-control-fs-run-program))
          operations)
     (unwind-protect
@@ -46,7 +46,7 @@
             (should-not (niwa-session-durability--commit-lease root 1 bytes record))
             (should (equal "different" (niwa-session-control-fs-read-file path)))
             (niwa-session-control-fs-write-file path bytes)
-            (let ((next (niwa-session-durability--generation-path root 2)))
+            (let ((next (niwa-session-durability-record-generation-path root 2)))
               (niwa-session-control-fs-write-file next "successor")
               (should (member (file-name-nondirectory next)
                               (niwa-session-durability--commit-lease root 1 bytes record))))))
@@ -54,8 +54,8 @@
 
   :doc "carries rider operations around its own, in order, and only once"
   (let* ((root (make-temp-file "niwa-commit-riders-" t))
-         (path (niwa-session-durability--generation-path root 1))
-         (bytes (niwa-session-durability--record-bytes '(:old t)))
+         (path (niwa-session-durability-record-generation-path root 1))
+         (bytes (niwa-session-durability-record-bytes '(:old t)))
          (record '(:new t))
          (before (file-name-concat root "before"))
          (after (file-name-concat root "after"))
@@ -83,15 +83,15 @@
               (should (equal "a" (niwa-session-control-fs-read-file after)))
               ;; A later commit under the same binding carries nothing.
               (should (niwa-session-durability--commit-lease
-                       root 1 (niwa-session-durability--record-bytes record)
+                       root 1 (niwa-session-durability-record-bytes record)
                        '(:newer t)))
               (should (equal 'verify (car (car programs)))))))
       (delete-directory root t)))
 
   :doc "a failed prelude runs nothing of the commit and signals"
   (let* ((root (make-temp-file "niwa-commit-prelude-" t))
-         (path (niwa-session-durability--generation-path root 1))
-         (bytes (niwa-session-durability--record-bytes '(:old t)))
+         (path (niwa-session-durability-record-generation-path root 1))
+         (bytes (niwa-session-durability-record-bytes '(:old t)))
          (after (file-name-concat root "after"))
          (riders (list :before (list (list :op 'make-directory :path root))
                        :after (list (list :op 'write :path after :content "a"))
@@ -111,7 +111,7 @@
 
   :doc "a failed proof leaves the riders after it unwritten and skipped"
   (let* ((root (make-temp-file "niwa-commit-proof-" t))
-         (path (niwa-session-durability--generation-path root 1))
+         (path (niwa-session-durability-record-generation-path root 1))
          (after (file-name-concat root "after"))
          (riders (list :before nil
                        :after (list (list :op 'write :path after :content "a"))
@@ -121,7 +121,7 @@
           (niwa-session-control-fs-write-file path "someone else's")
           (let ((niwa-session-durability--commit-riders riders))
             (should-not (niwa-session-durability--commit-lease
-                         root 1 (niwa-session-durability--record-bytes '(:old t))
+                         root 1 (niwa-session-durability-record-bytes '(:old t))
                          '(:new t))))
           (should (eq 'skipped (plist-get (car (plist-get riders :after-results)) :status)))
           (should-not (file-exists-p after)))
@@ -129,8 +129,8 @@
 
   :doc "a deadline lapsed during the prelude stops the commit"
   (let* ((root (make-temp-file "niwa-commit-deadline-" t))
-         (path (niwa-session-durability--generation-path root 1))
-         (bytes (niwa-session-durability--record-bytes '(:old t)))
+         (path (niwa-session-durability-record-generation-path root 1))
+         (bytes (niwa-session-durability-record-bytes '(:old t)))
          (before (file-name-concat root "before"))
          (riders (list :before (list (list :op 'write :path before :content "b"))
                        :after nil :consumed nil :before-results nil :after-results nil)))

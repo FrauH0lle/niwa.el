@@ -8,6 +8,7 @@
 ;;; Code:
 
 (require 'niwa-session-artifacts)
+(require 'niwa-session-durability)
 (require 'niwa-session-transfer)
 (require 'niwa-session-recovery)
 (require 'niwa-workspace)
@@ -34,7 +35,7 @@
              (niwa-session-durability--client-id (make-string 64 ?a))
              (check (symbol-function
                      'niwa-session-artifacts-check-target-incarnation))
-             (read-record (symbol-function 'niwa-session-durability--read-plist))
+             (read-record (symbol-function 'niwa-session-durability-record-read))
              injected)
         (unwind-protect
             (with-temp-buffer
@@ -82,7 +83,7 @@
                                (niwa-session-transfer-decide session 'grant)
                                (when (eq scenario 'release-during-check)
                                  (niwa-session-transfer-release session))))))
-                        ((symbol-function 'niwa-session-durability--read-plist)
+                        ((symbol-function 'niwa-session-durability-record-read)
                          (lambda (path)
                            (prog1 (funcall read-record path)
                              ;; Return the older absent decision after another
@@ -145,7 +146,7 @@
                      :type 'project :id root :root root :name "admission"))
          (session (niwa-session-create "main" workspace))
          (niwa-session-durability--client-id (make-string 64 ?a))
-         (read-record (symbol-function 'niwa-session-durability--read-plist))
+         (read-record (symbol-function 'niwa-session-durability-record-read))
          injected)
     (unwind-protect
         (with-temp-buffer
@@ -162,9 +163,9 @@
                  (now (+ 2 (plist-get transfer :observed-at)))
                  (niwa-session-transfer-prompt-timeout 1))
             (should (eq 'requested (plist-get transfer :state)))
-            (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+            (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                        (lambda (&rest _) now))
-                      ((symbol-function 'niwa-session-durability--read-plist)
+                      ((symbol-function 'niwa-session-durability-record-read)
                        (lambda (path)
                          (prog1 (funcall read-record path)
                            (when (and (not injected)

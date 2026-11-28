@@ -249,7 +249,7 @@ bindings, including the absence of one."
            ;; wakes the queue.
            (condition-case nil (niwa-readiness-assert session) (user-error nil))
            (when (and (niwa-claude-code-backend-p gptel-backend)
-                      (eq 'failed (plist-get niwa-readiness--claude :state)))
+                      (niwa-readiness-failed-p))
              (niwa-readiness-check)))
           (_ (user-error "Unknown recovery action")))
         (when (and (plist-get frame :provider)

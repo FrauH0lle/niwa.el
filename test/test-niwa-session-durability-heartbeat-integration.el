@@ -107,7 +107,7 @@
        (let* ((request (let ((niwa-session-durability--client-id (make-string 64 ?b)))
                          (niwa-session-transfer-request session)))
               (generation (plist-get (niwa-session-lease session) :generation))
-              (head (symbol-function 'niwa-session-durability--lease-head)))
+              (head (symbol-function 'niwa-session-durability-lease-head)))
          (should request)
          (niwa-session-transfer-poll session)
          (when (eq action 'release) (niwa-session-transfer-decide session 'grant))
@@ -116,7 +116,7 @@
           (lambda (resume)
             (let ((event (run-at-time 0 nil resume)))
               (unwind-protect
-                  (cl-letf (((symbol-function 'niwa-session-durability--lease-head)
+                  (cl-letf (((symbol-function 'niwa-session-durability-lease-head)
                              (lambda (&rest args)
                                (should-not (niwa-session-lease-renewal-job session))
                                (apply head args))))

@@ -52,7 +52,7 @@
                                (let ((niwa-session-durability--client-id (make-string 64 ?b)))
                                  (should (niwa-session-durability-lease-acquire
                                           directory "successor" session)))
-                               (niwa-session-durability--generation-path
+                               (niwa-session-durability-record-generation-path
                                 (niwa-session-durability--lease-path directory)
                                 (plist-get (niwa-session-lease session) :generation)))
                            (setq in-discovery was-in-discovery)))))
@@ -211,7 +211,7 @@
                     ('unchanged-malformed (with-temp-file (car paths) (insert "(")))
                     ('older
                      (with-temp-file
-                         (niwa-session-durability--generation-path lease-directory 6000)
+                         (niwa-session-durability-record-generation-path lease-directory 6000)
                        (insert "("))))
                   (cl-labels
                       ((successor ()
@@ -227,7 +227,7 @@
                                (niwa-session-durability--cancel-renewal session)
                                (should (equal head (plist-get (niwa-session-lease session)
                                                               :publication-head)))
-                               (niwa-session-durability--generation-path
+                               (niwa-session-durability-record-generation-path
                                 lease-directory (plist-get (niwa-session-lease session) :generation)))
                            (setq rotating nil)))
                        (before-read (observed)

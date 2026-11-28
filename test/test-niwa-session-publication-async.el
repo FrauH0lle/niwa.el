@@ -1068,7 +1068,7 @@ LATCH-FIRST starts the latch writer, rather than the root checkpoint, mid-job."
           session "expired" (lambda (ok err) (push (list ok err) acknowledgements)))
          (test-niwa-publication-async--wait (lambda () continuation))
          (let* ((directory (niwa-session-durability--lease-path (niwa-session-save-path session)))
-                (lease (niwa-session-durability--lease-head directory)))
+                (lease (niwa-session-durability-lease-head directory)))
            (setf (plist-get lease :renewed-at) 1 (plist-get lease :expires-at) 2)
            (niwa-session-durability--write-generation directory lease))
          (funcall continuation)
@@ -2129,10 +2129,10 @@ QUEUED adds a second completion while the first job is unresolved."
                            (niwa-session-durability--client-id
                             (make-string 64 ?b)))
                       (niwa-session-durability--write-plist
-                       (niwa-session-durability--generation-path
+                       (niwa-session-durability-record-generation-path
                         (niwa-session-durability--lease-path directory)
                         (plist-get lease :generation))
-                       (niwa-session-durability--lease-record
+                       (niwa-session-durability-lease-record
                         "*thief*" (plist-get lease :generation) 'active nil nil
                         (plist-get lease :renewed-at))))
                     (funcall reserve owner callback))))

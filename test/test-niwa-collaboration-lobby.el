@@ -165,7 +165,7 @@ captured prompts, and whether the restored buffer is live and read-only."
             (list :reply (cdar sent)
                   :before before
                   :after (niwa-collaboration-lobby-test--lease-bytes lease-directory)
-                  :head (niwa-session-durability--lease-head lease-directory)
+                  :head (niwa-session-durability-lease-head lease-directory)
                   :prompts prompts
                   :read-only
                   (when-let* ((buffer (niwa-collaboration-lobby-test--session-live-p id)))

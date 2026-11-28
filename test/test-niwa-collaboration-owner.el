@@ -275,7 +275,7 @@ the room.  START replaces the child's room dial."
          (should (stringp session-directory))
          (should (eq 'released
                      (plist-get
-                      (niwa-session-durability--lease-head
+                      (niwa-session-durability-lease-head
                        (niwa-session-durability--lease-path session-directory))
                       :status)))
          (should (eq :json-false (plist-get reply :ok)))
@@ -412,7 +412,7 @@ the room.  START replaces the child's room dial."
        (should-not (buffer-live-p view))
        (should (eq 'released
                    (plist-get
-                    (niwa-session-durability--lease-head
+                    (niwa-session-durability-lease-head
                      (niwa-session-durability--lease-path directory))
                     :status)))))))
 

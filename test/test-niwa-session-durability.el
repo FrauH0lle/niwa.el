@@ -195,7 +195,7 @@
     (setf (niwa-session-save-path owner) session-dir
           (niwa-session-session-id owner) session-id)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&rest _) now)))
           (let ((niwa-session-durability--client-id owner-id))
           (should
@@ -400,7 +400,7 @@
     (setf (niwa-session-save-path owner) session-dir
           (niwa-session-session-id owner) "drift-session")
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&rest _) now)))
           (let ((niwa-session-durability--client-id owner-id)
                 (niwa-session-transfer-prompt-timeout 1)
@@ -658,7 +658,7 @@
     (unwind-protect
         (let* ((first (niwa-session-durability--claim-next
                        directory nil "*claim-proof*"))
-               (observed (niwa-session-durability--observe-lease
+               (observed (niwa-session-durability-observe-lease
                           directory (plist-get first :generation)))
                (programs 0))
           (should (equal first (plist-get observed :record)))
@@ -674,26 +674,26 @@
           (should (= 1 programs))
           ;; The predecessor was pruned by the same program.
           (should-not (file-exists-p
-                       (niwa-session-durability--generation-path
+                       (niwa-session-durability-record-generation-path
                         directory (plist-get first :generation))))
           ;; A predecessor that changed after its observation fails the
           ;; proof and leaves the fenced claim aborted.
-          (let* ((second (niwa-session-durability--lease-head directory))
-                 (observed (niwa-session-durability--observe-lease
+          (let* ((second (niwa-session-durability-lease-head directory))
+                 (observed (niwa-session-durability-observe-lease
                             directory (plist-get second :generation)))
-                 (path (niwa-session-durability--generation-path
+                 (path (niwa-session-durability-record-generation-path
                         directory (plist-get second :generation))))
             (with-temp-file path
-              (insert (niwa-session-durability--record-bytes
+              (insert (niwa-session-durability-record-bytes
                        (plist-put (copy-sequence second) :buffer "*changed*"))))
             (should-not (niwa-session-durability--claim-next
                          directory second "*claim-proof*" nil nil nil nil
                          observed))
             (should-not (file-exists-p
-                         (niwa-session-durability--generation-path
+                         (niwa-session-durability-record-generation-path
                           directory (1+ (plist-get second :generation)))))
             (should (equal "*changed*"
-                           (plist-get (niwa-session-durability--lease-head
+                           (plist-get (niwa-session-durability-lease-head
                                        directory)
                                       :buffer)))))
       (delete-directory root t))))
@@ -745,7 +745,7 @@ holder identity is recorded by an owner lease acquired before the call."
        (let ((niwa-session-durability--client-id (make-string 64 ?b)))
          (should (niwa-session-durability-lease-acquire root "*new*"))
          (should (equal (make-string 64 ?b)
-                        (plist-get (niwa-session-durability--lease-head
+                        (plist-get (niwa-session-durability-lease-head
                                     (niwa-session-durability--lease-path root))
                                    :client-id)))))))
 
@@ -753,7 +753,7 @@ holder identity is recorded by an owner lease acquired before the call."
   (test-niwa-session-durability--with-holder
    (lambda (root process)
      (let* ((directory (niwa-session-durability--lease-path root))
-            (head (niwa-session-durability--lease-head directory)))
+            (head (niwa-session-durability-lease-head directory)))
        ;; Age the real record: only its deadline changes.
        (niwa-session-durability--write-generation
         directory (plist-put (plist-put (copy-sequence head) :renewed-at 1)
@@ -776,7 +776,7 @@ holder identity is recorded by an owner lease acquired before the call."
    (lambda (root process)
      (should (process-live-p process))
      (let* ((directory (niwa-session-durability--lease-path root))
-            (head (niwa-session-durability--lease-head directory))
+            (head (niwa-session-durability-lease-head directory))
             (holder (copy-sequence (plist-get head :holder))))
        ;; Well-formed start ticks that differ from the live PID's: reuse.
        (niwa-session-durability--write-generation
@@ -791,7 +791,7 @@ holder identity is recorded by an owner lease acquired before the call."
    (lambda (root process)
      (test-niwa-session-durability--kill-holder process)
      (let* ((directory (niwa-session-durability--lease-path root))
-            (head (niwa-session-durability--lease-head directory))
+            (head (niwa-session-durability-lease-head directory))
             (holder (plist-get head :holder)))
        (dolist (forged
                 (list (plist-put (copy-sequence holder) :pid 4194305)
@@ -813,7 +813,7 @@ holder identity is recorded by an owner lease acquired before the call."
    (lambda (root process)
      (should (process-live-p process))
      (let* ((directory (niwa-session-durability--lease-path root))
-            (head (niwa-session-durability--lease-head directory)))
+            (head (niwa-session-durability-lease-head directory)))
        (niwa-session-durability--write-generation
         directory (plist-put (copy-sequence head) :holder
                              (plist-put (copy-sequence (plist-get head :holder))
@@ -837,7 +837,7 @@ holder identity is recorded by an owner lease acquired before the call."
    (lambda (root process)
      (test-niwa-session-durability--kill-holder process)
      (let* ((directory (niwa-session-durability--lease-path root))
-            (head (niwa-session-durability--lease-head directory)))
+            (head (niwa-session-durability-lease-head directory)))
        (niwa-session-durability--write-generation
         directory (plist-put (copy-sequence head) :holder
                              (plist-put (copy-sequence (plist-get head :holder))
@@ -855,7 +855,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (should-not (niwa-session-durability-lease-acquire root "*new*")))
        ;; Neither is a record without holder evidence.
        (let* ((directory (niwa-session-durability--lease-path root))
-              (head (niwa-session-durability--lease-head directory)))
+              (head (niwa-session-durability-lease-head directory)))
          (niwa-session-durability--write-generation
           directory (plist-put (copy-sequence head) :holder nil))
          (should-not (niwa-session-durability-lease-acquire root "*new*")))))))
@@ -880,8 +880,8 @@ holder identity is recorded by an owner lease acquired before the call."
   (test-niwa-session-durability--with-holder
    (lambda (root process)
      (let* ((directory (niwa-session-durability--lease-path root))
-            (head (niwa-session-durability--lease-head directory))
-            (now (niwa-session-durability--target-time directory)))
+            (head (niwa-session-durability-lease-head directory))
+            (now (niwa-session-durability-target-time directory)))
        (should-not (niwa-session-durability--abandoned-head-p directory head now))
        (test-niwa-session-durability--kill-holder process)
        (should (niwa-session-durability--abandoned-head-p directory head now))))))
@@ -977,7 +977,7 @@ holder identity is recorded by an owner lease acquired before the call."
       (niwa-session-durability--cancel-renewal session)
       (delete-directory root t))))
 
-(niwa-deftest niwa-session-durability--valid-lease-p
+(niwa-deftest niwa-session-durability-valid-lease-p
   (:doc "rejects timestamps that are not finite nonnegative numbers")
   (let ((record
          (list :generation 1
@@ -990,7 +990,7 @@ holder identity is recorded by an owner lease acquired before the call."
                :renewed-at 100
                :expires-at 190
                :buffer "main")))
-    (should (niwa-session-durability--valid-lease-p record))
+    (should (niwa-session-durability-valid-lease-p record))
     ;; The record is untrusted file bytes another machine may have written,
     ;; and this predicate is the only gate before every authority decision.
     (dolist (key '(:renewed-at :expires-at))
@@ -1000,11 +1000,11 @@ holder identity is recorded by an owner lease acquired before the call."
                            -1
                            (1+ most-positive-fixnum)))
         (should-not
-         (niwa-session-durability--valid-lease-p
+         (niwa-session-durability-valid-lease-p
           (plist-put (copy-sequence record) key value)))))
     ;; An expiry before its own renewal is not a coherent record either.
     (should-not
-     (niwa-session-durability--valid-lease-p
+     (niwa-session-durability-valid-lease-p
       (plist-put (copy-sequence record) :expires-at 99)))))
 
 (niwa-deftest niwa-session-durability--lease-state-of
@@ -1086,7 +1086,7 @@ holder identity is recorded by an owner lease acquired before the call."
       (when (file-directory-p root)
         (delete-directory root t)))))
 
-(niwa-deftest niwa-session-durability--target-time ()
+(niwa-deftest niwa-session-durability-target-time ()
   ,test
   (test)
   :doc "transaction readings stay directory-specific, expire, and never escape their scope"
@@ -1102,21 +1102,21 @@ holder identity is recorded by an owner lease acquired before the call."
                  (push directory reads)
                  (if (equal directory outer) 1000 100000))))
       (niwa-session-durability-with-transaction
-        (should (= 1000 (niwa-session-durability--target-time outer)))
+        (should (= 1000 (niwa-session-durability-target-time outer)))
         (should-not (niwa-session-durability--target-time-cached-p inner))
         (niwa-session-durability-with-transaction
-          (should (= 100000 (niwa-session-durability--target-time inner))))
+          (should (= 100000 (niwa-session-durability-target-time inner))))
         (setq elapsed 0.5)
-        (should (= 1000 (niwa-session-durability--target-time outer)))
-        (should (= 100000 (niwa-session-durability--target-time inner)))
+        (should (= 1000 (niwa-session-durability-target-time outer)))
+        (should (= 100000 (niwa-session-durability-target-time inner)))
         (should (equal reads (list inner outer)))
         (setq elapsed 1.0)
         (should-not (niwa-session-durability--target-time-cached-p outer))
-        (should (= 1000 (niwa-session-durability--target-time outer)))
+        (should (= 1000 (niwa-session-durability-target-time outer)))
         (should (equal reads (list outer inner outer))))
       (should-not niwa-session-durability--transaction-clock)
       (dotimes (_ 2)
-        (should (= 1000 (niwa-session-durability--target-time outer)))))
+        (should (= 1000 (niwa-session-durability-target-time outer)))))
     (should (= 5 (length reads)))))
 
 
@@ -1131,7 +1131,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (niwa-session-lease-seconds 10))
     (make-directory session-dir t)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) target-now))
                   ((symbol-function 'float-time)
                    (lambda (&rest _) client-clock))
@@ -1159,27 +1159,27 @@ holder identity is recorded by an owner lease acquired before the call."
       (when (file-directory-p root)
         (delete-directory root t)))))
 
-(niwa-deftest niwa-session-durability--lease-record
+(niwa-deftest niwa-session-durability-lease-record
   (:doc "requires target time and records the open transfer generation")
   ,test
   (test)
-  (should-error (niwa-session-durability--lease-record "*buffer*" 1)
+  (should-error (niwa-session-durability-lease-record "*buffer*" 1)
                 :type 'error)
   (let ((niwa-session-durability--client-id (make-string 64 ?a)))
     (should
      (= 3
         (plist-get
-         (niwa-session-durability--lease-record
+         (niwa-session-durability-lease-record
           "*buffer*" 3 'active nil nil 1.0)
          :transfer-generation)))
     (should
      (= 1
         (plist-get
-         (niwa-session-durability--lease-record
+         (niwa-session-durability-lease-record
           "*buffer*" 3 'active nil nil 1.0 1)
          :transfer-generation)))))
 
-(niwa-deftest niwa-session-durability--lease-head
+(niwa-deftest niwa-session-durability-lease-head
   (:doc "keeps a live lease visible when a newer generation cannot be read")
   (let* ((root (make-temp-file "niwa-lease-head-" t))
          (session-dir (file-name-concat root "session"))
@@ -1189,7 +1189,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (niwa-session-lease-seconds 90))
     (make-directory session-dir t)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) target-now)))
           (let ((niwa-session-durability--client-id owner))
             (should
@@ -1203,10 +1203,10 @@ holder identity is recorded by an owner lease acquired before the call."
                            directory
                            (format "%020d.eld" 6000))))
             (write-region "" nil phantom nil 'silent)
-            (should (niwa-session-durability--lease-head directory))
+            (should (niwa-session-durability-lease-head directory))
             (should (equal owner
                            (plist-get
-                            (niwa-session-durability--lease-head directory)
+                            (niwa-session-durability-lease-head directory)
                             :client-id)))
             (let ((niwa-session-durability--client-id successor))
               (should (eq 'foreign
@@ -1229,7 +1229,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (niwa-session-lease-seconds 10))
     (make-directory session-dir t)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) target-now))
                   ((symbol-function 'y-or-n-p)
                    (lambda (&rest _) (setq prompts (1+ prompts)) nil)))
@@ -1313,7 +1313,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (make-directory session-dir-local t)
     (unwind-protect
         (niwa-test--with-local-shell-tramp (list host)
-          (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+          (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                      (lambda (&optional _) now))
                     ((symbol-function 'y-or-n-p)
                      (lambda (&rest _) t)))
@@ -1353,7 +1353,7 @@ holder identity is recorded by an owner lease acquired before the call."
          threads)
     (make-directory session-dir t)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) now)))
           (let ((niwa-session-durability--client-id owner))
             (should (niwa-session-durability-lease-acquire
@@ -1409,7 +1409,7 @@ holder identity is recorded by an owner lease acquired before the call."
       (make-directory session-dir t)
       (setf (niwa-session-save-path session) session-dir)
       (unwind-protect
-          (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+          (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                      (lambda (&optional _) now))
                     ((symbol-function 'y-or-n-p)
                      (lambda (&rest _) t)))
@@ -1421,11 +1421,11 @@ holder identity is recorded by an owner lease acquired before the call."
               (let ((niwa-session-durability--client-id blocker))
                 (should
                  (niwa-session-durability--create-plist
-                  (niwa-session-durability--generation-path
+                  (niwa-session-durability-record-generation-path
                    (file-name-concat session-dir ".lease") 2)
-                  (niwa-session-durability--lease-record
+                  (niwa-session-durability-lease-record
                    "*paused-claim*" 2 'claiming nil nil
-                   (niwa-session-durability--target-time
+                   (niwa-session-durability-target-time
                     (file-name-concat session-dir ".lease"))))))
               (should-not
                (niwa-session-durability-lease-acquire
@@ -1452,7 +1452,7 @@ holder identity is recorded by an owner lease acquired before the call."
          (confirmed nil))
     (make-directory session-dir t)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) now))
                   ;; A claim finalizes through the program whose second
                   ;; operation is the settle write; the fencing create and
@@ -1748,7 +1748,7 @@ holder identity is recorded by an owner lease acquired before the call."
         (niwa-test--with-local-shell-tramp (list host)
           (test-niwa-session-durability--accept-storage session)
           (setf (niwa-session-save-path session) session-dir)
-          (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+          (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                      (lambda (&optional _) now)))
             (should (niwa-session-persistence-lock-acquire
                      session-dir "*renew*" session))
@@ -1780,7 +1780,7 @@ holder identity is recorded by an owner lease acquired before the call."
         (niwa-test--with-local-shell-tramp (list host)
           (test-niwa-session-durability--accept-storage session)
           (setf (niwa-session-save-path session) session-dir)
-          (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+          (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                      (lambda (&optional _) now)))
             (should (niwa-session-persistence-lock-acquire
                      session-dir "*standby*" session))
@@ -1862,7 +1862,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (unwind-protect
         (progn
           (setf (niwa-session-save-path session) session-dir)
-          (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+          (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                      (lambda (&optional _) now)))
             (should (niwa-session-durability-lease-acquire
                      session-dir "*owner*" session))
@@ -1922,7 +1922,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (setf (niwa-session-save-path session) session-dir)
     (unwind-protect
         (cl-letf
-            (((symbol-function 'niwa-session-durability--target-time)
+            (((symbol-function 'niwa-session-durability-target-time)
               (lambda (&optional _)
                 (cond
                  (initial 0.0)
@@ -2004,10 +2004,10 @@ holder identity is recorded by an owner lease acquired before the call."
           (let ((niwa-session-durability--client-id successor))
             (should
              (niwa-session-durability--create-plist
-              (niwa-session-durability--generation-path lease-directory 2)
-              (niwa-session-durability--lease-record
+              (niwa-session-durability-record-generation-path lease-directory 2)
+              (niwa-session-durability-lease-record
                "*successor*" 2 'active nil nil
-               (niwa-session-durability--target-time lease-directory)))))
+               (niwa-session-durability-target-time lease-directory)))))
           ;; The renewal observes the generation listing inside its own
           ;; target program, so that is where consulting it is proved.
           (cl-letf
@@ -2097,7 +2097,7 @@ holder identity is recorded by an owner lease acquired before the call."
           (should (niwa-session-durability-lease-acquire
                    session-dir "*owner*" session))
           (let* ((directory (file-name-concat session-dir ".lease"))
-                 (first (niwa-session-durability--lease-head directory))
+                 (first (niwa-session-durability-lease-head directory))
                  (successor
                   (niwa-session-durability--claim-next
                    directory first "*owner*")))
@@ -2109,7 +2109,7 @@ holder identity is recorded by an owner lease acquired before the call."
             (should
              (eq 'released
                  (plist-get
-                  (niwa-session-durability--lease-head directory)
+                  (niwa-session-durability-lease-head directory)
                   :status)))))
       (niwa-session-durability--cancel-renewal session)
       (when (file-directory-p local-root)
@@ -2136,7 +2136,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (setf (niwa-session-save-path owner-session) session-dir
           (niwa-session-save-path successor-session) session-dir)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) now)))
           (should (niwa-session-durability-lease-acquire
                    session-dir "*owner*" owner-session))
@@ -2206,7 +2206,7 @@ holder identity is recorded by an owner lease acquired before the call."
             (should
              (eq (if publication-active 'publishing 'released)
                  (plist-get
-                  (niwa-session-durability--lease-head
+                  (niwa-session-durability-lease-head
                    (file-name-concat session-dir ".lease"))
                   :status))))
         (niwa-session-durability--cancel-renewal session)
@@ -2238,7 +2238,7 @@ holder identity is recorded by an owner lease acquired before the call."
           (should
            (eq 'released
                (plist-get
-                (niwa-session-durability--lease-head
+                (niwa-session-durability-lease-head
                  (file-name-concat session-dir ".lease"))
                 :status))))
       (niwa-session-durability--cancel-renewal session)
@@ -2401,7 +2401,7 @@ holder identity is recorded by an owner lease acquired before the call."
                    session-dir "*owner*" session))
           ;; Another writer replaced this client's record behind its back.
           (let* ((lease (niwa-session-lease session))
-                 (path (niwa-session-durability--generation-path
+                 (path (niwa-session-durability-record-generation-path
                         (niwa-session-durability--lease-path session-dir)
                         (plist-get lease :generation))))
             (niwa-session-control-fs-write-file
@@ -2432,11 +2432,11 @@ holder identity is recorded by an owner lease acquired before the call."
             ;; A foreign claim activated the next generation while this
             ;; client's record survived its best-effort pruning.
             (niwa-session-durability--write-plist
-             (niwa-session-durability--generation-path directory next)
+             (niwa-session-durability-record-generation-path directory next)
              (let ((niwa-session-durability--client-id (make-string 64 ?b)))
-               (niwa-session-durability--lease-record
+               (niwa-session-durability-lease-record
                 "*foreign*" next 'active nil nil
-                (niwa-session-durability--target-time directory)))))
+                (niwa-session-durability-target-time directory)))))
           ;; The precondition held at the proof, so the append ran ...
           (should (niwa-session-durability-run-owned-program
                    session (list (list :op 'append :path log :content "x"))))
@@ -2561,7 +2561,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (setf (niwa-session-save-path owner-session) session-dir
           (niwa-session-save-path successor-session) session-dir)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) now)))
           (should (niwa-session-durability-lease-acquire
                    session-dir "*owner*" owner-session))
@@ -2615,7 +2615,7 @@ holder identity is recorded by an owner lease acquired before the call."
           (should
            (eq 'released
                (plist-get
-                (niwa-session-durability--lease-head
+                (niwa-session-durability-lease-head
                  (file-name-concat session-dir ".lease"))
                 :status))))
       (niwa-session-durability--cancel-renewal session)
@@ -2707,7 +2707,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (setf (niwa-session-save-path owner-session) session-dir
           (niwa-session-save-path successor-session) session-dir)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) now)))
           (should (niwa-session-durability-lease-acquire
                    session-dir "*owner*" owner-session))
@@ -2785,17 +2785,17 @@ holder identity is recorded by an owner lease acquired before the call."
           (let ((niwa-session-durability--client-id (make-string 64 ?a)))
             (should
              (niwa-session-durability--create-plist
-              (niwa-session-durability--generation-path lease-directory 1)
-              (niwa-session-durability--lease-record
+              (niwa-session-durability-record-generation-path lease-directory 1)
+              (niwa-session-durability-lease-record
                "*old*" 1 'active ".publications/old/manifest.eld" nil
-               (niwa-session-durability--target-time lease-directory)))))
+               (niwa-session-durability-target-time lease-directory)))))
           (let ((niwa-session-durability--client-id (make-string 64 ?b)))
             (should
              (niwa-session-durability--create-plist
-              (niwa-session-durability--generation-path lease-directory 2)
-              (niwa-session-durability--lease-record
+              (niwa-session-durability-record-generation-path lease-directory 2)
+              (niwa-session-durability-lease-record
                "*new*" 2 'active ".publications/new/manifest.eld" nil
-               (niwa-session-durability--target-time lease-directory)))))
+               (niwa-session-durability-target-time lease-directory)))))
           (cl-letf
               (((symbol-function 'niwa-session-control-fs-list-directory)
                 (lambda (directory regexp)
@@ -2979,7 +2979,7 @@ holder identity is recorded by an owner lease acquired before the call."
                   (file-name-concat session-dir
                                     (plist-get publication :head)))
                  (manifest
-                  (niwa-session-durability--read-plist manifest-path))
+                  (niwa-session-durability-record-read manifest-path))
                  (sidecar-entry
                   (cdr (assoc "session.meta.eld"
                               (plist-get manifest :artifacts)))))
@@ -3874,7 +3874,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (make-directory session-dir t)
     (setf (niwa-session-save-path session) session-dir)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) now))
                   ((symbol-function 'y-or-n-p)
                    (lambda (&rest _)
@@ -3969,7 +3969,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (make-directory session-dir t)
     (setf (niwa-session-save-path session) session-dir)
     (unwind-protect
-        (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+        (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                    (lambda (&optional _) now)))
           (should (niwa-session-durability-lease-acquire
                    session-dir "*publisher*" session))
@@ -4767,7 +4767,7 @@ holder identity is recorded by an owner lease acquired before the call."
                  host local-root))
           (test-niwa-session-durability--accept-storage session)
           (setf (niwa-session-save-path session) session-dir)
-          (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+          (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                      (lambda (&optional _) now)))
             (let ((niwa-session-durability--client-id owner))
               (should
@@ -5074,10 +5074,10 @@ holder identity is recorded by an owner lease acquired before the call."
           (progn
             (make-directory directory t)
             (niwa-session-durability--ensure-lease-directory lease-dir)
-            (let* ((now (niwa-session-durability--target-time lease-dir))
+            (let* ((now (niwa-session-durability-target-time lease-dir))
                    (record
                     (let ((niwa-session-durability--client-id foreign))
-                      (niwa-session-durability--lease-record
+                      (niwa-session-durability-lease-record
                        "old owner" 1 (nth 0 case) nil (nth 2 case)
                        (+ now (nth 1 case))))))
               (niwa-session-durability--write-generation lease-dir record)
@@ -5087,7 +5087,7 @@ holder identity is recorded by an owner lease acquired before the call."
                             (niwa-session-durability-call-with-abandoned-lease
                              session (lambda () (setq called t))))))
               (should (eq (nth 3 case) called))
-              (let ((head (niwa-session-durability--lease-head lease-dir)))
+              (let ((head (niwa-session-durability-lease-head lease-dir)))
                 (if called
                     (progn
                       (should (= 2 (plist-get head :generation)))
@@ -5143,25 +5143,25 @@ holder identity is recorded by an owner lease acquired before the call."
     (let ((record
            (when (nth 0 case)
              (let ((niwa-session-durability--client-id foreign))
-               (niwa-session-durability--lease-record
+               (niwa-session-durability-lease-record
                 "old owner" 1 (nth 0 case) nil (nth 2 case)
-                (+ (niwa-session-durability--target-time lease-dir) (nth 1 case)))))))
+                (+ (niwa-session-durability-target-time lease-dir) (nth 1 case)))))))
       (when record (niwa-session-durability--write-generation lease-dir record))
       (should (eq (nth 3 case)
                   (and (niwa-session-durability-delete-abandoned directory 1000) t)))
       (should (eq (nth 3 case) (not (file-directory-p directory))))
       (unless (nth 3 case)
-        (should (equal record (niwa-session-durability--lease-head lease-dir)))
+        (should (equal record (niwa-session-durability-lease-head lease-dir)))
         (delete-directory directory t))
       (make-directory directory t)))
   :doc "a head in another lease format is retained even when its expiry is old"
   (dolist (case '((-2000 nil) (-500 nil)))
     (let ((record (let ((niwa-session-durability--client-id foreign))
-                    (niwa-session-durability--lease-record
+                    (niwa-session-durability-lease-record
                      "old owner" 1 'released nil nil
-                     (+ (niwa-session-durability--target-time lease-dir) (car case))))))
+                     (+ (niwa-session-durability-target-time lease-dir) (car case))))))
       (cl-remf record :transfer-generation)
-      (should-not (niwa-session-durability--valid-lease-p record))
+      (should-not (niwa-session-durability-valid-lease-p record))
       (niwa-session-durability--write-generation lease-dir record)
       (should (eq (cadr case)
                   (and (niwa-session-durability-delete-abandoned directory 1000) t)))
@@ -5180,7 +5180,7 @@ holder identity is recorded by an owner lease acquired before the call."
     (funcall blocker)
     (should-not (niwa-session-durability-delete-abandoned directory 1000))
     (should (file-directory-p directory))
-    (should-not (niwa-session-durability--lease-head lease-dir)))
+    (should-not (niwa-session-durability-lease-head lease-dir)))
   :doc "a competing generation after the claim keeps the session"
   (let ((claim (symbol-function 'niwa-session-durability--claim-next)))
     (cl-letf (((symbol-function 'niwa-session-durability--claim-next)
@@ -5188,13 +5188,13 @@ holder identity is recorded by an owner lease acquired before the call."
                  (let ((lease (apply claim args)))
                    (let ((niwa-session-durability--client-id foreign))
                      (niwa-session-durability--write-generation
-                      lease-dir (niwa-session-durability--lease-record
+                      lease-dir (niwa-session-durability-lease-record
                                  "*laptop*" (1+ (plist-get lease :generation)) 'active nil nil
-                                 (niwa-session-durability--target-time lease-dir))))
+                                 (niwa-session-durability-target-time lease-dir))))
                    lease))))
       (should-not (niwa-session-durability-delete-abandoned directory 1000)))
     (should (file-directory-p directory))
-    (should (equal foreign (plist-get (niwa-session-durability--lease-head lease-dir) :client-id)))))
+    (should (equal foreign (plist-get (niwa-session-durability-lease-head lease-dir) :client-id)))))
 
 (niwa-deftest niwa-session-recovery--local-temporary-p
   (:doc "accepts a temporary child even when a racing directory stat disagrees")
@@ -5247,7 +5247,7 @@ holder identity is recorded by an owner lease acquired before the call."
         ('staged
          (niwa-session-control-fs--stage-payloads
           (list (list :op 'write
-                      :path (niwa-session-durability--generation-path lease-dir 1)
+                      :path (niwa-session-durability-record-generation-path lease-dir 1)
                       :content "crash payload")) staged)
          (should (car staged)))
         ('shell (write-region "crash payload" nil shell nil 'silent)))
@@ -5297,9 +5297,9 @@ holder identity is recorded by an owner lease acquired before the call."
                     (active 0 nil (live-owner) owned nil)
                     (active -4000 nil nil expired nil)
                     (released 0 t (unsettled-mutation) available t)))
-      (let ((record (niwa-session-durability--lease-record
+      (let ((record (niwa-session-durability-lease-record
                      "owner" 1 (nth 0 case) nil (nth 2 case)
-                     (+ (niwa-session-durability--target-time lease-dir) (nth 1 case)))))
+                     (+ (niwa-session-durability-target-time lease-dir) (nth 1 case)))))
         (niwa-session-durability--write-generation lease-dir record)
         (let ((assessment (niwa-session-durability-cleanup-assessment directory)))
           (should (equal record (plist-get assessment :head)))
@@ -5323,12 +5323,12 @@ holder identity is recorded by an owner lease acquired before the call."
   (let* ((niwa-session-durability--client-id (make-string 64 ?a))
          (owner-id (make-string 64 ?f))
          (now (progn (make-directory lease-dir t)
-                     (niwa-session-durability--target-time lease-dir)))
+                     (niwa-session-durability-target-time lease-dir)))
          (fence-path (niwa-session-transfer--fence-path lease-dir 1))
          (session (test-niwa-session-durability--local-session root)))
     (let ((niwa-session-durability--client-id owner-id))
       (niwa-session-durability--write-generation
-       lease-dir (niwa-session-durability--lease-record
+       lease-dir (niwa-session-durability-lease-record
                   "old owner" 1 'released nil nil now)))
     (make-directory (file-name-directory fence-path) t)
     (write-region
@@ -5354,10 +5354,10 @@ holder identity is recorded by an owner lease acquired before the call."
   (progn
     (make-directory lease-dir)
     (write-region
-     (concat (niwa-session-durability--record-bytes
-              (niwa-session-durability--lease-record
+     (concat (niwa-session-durability-record-bytes
+              (niwa-session-durability-lease-record
                "owner" 1 'released nil nil
-               (niwa-session-durability--target-time lease-dir)))
+               (niwa-session-durability-target-time lease-dir)))
              "\nmalformed trailing record")
      nil (file-name-concat lease-dir "00000000000000000001.eld") nil 'silent)
     (let ((assessment (niwa-session-durability-cleanup-assessment directory)))
@@ -5380,9 +5380,9 @@ holder identity is recorded by an owner lease acquired before the call."
   (let ((prepared nil))
     (let ((niwa-session-durability--client-id (make-string 64 ?f)))
       (niwa-session-durability--write-generation
-       lease-dir (niwa-session-durability--lease-record
+       lease-dir (niwa-session-durability-lease-record
                   "crashed publisher" 1 'publishing nil t
-                  (- (niwa-session-durability--target-time lease-dir) 4000))))
+                  (- (niwa-session-durability-target-time lease-dir) 4000))))
     (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (ert-fail "Second prompt"))))
       (should
        (niwa-session-durability-discard-session
@@ -5400,24 +5400,24 @@ holder identity is recorded by an owner lease acquired before the call."
   (progn
     (let ((niwa-session-durability--client-id (make-string 64 ?f)))
       (niwa-session-durability--write-generation
-       lease-dir (niwa-session-durability--lease-record
+       lease-dir (niwa-session-durability-lease-record
                   "crashed" 1 'active nil t
-                  (- (niwa-session-durability--target-time lease-dir) 4000))))
+                  (- (niwa-session-durability-target-time lease-dir) 4000))))
     (should-error (niwa-session-durability-discard-session
                    session (lambda () (error "Preparation interrupted"))))
     (should (file-directory-p directory))
-    (let ((head (niwa-session-durability--lease-head lease-dir)))
+    (let ((head (niwa-session-durability-lease-head lease-dir)))
       (should (eq 'released (plist-get head :status)))
       (should (plist-get head :unsettled-mutation)))
     (should-not (niwa-session-lease session)))
   :doc "a malformed newer generation after assessment prevents election and survives"
   (let ((run (symbol-function 'niwa-session-control-fs-run-program))
-        (path (niwa-session-durability--generation-path lease-dir 2))
+        (path (niwa-session-durability-record-generation-path lease-dir 2))
         injected prepared)
     (niwa-session-durability--write-generation
-     lease-dir (niwa-session-durability--lease-record
+     lease-dir (niwa-session-durability-lease-record
                 "old owner" 1 'released nil nil
-                (niwa-session-durability--target-time lease-dir)))
+                (niwa-session-durability-target-time lease-dir)))
     (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
                (lambda (operations &optional lock-directory)
                  (when (and (not injected)
@@ -5438,9 +5438,9 @@ holder identity is recorded by an owner lease acquired before the call."
     (should (equal "(:generation"
                    (with-temp-buffer (insert-file-contents path) (buffer-string)))))
   :doc "live ownership and malformed authority never reach preparation"
-  (dolist (record (list (niwa-session-durability--lease-record
+  (dolist (record (list (niwa-session-durability-lease-record
                         "local owner" 1 'active nil nil
-                        (niwa-session-durability--target-time lease-dir))
+                        (niwa-session-durability-target-time lease-dir))
                        '(:generation 1 :status released :expires-at 0)))
     (niwa-session-durability--write-generation lease-dir record)
     (should-error
@@ -5463,7 +5463,7 @@ holder identity is recorded by an owner lease acquired before the call."
       (should-error (niwa-session-durability-discard-session session #'ignore)))
     (should injected)
     (should (file-directory-p directory))
-    (should (eq 'released (plist-get (niwa-session-durability--lease-head lease-dir)
+    (should (eq 'released (plist-get (niwa-session-durability-lease-head lease-dir)
                                    :status))))
   :doc "delayed activation and abort never recreate a removed claiming record"
   (dolist (abort '(nil t))
@@ -5471,9 +5471,9 @@ holder identity is recorded by an owner lease acquired before the call."
           injected)
       (when abort
         (niwa-session-durability--write-generation
-         lease-dir (niwa-session-durability--lease-record
+         lease-dir (niwa-session-durability-lease-record
                     "old owner" 1 'released nil nil
-                    (niwa-session-durability--target-time lease-dir))))
+                    (niwa-session-durability-target-time lease-dir))))
       (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
                  (lambda (operations &optional lock-directory)
                    (if (not (eq 'create (plist-get (car operations) :op)))
@@ -5482,7 +5482,7 @@ holder identity is recorded by an owner lease acquired before the call."
                      (when abort
                        (niwa-session-durability--write-generation
                         lease-dir
-                        (plist-put (niwa-session-durability--lease-head lease-dir)
+                        (plist-put (niwa-session-durability-lease-head lease-dir)
                                    :buffer "changed predecessor")))
                      (prog1 (funcall run operations lock-directory)
                        (setq injected t)
@@ -5528,11 +5528,11 @@ holder identity is recorded by an owner lease acquired before the call."
           (progn
             (let ((niwa-session-durability--client-id (make-string 64 ?f)))
               (niwa-session-durability--write-generation
-               directory (niwa-session-durability--lease-record "old" 1 'active nil nil 0)))
+               directory (niwa-session-durability-lease-record "old" 1 'active nil nil 0)))
             (when scratch
               (niwa-session-control-fs--stage-payloads
                (list (list :op 'write
-                           :path (niwa-session-durability--generation-path directory 2)
+                           :path (niwa-session-durability-record-generation-path directory 2)
                            :content "crash payload")) staged)
               (should (car staged))
               (setq paths (cons (file-name-concat directory ".niwa-control-fs-Ab09Zx")

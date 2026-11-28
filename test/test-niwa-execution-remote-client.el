@@ -113,8 +113,8 @@
       (let* ((bound (niwa-session-lease session))
              (directory (niwa-session-durability--lease-path
                          (niwa-session-save-path session)))
-             (head (niwa-session-durability--lease-head directory))
-             (now (niwa-session-durability--target-time directory))
+             (head (niwa-session-durability-lease-head directory))
+             (now (niwa-session-durability-target-time directory))
              (generation (plist-get head :generation)))
         (format
          (concat "bound-gen=%S bound-state=%S head-gen=%S head-status=%S "

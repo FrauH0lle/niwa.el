@@ -58,7 +58,7 @@ NOW is target time.  Keep symlinks, unknown names, and files over 32 MiB."
         (let ((records (niwa-session-durability--read-records
                         (niwa-session-durability--generation-paths
                          (file-name-concat directory ".lease")))))
-          (unless (cl-every #'niwa-session-durability--valid-lease-p records)
+          (unless (cl-every #'niwa-session-durability-valid-lease-p records)
             (error "Unreadable session ownership prevents artifact cleanup: %s" directory))
           (unless (memq (niwa-session-durability--lease-state-of
                          directory (niwa-session-durability--head-of-records records))

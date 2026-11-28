@@ -187,7 +187,7 @@
                    (dolist (id (mapcar (lambda (item) (plist-get item :id)) (niwa-shared-editing-list workspace)))
                      (let ((directory (niwa-artifact-lease-directory workspace id)))
                        (unless (niwa-artifact-lease--claim
-                                directory (niwa-session-durability--lease-head directory)
+                                directory (niwa-session-durability-lease-head directory)
                                 id)
                          (error "Successor could not claim %s" id)))))
                  (write-region "{}" nil (file-name-concat editing-test-root "reply.json") nil 'silent))

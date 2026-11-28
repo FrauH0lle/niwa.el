@@ -139,6 +139,10 @@ uncommitted; blocking recovery issues still refuse afterwards."
     (niwa-recovery-clear session "authentication")
     (niwa-recovery-assert-ready session)))
 
+(defun niwa-readiness-failed-p ()
+  "Return non-nil when this buffer's Claude readiness check has failed."
+  (eq 'failed (plist-get niwa-readiness--claude :state)))
+
 (defun niwa-readiness-uses-p (backend)
   "Return non-nil when the current buffer's requests depend on BACKEND."
   (or (eq backend gptel-backend)

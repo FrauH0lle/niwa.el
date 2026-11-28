@@ -1855,7 +1855,7 @@
               (should
                (eq 'released
                    (plist-get
-                    (niwa-session-durability--lease-head
+                    (niwa-session-durability-lease-head
                      (niwa-session-durability--lease-path session-dir))
                     :status)))
               (should
@@ -1991,7 +1991,7 @@
               (should
                (eq 'released
                    (plist-get
-                    (niwa-session-durability--lease-head
+                    (niwa-session-durability-lease-head
                      (niwa-session-durability--lease-path session-dir))
                     :status))))))
       (when (file-directory-p local-root)
@@ -2050,7 +2050,7 @@
                     (should
                      (eq 'released
                          (plist-get
-                          (niwa-session-durability--lease-head
+                          (niwa-session-durability-lease-head
                            (niwa-session-durability--lease-path session-dir))
                           :status))))
                 (when acquired-session
@@ -3147,7 +3147,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                              (eq
                               'publishing
                               (plist-get
-                               (niwa-session-durability--lease-head
+                               (niwa-session-durability-lease-head
                                 (niwa-session-durability--lease-path
                                  old-save-path))
                                :status)))
@@ -3180,7 +3180,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                    (eq
                     'released
                     (plist-get
-                     (niwa-session-durability--lease-head
+                     (niwa-session-durability-lease-head
                       (niwa-session-durability--lease-path old-save-path))
                      :status)))
                   (setq new-save-path (niwa-session-save-path session))
@@ -3848,7 +3848,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
               (niwa-session-durability-lease-release (niwa-session-save-path session) session)
               (when (zerop i) (setq reserved session))))
           (let* ((lease-dir (file-name-concat (niwa-session-save-path reserved) ".lease"))
-                 (head (niwa-session-durability--lease-head lease-dir))
+                 (head (niwa-session-durability-lease-head lease-dir))
                  (generation (plist-get head :generation))
                  (fence (niwa-session-transfer--fence-path lease-dir generation)))
             (make-directory (file-name-directory fence) t)
@@ -3858,7 +3858,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                            :session-id (niwa-session-session-id reserved)
                            :owner-client-id (plist-get head :client-id)
                            :requester-client-id (make-string 64 ?c)
-                           :expires-at (+ (niwa-session-durability--target-time lease-dir) 60))
+                           :expires-at (+ (niwa-session-durability-target-time lease-dir) 60))
                      (current-buffer))))
           (niwa-test--with-local-shell-tramp '("picker")
             (let ((remote-workspace (niwa-workspace--create
@@ -4955,7 +4955,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                    (niwa-session-durability--disclosed-targets
                     (make-hash-table :test #'equal))
                    (lease-dir (niwa-session-durability--lease-path session-dir))
-                   (later (+ (niwa-session-durability--target-time lease-dir)
+                   (later (+ (niwa-session-durability-target-time lease-dir)
                              (* 30 24 60 60)))
                    (live nil)
                    (cleanup
@@ -4977,7 +4977,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                              (time-subtract (current-time) (* 30 24 60 60))))))
               ;; The fixture's release renewed the lease just now.
               (should (eql 0 (funcall cleanup nil)))
-              (cl-letf (((symbol-function 'niwa-session-durability--target-time)
+              (cl-letf (((symbol-function 'niwa-session-durability-target-time)
                          (lambda (&optional _) later))
                         ((symbol-function 'niwa-session-control-transfer-root-buffer-for-id)
                          (lambda (_) live)))

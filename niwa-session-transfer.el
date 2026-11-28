@@ -47,13 +47,13 @@
                   "niwa-session-durability" (path plist))
 (declare-function niwa-session-durability--ensure-lease-directory
                   "niwa-session-durability" (directory))
-(declare-function niwa-session-durability--lease-head
+(declare-function niwa-session-durability-lease-head
                   "niwa-session-durability" (directory &optional names))
 (declare-function niwa-session-durability--lease-path
                   "niwa-session-durability" (session-dir))
 (declare-function niwa-session-durability--newest-generation
                   "niwa-session-durability" (names))
-(declare-function niwa-session-durability--observe-lease
+(declare-function niwa-session-durability-observe-lease
                   "niwa-session-durability" (directory generation &optional extra))
 (declare-function niwa-session-durability--observed-names
                   "niwa-session-durability" (observed))
@@ -61,11 +61,11 @@
                   "niwa-session-durability" (lease directory &optional now))
 (declare-function niwa-session-durability--portable-session-p
                   "niwa-session-durability" (session))
-(declare-function niwa-session-durability--read-plist
+(declare-function niwa-session-durability-record-read
                   "niwa-session-durability" (path))
-(declare-function niwa-session-durability--target-time
+(declare-function niwa-session-durability-target-time
                   "niwa-session-durability" (directory))
-(declare-function niwa-session-durability--valid-lease-p
+(declare-function niwa-session-durability-valid-lease-p
                   "niwa-session-durability" (lease))
 (declare-function niwa-session-durability-lease-release
                   "niwa-session-durability"
@@ -187,13 +187,13 @@ target directories would mutate the session on behalf of an observer."
   "Return the validated live release fence for GENERATION, or nil.
 Use OBSERVATION, a pinned read result, when supplied by session discovery."
   (let* ((path (niwa-session-transfer--fence-path directory generation))
-         (now (niwa-session-durability--target-time directory)))
+         (now (niwa-session-durability-target-time directory)))
     (when (if observation (not (eq 'absent (plist-get observation :status)))
             (niwa-session-control-fs-path-exists-p path))
       (let ((fence (if observation
                        (car (read-from-string
                              (niwa-session-control-fs-program-value observation)))
-                     (niwa-session-durability--read-plist path))))
+                     (niwa-session-durability-record-read path))))
         (unless (niwa-session-transfer--valid-fence-p fence now)
           (error "Invalid portable control-transfer fence: %s" path))
         (when (> (plist-get fence :expires-at) now)
@@ -330,7 +330,7 @@ generation is therefore the live one; it must still name LEASE's client
 as its owner, so a request left over from an earlier ownership cannot
 cross a release."
   (let* ((generation (plist-get lease :generation))
-         (now (or now (niwa-session-durability--target-time directory)))
+         (now (or now (niwa-session-durability-target-time directory)))
          (regexp "\\`request-[0-9]\\{20\\}\\.eld\\'")
          (path
           (car (sort
@@ -350,7 +350,7 @@ cross a release."
                    regexp))
                 #'string>))))
     (when path
-      (let ((request (niwa-session-durability--read-plist path)))
+      (let ((request (niwa-session-durability-record-read path)))
         (unless (niwa-session-transfer--valid-request-p request now)
           (error "Invalid portable control-transfer request: %s" path))
         (and (<= (plist-get request :generation) generation)
@@ -373,7 +373,7 @@ cross a release."
          (path
           (niwa-session-transfer--decision-path
            directory (plist-get request :generation)))
-         (decision (niwa-session-durability--read-plist path)))
+         (decision (niwa-session-durability-record-read path)))
     (when decision
       (unless (and (niwa-session-transfer--valid-decision-p decision)
                    (niwa-session-transfer--record-matches-p
@@ -424,9 +424,9 @@ explicitly decides and releases its lease."
       (error "Invalid control-transfer client label"))
     (let* ((directory (niwa-session-durability--lease-path session-dir))
            (_ (niwa-session-durability--ensure-lease-directory directory))
-           (now (niwa-session-durability--target-time directory))
-           (lease (niwa-session-durability--lease-head directory)))
-      (unless (and (niwa-session-durability--valid-lease-p lease)
+           (now (niwa-session-durability-target-time directory))
+           (lease (niwa-session-durability-lease-head directory)))
+      (unless (and (niwa-session-durability-valid-lease-p lease)
                    (memq (plist-get lease :status) '(active publishing))
                    (> (plist-get lease :expires-at) now))
         (error "Control transfer requires a live portable lease"))
@@ -438,7 +438,7 @@ explicitly decides and releases its lease."
                directory lease session-id now))
              (live-decision
               (and live-request
-                   (niwa-session-durability--read-plist
+                   (niwa-session-durability-record-read
                     (niwa-session-transfer--decision-path
                      directory (plist-get live-request :generation)))))
              (_
@@ -497,7 +497,7 @@ explicitly decides and releases its lease."
               (if (niwa-session-durability--create-plist
                    request-path request)
                   request
-                (let ((winner (niwa-session-durability--read-plist
+                (let ((winner (niwa-session-durability-record-read
                                request-path)))
                   (unless
                       (niwa-session-transfer--valid-request-p winner now)
@@ -571,7 +571,7 @@ in the same program for the ordinary mutation gate."
            ;; bound generation's record; the poll used to pay each as its
            ;; own target process on every tick.
            (observed (and directory
-                          (niwa-session-durability--observe-lease
+                          (niwa-session-durability-observe-lease
                            directory (plist-get bound :generation)
                            (cons (niwa-session-transfer--requests-operation
                                   directory)
@@ -588,14 +588,14 @@ in the same program for the ordinary mutation gate."
                                    (niwa-session-durability--newest-generation
                                     (plist-get observed :names))))
                        record
-                     (niwa-session-durability--lease-head
+                     (niwa-session-durability-lease-head
                       directory
                       (niwa-session-durability--observed-names
                        observed))))))
            (now (and current
                      (let ((niwa-session-durability--observed-time
                             (plist-get observed :now)))
-                       (niwa-session-durability--target-time
+                       (niwa-session-durability-target-time
                         directory)))))
     (when (and admission observed)
       (let ((root (cadr (plist-get observed :extra))))
@@ -610,7 +610,7 @@ in the same program for the ordinary mutation gate."
                            (plist-get current :client-id))))
       (niwa-session-durability--bind-latest session current directory now))
     (when (and session-dir session-id
-               (niwa-session-durability--valid-lease-p current)
+               (niwa-session-durability-valid-lease-p current)
                (equal niwa-session-durability--client-id
                       (plist-get current :client-id))
                (equal (plist-get bound :generation)
@@ -633,7 +633,7 @@ in the same program for the ordinary mutation gate."
               ;; An absent decision reads as nil, so the existence probe
               ;; was a second target process answering the same question.
               (when-let* ((decision-path)
-                          (value (niwa-session-durability--read-plist
+                          (value (niwa-session-durability-record-read
                                   decision-path)))
                 (unless
                     (and (niwa-session-transfer--valid-decision-p
@@ -673,7 +673,7 @@ in the same program for the ordinary mutation gate."
             (unless (niwa-session-durability--create-plist
                      decision-path candidate)
               (setq candidate
-                    (niwa-session-durability--read-plist decision-path))
+                    (niwa-session-durability-record-read decision-path))
               (unless (and
                        (niwa-session-transfer--valid-decision-p
                         candidate)
@@ -735,17 +735,17 @@ attempting to rewrite an existing decision fails."
                    (niwa-session-durability--lease-path session-dir)))
              (current
               (and directory
-                   (niwa-session-durability--lease-head directory)))
+                   (niwa-session-durability-lease-head directory)))
              (now
               (and current
-                   (niwa-session-durability--target-time directory)))
+                   (niwa-session-durability-target-time directory)))
              (request
               (and directory
-                   (niwa-session-durability--valid-lease-p current)
+                   (niwa-session-durability-valid-lease-p current)
                    (niwa-session-transfer--current-request
                     directory current session-id now))))
         (unless (and session-dir session-id
-                     (niwa-session-durability--valid-lease-p current)
+                     (niwa-session-durability-valid-lease-p current)
                      (equal niwa-session-durability--client-id
                             (plist-get current :client-id))
                      (memq (plist-get current :status) '(active publishing))
@@ -768,7 +768,7 @@ attempting to rewrite an existing decision fails."
                (existing
                 (if (niwa-session-durability--create-plist path candidate)
                     candidate
-                  (let ((value (niwa-session-durability--read-plist path)))
+                  (let ((value (niwa-session-durability-record-read path)))
                     (unless
                         (and
                          (niwa-session-transfer--valid-decision-p
@@ -822,12 +822,12 @@ acceptance alone never changes the lease owner."
          (directory (and session-dir
                          (niwa-session-durability--lease-path session-dir)))
          (current (and directory
-                       (niwa-session-durability--lease-head directory)))
+                       (niwa-session-durability-lease-head directory)))
          (now (and directory
-                   (niwa-session-durability--target-time directory)))
+                   (niwa-session-durability-target-time directory)))
          (release-generation
           (or (plist-get transfer :release-generation)
-              (and (niwa-session-durability--valid-lease-p current)
+              (and (niwa-session-durability-valid-lease-p current)
                    (eq 'released (plist-get current :status))
                    (equal (plist-get request :owner-client-id)
                           (plist-get current :client-id))
@@ -862,7 +862,7 @@ acceptance alone never changes the lease owner."
                      (eq (plist-get transfer :state) 'quiescing)
                      request
                      (eq (plist-get decision :decision) 'grant)
-                     (niwa-session-durability--valid-lease-p current)
+                     (niwa-session-durability-valid-lease-p current)
                      (niwa-session-durability--owned-lease-record-p
                       current directory now)
                      (equal (plist-get bound :generation)
@@ -890,7 +890,7 @@ acceptance alone never changes the lease owner."
              (fence
               (if (niwa-session-durability--create-plist path candidate)
                   candidate
-                (let ((value (niwa-session-durability--read-plist path)))
+                (let ((value (niwa-session-durability-record-read path)))
                   (unless
                       (and (niwa-session-transfer--valid-fence-p value now)
                            (niwa-session-transfer--record-identity-matches-p
