@@ -89,6 +89,12 @@
                   "niwa-view-disclosure"
                   (source vtype &optional previous-key))
 
+;; `niwa-view-mailbox'
+(declare-function niwa-view--decorate-agent-message-blocks
+                  "niwa-view-mailbox" (start end))
+(declare-function niwa-view--decorate-agent-result-blocks
+                  "niwa-view-mailbox" (start end))
+
 ;; `niwa-view-markdown'
 (autoload 'niwa-view--decorate-markdown-in-range
   "niwa-view-markdown")
@@ -100,10 +106,6 @@
 ;; `niwa-view-render'
 (declare-function niwa-view--complete-wrapped-tool-text-p
                   "niwa-view-render" (raw))
-(declare-function niwa-view--decorate-agent-message-blocks
-                  "niwa-view-render" (start end))
-(declare-function niwa-view--decorate-agent-result-blocks
-                  "niwa-view-render" (start end))
 (declare-function niwa-view--direct-tool-readable-text-p
                   "niwa-view-render" (raw))
 (declare-function niwa-view--fit-group-header
