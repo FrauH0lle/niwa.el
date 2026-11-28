@@ -1248,6 +1248,39 @@
           (should (equal "x" (niwa-tool-patch--read-file path))))
       (delete-file path)))
 
+  :doc "A change hook on A that edits B during A's sync rolls back and keeps B's draft"
+  (let* ((root (make-temp-file "niwa-patch-sync-guard-" t))
+         (paths (mapcar (lambda (leaf) (file-name-concat root leaf)) '("a" "b")))
+         buffers typed)
+    (unwind-protect
+        (progn
+          (dolist (path paths) (write-region "old\n" nil path nil 'silent))
+          (setq buffers (mapcar #'find-file-noselect paths))
+          (with-current-buffer (car buffers)
+            (add-hook 'after-change-functions
+                      (lambda (&rest _)
+                        (unless typed
+                          (setq typed t)
+                          (with-current-buffer (cadr buffers)
+                            (goto-char (point-max))
+                            (insert "draft\n"))))
+                      nil t))
+          (should-error
+           (niwa-tool-patch-apply
+            nil (mapcar (lambda (path) (list :action 'write :path path :content "new\n")) paths)
+            #'ignore))
+          (should typed)
+          (dolist (path paths) (should (equal "old\n" (niwa-tool-patch--read-file path))))
+          (with-current-buffer (car buffers) (should (equal "old\n" (buffer-string))))
+          (with-current-buffer (cadr buffers)
+            (should (buffer-modified-p))
+            (should (equal "old\ndraft\n" (buffer-string)))))
+      (dolist (buffer buffers)
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer (set-buffer-modified-p nil))
+          (kill-buffer buffer)))
+      (delete-directory root t)))
+
   :doc "Records store writes as artifact versions of the attached session"
   (let* ((root (file-name-as-directory (make-temp-file "niwa-patch-store-" t)))
          (workspace (niwa-workspace--create :type 'project :id "w"

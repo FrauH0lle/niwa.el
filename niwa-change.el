@@ -534,6 +534,11 @@ does and re-signal; an incomplete rollback signals
             ;; Files are all written before buffers sync; a draft typed meanwhile
             ;; refuses here, before its buffer is replaced or marked.
             (when before-write (funcall before-write (plist-get snapshot :path)))
+            ;; A hook run by an earlier buffer's sync can edit this one; its
+            ;; draft is the user's, so roll back rather than replace it.
+            (unless (= (plist-get snapshot :chars-tick)
+                       (buffer-chars-modified-tick (plist-get snapshot :buffer)))
+              (error "Buffer changed during the transaction: %s" (plist-get snapshot :path)))
             (plist-put snapshot :synced t)
             (with-current-buffer (plist-get snapshot :buffer)
               (if-let* ((text (plist-get snapshot :expected-content)))
