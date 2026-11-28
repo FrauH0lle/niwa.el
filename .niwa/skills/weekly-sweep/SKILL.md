@@ -206,5 +206,10 @@ The architecture track runs this skill unattended, with the overrides in
      gates pass ([checks table](../../../docs/development.md#checks-before-committing));
      preserve the user's uncommitted edits in the main checkout. Then commit
      this skill's updated DECISION-RULES.md and TEST-TRACK.md on `master`.
+   - Loading the new `master` into the user's running Emacs is safe only when
+     no `cl-defstruct` changed its slots since the loaded version (`git diff
+     OLD master` on the struct definitions). Otherwise ask the user to restart
+     Emacs: on 2026-11-28 a live reload left retained agents holding
+     old-layout records, and messaging them failed with "Args out of range".
    Done when the report is written, every branch is accounted for, and every
    worker is finished or its exact state is in a handoff before the hard stop.
