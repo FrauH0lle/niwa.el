@@ -1969,5 +1969,66 @@
           (should (equal 0 status))
           (should (equal "" (buffer-string))))))))
 
+
+(niwa-deftest niwa-view-thumbnail--end-session/side-conversation ()
+  ,test
+  (test)
+  :doc "closing a /btw chat with a conversion pending deletes its thumbnails"
+  (skip-unless (executable-find "magick"))
+  (let* ((root (make-temp-file "niwa-btw-thumb-" t))
+         (runtime (make-temp-file "niwa-btw-thumb-runtime-" t))
+         (source (file-name-concat root "big.png"))
+         (workspace
+          (niwa-workspace--create
+           :type 'file :id root :root root :name "btw-thumb"))
+         (session (niwa-session-create "main" workspace root))
+         (process-environment (cons (concat "XDG_RUNTIME_DIR=" runtime)
+                                    process-environment))
+         (niwa-view-thumbnail--converter 'unknown)
+         (niwa-view-thumbnail--coders 'unknown)
+         (niwa-view-thumbnail--root nil)
+         (niwa-view-thumbnail--sessions (make-hash-table :test #'eq))
+         (niwa-view-thumbnail--jobs (make-hash-table :test #'equal))
+         (niwa-view-thumbnail--queue nil)
+         (niwa-view-thumbnail--process nil)
+         (max-image-size nil)
+         (image-scaling-factor 1)
+         side-view side-session)
+    (set-file-modes runtime #o700)
+    (should (zerop (call-process "magick" nil nil nil "-size" "6000x4000"
+                                 "gradient:red-blue" (concat "PNG:" source))))
+    (unwind-protect
+        (niwa-view-test--with-buffers
+          (with-current-buffer data-buf
+            (setq-local niwa--workspace workspace
+                        niwa--session session)
+            (insert "*** Parent prompt\n"
+                    (propertize "Parent answer\n" 'gptel 'response)))
+          (with-current-buffer view-buf
+            (setq-local niwa--session session)
+            (niwa-view-test--insert-composer-draft "/btw")
+            (cl-letf (((symbol-function 'pop-to-buffer)
+                       (lambda (buffer &rest _) (setq side-view buffer))))
+              (with-current-buffer (niwa-view-composer-buffer)
+                (niwa-view-send))))
+          (let ((side-data (buffer-local-value 'niwa--data-buffer side-view)))
+            (setq side-session (buffer-local-value 'niwa--session side-data))
+            (with-current-buffer side-view
+              (should (eq side-session niwa--session))
+              (should-not (niwa-view-thumbnail-image source 300)))
+            (let ((process niwa-view-thumbnail--process)
+                  (directory (car (gethash side-session
+                                           niwa-view-thumbnail--sessions))))
+              (should (process-live-p process))
+              (kill-buffer side-view)
+              (should-not (buffer-live-p side-data))
+              (should-not (process-live-p process))
+              (should-not (file-exists-p directory))
+              (should-not (gethash side-session niwa-view-thumbnail--sessions)))))
+      (when (buffer-live-p side-view) (kill-buffer side-view))
+      (when side-session (niwa-execution-teardown-session side-session))
+      (delete-directory runtime t)
+      (delete-directory root t))))
+
 (provide 'test-niwa-side-conversation)
 ;;; test-niwa-side-conversation.el ends here

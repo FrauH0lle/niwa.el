@@ -24,6 +24,7 @@
 (require 'text-property-search)
 
 (defvar niwa--session)
+(defvar niwa--data-buffer)
 (defvar niwa-session-end-hook)
 (declare-function niwa-view-render-mutate "niwa-view-render"
                   (key function &optional replacement cleanup))
@@ -163,14 +164,22 @@ Until the listing arrives every coder is tried; a failed job only misses."
   niwa-view-thumbnail--root)
 
 (defun niwa-view-thumbnail--session-entry (session)
-  "Return SESSION's (DIRECTORY . COUNT), creating its directory."
+  "Return SESSION's (DIRECTORY . COUNT), creating its directory.
+COUNT counts admitted conversions, finished or not.  Creating the entry
+ties its cleanup to the owning data buffer: inspections and side chats
+never run `niwa-session-end-hook'."
   (when-let* ((root (niwa-view-thumbnail--root)))
     (or (gethash session niwa-view-thumbnail--sessions)
-        (puthash session
-                 (cons (with-file-modes #o700
-                         (make-temp-file (file-name-concat root "s") t))
-                       0)
-                 niwa-view-thumbnail--sessions))))
+        (let ((owner (bound-and-true-p niwa--data-buffer)))
+          (when (buffer-live-p owner)
+            (with-current-buffer owner
+              (add-hook 'kill-buffer-hook
+                        #'niwa-view-thumbnail--end-session nil t)))
+          (puthash session
+                   (cons (with-file-modes #o700
+                           (make-temp-file (file-name-concat root "s") t))
+                         0)
+                   niwa-view-thumbnail--sessions)))))
 
 (defun niwa-view-thumbnail--read (file bytes)
   "Return the first BYTES of FILE as a unibyte string."
@@ -308,6 +317,8 @@ thumbnail is missing, queue it for the current view buffer."
           (<= niwa-view-thumbnail--max-queue
               (length niwa-view-thumbnail--queue))))
      (t
+      ;; Reserve the slot now; queued jobs must not overshoot the cap.
+      (cl-incf (cdr entry))
       (setq job (niwa-view-thumbnail--job-create
                  :file file :source source :cap cap :session session
                  :views (list view)))
@@ -330,30 +341,38 @@ thumbnail is missing, queue it for the current view buffer."
                           (concat "MAGICK_TEMPORARY_PATH=" directory)
                           (concat "TMPDIR=" directory))
                     process-environment)))
-      (condition-case nil
-          (with-file-modes #o600
-            (let ((process
-                   (make-process
-                    :name "niwa-thumbnail" :buffer nil :noquery t
-                    :connection-type 'pipe :filter #'ignore
-                    :sentinel #'niwa-view-thumbnail--sentinel
-                    :command
-                    `(,(car niwa-view-thumbnail--converter)
-                      ,@niwa-view-thumbnail--limits
-                      ,(let ((source (niwa-view-thumbnail--job-source job)))
-                         (concat (nth 1 (nth 5 source)) ":" (car source)))
-                      "-strip" "-define" "png:exclude-chunks=date,time"
-                      "-thumbnail"
-                      ,(format "%dx" (niwa-view-thumbnail--job-cap job))
-                      ,(concat "PNG:" file ".part")))))
-              (process-put process 'niwa-view-thumbnail-job job)
-              (setf (niwa-view-thumbnail--job-timer job)
-                    (run-at-time niwa-view-thumbnail--timeout nil
-                                 #'delete-process process))
-              (setq niwa-view-thumbnail--process process)))
-        (error
-         (setq niwa-view-thumbnail--converter 'unknown)
-         (remhash file niwa-view-thumbnail--jobs))))))
+      (let (process)
+        (condition-case nil
+            (with-file-modes #o600
+              (progn
+                (setq process
+                      (make-process
+                       :name "niwa-thumbnail" :buffer nil :noquery t
+                       :connection-type 'pipe :filter #'ignore
+                       :sentinel #'niwa-view-thumbnail--sentinel
+                       :command
+                       `(,(car niwa-view-thumbnail--converter)
+                         ,@niwa-view-thumbnail--limits
+                         ,(let ((source (niwa-view-thumbnail--job-source job)))
+                            (concat (nth 1 (nth 5 source)) ":" (car source)))
+                         "-strip" "-define" "png:exclude-chunks=date,time"
+                         "-thumbnail"
+                         ,(format "%dx" (niwa-view-thumbnail--job-cap job))
+                         ,(concat "PNG:" file ".part"))))
+                (process-put process 'niwa-view-thumbnail-job job)
+                (setf (niwa-view-thumbnail--job-timer job)
+                      (run-at-time niwa-view-thumbnail--timeout nil
+                                   #'delete-process process))
+                (setq niwa-view-thumbnail--process process)))
+          (error
+           (if process
+               ;; Its sentinel returns the reserved slot.
+               (delete-process process)
+             (setq niwa-view-thumbnail--converter 'unknown)
+             (remhash file niwa-view-thumbnail--jobs)
+             (when-let* ((entry (gethash (niwa-view-thumbnail--job-session job)
+                                         niwa-view-thumbnail--sessions)))
+               (cl-decf (cdr entry))))))))))
 
 (defun niwa-view-thumbnail--sentinel (process _event)
   "Commit PROCESS's thumbnail if its source and session are unchanged."
@@ -363,7 +382,8 @@ thumbnail is missing, queue it for the current view buffer."
            (part (concat file ".part"))
            (entry (gethash (niwa-view-thumbnail--job-session job)
                            niwa-view-thumbnail--sessions)))
-      (cancel-timer (niwa-view-thumbnail--job-timer job))
+      (when (niwa-view-thumbnail--job-timer job)
+        (cancel-timer (niwa-view-thumbnail--job-timer job)))
       (when (eq process niwa-view-thumbnail--process)
         (setq niwa-view-thumbnail--process nil))
       (when (eq job (gethash file niwa-view-thumbnail--jobs))
@@ -386,7 +406,6 @@ thumbnail is missing, queue it for the current view buffer."
                                   (rename-file part file t)
                                   t))))
               (when committed
-                (cl-incf (cdr entry))
                 (pcase-dolist (`(,buffer . ,path)
                                (niwa-view-thumbnail--job-views job))
                   (when (buffer-live-p buffer)
@@ -394,7 +413,10 @@ thumbnail is missing, queue it for the current view buffer."
                     (ignore-errors
                       (with-current-buffer buffer
                         (niwa-view-thumbnail--refresh path)))))))
-          (unless committed (ignore-errors (delete-file part)))
+          (unless committed
+            ;; Return the reserved slot; a miss may be retried.
+            (when entry (cl-decf (cdr entry)))
+            (ignore-errors (delete-file part)))
           (niwa-view-thumbnail--start))))))
 
 (defun niwa-view-thumbnail--refresh (path)
@@ -427,7 +449,9 @@ thumbnail is missing, queue it for the current view buffer."
          (restore-buffer-modified-p modified))))))
 
 (defun niwa-view-thumbnail--end-session ()
-  "Delete the ending session's thumbnails and drop its conversions."
+  "Delete the ending session's thumbnails and drop its conversions.
+Runs from `niwa-session-end-hook' and from the owning data buffer's
+`kill-buffer-hook'; the second call finds nothing left to do."
   (when-let* ((session (bound-and-true-p niwa--session))
               (entry (gethash session niwa-view-thumbnail--sessions)))
     (remhash session niwa-view-thumbnail--sessions)
@@ -450,6 +474,8 @@ thumbnail is missing, queue it for the current view buffer."
     (ignore-errors (delete-directory niwa-view-thumbnail--root t))))
 
 (add-hook 'niwa-session-end-hook #'niwa-view-thumbnail--end-session)
+;; Side chats change major mode after the first preview can render.
+(put 'niwa-view-thumbnail--end-session 'permanent-local-hook t)
 (add-hook 'kill-emacs-hook #'niwa-view-thumbnail--delete-root)
 
 (provide 'niwa-view-thumbnail)

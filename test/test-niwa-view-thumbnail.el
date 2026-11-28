@@ -12,6 +12,15 @@
 (require 'niwa-view)
 (require 'niwa-view-markdown)
 (require 'niwa-view-thumbnail)
+(require 'niwa-chat)
+(require 'niwa-workspace)
+(require 'niwa-reminders)
+(require 'niwa-presets)
+(require 'niwa-session-artifacts)
+(require 'niwa-skills-core)
+(require 'niwa-skills-prompt)
+(require 'niwa-permission-persistence)
+(require 'niwa-plugin-ui)
 
 (defmacro niwa-thumbnail-test--with-state (&rest body)
   "Run BODY with fresh thumbnail state under a private runtime directory.
@@ -464,6 +473,109 @@ CODER is the ImageMagick output coder, PNG by default."
       (should-not (zerop (call-process "magick" nil nil nil (concat "BMP:" bmp)
                                        "-thumbnail" "10x"
                                        (concat "PNG:" bmp ".out")))))))
+
+(niwa-deftest niwa-view-thumbnail--request ()
+  ,test
+  (test)
+  :doc "a burst with one slot left admits one conversion"
+  (niwa-thumbnail-test--with-state
+    (setq niwa-view-thumbnail--converter '("magick" . version))
+    (with-temp-buffer
+      (setq-local niwa--session session)
+      (let ((files (mapcar (lambda (name)
+                             (niwa-thumbnail-test--header-png
+                              (file-name-concat dir name) 4000 2000))
+                           '("a.png" "b.png" "c.png"))))
+        (setcdr (niwa-view-thumbnail--session-entry session)
+                (1- niwa-view-thumbnail--max-entries))
+        ;; None finishes before the burst is admitted.
+        (cl-letf (((symbol-function 'niwa-view-thumbnail--start) #'ignore))
+          (dolist (file files)
+            (should-not (niwa-view-thumbnail-image file 300))))
+        (should (= 1 (hash-table-count niwa-view-thumbnail--jobs)))
+        (should (= niwa-view-thumbnail--max-entries
+                   (cdr (gethash session niwa-view-thumbnail--sessions))))))))
+
+(niwa-deftest niwa-view-thumbnail--end-session/inspection ()
+  ,test
+  (test)
+  :doc "closing an inspection with a conversion pending deletes its thumbnails"
+  (skip-unless (executable-find "magick"))
+  (niwa-thumbnail-test--with-state
+    (let* ((workspace (niwa-workspace--create
+                       :type 'project :id dir :root dir :name "inspect"))
+           (source (niwa-thumbnail-test--real-png
+                    (file-name-concat dir "big.png") 6000 4000))
+           (data (generate-new-buffer " *thumbnail-inspection*"))
+           session-ended)
+      (unwind-protect
+          (progn
+            (with-current-buffer data
+              (org-mode)
+              (setf (niwa-session-workspace session) workspace)
+              (setq-local niwa--session session)
+              (cl-letf (((symbol-function 'niwa-reminders-install-defaults) #'ignore)
+                        ((symbol-function 'niwa-preset--build-handlers) #'identity)
+                        ((symbol-function
+                          'niwa-session-artifacts-install-gptel-save-state-advice)
+                         #'ignore)
+                        ((symbol-function 'niwa-skills-install) #'ignore)
+                        ((symbol-function 'niwa-skills-install-activation-hook)
+                         #'ignore)
+                        ((symbol-function 'niwa-view--ensure) #'ignore)
+                        ((symbol-function 'niwa-permission-validate-persistent-stores)
+                         #'ignore)
+                        ((symbol-function 'niwa--run-session-start-hooks) #'ignore)
+                        ((symbol-function 'niwa--probe-session-target) #'ignore)
+                        ((symbol-function 'niwa-plugins-notify-pending-consent)
+                         #'ignore))
+                (niwa--chat-buffer-init-common data workspace "resume" t))
+              (should-not (memq #'niwa--run-session-end-hooks kill-buffer-hook)))
+            (with-temp-buffer
+              (setq-local niwa--session session
+                          niwa--data-buffer data)
+              (should-not (niwa-view-thumbnail-image source 300)))
+            (let ((process niwa-view-thumbnail--process)
+                  (directory (car (gethash session niwa-view-thumbnail--sessions)))
+                  (niwa-session-end-hook
+                   (cons (lambda () (setq session-ended t)) niwa-session-end-hook))
+                  (kill-buffer-query-functions nil))
+              (should (process-live-p process))
+              (kill-buffer data)
+              (should-not session-ended)
+              (should-not (process-live-p process))
+              (should-not (file-exists-p directory))
+              (should-not (gethash session niwa-view-thumbnail--sessions))))
+        (when (buffer-live-p data)
+          (let ((kill-buffer-query-functions nil)) (kill-buffer data)))))))
+
+(niwa-deftest niwa-view-thumbnail--start ()
+  ,test
+  (test)
+  :doc "a failed launch returns its slot, so a later conversion still runs"
+  (skip-unless (executable-find "magick"))
+  (niwa-thumbnail-test--with-state
+    (let ((failed (niwa-thumbnail-test--real-png
+                   (file-name-concat dir "a.png") 1600 800))
+          (later (niwa-thumbnail-test--real-png
+                  (file-name-concat dir "b.png") 1600 800)))
+      (with-temp-buffer
+        (setq-local niwa--session session)
+        (setcdr (niwa-view-thumbnail--session-entry session)
+                (1- niwa-view-thumbnail--max-entries))
+        (setq niwa-view-thumbnail--converter
+              (cons (file-name-concat dir "missing-magick") 'version))
+        (should-not (niwa-view-thumbnail-image failed 300))
+        (should-not niwa-view-thumbnail--process)
+        (should (= (1- niwa-view-thumbnail--max-entries)
+                   (cdr (gethash session niwa-view-thumbnail--sessions))))
+        ;; The handler forgot the broken converter; the real one is found.
+        (should-not (niwa-view-thumbnail-image later 300))
+        (should (process-live-p niwa-view-thumbnail--process))
+        (niwa-thumbnail-test--wait)
+        (should (niwa-view-thumbnail-image later 300))
+        (should (= niwa-view-thumbnail--max-entries
+                   (cdr (gethash session niwa-view-thumbnail--sessions))))))))
 
 (provide 'test-niwa-view-thumbnail)
 

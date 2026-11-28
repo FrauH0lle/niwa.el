@@ -183,7 +183,7 @@ Chat / view
   niwa-collaboration-share.el bearer-link and QR presentation surface
   niwa-collaboration-transport.el sealed relay WebSocket client
   niwa-view-markdown.el    Markdown links, images, paths, source panels
-  niwa-view-thumbnail.el   private asynchronous thumbnails for large PNG previews
+  niwa-view-thumbnail.el   private asynchronous thumbnails for large PNG, JPEG and WebP previews
   niwa-view-path.el        deferred target path verification and memoization
   niwa-view-table.el       rendered pipe tables and window realignment
   niwa-cockpit.el          shared tabulated cockpit surface plumbing
