@@ -46,9 +46,6 @@
                   "niwa-agent-control" (cl-x) t)
 (autoload 'niwa-agent-control-current-path "niwa-agent-control")
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-agents'
 (declare-function niwa-agent--create "niwa-agents" (&rest args))
 (declare-function niwa-agent-get "niwa-agents" (name))
@@ -115,10 +112,6 @@
 
 ;; `niwa-skills-syntax'
 (autoload 'niwa-skills-syntax-parse-dependencies "niwa-skills-syntax")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
 
 ;; `niwa-transcript-audit'
 (autoload 'niwa--hook-prompt-rewrite-audit-record

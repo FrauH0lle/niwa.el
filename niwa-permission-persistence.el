@@ -72,10 +72,6 @@
 (autoload 'niwa-session-control-fs-write-file
   "niwa-session-control-fs")
 
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa-user-dir)
-
 ;; `niwa-transport'
 (declare-function niwa-transport-busy-p
                   "niwa-transport" (&optional path))

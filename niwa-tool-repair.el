@@ -31,9 +31,6 @@
                   (name &optional category))
 (declare-function niwa-tool-name "niwa-tool-registry" (cl-x) t)
 
-(defvar niwa--agent-invocation)
-(defvar niwa--session)
-
 (defcustom niwa-tool-input-repair-enabled t
   "When non-nil, repair recoverable model-produced tool input."
   :type 'boolean

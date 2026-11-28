@@ -13,10 +13,6 @@
 (require 'niwa-persistence)
 (require 'niwa-permissions)
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-
 (defvar niwa-note-resource--source-buffers nil
   "Operation-owned temporary source buffers, keyed by file name.")
 

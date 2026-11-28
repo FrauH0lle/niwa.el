@@ -48,10 +48,6 @@
 (declare-function niwa-request-state-label "niwa-turn" (&optional buffer))
 (autoload 'niwa-request-state-label "niwa-turn")
 
-;; `niwa-view'
-(defvar niwa--data-buffer)
-(defvar niwa--view-buffer)
-
 ;; `niwa-view-composer'
 (declare-function niwa-view-composer-buffer "niwa-view-composer" (&optional view))
 

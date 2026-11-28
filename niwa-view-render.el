@@ -64,12 +64,6 @@
 
 
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-
 ;; `niwa-tool-registry'
 (declare-function niwa-tool-display-string "niwa-tool-registry"
                   (tool-name args &optional scope))

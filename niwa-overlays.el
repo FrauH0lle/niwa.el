@@ -32,7 +32,6 @@
 (autoload 'niwa--chat-buffer "niwa-chat")
 (autoload 'niwa--patch-buffer "niwa-chat")
 (autoload 'niwa--replace-patch-buffer "niwa-chat")
-(defvar niwa--view-buffer)
 
 ;; `niwa-instruction-registry'
 (defvar niwa--instruction-state-key-override)

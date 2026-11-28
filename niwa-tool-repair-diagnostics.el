@@ -19,10 +19,6 @@
 (declare-function niwa-agent-invocation-p "niwa-agents" (cl-x))
 (declare-function niwa-agent-invocation-parent-session
                   "niwa-agents" (cl-x) t)
-(defvar niwa--agent-invocation)
-
-;; `niwa-chat'
-(defvar niwa--session)
 
 ;; `niwa-session-diagnostics'
 (declare-function niwa-session-publication-append-diagnostic

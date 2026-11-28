@@ -21,11 +21,6 @@
 ;; `niwa-agents'
 (declare-function niwa-agent-invocation-path "niwa-agents" (cl-x))
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-telemetry'
 (autoload 'niwa-telemetry-current-session "niwa-telemetry")
 (autoload 'niwa-telemetry-record "niwa-telemetry")

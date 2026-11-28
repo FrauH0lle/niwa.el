@@ -158,10 +158,6 @@
 (declare-function niwa-sleep-update "niwa-sleep" (&rest _))
 (autoload 'niwa-sleep-update "niwa-sleep")
 
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa-user-dir)
-
 ;; `niwa-workspace-schedule'
 (declare-function niwa-workspace-schedule-list "niwa-workspace-schedule" (workspace))
 (defvar niwa-workspace-schedule-changed-functions)

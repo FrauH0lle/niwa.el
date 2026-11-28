@@ -43,9 +43,6 @@
 (declare-function niwa-session-publication-uncommitted-artifact
                   "niwa-session-publication" (session logical))
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-tool-exec'
 ;; `niwa-view-render' autoloads it before this library loads.
 (declare-function niwa-tool-exec-completion "niwa-tool-exec"

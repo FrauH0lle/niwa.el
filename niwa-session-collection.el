@@ -20,9 +20,6 @@
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 (defvar niwa-session-collection--jobs (make-hash-table :test #'eq)
   "Session to its coalesced collection job and idle timer.")
 

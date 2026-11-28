@@ -59,15 +59,11 @@
 (autoload 'niwa-session-publication-uncommitted-artifact
   "niwa-session-publication")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-utilities'
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 
 ;; `niwa-view'
-(defvar niwa--data-buffer)
 (defvar niwa-view-inline-image-max-width)
 
 ;; `niwa-view-agent'

@@ -72,7 +72,6 @@
 (declare-function niwa-view--render-status "niwa-view" (&optional data-buf))
 (declare-function niwa-view--status-session "niwa-view" (&optional data-buf))
 (declare-function niwa-view--zone-separator "niwa-view" (label))
-(defvar niwa-view--agent-transcript-p)
 
 ;; `niwa-view-audit'
 (declare-function niwa-view-audit-show-result "niwa-view-audit" (record))

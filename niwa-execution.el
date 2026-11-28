@@ -28,7 +28,6 @@
                   "niwa-agents" (cl-x) t)
 (declare-function niwa-agent-invocation-runtime-settled-p
                   "niwa-agents" (cl-x) t)
-(defvar niwa--agent-invocation)
 
 ;; `niwa-execution-telemetry'
 (defvar niwa-execution-telemetry-summary-cell)
@@ -113,10 +112,6 @@
   "niwa-session-durability")
 (autoload 'niwa-session-durability-unsettled-mutation-p
   "niwa-session-durability")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
 
 ;; `niwa-system'
 (defvar niwa-memory-dirs)

@@ -31,9 +31,6 @@
 (defvar niwa-model-context-limit)
 (autoload 'niwa-model-effective-context-window "niwa-models")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-tool-ptc'
 (autoload 'niwa-tool-ptc-roster "niwa-tool-ptc")
 (autoload 'niwa-tool-ptc--restriction "niwa-tool-ptc")

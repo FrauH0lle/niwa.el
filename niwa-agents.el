@@ -36,9 +36,6 @@
 (declare-function gptel-tool-args "ext:gptel-request" (cl-x) t)
 (defvar gptel-tools)
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-hooks'
 (declare-function niwa-hooks-annotate-rules-source
                   "niwa-hooks"
@@ -69,8 +66,6 @@
 
 ;; `niwa-structs'
 (autoload 'niwa-agent-path-p "niwa-structs")
-(defvar niwa--current-request)
-(defvar niwa--session)
 
 ;; `niwa-tool-ptc'
 (autoload 'niwa-tool-ptc-roster "niwa-tool-ptc")

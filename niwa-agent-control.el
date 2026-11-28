@@ -38,7 +38,6 @@
 (autoload 'niwa-agent-conversation-final-response
   "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-save "niwa-agent-conversation")
-(defvar niwa--agent-invocation)
 
 ;; `niwa-agent-directory'
 (declare-function niwa-agent-directory-resolve

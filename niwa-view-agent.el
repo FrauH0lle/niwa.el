@@ -45,9 +45,6 @@
 (autoload 'niwa-agent-control-model-metadata "niwa-agent-control")
 (autoload 'niwa-agent-control-record-model-metadata "niwa-agent-control")
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-agent-persistence'
 (declare-function niwa-agent-persistence-ensure-conversation
                   "niwa-agent-persistence"
@@ -95,11 +92,6 @@
   "niwa-session-artifacts")
 (autoload 'niwa-session-artifacts-find-artifact-noselect
   "niwa-session-artifacts")
-
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 
 ;; `niwa-tool-render-data'
 (declare-function niwa-tool-render-data-segment-bounds

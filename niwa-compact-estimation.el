@@ -26,10 +26,6 @@
 ;; `niwa-models'
 (defvar niwa-model-context-limit)
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 (defcustom niwa-compact-estimation-token-threshold 0.80
   "Fraction of usable context that triggers auto-compaction."
   :type '(restricted-sexp

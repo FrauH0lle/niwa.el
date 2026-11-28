@@ -20,9 +20,6 @@
 (require 'niwa-structs)
 (require 'niwa-transcript)
 
-;; `niwa-chat'
-(defvar niwa--session)
-
 
 ;;
 ;;; Brief sources

@@ -19,14 +19,10 @@
 ;; `niwa-agents'
 (declare-function niwa-agent-context-components "niwa-agents" (cl-x) t)
 (declare-function niwa-agent-invocation-agent "niwa-agents" (cl-x) t)
-(defvar niwa--agent-invocation)
 
 ;; `niwa-reminders'
 (declare-function niwa-reminders-stage-entry "niwa-reminders"
                   (fsm type body &optional commit))
-
-;; `niwa-structs'
-(defvar niwa--session)
 
 ;; `niwa-tool-fs-read'
 (declare-function niwa-tool-fs-read-workspace-context "niwa-tool-fs-read" (scope owner))

@@ -28,9 +28,6 @@
 (require 'seq)
 (require 'subr-x)
 
-;; `niwa-agents'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-permission-queue'
 (declare-function niwa-permission-request "niwa-permission-queue"
                   (entry &optional session))
@@ -42,11 +39,6 @@
 ;; `niwa-queue'
 (declare-function niwa-queue--current-session "niwa-queue" ())
 (autoload 'niwa-queue--current-session "niwa-queue")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-(defvar niwa--workspace)
 
 
 ;;

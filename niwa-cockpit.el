@@ -20,10 +20,7 @@
 (declare-function niwa-report-show "niwa-report" (buffer report &optional noselect))
 
 ;; `niwa-structs'
-(defvar niwa--data-buffer)
 (defvar niwa-composer--view)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 
 ;; `tabulated-list'
 (declare-function tabulated-list-get-id "tabulated-list" ())

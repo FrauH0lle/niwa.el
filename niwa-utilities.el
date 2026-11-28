@@ -82,9 +82,6 @@
 (autoload 'niwa-session-control-fs-physical-path "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-run-program "niwa-session-control-fs")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-transcript'
 (declare-function niwa-transcript-restore-ignored-properties
                   "niwa-transcript" (start end))

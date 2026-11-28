@@ -118,12 +118,6 @@
 (declare-function niwa-skills-parse-slash-line
                   "niwa-skills-ui" (text))
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-transport'
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 

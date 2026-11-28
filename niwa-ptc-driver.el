@@ -25,9 +25,6 @@
 (require 'niwa-ptc-interpreter)
 (require 'niwa-structs)
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-pipeline'
 (declare-function niwa-pipeline-active-tool-use-id "niwa-pipeline" ())
 (declare-function niwa-pipeline-run-tool-outcome

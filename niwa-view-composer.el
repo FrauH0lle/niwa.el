@@ -234,14 +234,8 @@
 (defvar niwa-slash-commands)
 
 ;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
 (defvar niwa-view-mode-map)
 (defvar niwa-view-zone-owned-properties)
-(defvar niwa--view-buffer)
-(defvar niwa--workspace)
 
 ;; `niwa-tool-render-data'
 (declare-function niwa-tool-render-data-blocks

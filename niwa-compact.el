@@ -90,15 +90,9 @@
 (defvar niwa-session--read-only-mode)
 
 ;; `niwa-turn'
-(defvar niwa--current-request)
 (declare-function niwa-request-push-canceller
                   "niwa-turn" (request canceller))
 (autoload 'niwa-request-push-canceller "niwa-turn")
-
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 
 ;; `niwa-tools'
 (declare-function niwa-tools--handle-steering-inject
@@ -117,9 +111,6 @@
                   "niwa-view-stream" (view status &optional owner))
 (autoload 'niwa-view-stream-end-progress "niwa-view-stream")
 (autoload 'niwa-view-stream-show-progress "niwa-view-stream")
-
-;; `niwa-workspace'
-(defvar niwa--workspace)
 
 
 (defun niwa--compact-provider-wait (fsm)

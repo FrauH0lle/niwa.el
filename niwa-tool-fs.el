@@ -17,9 +17,6 @@
 ;; `gptel-request'
 (declare-function gptel-make-tool "ext:gptel-request" (&rest slots))
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-tool-fs-read'
 (declare-function niwa-tool-fs-read "niwa-tool-fs-read" (callback args))
 (declare-function niwa-tool-fs-read-render
@@ -47,9 +44,6 @@
 
 ;; `niwa-utilities'
 (autoload 'niwa--executable-find "niwa-utilities")
-
-;; `niwa-workspace'
-(defvar niwa--workspace)
 
 (defun niwa-tool-fs-current-workspace-root ()
   "Return the current workspace root visible to the renderer, or nil."

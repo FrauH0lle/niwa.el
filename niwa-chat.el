@@ -173,10 +173,6 @@
 ;; `niwa-skills-ui'
 (declare-function niwa-slash-capf "niwa-skills-ui" nil)
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-telemetry'
 (autoload 'niwa-telemetry-record "niwa-telemetry")
 
@@ -212,9 +208,6 @@
 ;; `niwa-view'
 (declare-function niwa-view--ensure "niwa-view" (data-buf))
 (declare-function niwa-view-composer-display "niwa-view-pair" (view-window))
-(defvar niwa--agent-invocation)
-(defvar niwa--data-buffer)
-(defvar niwa--view-buffer)
 
 ;; `niwa-view-composer'
 (declare-function niwa-view--begin-external-turn
@@ -238,7 +231,6 @@
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace"
 		  (&optional buffer))
-(defvar niwa--workspace)
 (defvar niwa-workspace-additional-roots)
 
 ;; `org'

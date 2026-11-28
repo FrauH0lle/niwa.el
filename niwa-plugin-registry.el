@@ -47,10 +47,6 @@
 (autoload 'niwa-session-artifacts-publish-text
   "niwa-session-artifacts")
 
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa-user-dir)
-
 ;; `niwa-utilities'
 (declare-function niwa--write-file-atomically
                   "niwa-utilities" (path content &optional coding mode))

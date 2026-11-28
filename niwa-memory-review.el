@@ -35,11 +35,6 @@
 (autoload 'niwa-memory-notes-index "niwa-memory-notes")
 (autoload 'niwa-memory-notes-review "niwa-memory-notes")
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-system'
 (autoload 'niwa-system-render-prompt-file "niwa-system")
 

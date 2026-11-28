@@ -29,13 +29,6 @@
 (declare-function niwa-agent-invocation-require-path
                   "niwa-agents" (invocation))
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-utilities'
 (autoload 'niwa--truncate-display "niwa-utilities")
 

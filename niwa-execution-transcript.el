@@ -63,10 +63,6 @@
 (autoload 'niwa-session-persistence-checkpoints-active-p
   "niwa-session-persistence")
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--session)
-
 ;; `niwa-transcript-restore'
 (declare-function niwa-transcript-restore-properties
                   "niwa-transcript-restore" (&optional only-if-missing))

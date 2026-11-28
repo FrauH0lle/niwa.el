@@ -15,9 +15,6 @@
   (require 'cl-lib))
 (require 'niwa-view-render)
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-
 ;; `niwa-tool-task'
 (declare-function niwa-toggle-tasks "niwa-tool-task" ())
 (autoload 'niwa-toggle-tasks "niwa-tool-task")

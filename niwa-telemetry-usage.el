@@ -26,7 +26,6 @@
 
 ;; `niwa-agents'
 (declare-function niwa-agent-invocation-path "niwa-agents" (cl-x) t)
-(defvar niwa--agent-invocation)
 
 (defvar niwa-telemetry-usage--completion-owner nil
   "Dynamically bound (INFO . CALL) for the transport currently completing.

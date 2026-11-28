@@ -208,11 +208,6 @@
 (defvar niwa-session-recovery--mutation-cache)
 (autoload 'niwa-session-recovery-refresh "niwa-session-recovery")
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-transcript'
 (declare-function niwa-transcript-normalize-properties
                   "niwa-transcript" ())

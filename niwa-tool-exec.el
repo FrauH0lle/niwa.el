@@ -39,9 +39,6 @@
 ;; `niwa-agent-control'
 (autoload 'niwa-agent-control-notify "niwa-agent-control")
 
-;; `niwa-agents'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-execution-target'
 (declare-function niwa-execution-target-expand-path
                   "niwa-execution-target" (target path &optional directory))
@@ -59,11 +56,6 @@
 
 ;; `niwa-queue'
 (autoload 'niwa-queue--current-session "niwa-queue")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
 
 ;; `niwa-utilities'
 (autoload 'niwa--duration-label "niwa-utilities")

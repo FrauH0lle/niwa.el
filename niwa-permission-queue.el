@@ -29,9 +29,6 @@
                   "niwa-agent-control" (session path activity))
 (autoload 'niwa-agent-control-block-turn "niwa-agent-control")
 
-;; `niwa-agents'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-collaboration-guest'
 (declare-function niwa-collaboration-retire-permission-requests
                   "niwa-collaboration-guest" (session entries))
@@ -94,11 +91,6 @@
                   "niwa-session-artifacts" (session))
 (autoload 'niwa-session-artifacts-assert-new-mutation-authority
   "niwa-session-artifacts")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 
 ;; `niwa-telemetry'
 (autoload 'niwa-telemetry-forwarded-audit-p "niwa-telemetry")

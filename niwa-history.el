@@ -22,9 +22,6 @@
 (defvar gptel-cache)
 (defvar gptel-model)
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-transcript'
 (autoload 'niwa-transcript-normalize-properties "niwa-transcript")
 

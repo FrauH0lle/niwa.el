@@ -20,11 +20,6 @@
 (declare-function gptel-make-tool "gptel-request" (&rest slots))
 (defvar gptel--known-tools)
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 (defconst niwa-memory-investigation--max-calls 64
   "Maximum admitted investigation calls per review request.")
 

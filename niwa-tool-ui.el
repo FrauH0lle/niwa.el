@@ -34,10 +34,6 @@
                   "niwa-pipeline" ())
 (autoload 'niwa-pipeline-active-tool-use-id "niwa-pipeline")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-tool-ask'
 (declare-function niwa-tool-ask-register "niwa-tool-ask" ())
 

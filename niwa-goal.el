@@ -97,11 +97,6 @@
                   "niwa-reminders" (buffer key body &optional commit))
 (autoload 'niwa-reminders-queue-turn-event "niwa-reminders")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-system'
 (declare-function niwa-system-render-prompt-file
                   "niwa-system" (relative-path &optional replacements))
@@ -117,7 +112,6 @@
 ;; `niwa-turn'
 (declare-function niwa-turn-end-at-boundary "niwa-turn" (fsm reason))
 (autoload 'niwa-turn-end-at-boundary "niwa-turn")
-(defvar niwa--agent-invocation)
 
 ;; `niwa-view-interaction'
 (declare-function niwa-view-interaction-pending-p

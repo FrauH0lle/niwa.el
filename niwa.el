@@ -274,7 +274,6 @@ See `niwa-library-provenance' for how installation methods are covered.")
                   "niwa-chat"
                   (workspace working-directory prompt-session
                              &optional directory-scoped))
-(defvar niwa--view-buffer)
 
 ;; `niwa-collaboration-artifact-room'
 ;; An Emacs daemon shares, revokes and rotates an artifact through emacsclient.

@@ -55,9 +55,6 @@
 (declare-function niwa-buddy-note-serialize "niwa-buddy-note" ())
 (declare-function niwa-buddy-note-tools "niwa-buddy-note" (currentp))
 
-;; `niwa-chat'
-(defvar niwa--session)
-
 ;; `niwa-claude-code'
 (declare-function niwa-claude-code-request-workload "niwa-claude-code"
                   (prompt system tools callback before-tool boundary))

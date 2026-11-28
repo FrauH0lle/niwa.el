@@ -45,7 +45,6 @@
 
 ;; `niwa-view'
 (declare-function niwa-view--render-status "niwa-view" (&optional data-buf))
-(defvar niwa--view-buffer)
 
 (defun niwa-recovery--changed (session)
   "Show SESSION's changed issues in its view and to collaboration peers."

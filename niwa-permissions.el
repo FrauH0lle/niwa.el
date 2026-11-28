@@ -19,9 +19,6 @@
 (require 'niwa-tool-registry)
 (require 'niwa-utilities)
 
-;; `niwa-agents'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-permission-mode'
 (defvar niwa-permission-mode)
 
@@ -32,10 +29,6 @@
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-assert-mutation-authority
                   "niwa-session-artifacts" (session &optional buffer))
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
 
 ;; setf expander for session struct
 (eval-when-compile

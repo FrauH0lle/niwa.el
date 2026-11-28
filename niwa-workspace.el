@@ -43,10 +43,6 @@
                   "niwa-persistence" (workspace))
 (autoload 'niwa-instruction-store-activate "niwa-persistence")
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-
 ;; `niwa-utilities'
 (declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
 (declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))

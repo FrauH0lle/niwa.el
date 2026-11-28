@@ -24,10 +24,6 @@
                   (operation address context))
 (autoload 'niwa-resource-prepare "niwa-resource")
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-
 ;; `niwa-transcript'
 (declare-function niwa-transcript--mailbox-any-block-at-point
                   "niwa-transcript" (limit))

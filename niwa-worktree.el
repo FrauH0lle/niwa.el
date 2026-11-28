@@ -108,12 +108,6 @@ is opened; output is retained in `*niwa worktree setup*'."
 ;; `niwa-skills'
 (defvar niwa-slash-commands)
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--current-request)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-utilities'
 (autoload 'niwa--file-in-directory-p "niwa-utilities")
 (autoload 'niwa--file-relative-name-or-absolute "niwa-utilities")

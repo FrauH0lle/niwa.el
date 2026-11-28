@@ -27,9 +27,6 @@
 (autoload 'niwa-shared-library-libraries "niwa-shared-library")
 (autoload 'niwa-shared-library-text "niwa-shared-library")
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-workspace-schedule'
 (defvar niwa-workspace-schedule--run-active)
 
@@ -56,10 +53,6 @@
 (autoload 'niwa-resource-encode-component "niwa-resource")
 (autoload 'niwa-resource-execute "niwa-resource")
 (autoload 'niwa-resource-parse-address "niwa-resource")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
 
 ;; `niwa-tool-fs'
 (declare-function niwa-tool-fs-model-path "niwa-tool-fs" (path))

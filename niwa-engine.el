@@ -15,7 +15,6 @@
 (declare-function niwa-agent-invocation-require-path "niwa-agents" (invocation))
 (declare-function niwa-agent-invocation-p "niwa-agents" (cl-x) t)
 (declare-function niwa-agent-invocation-agent-id "niwa-agents" (cl-x) t)
-(defvar niwa--agent-invocation)
 
 ;; `gptel-openai-oauth'
 (declare-function gptel-openai-oauth-p "ext:gptel-openai-oauth" (cl-x) t)

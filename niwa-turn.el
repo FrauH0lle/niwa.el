@@ -45,7 +45,6 @@
                   "niwa-agents" (invocation))
 (declare-function niwa-agent-invocation-runtime-pending-response
                   "niwa-agents" (cl-x) t)
-(defvar niwa--agent-invocation)
 
 ;; `niwa-artifact-backend'
 (declare-function niwa-artifact-backend-save-version
@@ -239,10 +238,6 @@
 ;; `niwa-sleep'
 (declare-function niwa-sleep-update "niwa-sleep" (&rest _))
 (autoload 'niwa-sleep-update "niwa-sleep")
-
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 
 ;; `niwa-readiness'
 (declare-function niwa-readiness-record-turn "niwa-readiness" (info outcome message))

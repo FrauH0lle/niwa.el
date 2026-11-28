@@ -43,10 +43,6 @@
 (defvar niwa-session--read-only-mode)
 (defvar niwa-session--save-failed)
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-
 ;; `niwa-view-execution'
 (declare-function niwa-view-execution-reset "niwa-view-execution" ())
 

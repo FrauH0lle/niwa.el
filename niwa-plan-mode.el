@@ -102,8 +102,6 @@
 (autoload 'niwa-skills-user-visible-skills "niwa-skills-ui")
 
 ;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
 (defvar niwa-goal-token-budget)
 
 ;; `niwa-transcript'

@@ -116,7 +116,6 @@
 
 (defvar gptel-model)
 (defvar read-eval)
-(defvar niwa--view-buffer)
 
 
 ;;

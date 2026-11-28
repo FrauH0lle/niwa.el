@@ -21,9 +21,6 @@
 (require 'seq)
 (require 'subr-x)
 
-;; `niwa-agents'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-bash-analysis'
 (defvar niwa-bash-dangerous-commands)
 
@@ -39,11 +36,6 @@
 
 ;; `niwa-sandbox'
 (defvar niwa-sandbox-intrinsic-paths)
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-(defvar niwa--workspace)
 
 ;; `seq'
 (declare-function seq-filter "seq" (pred seq))

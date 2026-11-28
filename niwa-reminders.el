@@ -58,7 +58,6 @@
 (declare-function niwa-agent-name "niwa-agents" (cl-x) t)
 (declare-function niwa-agents-specs "niwa-agents" (&optional buffer))
 (declare-function niwa-plan-read-only-request-p "niwa-agents" ())
-(defvar niwa--agent-invocation)
 
 ;; `niwa-compact'
 (declare-function niwa--compact-auto-eligible-p "niwa-compact" ())
@@ -124,9 +123,6 @@
 (declare-function niwa-session-fork-provenance-body
                   "niwa-session-fork" (session))
 (autoload 'niwa-session-fork-provenance-body "niwa-session-fork")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
 
 ;; `niwa-telemetry'
 (declare-function niwa-telemetry-current-session

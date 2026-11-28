@@ -36,10 +36,6 @@
                   (prompt callback &optional workload))
 (autoload 'niwa-review-verify "niwa-review")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-system'
 (declare-function niwa-system-render-prompt-file
                   "niwa-system" (relative-path &optional replacements))

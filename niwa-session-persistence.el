@@ -227,10 +227,6 @@
 (autoload 'niwa-transport-schedule-idle "niwa-transport")
 
 ;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-(defvar niwa--session)
-(defvar niwa--workspace)
 (defvar niwa-session--read-only-mode)
 
 ;; `niwa-tool-repair'
@@ -264,10 +260,6 @@
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
-
-;; `niwa-view'
-(defvar niwa--data-buffer)
-(defvar niwa--view-buffer)
 
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))

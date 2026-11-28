@@ -28,9 +28,6 @@
 (declare-function gptel--model-mime-capable-p "ext:gptel-request"
                   (mime &optional model))
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-history-search'
 (declare-function niwa-history-search-start
                   "niwa-history-search" (callback args descriptor))
@@ -38,9 +35,6 @@
 
 ;; `niwa-pipeline'
 (defvar niwa-pipeline--active-call-source)
-
-;; `niwa-request'
-(defvar niwa--current-request)
 
 ;; `niwa-reminders'
 (declare-function niwa-reminders-queue-turn-event
@@ -55,10 +49,6 @@
 ;; `niwa-tool-editing'
 (declare-function niwa-tool-editing-view "niwa-tool-editing" (components callback &optional search))
 (autoload 'niwa-tool-editing-view "niwa-tool-editing")
-
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
 
 ;; `niwa-system'
 (autoload 'niwa-system-workspace-config-files "niwa-system")

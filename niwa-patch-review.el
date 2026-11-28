@@ -62,9 +62,6 @@
 (autoload 'niwa-side-conversation-mutation-warning-pending-p
   "niwa-side-conversation")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-tool-patch'
 (declare-function niwa-tool-patch-annotate-line-numbers
                   "niwa-tool-patch" (proposal))

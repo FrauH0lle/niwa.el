@@ -67,9 +67,6 @@
 
 ;; `niwa-structs'
 (declare-function niwa-session-audit-target "niwa-structs" (session))
-(defvar niwa--agent-invocation)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
 
 ;; `niwa-transport'
 (defvar niwa-transport--depth)

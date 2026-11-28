@@ -39,12 +39,6 @@
 (declare-function niwa-gptel-stream-bridge-after-flush
                   "niwa-gptel-stream-bridge" (function))
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 (declare-function niwa-schedule-pending-summary "niwa-schedule" (workspace session))
 (declare-function niwa-schedule-now "niwa-schedule" ())
 (autoload 'niwa-schedules-list-open "niwa-schedules-list" nil t)

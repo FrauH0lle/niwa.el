@@ -22,9 +22,6 @@
 (require 'niwa-structs)
 (require 'niwa-transport)
 
-;; `niwa-agents'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-hooks'
 (defvar niwa-session-start-hook)
 

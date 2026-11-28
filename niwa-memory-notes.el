@@ -40,9 +40,6 @@
 (autoload 'niwa-resource-shared-accesses "niwa-resource")
 (autoload 'niwa-resource-work-shared-directory "niwa-resource")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 (defvar read-circle)
 (defvar read-eval)
 

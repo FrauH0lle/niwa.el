@@ -242,11 +242,6 @@
 (autoload 'niwa-skills-preparation-parse-arguments
   "niwa-skills-preparation")
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-subscription-usage'
 (autoload 'niwa-subscription-usage-show "niwa-subscription-usage" nil t)
 

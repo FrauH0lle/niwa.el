@@ -87,10 +87,6 @@
                   (session item-id question-id))
 (autoload 'niwa-shared-conversation-archived-question-p "niwa-shared-conversation")
 
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-transcript-audit'
 (declare-function niwa-transcript-audit-guest-prompts
                   "niwa-transcript-audit" ())

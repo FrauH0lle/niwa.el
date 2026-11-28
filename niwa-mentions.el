@@ -114,8 +114,6 @@
 
 ;; `niwa-structs'
 (autoload 'niwa-request-p "niwa-structs")
-(defvar niwa--current-request)
-(defvar niwa--session)
 
 ;; `niwa-tool-fs-read'
 (declare-function niwa-tool-fs-read-format-large-pdf-reminder

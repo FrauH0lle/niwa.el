@@ -29,10 +29,6 @@
                   (entry &optional session))
 (autoload 'niwa-permission-request "niwa-permission-queue")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-turn'
 (declare-function niwa-current-origin "niwa-turn" ())
 (autoload 'niwa-current-origin "niwa-turn")

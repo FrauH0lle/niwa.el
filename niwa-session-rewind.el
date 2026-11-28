@@ -175,10 +175,6 @@
 (autoload 'niwa-session-recovery-refresh-session-buffers
   "niwa-session-recovery")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-transcript'
 (declare-function niwa-transcript--skip-leading-properties-drawer "niwa-transcript" (pos))
 (declare-function niwa-transcript--skip-leading-summary-block "niwa-transcript" (pos))
@@ -195,7 +191,6 @@
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 
 ;; `niwa-view'
-(defvar niwa--data-buffer)
 (defvar niwa-session-artifacts-backup-cache)
 
 ;;

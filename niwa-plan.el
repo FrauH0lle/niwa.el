@@ -32,9 +32,6 @@
 (autoload 'niwa-session-artifacts-read-artifact
   "niwa-session-artifacts")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-utilities'
 (declare-function niwa--normalize-message-text "niwa-utilities"
 		  (text))

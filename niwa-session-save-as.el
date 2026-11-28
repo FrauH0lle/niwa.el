@@ -58,8 +58,6 @@
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 
-(defvar niwa--view-buffer)
-
 
 ;;
 ;;; Transaction state

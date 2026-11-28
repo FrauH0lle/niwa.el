@@ -38,10 +38,6 @@
 (autoload 'niwa-session-artifacts-strip-summary-handoff-prefix
   "niwa-session-artifacts")
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--session)
-
 ;; `org'
 (declare-function org-find-property "org" (property &optional value))
 

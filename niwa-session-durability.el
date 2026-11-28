@@ -95,8 +95,6 @@
 ;; `niwa-structs'
 (declare-function niwa-session-authority-mode-for-session
                   "niwa-structs" (session))
-(defvar niwa--data-buffer)
-(defvar niwa--session)
 
 ;; `niwa-utilities'
 (autoload 'niwa--truncate-display "niwa-utilities")

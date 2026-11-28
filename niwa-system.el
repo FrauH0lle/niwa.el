@@ -34,9 +34,6 @@
 (defvar gptel-system-prompt)
 (defvar gptel-tools)
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-goal'
 (declare-function niwa-goal-active-context "niwa-goal" (session))
 
@@ -68,10 +65,6 @@
 (declare-function niwa-skills-prompt-section
                   "niwa-skills-prompt" (session &optional buffer))
 (autoload 'niwa-skills-prompt-section "niwa-skills-prompt")
-
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
 
 ;; `niwa-tool-registry'
 (declare-function niwa-tool-for-gptel "niwa-tool-registry" (provider))

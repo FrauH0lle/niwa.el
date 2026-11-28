@@ -23,9 +23,6 @@
 (autoload 'niwa-reminders-make-pending-events "niwa-reminders")
 (autoload 'niwa-session-ensure-reminder "niwa-reminders")
 
-;; `niwa-view-core'
-(defvar niwa--view-buffer)
-
 ;; `niwa-view-redraw'
 (declare-function niwa-view--full-rerender "niwa-view-redraw")
 

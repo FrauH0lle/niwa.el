@@ -69,10 +69,6 @@
 ;; `niwa-reminders'
 (declare-function niwa-reminders-queue-turn-event "niwa-reminders" (buffer key body &optional commit))
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--session)
-
 (defun niwa-claude-code-request-text (prompt system callback &optional stream ready)
   "Request isolated text for PROMPT and SYSTEM via CALLBACK, optionally STREAM.
 READY runs once the native conversation started and the prompt is submitted."

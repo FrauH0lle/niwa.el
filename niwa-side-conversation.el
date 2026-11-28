@@ -141,13 +141,6 @@
 (autoload 'niwa-session-artifacts-assert-new-mutation-authority
   "niwa-session-artifacts")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-(defvar niwa--workspace)
-
 ;; `niwa-system'
 (defvar niwa-memory-dirs)
 

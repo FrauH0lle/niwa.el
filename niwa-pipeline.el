@@ -81,9 +81,6 @@
 (autoload 'niwa-session-persistence-shallow-ensure-files
   "niwa-session-persistence")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-tool-exec-permission'
 (defvar niwa-tool-exec-permission-approved-resources)
 
@@ -118,7 +115,6 @@
                   "niwa-workspace" (workspace))
 (autoload 'niwa-workspace-ensure-generated-state-ignored
   "niwa-workspace")
-(defvar niwa--workspace)
 
 ;; `subr'
 (defvar read-eval)

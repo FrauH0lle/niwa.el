@@ -51,11 +51,6 @@
                   (workload &optional explicit-selector explicit-effort))
 (declare-function niwa-model-usable-input-tokens "niwa-models" (policy))
 
-;; `niwa-structs'
-(defvar niwa--agent-invocation)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-
 ;; `niwa-system'
 (declare-function niwa-system-render-prompt-file
                   "niwa-system" (relative-path &optional replacements))

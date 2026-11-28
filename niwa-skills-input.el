@@ -111,10 +111,6 @@
 (autoload 'niwa-skills-syntax-markdown-code-ranges
   "niwa-skills-syntax")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-tool-render-data'
 (declare-function niwa-tool-render-data-format
                   "niwa-tool-render-data" (render-data &optional tool-use-id))

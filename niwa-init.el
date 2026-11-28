@@ -27,10 +27,6 @@
 (defvar niwa-compact-run-in-flight)
 
 ;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 (defvar niwa-session--read-only-mode)
 
 ;; `niwa-utilities'

@@ -92,9 +92,6 @@
 ;; `niwa-session-persistence'
 (defvar niwa-session--read-only-mode)
 
-;; `niwa-structs'
-(defvar niwa--view-buffer)
-
 ;; `niwa-view-stream'
 (declare-function niwa-view-stream-end-progress
                   "niwa-view-stream" (view))

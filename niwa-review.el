@@ -107,10 +107,6 @@
 (defvar niwa-slash-commands)
 
 ;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 (defvar niwa-session--read-only-mode)
 
 ;; `niwa-tool-render-data'

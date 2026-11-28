@@ -134,10 +134,6 @@
                   "niwa-skills-input" (text session))
 (autoload 'niwa-skills-input-prepare-user-input "niwa-skills-input")
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-
 ;; `niwa-view-composer'
 (declare-function niwa-view--submit-planned-input
                   "niwa-view-composer"

@@ -53,12 +53,6 @@
 		  (&optional session))
 (autoload 'niwa-plan-approval-render "niwa-plan-mode")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 ;; `niwa-telemetry'
 ;; `niwa-utilities'
 (autoload 'niwa-diagnostic-scope "niwa-utilities")

@@ -51,9 +51,6 @@
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 
-;; `niwa-view'
-(defvar niwa--data-buffer)
-
 (defvar-local niwa-session-naming--cancel nil
   "Cancellation thunk for this root buffer's pending title operation.")
 

@@ -20,9 +20,6 @@
                   "niwa-session-artifacts" (session number))
 (autoload 'niwa-session-artifacts-read-segment "niwa-session-artifacts")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 (defconst niwa-shared-conversation--history-limit 128000
   "Maximum characters of previous item turns included in a request.")
 

@@ -70,9 +70,6 @@
 (autoload 'niwa-session-artifacts-publish-text
   "niwa-session-artifacts")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `niwa-workspace'
 (declare-function niwa-workspace-state-dir
                   "niwa-workspace" (workspace))

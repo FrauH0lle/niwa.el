@@ -30,10 +30,6 @@
 ;; `niwa-skills-core'
 (declare-function niwa-skills-rescan "niwa-skills-core" ())
 
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa--workspace)
-
 (defun niwa-plugins-current-workspace ()
   "Return the current chat workspace, if available."
   (or (and (boundp 'niwa--session)

@@ -33,7 +33,6 @@
 ;; `niwa-pending-inputs'
 (declare-function niwa-pending-inputs-schedule-held-input-delivery
                   "niwa-pending-inputs" (&optional data-buffer))
-(defvar niwa--view-buffer)
 
 ;; `niwa-utilities'
 (declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))

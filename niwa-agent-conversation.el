@@ -105,11 +105,6 @@
                   "niwa-skills-prompt" ())
 (autoload 'niwa-skills-install-activation-hook "niwa-skills-prompt")
 
-;; `niwa-structs'
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-(defvar niwa--workspace)
-
 ;; `niwa-tool-repair'
 (declare-function niwa-tool-repair-clear-ledger
                   "niwa-tool-repair" (&rest args))

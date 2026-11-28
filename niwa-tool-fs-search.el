@@ -34,9 +34,6 @@
                   "niwa-history-search" (callback args descriptor))
 (autoload 'niwa-history-search-start "niwa-history-search")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 (defvar niwa-tool-fs-search--resource-address nil
   "Authored resource address for the current search.")
 

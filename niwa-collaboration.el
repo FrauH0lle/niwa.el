@@ -224,9 +224,6 @@
 (autoload 'niwa--ui-timer-cancel "niwa-utilities")
 (autoload 'niwa--ui-timer-pending-p "niwa-utilities")
 
-;; `niwa-turn'
-(defvar niwa--current-request)
-
 ;; `niwa-view-interaction'
 (defvar niwa-view--interaction-lifecycle)
 (defvar niwa-view--interaction-overlays)

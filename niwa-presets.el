@@ -87,10 +87,6 @@
                   "niwa-skills-invoke" (request))
 (autoload 'niwa-skills--drain-pending-context "niwa-skills-invoke")
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-system'
 (declare-function niwa-system-build-prompt
                   "niwa-system"

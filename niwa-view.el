@@ -134,9 +134,6 @@
 
 ;; `niwa-structs'
 (declare-function niwa-session-collection-cancel "niwa-session-collection" (session))
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 
 ;; `niwa-tool-registry'
 (declare-function niwa-tool-display-string "niwa-tool-registry" (tool-name args &optional scope))

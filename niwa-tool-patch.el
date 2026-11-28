@@ -73,10 +73,6 @@
 (declare-function niwa-session-persistence-shallow-ensure-files
                   "niwa-session-persistence" (session buffer))
 
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
-
 ;; `niwa-tool-editing'
 (declare-function niwa-tool-editing-actor "niwa-tool-editing" ())
 (autoload 'niwa-tool-editing-actor "niwa-tool-editing")

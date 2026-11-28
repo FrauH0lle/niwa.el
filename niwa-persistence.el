@@ -69,7 +69,6 @@
 
 ;; `niwa-workspace'
 (autoload 'niwa-workspace-state-dir "niwa-workspace")
-(defvar niwa--workspace)
 
 (defcustom niwa-patch-outdated-instructions t
   "Automatically patch instructions when the save file is outdated if non-nil."

@@ -28,9 +28,6 @@
 (autoload 'niwa-execution-transcript-retry-pending-terminals
   "niwa-execution-transcript")
 
-;; `niwa-structs'
-(defvar niwa--session)
-
 ;; `subr'
 (defvar read-eval)
 

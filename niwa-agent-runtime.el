@@ -88,7 +88,6 @@
 (autoload 'niwa-agent-conversation-refresh "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-retire "niwa-agent-conversation")
 (autoload 'niwa-agent-conversation-save "niwa-agent-conversation")
-(defvar niwa--agent-invocation)
 
 ;; `niwa-agent-exec'
 (declare-function niwa-agent-exec-freeze-configuration
@@ -170,10 +169,6 @@
 (autoload 'niwa-session-persistence-write-sidecar-now
   "niwa-session-persistence")
 (defvar niwa-session--read-only-mode)
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--session)
 
 ;; `niwa-tool-task'
 (declare-function niwa-tool-task-refresh-display "niwa-tool-task" ())

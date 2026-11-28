@@ -22,9 +22,6 @@
 (declare-function gptel-menu "ext:gptel-transient" ())
 (defvar gptel--set-buffer-locally)
 
-;; `niwa-agent-conversation'
-(defvar niwa--agent-invocation)
-
 ;; `niwa-cockpit'
 (declare-function niwa-cockpit-context-data-buffer
                   "niwa-cockpit" (&optional context))
@@ -42,12 +39,6 @@
 ;; `niwa-engine'
 (declare-function niwa-engine-external-p "niwa-engine" (backend))
 (autoload 'niwa-engine-external-p "niwa-engine")
-
-;; `niwa-structs'
-(defvar niwa--current-request)
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
 
 ;; `niwa-view-composer'
 (declare-function niwa-view--send-root

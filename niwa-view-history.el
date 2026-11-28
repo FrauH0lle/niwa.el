@@ -38,10 +38,6 @@
 ;; `niwa-session-persistence'
 (defvar niwa-session--read-only-mode)
 
-;; `niwa-view'
-(defvar niwa--data-buffer)
-(defvar niwa--session)
-
 ;; `niwa-view-composer'
 (declare-function niwa-view--clear-input "niwa-view-composer" ())
 (declare-function niwa-view--ensure-interactive-chat-view

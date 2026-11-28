@@ -47,15 +47,6 @@
 (declare-function niwa-view-refresh-associated-input-prompt
                   "niwa-view-composer" ())
 
-;; `niwa-structs'
-(defvar niwa--data-buffer)
-(defvar niwa--agent-invocation)
-(defvar niwa--current-request)
-(defvar niwa--pending-implementation-policy)
-(defvar niwa--pending-permission-mode)
-(defvar niwa--session)
-(defvar niwa--view-buffer)
-
 
 (defun niwa-permission-mode-data-buffer ()
   "Return the session data buffer reachable from `current-buffer', or nil.
