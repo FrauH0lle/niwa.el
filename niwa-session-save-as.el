@@ -141,11 +141,11 @@ so TRANSACTION captures the new one."
             (error
              (user-error "Save As stopped: the original's wake-ups could not be cleared (%s)"
                          (error-message-string err))))
+      (plist-put transaction :handed-over t)
       (let ((publication
              (or (niwa-session-save-as--read-publication
                   (plist-get transaction :old-save-path))
                  (error "Remote Save As requires a committed publication"))))
-        (plist-put transaction :handed-over t)
         (plist-put transaction :parent-publication publication)
         (plist-put transaction :parent-head (plist-get publication :head))))
     transaction))
@@ -244,7 +244,13 @@ so TRANSACTION captures the new one."
                    (plist-get (niwa-session-lease child) :publication-head)))
               (when (or publication committed-head)
                 (plist-put transaction :publication publication)
-                (plist-put transaction :stage 'published)))))
+                (plist-put transaction :stage 'published))))
+          ;; A committed child owns its copy even if lease adoption fails.
+          (when (and (plist-get transaction :handed-over)
+                     (niwa-session-save-as--committed-p transaction))
+            (let ((parent (plist-get transaction :session)))
+              (setf (niwa-session-schedules parent) nil)
+              (niwa-schedule-restore-session parent buffer))))
       (error
        (if (niwa-session-save-as--committed-p transaction)
            (niwa-session-save-as--record-error transaction error)
@@ -326,6 +332,7 @@ so TRANSACTION captures the new one."
             (niwa-session-durability-adopt-owned-lease session child)
             (setf (niwa-session-session-id session)
                   (plist-get transaction :new-id)
+                  (niwa-session-schedules session) (niwa-session-schedules child)
                   ;; The saved copy is the user's own chat.
                   (niwa-session-dedicated-artifact session) nil
                   (niwa-session-forked-from-session-id session)

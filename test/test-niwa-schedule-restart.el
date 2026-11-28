@@ -433,6 +433,61 @@ would; `live' returns the session's live root buffer, or nil."
                                       :schedules))))
       (should (equal index (niwa-schedule-restart-test--snapshot-index)))))
 
+  :doc "saving the parent after failed child adoption does not duplicate its wake-up"
+  (niwa-schedule-restart-test--with-saved
+    (let* ((wake (niwa-schedule-create session buffer "20m" "Check CI"))
+           (parent (niwa-session-save-path session))
+           (copy (file-name-concat (file-name-directory (directory-file-name parent))
+                                   "copy"))
+           child)
+      (unwind-protect
+          (progn
+            (cl-letf (((symbol-function 'niwa-session-durability-adopt-owned-lease)
+                       (lambda (_parent committed-child)
+                         (setq child committed-child)
+                         (error "Injected adoption failure"))))
+              (should (string-search "Injected adoption failure"
+                                     (error-message-string
+                                      (should-error (niwa-session-save-as-run
+                                                     session buffer "copy" "copy" copy))))))
+            (should (equal parent (niwa-session-save-path session)))
+            (niwa-session-artifacts-save session buffer)
+            (should (equal (list wake) (plist-get (niwa-schedule-restart-test--stored child)
+                                                  :schedules)))
+            (should-not (memq buffer niwa-schedule--buffers))
+            (restart)
+            (should-not (plist-get (niwa-schedule-restart-test--stored session) :schedules)))
+        (when child
+          (niwa-session-persistence-lock-release (niwa-session-save-path child) child)))))
+
+  :doc "a parent head read failure after clearing wake-ups restores the original on restart"
+  (niwa-schedule-restart-test--with-saved
+    (let* ((wake (niwa-schedule-create session buffer "20m" "Check CI"))
+           (parent (niwa-session-save-path session))
+           (copy (file-name-concat (file-name-directory (directory-file-name parent))
+                                   "copy"))
+           (read-publication (symbol-function 'niwa-session-save-as--read-publication))
+           failed)
+      (cl-letf (((symbol-function 'niwa-session-save-as--read-publication)
+                 (lambda (path)
+                   (when (and (not failed) (equal path parent)
+                              (null (plist-get (niwa-schedule-restart-test--stored session)
+                                               :schedules)))
+                     (setq failed t)
+                     (error "Injected parent head read failure"))
+                   (funcall read-publication path))))
+        (should (string-search "Injected parent head read failure"
+                               (error-message-string
+                                (should-error (niwa-session-save-as-run
+                                               session buffer "copy" "copy" copy))))))
+      (should-not (file-exists-p copy))
+      (restart)
+      (should (equal (list wake) (plist-get (niwa-schedule-restart-test--stored session)
+                                            :schedules)))
+      (niwa-schedule-restore)
+      (should (equal (list (niwa-schedule--directory-key parent))
+                     (mapcar #'car niwa-schedule--closed)))))
+
   :doc "an index entry whose session or entry file cannot be read is kept, not pruned"
   (when (zerop (user-uid))
     (ert-skip "File permissions do not bind root"))

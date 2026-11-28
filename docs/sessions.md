@@ -327,8 +327,10 @@ transfer, arms its pending wake-ups; a read-only buffer does not, and a buffer
 that becomes a read-only follower after control moves elsewhere stops firing
 them. Save As first commits the original and its index entry without them, and
 only then writes the new session carrying them; if that clear fails, Save As
-stops with an error before creating anything, and if Save As fails later the
-original commits them back. A crash in between can lose a wake-up but never
+stops with an error before creating anything. If Save As fails before the new
+session commits, the original commits its wake-ups back. After that commit,
+only the new session owns them, even if the live buffer cannot adopt it.
+A crash between the two commits can lose a wake-up but never
 fire it twice. Conversation and Worktree forks start with none, so one wake-up
 never fires in two conversations. Rewind and Restore
 keep the session's current wake-ups: a restored head brings back neither a
