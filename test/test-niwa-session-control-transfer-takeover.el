@@ -12,6 +12,7 @@
 (require 'cl-lib)
 (require 'niwa-agent-control)
 (require 'niwa-agent-runtime)
+(require 'niwa-schedule)
 (require 'niwa-session-artifacts)
 (require 'niwa-session-control-fs)
 (require 'niwa-session-control-transfer)
@@ -273,6 +274,50 @@ With SETTLE, the canceller lets the real terminal settlement run as well."
       (dolist (session (list owner successor))
         (niwa-session-durability--cancel-renewal session))
       (delete-directory local-root t))))
+
+(defun test-niwa-takeover--adopt-exit (fault)
+  "Force a takeover, injecting FAULT at the real read or restore boundary."
+  (test-niwa-takeover--with-session
+   'project
+   (lambda (owner _buffer)
+     (pcase-let ((`(,laptop . ,data) (test-niwa-takeover--follower owner)))
+       (test-niwa-takeover--as 'laptop
+         (let ((take (lambda () (niwa-session-control-transfer-take-over laptop data))))
+           (pcase fault
+             ('read-quit
+              (cl-letf (((symbol-function 'niwa-session-persistence-load-sidecar)
+                         (lambda (&rest _)
+                           (should (niwa-session-durability-lease-owned-p laptop))
+                           (signal 'quit '(takeover-read)))))
+                (should (equal '(quit takeover-read)
+                               (condition-case err (funcall take) (quit err))))))
+             ('schedule-error
+              (cl-letf (((symbol-function 'niwa-schedule-restore-session)
+                         (lambda (session buffer)
+                           (should (eq session laptop))
+                           (should (eq buffer data))
+                           (should (niwa-session-durability-lease-owned-p laptop))
+                           (should-not (buffer-local-value 'buffer-read-only data))
+                           (error "Injected schedule restore failure"))))
+                (should (equal '(error "Injected schedule restore failure")
+                               (should-error (funcall take))))))
+             ('success (should (funcall take))))
+           (let ((head (test-niwa-takeover--head owner))
+                 (failed (not (eq fault 'success))))
+             (should (equal niwa-session-durability--client-id (plist-get head :client-id)))
+             (should (eq (if failed 'released 'active) (plist-get head :status)))
+             (should (eq failed (buffer-local-value 'buffer-read-only data)))
+             (should (eq failed (buffer-local-value 'niwa-session--read-only-mode data))))))))))
+
+(niwa-deftest niwa-session-control-transfer-take-over/adoption-exit (:quiet t)
+  ,test
+  (test)
+  :doc "quitting the sidecar read after acquisition releases the lease"
+  (test-niwa-takeover--adopt-exit 'read-quit)
+  :doc "schedule restore failure leaves the new holder's buffer read-only"
+  (test-niwa-takeover--adopt-exit 'schedule-error)
+  :doc "successful adoption keeps the active lease and a writable buffer"
+  (test-niwa-takeover--adopt-exit 'success))
 
 (niwa-deftest niwa-session-control-transfer-taken-over (:quiet t)
   ,test

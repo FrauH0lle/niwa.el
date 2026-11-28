@@ -735,74 +735,81 @@ must not keep other clients out.
 The target incarnation, transcript, and instruction restore are staged before
 the live session or buffer changes.  Native history is adopted as on ordinary
 resume; the engine validates its installation on the next send."
+  (let ((save-path (niwa-session-save-path session)) adopted)
+    (unwind-protect
+        (setq adopted (niwa-session-control-transfer--restore-owner session buffer))
+      (unless adopted
+        (unwind-protect
+            (when (buffer-live-p buffer)
+              (niwa-session-persistence-apply-read-only-mode
+               buffer "control acquisition did not finish; this session remains read-only"))
+          (niwa-session-durability-lease-release save-path session))))))
+
+(defun niwa-session-control-transfer--restore-owner (session buffer)
+  "Install SESSION's committed state into BUFFER and return t on success."
   ;; Staging copies runtime slots before yielding instruction work.  A heartbeat
   ;; started there would be erased by the later whole-session copy, hiding a
   ;; running target program from the mutation gate.
   (niwa-session-durability--gate session nil)
-  (condition-case err
-      (let* ((niwa-session-durability--heartbeat-inhibit t)
-             (save-path (niwa-session-save-path session))
-             (workspace (niwa-session-workspace session))
-             (transfer (niwa-session-control-transfer session))
-             (publication
-              (or (niwa-session-publication-read save-path)
-                  (error "Transferred session has no committed publication")))
-             (sidecar
-              (niwa-session-persistence-load-sidecar
-               (plist-get publication :sidecar) (niwa-diagnostic-scope session)))
-             (refreshed
-              (plist-get
-               (niwa-session-codec-deserialize sidecar workspace)
-               :session))
-             (staging-buffer
-              (generate-new-buffer " *niwa-transfer-staging*"))
-             (instruction-rollback
-              (niwa--instruction-state-rollback workspace)))
-        (unless refreshed
-          (error "Transferred session has no valid committed sidecar"))
-        (unwind-protect
-            (progn
-              (niwa-session-control-transfer--stage-session
-               session refreshed publication staging-buffer)
-              (niwa-session-control-transfer--insert-committed-segment
-               refreshed staging-buffer)
-              (niwa-session-control-transfer-register-root-buffer
-               refreshed staging-buffer)
-              (niwa-session-artifacts-check-target-incarnation
-               refreshed staging-buffer)
-              (condition-case install-error
-                  (progn
-                    (unless
-                        (niwa-session-artifacts-load-instructions refreshed)
-                      (error "Transferred workspace instructions could not be restored"))
-                    (niwa-session-control-transfer--install-staged-segment
-                     buffer staging-buffer))
-                (error
-                 (funcall instruction-rollback)
-                 (signal (car install-error) (cdr install-error))))
-              (niwa-session-rewind-copy-session-state
-               refreshed session)
-              (niwa-session-control-transfer-register-root-buffer
-               session buffer)
-              (with-current-buffer buffer
-                (setq buffer-read-only nil
-                      niwa-session--read-only-mode nil))
-              (niwa-schedule-restore-session session buffer)
-              (niwa-session-set-control-transfer
-               session
-               (list :state 'acquired :request (plist-get transfer :request)))
-              (message "niwa: control acquired; session is writable")
-              t)
-          (when (buffer-live-p staging-buffer)
-            (niwa-session-control-transfer-register-root-buffer
-             session buffer)
-            (with-current-buffer staging-buffer
-              (set-buffer-modified-p nil))
-            (kill-buffer staging-buffer))))
-    (error
-     (niwa-session-durability-lease-release
-      (niwa-session-save-path session) session)
-     (signal (car err) (cdr err)))))
+  (let* ((niwa-session-durability--heartbeat-inhibit t)
+         (save-path (niwa-session-save-path session))
+         (workspace (niwa-session-workspace session))
+         (transfer (niwa-session-control-transfer session))
+         (publication
+          (or (niwa-session-publication-read save-path)
+              (error "Transferred session has no committed publication")))
+         (sidecar
+          (niwa-session-persistence-load-sidecar
+           (plist-get publication :sidecar) (niwa-diagnostic-scope session)))
+         (refreshed
+          (plist-get
+           (niwa-session-codec-deserialize sidecar workspace)
+           :session))
+         (staging-buffer
+          (generate-new-buffer " *niwa-transfer-staging*"))
+         (instruction-rollback
+          (niwa--instruction-state-rollback workspace)))
+    (unless refreshed
+      (error "Transferred session has no valid committed sidecar"))
+    (unwind-protect
+        (progn
+          (niwa-session-control-transfer--stage-session
+           session refreshed publication staging-buffer)
+          (niwa-session-control-transfer--insert-committed-segment
+           refreshed staging-buffer)
+          (niwa-session-control-transfer-register-root-buffer
+           refreshed staging-buffer)
+          (niwa-session-artifacts-check-target-incarnation
+           refreshed staging-buffer)
+          (condition-case install-error
+              (progn
+                (unless
+                    (niwa-session-artifacts-load-instructions refreshed)
+                  (error "Transferred workspace instructions could not be restored"))
+                (niwa-session-control-transfer--install-staged-segment
+                 buffer staging-buffer))
+            (error
+             (funcall instruction-rollback)
+             (signal (car install-error) (cdr install-error))))
+          (niwa-session-rewind-copy-session-state
+           refreshed session)
+          (niwa-session-control-transfer-register-root-buffer
+           session buffer)
+          (with-current-buffer buffer
+            (setq buffer-read-only nil
+                  niwa-session--read-only-mode nil))
+          (niwa-schedule-restore-session session buffer)
+          (niwa-session-set-control-transfer
+           session
+           (list :state 'acquired :request (plist-get transfer :request)))
+          (message "niwa: control acquired; session is writable")
+          t)
+      (when (buffer-live-p staging-buffer)
+        (niwa-session-control-transfer-register-root-buffer
+         session buffer)
+        (with-current-buffer staging-buffer
+          (set-buffer-modified-p nil))
+        (kill-buffer staging-buffer)))))
 
 (defun niwa-session-control-transfer--poll-requester (session buffer)
   "Acquire SESSION into BUFFER after its committed release fence is visible."
