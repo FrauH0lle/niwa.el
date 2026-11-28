@@ -149,7 +149,7 @@ Chat / view
   niwa-view-render.el      transcript projection, source mapping, live updates, segment state
   niwa-view-redraw.el      full re-render planning, batched installation, latest-turn refresh
   niwa-view-tool-render.el tool renderer interpreter for niwa-tool-render-data: rows, child calls, cache
-  niwa-view-mailbox.el     mailbox delivery presentation: cards, notices, collapsed bodies
+  niwa-view-mailbox.el     mailbox delivery presentation: one classification and range decoration for every shape
   niwa-view-segments.el    historical session segment projection and navigation
   niwa-view-stream.el      request progress, view animation timer, streaming redraws
   niwa-gptel-stream-bridge.el private gptel stream compatibility advice

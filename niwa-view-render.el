@@ -3678,11 +3678,10 @@ Use SHARED-DISPLAY text when it replaces the original prompt."
            (null hook-contexts)
            (null hook-audits))
       nil)
-     ((niwa-view--mailbox-only-text-p text)
+     ((niwa-view-mailbox-only-p text)
       (setq text-start (point))
       (insert text)
-      (niwa-view--decorate-agent-result-blocks text-start (point))
-      (niwa-view--decorate-agent-message-blocks text-start (point)))
+      (niwa-view-mailbox-decorate text-start (point)))
      (t
       (let* ((guest (plist-get attribution :name))
              (background
@@ -3729,8 +3728,7 @@ Use SHARED-DISPLAY text when it replaces the original prompt."
           (unless (eq (char-before) ?\n)
             (insert "\n")))))
       ;; Decorate mailbox blocks that appear inside mixed user text.
-      (niwa-view--decorate-agent-result-blocks text-start (point))
-      (niwa-view--decorate-agent-message-blocks text-start (point))
+      (niwa-view-mailbox-decorate text-start (point))
       (niwa-view--linkify-note-mentions-in-range text-start (point))
       (dolist (ctx hook-contexts)
         (niwa-view--insert-hook-context-block
@@ -4052,17 +4050,15 @@ Classification and insertion reuse this entry within one activity run."
                            "\\`[ \t\n]*<\\(agent-result\\|agent-message\\)\\s-[^>]*>" text)
                           (match-string 0 text)))
              (result-p (and opener (equal (match-string 1 text) "agent-result")))
-             (notice
+             (delivery
               (and opener
-                   (or result-p
-                       (member (niwa-view--mail-attribute opener "type")
-                               '("EXECUTION" "MONITOR" "MONITOR_TERMINAL")))))
+                   (niwa-view-mailbox-delivery
+                    opener (if result-p 'agent-result 'agent-message)
+                    (niwa-view--mail-attribute opener "sender"))))
              (entry
-              (unless (and notice (not result-p)
-                           (niwa-view--own-completion-mail-p
-                            opener (niwa-view--mail-attribute opener "sender")))
+              (unless (eq delivery 'suppressed)
                 (list :kind 'mailbox :start (cadr seg) :end (caddr seg)
-                      :notice-p notice
+                      :notice-p (eq delivery 'notice)
                       :group-child
                       (list :kind 'mailbox :status 'success
                             :rendering (list :mailbox-text text))))))
@@ -4371,10 +4367,7 @@ is inserted beside the header.  CONTINUATION-P suppresses that header."
                                                         'response)
                               niwa-view-type response
                               niwa-view-collapsed nil))
-                           (niwa-view--decorate-agent-result-blocks
-                            start response-end)
-                           (niwa-view--decorate-agent-message-blocks
-                            start response-end)
+                           (niwa-view-mailbox-decorate start response-end)
                            ;; Idle table layout must not prettify a table the
                            ;; next chunk could extend.  Only the streamed turn's
                            ;; last segment can still grow; terminal
@@ -4416,8 +4409,7 @@ is inserted beside the header.  CONTINUATION-P suppresses that header."
                  (niwa-view--ensure-blank-line-before-response)
                  (setq text-start (point))
                  (insert text "\n")
-                 (niwa-view--decorate-agent-result-blocks text-start (point))
-                 (niwa-view--decorate-agent-message-blocks text-start (point)))))
+                 (niwa-view-mailbox-decorate text-start (point)))))
             ('user
              (let ((seg-start (cadr seg))
                    (seg-end (caddr seg)))

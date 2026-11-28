@@ -678,8 +678,7 @@ Return the normalized source coordinates used for the insertion."
         (unless (eq (char-before) ?\n)
           (insert "\n"))
         (when (eq vtype 'response)
-          (niwa-view--decorate-agent-result-blocks start (point))
-          (niwa-view--decorate-agent-message-blocks start (point))
+          (niwa-view-mailbox-decorate start (point))
           (niwa-view--decorate-markdown-in-range start (point)))
         (when (memq vtype
                     '(thinking-summary tool-summary prompt-summary

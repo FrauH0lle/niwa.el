@@ -90,10 +90,7 @@
                   (source vtype &optional previous-key))
 
 ;; `niwa-view-mailbox'
-(declare-function niwa-view--decorate-agent-message-blocks
-                  "niwa-view-mailbox" (start end))
-(declare-function niwa-view--decorate-agent-result-blocks
-                  "niwa-view-mailbox" (start end))
+(declare-function niwa-view-mailbox-decorate "niwa-view-mailbox" (start end))
 
 ;; `niwa-view-markdown'
 (autoload 'niwa-view--decorate-markdown-in-range
@@ -1210,8 +1207,7 @@ body of the block that ran them."
                        (collapsed 0)
                        (t most-positive-fixnum))))
             (insert text "\n")
-            (niwa-view--decorate-agent-result-blocks start (point))
-            (niwa-view--decorate-agent-message-blocks start (point))
+            (niwa-view-mailbox-decorate start (point))
             ;; Notices default to collapsed independently of the line threshold.
             ;; An explicit or remembered expansion must override that default.
             (when (and (not mailbox-default-p) (not collapsed)

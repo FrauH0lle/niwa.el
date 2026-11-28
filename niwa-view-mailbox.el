@@ -6,8 +6,13 @@
 ;; records) in view transcripts: delivery cards with sender attribution,
 ;; background-event notices, collapsed long bodies and the gutter.
 ;; `niwa-transcript' recognizes the canonical records; this module decides
-;; how each is shown.  `niwa-view-render' requires it and calls it while
-;; projecting turns; fold application after projection stays with the
+;; how each is shown.  Every rendering path uses one interface:
+;; `niwa-view-mailbox-delivery' says whether a delivery shows as a message,
+;; a notice or nothing, and `niwa-view-mailbox-decorate' presents the
+;; deliveries in a bounded range, keeping surrounding prose and the
+;; caller's point.  Standalone and mixed turns, activity grouping and
+;; expanded group children all go through them.  `niwa-view-render'
+;; requires this module; fold application after projection stays with the
 ;; renderer (ADR 0119).
 
 ;;; Code:
@@ -223,11 +228,12 @@ both kinds to the same disclosure controls."
               (let* ((open-start (match-beginning 0))
                      (open-end (match-end 0))
                      (sender (match-string-no-properties 1))
-                     (own (and (not (eq kind 'agent-result))
-                               (niwa-view--own-completion-mail-p
-                                (match-string-no-properties 0) sender)))
+                     (delivery (niwa-view-mailbox-delivery
+                                (match-string-no-properties 0)
+                                (or kind 'agent-message) sender))
+                     (own (eq delivery 'suppressed))
                      (notice
-                      (unless own
+                      (when (eq delivery 'notice)
                         (niwa-view--mail-notice
                          (match-string-no-properties 0) kind sender
                          (buffer-substring-no-properties
@@ -389,7 +395,7 @@ block and must stay after its rendered card to stamp and append past it."
       (goto-char return)
       (set-marker return nil))))
 
-(defun niwa-view--mailbox-only-text-p (text)
+(defun niwa-view-mailbox-only-p (text)
   "Return non-nil if TEXT is only mailbox delivery blocks.
 
 Pure mailbox turns are injected as user-role messages in the data
@@ -411,6 +417,45 @@ buffer for gptel, but the view must not render them as `You' turns."
                      (goto-char (plist-get block :close-end)))
                  (setq ok nil))))
            (and found ok)))))
+
+
+;;
+;;; Presentation interface
+
+(defun niwa-view-mailbox-delivery (open-tag kind sender)
+  "Return how the receiving transcript shows a mailbox delivery.
+OPEN-TAG is the record's opener, KIND `agent-message' or `agent-result'
+and SENDER its canonical sender path.  The value is `message' for an
+ordinary card, `notice' for a background or result notice, and
+`suppressed' for this transcript's own completion, which shows nothing.
+Standalone cards, activity grouping and expanded group children all
+classify through this function."
+  (cond
+   ((eq kind 'agent-result) 'notice)
+   ((not (member (niwa-view--mail-attribute open-tag "type")
+                 '("EXECUTION" "MONITOR" "MONITOR_TERMINAL")))
+    'message)
+   ((niwa-view--own-completion-mail-p open-tag sender) 'suppressed)
+   (t 'notice)))
+
+(defun niwa-view-mailbox-decorate (start end)
+  "Present the mailbox deliveries between START and END in place.
+Each delivery becomes the card `niwa-view-mailbox-delivery' selects;
+surrounding prose stays as it is.  END and point advance past rendered
+cards, so a caller at the end of the range stays after the last card."
+  ;; Streaming decorates every response chunk, so END at point (the
+  ;; common case) or a marker END allocates nothing beyond the passes.
+  (if (and (integerp end) (/= end (point)))
+      (let ((owned (copy-marker end t)))
+        (unwind-protect
+            (progn
+              (niwa-view--decorate-agent-result-blocks start owned)
+              (niwa-view--decorate-agent-message-blocks start owned))
+          (set-marker owned nil)))
+    (let ((at-point (eql end (point))))
+      (niwa-view--decorate-agent-result-blocks start end)
+      (niwa-view--decorate-agent-message-blocks
+       start (if at-point (point) end)))))
 
 (provide 'niwa-view-mailbox)
 ;;; niwa-view-mailbox.el ends here
