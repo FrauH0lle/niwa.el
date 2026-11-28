@@ -81,6 +81,11 @@
 ;; `niwa-skills-core'
 (declare-function niwa-skills-project-files
                   "niwa-skills-core" (workspace-root))
+
+;; `niwa-session-control-fs'
+(declare-function niwa-session-control-fs-call-with-locks
+                  "niwa-session-control-fs" (directories function))
+(autoload 'niwa-session-control-fs-call-with-locks "niwa-session-control-fs")
 (declare-function niwa-skills-mark-files-dirty "niwa-skills-core" (files))
 (declare-function niwa-skills--parse-frontmatter
                   "niwa-skills-core" (skill-file &optional content workspace))
@@ -630,6 +635,17 @@ Without SCOPE the source is user-wide configuration."
         (print-quoted t))
     (niwa--write-file-atomically (niwa-hooks--trust-file) (prin1-to-string db))))
 
+(defun niwa-hooks--update-trust-db (update)
+  "Write UPDATE applied to the trust database's current contents.
+The read, UPDATE and replacement run under the lock on the database's
+directory, which every trust writer holds, so a concurrent client's
+change is either seen by UPDATE or waits for this write."
+  (niwa-session-control-fs-call-with-locks
+   (list (directory-file-name
+          (file-name-directory (niwa-hooks--trust-file))))
+   (lambda (_lock)
+     (niwa-hooks--write-trust-db (funcall update (niwa-hooks--read-trust-db))))))
+
 (defun niwa-hooks--config-snapshot (file)
   "Return FILE's path, SHA256 hash, and decoded content from one read."
   (with-temp-buffer
@@ -670,20 +686,34 @@ approving record: `:workspace-id', `:path', and `:hash'."
                      (equal (plist-get entry :hash) hash)))
               (niwa-hooks--read-trust-db)))
 
-(defun niwa-hooks-trust-file (workspace path hash)
+(defun niwa-hooks-trust-file (workspace path hash &optional expected)
   "Trust WORKSPACE's project file PATH with content HASH.
 Replaces PATH's earlier record; niwa calls this after writing a file whose
-previous content the user trusted."
+previous content the user trusted.  With EXPECTED, that previous content's
+hash, record nothing unless PATH is still trusted with it, checked under
+the trust lock so a revocation made meanwhile stands."
   (let ((workspace-id (niwa-hooks--workspace-id workspace)))
-    (niwa-hooks--write-trust-db
-     (append (cl-remove-if
-              (lambda (old)
-                (and (listp old)
-                     (keywordp (car-safe old))
-                     (equal (plist-get old :workspace-id) workspace-id)
-                     (equal (plist-get old :path) path)))
-              (niwa-hooks--read-trust-db))
-             (list (list :workspace-id workspace-id :path path :hash hash))))))
+    (niwa-hooks--update-trust-db
+     (lambda (db)
+       (if (and expected
+                (not (cl-find-if
+                      (lambda (old)
+                        (and (listp old)
+                             (keywordp (car-safe old))
+                             (equal (plist-get old :workspace-id) workspace-id)
+                             (equal (plist-get old :path) path)
+                             (equal (plist-get old :hash) expected)))
+                      db)))
+           db
+         (append (cl-remove-if
+                  (lambda (old)
+                    (and (listp old)
+                         (keywordp (car-safe old))
+                         (equal (plist-get old :workspace-id) workspace-id)
+                         (equal (plist-get old :path) path)))
+                  db)
+                 (list (list :workspace-id workspace-id :path path
+                             :hash hash))))))))
 
 (defun niwa-hooks-project-file-snapshot (workspace file)
   "Return FILE's one-read trust snapshot for WORKSPACE.
@@ -1099,7 +1129,7 @@ memo."
       rules)))
 
 ;;;###autoload
-(defun niwa-hooks-trust-project (&optional workspace)
+(defun niwa-hooks-trust-project (&optional workspace confirm)
   "Trust WORKSPACE's hook config files, skill manifests and permission store.
 
 Interactively, uses the current buffer's workspace, including one
@@ -1107,19 +1137,16 @@ detected from an ordinary project file.  Trust is keyed by workspace id,
 path, and file hash, and records the hash of each project script the
 file's commands name (see `niwa-hooks--command-script-hashes').  A
 trusted `.niwa/permissions.eld' contributes its allow rules, grants and
-safe variables; its deny and ask rules apply without trust."
-  (interactive)
+safe variables; its deny and ask rules apply without trust.
+
+With CONFIRM, as interactively, first list every file and script to be
+trusted by category and record nothing unless the user agrees."
+  (interactive (list nil t))
   (let* ((workspace (or workspace (niwa-workspace-current)))
          (workspace-id (niwa-hooks--workspace-id workspace))
          (permissions (niwa-permission-persistence-file workspace 'workspace)))
     (require 'niwa-skills-core)
-    (let ((db (cl-remove-if
-               (lambda (old)
-                 (and (listp old)
-                      (keywordp (car-safe old))
-                      (equal (plist-get old :workspace-id) workspace-id)))
-               (niwa-hooks--read-trust-db)))
-          (count 0))
+    (let (entries)
       (dolist (file
                (delete-dups
                 (append
@@ -1134,15 +1161,79 @@ safe variables; its deny and ask rules apply without trust."
                             :scripts (unless (equal file permissions)
                                        (niwa-hooks--snapshot-script-hashes
                                         workspace snapshot)))))
-          (push entry db)
-          (cl-incf count)))
-      (niwa-hooks--write-trust-db (nreverse db))
-      ;; Trust changes which project files resolve, so the memoized
-      ;; configuration and scanned skills are stale from here.
-      (clrhash niwa-hooks--config-rules-cache)
-      (niwa-skills-mark-files-dirty
-       (niwa-skills-project-files (niwa-workspace-root workspace)))
-      (message "niwa: trusted %d project file(s)" count))))
+          (push entry entries)))
+      (setq entries (nreverse entries))
+      (if (and confirm
+               (not (niwa-hooks--confirm-trust
+                     entries (expand-file-name permissions))))
+          (message "niwa: project trust unchanged")
+        ;; The listing stays fixed; it replaces this workspace's records in
+        ;; whatever the database holds now, so other clients' changes made
+        ;; while the prompt was open survive.
+        (niwa-hooks--update-trust-db
+         (lambda (db)
+           (append (cl-remove-if
+                    (lambda (old)
+                      (and (listp old)
+                           (keywordp (car-safe old))
+                           (equal (plist-get old :workspace-id)
+                                  workspace-id)))
+                    db)
+                   entries)))
+        ;; Trust changes which project files resolve, so the memoized
+        ;; configuration and scanned skills are stale from here.
+        (clrhash niwa-hooks--config-rules-cache)
+        (niwa-skills-mark-files-dirty
+         (niwa-skills-project-files (niwa-workspace-root workspace)))
+        (message "niwa: trusted %d project file(s)" (length entries))))))
+
+(defun niwa-hooks--confirm-trust (entries permissions)
+  "List trust ENTRIES by category and return non-nil if the user agrees.
+PERMISSIONS is the workspace permission store's path."
+  (save-window-excursion
+    (with-current-buffer (get-buffer-create "*niwa trust*")
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert "Trusting lets these project files grant permissions, run "
+                "hooks and give skills tools.\nReview each before agreeing.\n")
+        (pcase-dolist (`(,heading . ,match)
+                       `(("Permissions:" . ,(lambda (path)
+                                              (equal path permissions)))
+                         ("Hooks and their scripts:"
+                          . ,(lambda (path)
+                               (not (or (equal path permissions)
+                                        (equal (file-name-extension path)
+                                               "md")))))
+                         ("Skills and their scripts:"
+                          . ,(lambda (path)
+                               (equal (file-name-extension path) "md")))))
+          (insert "\n" heading "\n")
+          (let ((any nil))
+            (dolist (entry entries)
+              (when (funcall match (plist-get entry :path))
+                (setq any t)
+                (insert "  " (niwa-hooks--display-name (plist-get entry :path))
+                        "\n")
+                (dolist (script (plist-get entry :scripts))
+                  (insert "    runs " (niwa-hooks--display-name (car script))
+                          "\n"))))
+            (unless any (insert "  (none)\n"))))
+        (goto-char (point-min))
+        (special-mode))
+      (pop-to-buffer (current-buffer))
+      (yes-or-no-p (format "Trust these %d project file(s)? "
+                           (length entries))))))
+
+(defun niwa-hooks--display-name (name)
+  "Return project-supplied NAME with control and bidi characters escaped.
+Each becomes \\uXXXX, and a backslash is doubled, so NAME cannot forge
+lines, categories, or reordered text in a listing.  For display only."
+  (replace-regexp-in-string
+   "[\\[:cntrl:]\u0080-\u009f؜‎‏  ‪-‮⁦-⁩]"
+   (lambda (char)
+     (if (equal char "\\") "\\\\"
+       (format "\\u%04X" (string-to-char char))))
+   name t t))
 
 
 ;;

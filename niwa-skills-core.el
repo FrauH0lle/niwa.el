@@ -528,8 +528,9 @@ yaml.el false sentinel :false.  Anything else is treated as t."
   "Maximum allowed length for a skill invocation identifier.")
 
 (defconst niwa-skills-untrusted-warning
-  "Project skill hooks and allowed-tools are ignored until this content is \
-trusted with M-x niwa-hooks-trust-project."
+  "Project skill hooks and allowed-tools are ignored until trusted.  \
+M-x niwa-hooks-trust-project trusts all project hooks, skills and \
+permissions together; review the files it lists before agreeing."
   "Warning on a project skill whose authority waits for content trust.")
 
 (defun niwa-skills--valid-name-p (name)
@@ -978,7 +979,8 @@ DIAGNOSTIC-SCOPE supplies ownership for root-only scans."
              (niwa-diagnostic-scope (or diagnostic-scope workspace))
              (list 'skill-untrusted skill-file (plist-get snapshot :hash))
              "Project skill %s is not trusted; its hooks and allowed-tools \
-are ignored until M-x niwa-hooks-trust-project"
+are ignored.  M-x niwa-hooks-trust-project trusts all project hooks, skills \
+and permissions together; review the files it lists before agreeing"
              skill-file))
           (niwa-skills--from-plist
            raw-name plist skill-file source source-family

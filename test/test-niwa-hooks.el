@@ -825,6 +825,225 @@
 		     (delete-directory root t)
 		     (delete-directory user-dir t))))
 
+(niwa-deftest niwa-hooks-trust-project/confirmation
+  (:doc "lists every category before trusting and records nothing when declined")
+  (let* ((niwa-skills-include-bundled nil)
+         (root (file-name-as-directory
+                (make-temp-file "niwa-hooks-trust-confirm" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-trust-confirm-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (permissions (file-name-concat root ".niwa" "permissions.eld"))
+         (skill (file-name-concat root ".niwa" "skills" "demo" "SKILL.md"))
+         (script (file-name-concat root ".niwa" "hooks" "a.sh"))
+         listing answer)
+    (require 'niwa-skills-core)
+    (require 'niwa-permission-persistence)
+    (unwind-protect
+        (progn
+          ;; The failing order: the user reviews the permission file the
+          ;; warning names, but trust also covers hooks, scripts and skills.
+          (niwa-hooks-test--write-script root "a.sh" "1")
+          (niwa-hooks-test--write-command-config root "sh .niwa/hooks/a.sh")
+          (with-temp-file permissions
+            (prin1 '(:rules (("Bash" :pattern "make deploy" :action allow))
+                     :resource-grants nil)
+                   (current-buffer)))
+          (make-directory (file-name-directory skill) t)
+          (with-temp-file skill
+            (insert "---\ndescription: Demo\nallowed-tools: Read\n---\nBody"))
+          ;; Both warnings name everything the recovery command trusts.
+          (let (diagnostics)
+            (niwa-test--with-captured-diagnostics diagnostics
+              (niwa-permission-validate-persistent-stores workspace)
+              (niwa-permission-persistent-authority workspace 'workspace)
+              (niwa-skills-scan root '(".niwa/skills") workspace))
+            (should (string-match-p "untrusted .*permissions\\.eld"
+                                    diagnostics))
+            (should (string-match-p "skill .*SKILL\\.md is not trusted"
+                                    diagnostics))
+            (should (= 2 (cl-count-if
+                          (lambda (line)
+                            (string-search
+                             "trusts all project hooks, skills and permissions"
+                             line))
+                          (split-string diagnostics "\n")))))
+          (cl-letf (((symbol-function 'yes-or-no-p)
+                     (lambda (_prompt)
+                       (setq listing (with-current-buffer "*niwa trust*"
+                                       (buffer-string)))
+                       answer)))
+            (niwa-test--with-captured-messages nil
+              (niwa-hooks-trust-project workspace t))
+            (let ((sections
+                   (mapcar (lambda (heading)
+                             (string-search heading listing))
+                           '("Permissions:" "Hooks and their scripts:"
+                             "Skills and their scripts:"))))
+              (should (cl-every #'integerp sections))
+              (should (equal sections (sort (copy-sequence sections) #'<)))
+              ;; Each path is listed under its own category.
+              (should (< (nth 0 sections) (string-search permissions listing)
+                         (nth 1 sections)))
+              (should (< (nth 1 sections)
+                         (string-search (file-name-concat root ".niwa"
+                                                          "hooks.json")
+                                        listing)
+                         (string-search script listing)
+                         (nth 2 sections)))
+              (should (< (nth 2 sections) (string-search skill listing))))
+            (should-not (file-exists-p (niwa-hooks--trust-file)))
+            (should-not (plist-get (niwa-hooks-project-file-snapshot
+                                    workspace skill)
+                                   :trusted-p))
+            (setq answer t)
+            (niwa-test--with-captured-messages nil
+              (niwa-hooks-trust-project workspace t))
+            (should (plist-get (niwa-hooks-project-file-snapshot
+                                workspace skill)
+                               :trusted-p))))
+      (when (get-buffer "*niwa trust*") (kill-buffer "*niwa trust*"))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-hooks-trust-project/concurrent-revocation
+  (:doc "keeps another client's revocation made while the prompt is open")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-trust-race" t)))
+         (other-root (file-name-as-directory
+                      (make-temp-file "niwa-hooks-trust-race-other" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-trust-race-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (other (niwa-hooks-test--workspace other-root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (config (file-name-concat root ".niwa" "hooks.json"))
+         (other-config (file-name-concat other-root ".niwa" "hooks.json")))
+    (unwind-protect
+        (progn
+          (niwa-hooks-test--write-command-config root "echo a")
+          (niwa-hooks-test--write-command-config other-root "echo b")
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project other))
+          (cl-flet ((trusted-p (ws file)
+                      (plist-get (niwa-hooks-project-file-snapshot ws file)
+                                 :trusted-p)))
+            (should (trusted-p other other-config))
+            (cl-letf (((symbol-function 'yes-or-no-p)
+                       (lambda (_prompt)
+                         ;; Another client revokes OTHER while the prompt
+                         ;; is open, after this command read the DB.
+                         (niwa-hooks--write-trust-db nil)
+                         t)))
+              (niwa-test--with-captured-messages nil
+                (niwa-hooks-trust-project workspace t)))
+            (should (trusted-p workspace config))
+            (should-not (trusted-p other other-config))))
+      (when (get-buffer "*niwa trust*") (kill-buffer "*niwa trust*"))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory other-root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-hooks-trust-project/locked-competing-revocation
+  (:doc "serializes the final read, merge and write with a competing locked writer")
+  (let* ((root (file-name-as-directory
+                (make-temp-file "niwa-hooks-trust-lock" t)))
+         (other-root (file-name-as-directory
+                      (make-temp-file "niwa-hooks-trust-lock-other" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-trust-lock-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (other (niwa-hooks-test--workspace other-root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         (config (file-name-concat root ".niwa" "hooks.json"))
+         (other-config (file-name-concat other-root ".niwa" "hooks.json"))
+         (held (file-name-concat user-dir "held"))
+         competitor)
+    (skip-unless (executable-find "flock"))
+    (unwind-protect
+        (cl-flet ((trusted-p (ws file)
+                    (plist-get (niwa-hooks-project-file-snapshot ws file)
+                               :trusted-p)))
+          (niwa-hooks-test--write-command-config root "echo a")
+          (niwa-hooks-test--write-command-config other-root "echo b")
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project other))
+          (should (trusted-p other other-config))
+          ;; Another client holds the directory lock and is about to write
+          ;; the database it computed earlier: OTHER revoked, and of course
+          ;; without WORKSPACE.  This client reaches its final write now.
+          (setq competitor
+                (start-process
+                 "trust-competitor" nil "flock" user-dir "sh" "-c"
+                 (format "touch %s; sleep 0.5; printf nil > %s"
+                         (shell-quote-argument held)
+                         (shell-quote-argument (niwa-hooks--trust-file)))))
+          (with-timeout (5 (ert-fail "Competitor never took the lock"))
+            (while (not (file-exists-p held))
+              (accept-process-output nil 0.01)))
+          (niwa-test--with-captured-messages nil
+            (niwa-hooks-trust-project workspace))
+          (while (process-live-p competitor)
+            (accept-process-output competitor 0.05))
+          (should (trusted-p workspace config))
+          (should-not (trusted-p other other-config)))
+      (when (process-live-p competitor) (delete-process competitor))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory other-root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
+(niwa-deftest niwa-hooks-trust-project/escaped-listing
+  (:doc "escapes control and bidi characters in listed names but records the real path")
+  (let* ((niwa-skills-include-bundled nil)
+         (root (file-name-as-directory
+                (make-temp-file "niwa-hooks-trust-escape" t)))
+         (user-dir (file-name-as-directory
+                    (make-temp-file "niwa-hooks-trust-escape-user" t)))
+         (workspace (niwa-hooks-test--workspace root))
+         (niwa-user-dir user-dir)
+         (niwa-hooks-require-project-trust t)
+         ;; A directory name that would forge a category and a path.
+         (skill (file-name-concat root ".niwa" "skills"
+                                  "x\nPermissions:\n  /fake‮"
+                                  "SKILL.md"))
+         listing)
+    (require 'niwa-skills-core)
+    (unwind-protect
+        (progn
+          (make-directory (file-name-directory skill) t)
+          (with-temp-file skill (insert "---\ndescription: Demo\n---\nBody"))
+          (cl-letf (((symbol-function 'yes-or-no-p)
+                     (lambda (_prompt)
+                       (setq listing (with-current-buffer "*niwa trust*"
+                                       (buffer-string)))
+                       t)))
+            (niwa-test--with-captured-messages nil
+              (niwa-hooks-trust-project workspace t)))
+          (should (= 1 (cl-count "Permissions:" (split-string listing "\n")
+                                 :test #'equal)))
+          (should-not (string-match-p "\n  /fake" listing))
+          (should-not (string-search "‮" listing))
+          (should (string-search "x\\u000APermissions:\\u000A  /fake\\u202E"
+                                 listing))
+          ;; The real path, not its display form, is what was trusted.
+          (should (plist-get (niwa-hooks-project-file-snapshot workspace skill)
+                             :trusted-p)))
+      (when (get-buffer "*niwa trust*") (kill-buffer "*niwa trust*"))
+      (clrhash niwa-hooks--config-rules-cache)
+      (delete-directory root t)
+      (delete-directory user-dir t)
+      (niwa-workspace-clear-registry))))
+
 (niwa-deftest niwa-hooks-project-file-snapshot ()
   ,test
   (test)

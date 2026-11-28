@@ -501,7 +501,9 @@ the file's current content: allow rules (including `:network`,
 `:file-system` and `:sandbox-permissions require-escalated` ones),
 `:resource-grants` and `:safe-env-vars`. While the store is untrusted, niwa
 ignores those entries and shows one notice per content version. The notice
-names the file and `M-x niwa-hooks-trust-project`. That command records the
+names the file and says that `M-x niwa-hooks-trust-project` trusts all project
+hooks, skills and permissions together. That command lists those files by
+category, and if the user agrees it records the
 file's SHA-256 for the workspace in the project hook trust store
 (`niwa-user-dir/trusted-hooks.eld`), together with the project's hook files
 and skill manifests. After that, niwa applies the file silently until its

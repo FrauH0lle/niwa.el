@@ -32,7 +32,8 @@
 (declare-function niwa-hooks--config-snapshot "niwa-hooks" (file))
 (declare-function niwa-hooks--project-snapshot-trusted-p
                   "niwa-hooks" (workspace snapshot))
-(declare-function niwa-hooks-trust-file "niwa-hooks" (workspace path hash))
+(declare-function niwa-hooks-trust-file "niwa-hooks"
+                  (workspace path hash &optional expected))
 (autoload 'niwa-hooks--config-snapshot "niwa-hooks")
 (autoload 'niwa-hooks--project-snapshot-trusted-p "niwa-hooks")
 (autoload 'niwa-hooks-trust-file "niwa-hooks")
@@ -713,9 +714,16 @@ is trusted with the bytes written: niwa writes only what the user approved."
           (when-let* ((hash (niwa-permission-persistence-write-store
                              file updated target root
                              (or (plist-get status :hash) 'missing))))
-            (when (and root (niwa-permission--store-trusted-p
-                             workspace file status))
-              (niwa-hooks-trust-file workspace (expand-file-name file) hash))
+            (when root
+              (let ((store (plist-get status :store)))
+                ;; Missing and restriction-only stores need no trust; a
+                ;; widening one must still be trusted under the trust lock.
+                (niwa-hooks-trust-file
+                 workspace (expand-file-name file) hash
+                 (unless (or (not store)
+                             (equal store
+                                    (niwa-permission--store-restrictions store)))
+                   (plist-get status :hash)))))
             (cl-return)))
      finally (niwa-diagnostic-user-error
               (niwa-diagnostic-scope workspace)
@@ -768,7 +776,7 @@ one notice per content version."
       (niwa--warn-once
        (niwa-diagnostic-scope workspace)
        (list 'permission-store-untrusted file (plist-get status :hash))
-       "Ignoring allow rules, grants and safe variables in untrusted %s; its deny and ask rules apply.  Review it, then run M-x niwa-hooks-trust-project to trust this content"
+       "Ignoring allow rules, grants and safe variables in untrusted %s; its deny and ask rules apply.  M-x niwa-hooks-trust-project trusts all project hooks, skills and permissions together; review the files it lists before agreeing"
        file)
       (niwa-permission--store-restrictions store)))))
 

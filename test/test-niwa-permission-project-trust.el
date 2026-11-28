@@ -186,6 +186,50 @@ This is an outside writer landing between niwa's read and its write."
                                      root outside)
                                     :bash)))))))
 
+(niwa-deftest niwa-permission-persistence-save-rule/trust-refresh-revoked
+  (:doc "rechecks prior trust under the trust lock before refreshing it")
+  (niwa-permission-project-trust-test--with-workspace
+    (let ((niwa-user-dir (file-name-as-directory
+                          (make-temp-file "niwa-proj-trust-user-" t)))
+          (lock (symbol-function 'niwa-session-control-fs-call-with-locks))
+          revoke)
+      (unwind-protect
+          (cl-letf (((symbol-function 'niwa-session-control-fs-call-with-locks)
+                     (lambda (directories function)
+                       ;; Another client revokes this store after niwa
+                       ;; judged it trusted, before the trust lock is held.
+                       (when (and revoke
+                                  (equal directories
+                                         (list (directory-file-name
+                                                niwa-user-dir))))
+                         (setq revoke nil)
+                         (niwa-hooks--write-trust-db
+                          (cl-remove (expand-file-name store)
+                                     (niwa-hooks--read-trust-db)
+                                     :key (lambda (entry)
+                                            (plist-get entry :path))
+                                     :test #'equal)))
+                       (funcall lock directories function))))
+            (niwa-permission-persistence-save-rule
+             workspace '("Bash" :pattern "make deploy" :action allow))
+            (ert-info ("Control: an unrevoked refresh keeps trust")
+              (niwa-permission-persistence-save-rule
+               workspace '("Glob" :action allow))
+              (should (eq 'allow (plist-get
+                                  (niwa-permission-project-trust-test--decisions
+                                   root outside)
+                                  :bash))))
+            (ert-info ("A revocation before the lock is not undone")
+              (setq revoke t)
+              (niwa-permission-persistence-save-rule
+               workspace '("Grep" :action allow))
+              (should-not revoke)
+              (should (eq 'ask (plist-get
+                                (niwa-permission-project-trust-test--decisions
+                                 root outside)
+                                :bash)))))
+        (delete-directory niwa-user-dir t)))))
+
 (niwa-deftest niwa-permission-persistence-save-rule/project-trust-race
   (:doc "conditions niwa's write on the bytes it read and decides trust from them")
   (niwa-permission-project-trust-test--with-workspace

@@ -727,6 +727,9 @@ Useful commands:
 - `niwa-hooks-list`: show effective hooks for the current session.
 - `niwa-hooks-trust-project`: trust the current project's hook files and
   skill manifests, and the allow authority of its `.niwa/permissions.eld`.
+  Interactively it first lists every file to be trusted, grouped as
+  permissions, hooks and their scripts, and skills and their scripts, and
+  records nothing if the user declines.
 - `niwa-hooks-run-dry`: show which native and declarative hooks would
   run for an event/matcher target without executing Elisp or shell
   handlers.

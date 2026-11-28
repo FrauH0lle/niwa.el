@@ -1653,6 +1653,20 @@ Before opening an existing project with 0.8.0, close niwa and run the
 even if it was already migrated to 0.7.0. When upgrading from before 0.7.0, also
 run it with `--user` to rename user-level data files.
 
+**Upgrading an existing workspace.** niwa moves the note store
+(`instructions.eld`) into `.niwa/state/` by itself the first time it reads it,
+and does the same for an untracked legacy `.niwa/plugins.eld`; a Git-tracked
+`.niwa/plugins.eld` stays where it is and remains the activation source. The
+migration script above covers session data.
+Project authority now needs explicit trust: the allow rules, grants and safe
+variables in `.niwa/permissions.eld`, and the hooks and `allowed-tools` of
+project skills, stay inactive until you run `M-x niwa-hooks-trust-project`.
+That command lists every project permission store, hook file with its scripts,
+and skill it would trust; review them before agreeing. Plugins ask for hook
+consent again. Project trust is recorded under each machine's
+`niwa-user-dir`, so repeat the review on each client that opens the
+workspace rather than copying approval files between machines.
+
 ## Documentation
 
 The maintained detail docs live in [`docs/`](docs/):
