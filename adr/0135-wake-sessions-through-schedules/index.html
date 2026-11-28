@@ -1,0 +1,2087 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="User and architecture manual for niwa, for humans and agents.">
+      
+      
+      
+        <link rel="canonical" href="https://frauh0lle.github.io/niwa.el/adr/0135-wake-sessions-through-schedules/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Wake sessions through schedules - niwa docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#wake-sessions-through-schedules" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="niwa docs" class="md-header__button md-logo" aria-label="niwa docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            niwa docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Wake sessions through schedules
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/FrauH0lle/niwa.el" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="niwa docs" class="md-nav__button md-logo" aria-label="niwa docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    niwa docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/FrauH0lle/niwa.el" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using niwa
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using niwa
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conversation and workspace view
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../collaboration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser collaboration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shared-editing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared whiteboards and documents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plan-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plans
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../goals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Goals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents and tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mentions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mentions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills and plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../preview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../buddy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Buddy notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions and recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_12" id="__nav_2_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory and journal
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Memory and journal
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-curated/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curated memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Review contract and cockpit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions, application and recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared working-note lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-journal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Journal capture and retention
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions and confinement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../module-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../address-to-resource/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource addressing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compaction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context compaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reminders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context delivery and reminders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guardian-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guardian prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tool reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ptc-dialect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Programmatic tool calls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Files and search
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/applypatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ApplyPatch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry and diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commit conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/domain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/issue-tracker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local issues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/triage-labels/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triage labels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backlog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rationale-and-consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rationale and consequences
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision history
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/FrauH0lle/niwa.el/edit/master/docs/adr/0135-wake-sessions-through-schedules.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="wake-sessions-through-schedules">Wake sessions through schedules<a class="headerlink" href="#wake-sessions-through-schedules" title="Permanent link">&para;</a></h1>
+<p>Status: accepted.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p>niwa can act later through one concept, the <strong>schedule</strong>: a due time plus a
+note or prompt with exactly one target. A <strong>wake-up</strong> targets the session
+that created it: "check CI in 20 minutes and tell me only if it failed" makes
+the conversation continue itself when the time comes. A <strong>workspace
+schedule</strong> targets the workspace: "every weekday at 07:00, triage new issues"
+starts a fresh session for each run.</p>
+<ul>
+<li><strong>Interface.</strong> One <code>Schedule</code> model tool with an <code>action</code> of <code>create</code>, <code>list</code>,
+  <code>change</code> or <code>cancel</code>. <code>create</code> takes <code>when</code> (a duration such as <code>20m</code> or a local
+  time <code>YYYY-MM-DD HH:MM</code> for one wake-up, <code>every 20m</code> or a 5-field cron
+  expression in local time to repeat), a note the woken turn receives, and an
+  optional <code>expires</code>; <code>change</code> takes the same fields for a pending wake-up or a
+  workspace schedule, validated the same way. The tool is offered to root requests only; a child
+  agent asks the root, so ownership, cost and notification stay with the root
+  conversation.
+  Wake-ups need no approval card: a wake-up runs under the session's current
+  permissions, so it grants nothing the conversation does not already hold.
+  Invalid timing, a time not in the future, an expiry not after the time and a
+  51st pending wake-up are tool errors at creation, not failures at fire time.</li>
+<li><strong>Model and effort per wake-up.</strong> <code>create</code> takes an optional <code>model</code> and
+  <code>effort</code>, validated at creation like an Agent's. They travel in the <code>WAKE_UP</code>
+  record's metadata and become the woken turn's request-local model policy
+  (the pending request context a skill uses), so the session's saved selection,
+  preset and permission mode are unchanged. A mixed batch keeps the session's
+  selection rather than guessing which override wins.</li>
+<li><strong>Recurring timing.</strong> An interval has a one-minute minimum and its next run
+  is timed from the actual firing, so missed runs never catch up: a laptop that
+  slept through five runs receives one, annotated as overdue. Cron supports
+  values, <code>*</code>, ranges, steps and lists with cronie's day rule: a day field
+  starting with <code>*</code> (including <code>*/2</code>) is unrestricted, and when neither is, a
+  day matching either fires. Matching cronie rather than the stricter POSIX
+  wording keeps expressions copied from crontabs meaning what they meant
+  there. Names, <code>L</code>, <code>W</code> and <code>?</code> are rejected rather than half-supported. A
+  recurring wake-up expires 7 days after creation by default and never later
+  than 30, so a forgotten loop cannot run and spend indefinitely; the firing
+  whose next run would pass the expiry records it as expired, so it does not
+  hold one of the 50 pending slots until then. A persisted entry loads only
+  with timing creation would accept.</li>
+<li><strong>Daylight saving.</strong> Next-run calculation is a pure function of the timing,
+  a reference time and the local zone. A local time in a skipped hour fires at
+  the first valid minute after the gap; a local time in a repeated hour fires
+  once, at its first occurrence. One-shot local times and cron follow the same
+  rule, and fire times are stored as absolute seconds.</li>
+<li><strong>Store as truth.</strong> The session's persisted state holds its wake-ups
+  (<code>:schedules</code>).
+  Each entry keeps its timing, the absolute due time in seconds, the note, an
+  optional absolute expiry and a status. Creating or cancelling commits the
+  sidecar before the tool returns and restores the previous store on failure.</li>
+<li><strong>One timer.</strong> An Emacs-wide scheduler tracks the open root buffers whose
+  sessions hold pending wake-ups and arms one timer for the earliest due time.
+  Every create, cancel, firing, resume and buffer kill re-arms it; with nothing
+  pending no timer exists. Every decision reads one injectable clock,
+  <code>niwa-schedule-clock</code>, so tests advance time without sleeping.</li>
+<li><strong>Delivery through the mailbox.</strong> A due wake-up becomes one <code>WAKE_UP</code> record
+  in the root mailbox, carrying the note, <code>scheduled_at</code>, <code>fired_at</code> and, at
+  least a minute late, <code>overdue_by</code>. Its removal from the store and the record
+  share one session commit, so a persisted firing is never both delivered and
+  still pending. The record wakes an idle root through the existing
+  background-event path, with all of its holds: it waits for a running turn, a
+  composer draft, pending decisions, queued or paused follow-ups and recovery
+  blockers, and coalesces with other unread mail into one turn.</li>
+<li><strong>Background event, not a Goal turn.</strong> The woken turn uses the fixed
+  background-event prompt, never the Goal continuation text. It neither
+  resumes a paused or blocked Goal nor counts toward an active Goal, even
+  when the wake-up shares the turn with other unread mail.</li>
+<li><strong>Expiry and lateness.</strong> A firing past its expiry costs no model turn. A late
+  but unexpired firing is delivered once with its overdue annotation; missed
+  repeats appear as a skipped span rather than a burst of catch-up turns. The
+  session keeps the 20 most recent terminal entries (expired, failed or skipped).</li>
+<li><strong>Run failures.</strong> Attribute a wake-up's outcome to the background request
+  admitted for its mail, not the next turn to settle in the session. In
+  particular a user who reads that mail is not responsible for running the
+  wake-up. A failed run always notifies. Its third consecutive failure pauses
+  a recurring schedule and announces the pause in the same notice; success or
+  an explicit resume resets the count. This keeps a broken job from spending
+  indefinitely without sending two alerts for one failure.</li>
+<li><strong>Sessions that are not open.</strong> An Emacs-wide index under <code>niwa-user-dir</code>
+  names every saved session holding a pending wake-up, one file per session.
+  It is a cache: once Emacs is idle after startup, <code>niwa-schedule-restore</code> reads each indexed
+  session's committed sidecar, drops only entries proven stale (session
+  directory provably missing, or a readable sidecar with no pending wake-up),
+  keeps unreadable ones for the next start, and schedules the rest. Closing a
+  session keeps its
+  wake-ups scheduled the same way. When one is due, the sidecar is read again
+  and the session is resumed headlessly through the ordinary restore, under
+  <code>inhibit-interaction</code> and without a window, with an echo-area notice; the
+  resumed buffer then fires as an open one does.</li>
+<li><strong>Exactly one firing.</strong> The session lease decides which Emacs fires. A
+  headless resume that finds another client holding the lease closes its
+  read-only buffer and leaves the session to that holder; resuming with the
+  lease, or regaining it through a control transfer, arms the wake-ups. A
+  wake-up never fires in two conversations. Forks start without wake-ups.
+  Save As first clears the parent's stored wake-ups and index entry. If that
+  clear fails, Save As stops. If the parent was cleared but the child never
+  publishes, Save As restores the parent's wake-ups. Once the child publishes,
+  it keeps the wake-ups even if the live session cannot adopt its lease.
+  Rewind and Restore keep the live session's wake-ups rather than an earlier
+  head's. Every handover is at most once: a crash can
+  lose a wake-up, never duplicate it, as the firing commit already ensures.</li>
+<li><strong>Workspace schedules.</strong> <code>create</code> with <code>target</code> <code>workspace</code> stores a name,
+  the run prompt, the same timing forms, an optional expiry (no default), a
+  base preset (default <code>niwa-implement</code>) and one implementation policy in
+  the strict shape of accepted plans and Goals. At most 50 are active or
+  paused per workspace. Creating or changing one always goes through a
+  <code>schedule</code> permission card, also in Full Access and never settled by
+  automatic review, showing everything a run will use and flagging a mode
+  above the creating session's (or, for a change, the stored one). The
+  approved mode is not capped by the creating session's mode. Deleting needs
+  no card.</li>
+<li><strong>Workspace store and runs.</strong> The workspace state holds each schedule and
+  one record per run, keyed by schedule and scheduled time. Every change runs
+  as one target program under a lock on the store directory that proves the
+  bytes it read before writing. A firing exclusively creates its run record
+  in the program that moves the schedule to its next time, so exactly one
+  Emacs fires each run and records it before the session starts. A run past
+  the expiry is recorded <code>expired</code>; one due while the previous run still works
+  is recorded <code>skipped</code>; otherwise a new saved session named after the
+  schedule and run time starts with the approved preset, model, effort and
+  permission mode as its own selection, so every turn in it runs under them
+  until someone changes them there, and gets the prompt as a quiet first
+  turn, without a window. A request-local override was rejected because later
+  background turns in the same session (wake-ups, Monitor and Goal turns)
+  fell back to whatever the session had selected. A session that cannot
+  start is recorded as a setup error under the
+  same key. Run sessions are ordinary sessions under automatic cleanup.</li>
+<li><strong>Workspace restore.</strong> An index under <code>niwa-user-dir</code>, separate from the
+  wake-up index, names workspaces with active schedules; startup restore arms
+  them and, like the wake-up index, prunes only entries proven stale: the
+  workspace is provably gone, or its readable store holds no active schedule
+  on a confirming re-read after the entry is deleted.</li>
+<li><strong>Quiet outbox.</strong> A turn's origin decides whether its completion pushes. A
+  user-started turn keeps its completion push to the session's subscribers,
+  and to the workspace lobby when the session is shared. Turns nobody started
+  (wake-ups, workspace schedule runs, Monitor and background-command wakes,
+  Goal continuations) finish without one. The agent reaches the user
+  deliberately through <code>Notify</code>: one line, recorded in the transcript and
+  delivered locally and as a content-free push. An identical line from the
+  same session, or from one schedule's runs, is dropped for 24 hours, and a
+  notice adds to a user turn's completion push rather than replacing it. A
+  failed or paused wake-up or run, a run that cannot start, and a terminal
+  Goal always notify. The workspace lobby takes push subscriptions from full
+  and owner links, keeps them across restarts, and wakes for these notices
+  from every session of the workspace, shared or not.</li>
+</ul>
+<h2 id="rationale-and-consequences">Rationale and consequences<a class="headerlink" href="#rationale-and-consequences" title="Permanent link">&para;</a></h2>
+<p>A schedule is the missing timer of an always-on agent: events already reach
+an open session through the mailbox (agent mail, Monitor events, background
+command completions), but nothing could make it act later. Reusing the mailbox
+and its background-event wake keeps the gates users already rely on, keeps the
+note out of user-role prompts, where it could pose as the user's instruction
+to the permission reviewer, and needs no second dispatch path.</p>
+<p>One timer for the earliest wake-up, rather than one per wake-up, keeps re-arming
+and teardown in one place and satisfies "idle means idle": nothing polls, and
+an Emacs with no pending wake-ups has no timer. Emacs timers are absolute, so a
+timer due during system sleep runs on wake, which is what makes the overdue
+annotation meaningful. A session wake-up due within <code>niwa-sleep-wake-up-horizon</code>
+(default six hours) holds the sleep inhibitor; workspace schedules never do. A
+one-shot timer announces a wake-up entering the horizon, so nothing polls while
+there is none. Inbound webhooks were left out: a polling Monitor serves them.</p>
+<p>Delivering the note as a queued follow-up was rejected because follow-ups are
+user input and run first; a background notification must not acquire user
+authority or overtake the user's own queue. A deferred tool call that ends the
+turn and resumes from a later answer was rejected because it ties a provider
+request to an arbitrary delay and cannot survive the session closing.</p>
+<p>Committing the firing with its mailbox record means a crash between the two
+cannot lose the wake-up or deliver it twice in this Emacs. A failed commit keeps
+the wake-up pending and retries that session after a minute rather than
+spinning on an immediately due timer.</p>
+<p>Late delivery can precede turn start indefinitely, for example while the
+composer holds a draft. The affected session therefore shows the lateness
+after the mailbox commit, not at reopen or turn start. The selected sidecar
+stores the latest late delivery alongside its mail in that same commit:
+<code>:latest-late-delivery</code> holds <code>:delivered-at</code> (scheduler clock seconds) and
+<code>:late-seconds</code>, never the note. An absent receipt means no recorded late
+delivery. A restart recovers it without replaying the notice or requiring a
+pending wake-up. Consuming the mail does not clear the receipt or change the
+delivery block in conversation history. No new push or timer is involved.</p>
+<p>The index exists because a closed session's store is only findable by
+scanning every workspace, and Emacs does not know at startup which
+workspaces exist. It holds nothing the stores do not: reconciling against
+them makes a stale entry (a crash between the firing commit and the index
+update, a cancelled or deleted session) harmless. One file per session,
+rather than one shared list, lets two Emacs instances sharing a user
+directory update it without a read-modify-write race. Restore reads each
+indexed sidecar once after startup so stale entries never arm a timer; for a
+session on a remote target that read is a network round trip, so restore
+waits for the first idle moment instead of lengthening startup. In a batch
+measurement with 20 local indexed sessions it took about 220 ms, which
+<code>niwa-install</code> no longer spends; a wake-up already due fires at that idle
+moment.
+Pruning deletes an entry and then reads the store again, recreating the entry
+when a wake-up appeared: the lease holder commits before it checks its entry,
+so a wake-up added during pruning is never left without one. This needs no
+lease, which a startup restore of many sessions would otherwise acquire one by
+one.</p>
+<p>Resuming headlessly rather than firing from the stored sidecar keeps one
+firing path: the resumed buffer acquires the lease, runs the same mailbox
+commit and background-event wake as an open session, and stays open for the
+turn. A resume-only restore, where a wake-up waits until its session is
+opened, was rejected because a server restarted nightly would never fire a
+wake-up nobody reopens. A lease miss does not retry: the
+holder has the session open and fires itself, and retrying would resume the
+session every minute while it stays held. The host restart predicate is
+unchanged; pending wake-ups survive restarts instead of holding them.</p>
+<p>The daylight-saving rule deliberately differs from Claude Code's scheduler,
+which skips a time that falls in a gap: a daily 02:30 job silently misses the
+spring-forward night, and a pinned one-shot in the gap can move a year ahead
+to the next date where that wall time exists. A user who asked for 02:30
+expects the work done that night, so firing at the gap's end keeps the run
+and its day, at the cost of running half an hour "early" in wall terms on one
+night a year. Firing a repeated wall time only once matches what a calendar
+entry means; firing twice would duplicate work with no request for it.</p>
+<p>A workspace schedule grants standing authority to work nobody watches, so its
+card cannot be skipped by a permissive session: Full Access means the user
+trusts this conversation's actions, not that it may create unattended jobs.
+Capping a schedule's mode at the creating session's was rejected because the
+user may deliberately want Full Access for unattended work from a cautious
+session; the card shows the mode and flags the escalation instead. Each run
+gets a new session rather than continuing one, so context stays lean and
+continuity comes from memory and the agent's notes.</p>
+<p>Pushing after every finished turn reached the user too often: thirty
+overnight Goal turns meant thirty pushes, and the agent had no way to stay
+quiet when nothing happened. Only the agent knows whether a result matters,
+so automatic turns are quiet and <code>Notify</code> is how the agent speaks up. The
+rule keys on who started the turn, which the harness knows, rather than on
+judging content. A user-started turn keeps its push because the user is
+waiting for that answer, and <code>Notify</code> in it adds rather than replaces so
+expectations for one's own turns do not change. Failures cannot rely on the
+agent, since a failed turn may never reach <code>Notify</code>, so the harness sends
+them itself. The 24-hour duplicate filter stops a polling loop from
+repeating "CI still red" while letting a changed message through. Lobby
+subscriptions outlive the session rooms whose subscriptions died with them,
+so a restarted server can still reach the user.</p>
+<p>Single firing for workspace schedules uses an exclusive run record instead of
+a renewable workspace holder lease. A holder lease must be renewed while idle
+and taken over when its holder sleeps; the run record needs no renewal.
+It identifies the claimant so a restart can distinguish a proven death
+from a possibly suspended client. A later firing can retire a claim that
+never launched: the launcher checks the same record before submitting work.
+The same store lock serializes edits and firings. After launch, overlap
+across Emacs instances relies on first-request settlement and the run
+session's own lease, since only the owner sees the active request.</p>
+<h2 id="decision-history">Decision history<a class="headerlink" href="#decision-history" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Originally a pending wake-up did not hold the sleep inhibitor, because timers
+  run on wake. Reversed: KDE idle-suspended a machine during a planned pause
+  with a wake-up due at 01:03 and a watchdog Monitor running, so the promised
+  check never happened. Wake-ups within the horizon and live Monitors now hold
+  sleep; workspace (cron) schedules still do not, since they would keep the
+  machine awake permanently.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.top", "navigation.indexes", "content.code.copy", "content.action.edit", "search.suggest"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

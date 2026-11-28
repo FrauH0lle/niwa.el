@@ -1,0 +1,2303 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="User and architecture manual for niwa, for humans and agents.">
+      
+      
+      
+        <link rel="canonical" href="https://frauh0lle.github.io/niwa.el/adr/0134-float-the-composer/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Float the composer as a second window on the view buffer - niwa docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#float-the-composer-as-a-second-window-on-the-view-buffer" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="niwa docs" class="md-header__button md-logo" aria-label="niwa docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            niwa docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Float the composer as a second window on the view buffer
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/FrauH0lle/niwa.el" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="niwa docs" class="md-nav__button md-logo" aria-label="niwa docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    niwa docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/FrauH0lle/niwa.el" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using niwa
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using niwa
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conversation and workspace view
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../collaboration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser collaboration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shared-editing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared whiteboards and documents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plan-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plans
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../goals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Goals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents and tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mentions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mentions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills and plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../preview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../buddy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Buddy notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions and recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_12" id="__nav_2_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory and journal
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Memory and journal
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-curated/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curated memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Review contract and cockpit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions, application and recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared working-note lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory-journal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Journal capture and retention
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions and confinement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../module-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../address-to-resource/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource addressing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compaction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context compaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reminders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context delivery and reminders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guardian-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guardian prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tool reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ptc-dialect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Programmatic tool calls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Files and search
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/applypatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ApplyPatch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry and diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commit conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/domain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/issue-tracker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local issues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/triage-labels/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triage labels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backlog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#former-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Former decision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Former decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cursor-and-scrolling-amends-adr-0126" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cursor and scrolling (amends ADR 0126)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keys-and-pointer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys and pointer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rationale-and-consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rationale and consequences
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rationale and consequences">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#performance-gate-against-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance gate against "off"
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rerun-with-the-full-width-frame-and-top-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rerun with the full-width frame and top line
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternatives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision history
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/FrauH0lle/niwa.el/edit/master/docs/adr/0134-float-the-composer.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="float-the-composer-as-a-second-window-on-the-view-buffer">Float the composer as a second window on the view buffer<a class="headerlink" href="#float-the-composer-as-a-second-window-on-the-view-buffer" title="Permanent link">&para;</a></h1>
+<p>Status: superseded by <a href="../0136-dock-the-composer-in-its-own-buffer/">ADR 0136: Dock the composer in its own buffer</a>.
+The child frame clipped completion and command popups; the composer now
+uses a window in the transcript's frame. The following record describes the
+former design, which amended <a href="../0126-keep-the-composer-still/">ADR 0126</a>.</p>
+<h2 id="former-decision">Former decision<a class="headerlink" href="#former-decision" title="Permanent link">&para;</a></h2>
+<p>While the selected view window is scrolled away from the composer, a
+floating composer shows the same composer in a child frame over the bottom
+of that window, the host. It is a second window on the view buffer, not a
+copy and not a separate buffer: draft, rail, mode badge, keymaps and live
+progress are the view buffer's own. <code>niwa-floating-composer</code> (default on)
+turns it off; turning it off removes every floating composer and returns a
+cursor it held to the inline draft. Setting it with <code>setq</code> does the same at
+the view's next command.</p>
+<ul>
+<li><strong>Child frame over the host.</strong> The frame uses the note frame's shared
+  child-frame parameters, without a border and with the theme's ordinary
+  default background. It spans the host's full width, text area and both
+  fringes, and sits flush on the host's text-area bottom; its window carries
+  the host's fringe widths, so the draft stays aligned with transcript text.
+  It is as tall as its top line plus the composer from the rail down, the
+  latter capped at half the host's text height. The frame is created once
+  per view, hidden between uses, and deleted with the view or when the
+  option is turned off. Note-frame windows, historical segments and agent
+  transcript views never have one.</li>
+<li><strong>Top line.</strong> The window's header line is drawn with the frame's own
+  <code>header-line</code> face: an overline in the <code>shadow</code> foreground over the
+  default background, one piece across the whole width, fringes included.
+  On the left it shows <code>↑ N more</code> in <code>shadow</code> while N draft lines of a
+  capped draft are scrolled out above (counting costs nothing while none
+  are); on the right a <code>↓ Back to bottom</code> button
+  (<code>niwa-floating-composer-back-to-bottom</code>, mouse-1) in a theme-derived
+  tint of the background. Clicking it selects the host at the floating
+  composer's draft position and scrolls the host so the buffer end shows on
+  its last row (or, for a draft taller than the window, the cursor's line);
+  the floating composer then hides by the rules below. The faces are set on
+  the frame again only after a theme reset or changed them.</li>
+<li><strong>Terminal frames.</strong> In terminal Emacs it is a terminal child frame with
+  the same behavior. Its geometry is in whole cells (a terminal's pixel is a
+  cell). A terminal cannot draw an overline, so the top line fills the space
+  between its texts with <code>─</code> characters. A terminal sends keystrokes to the
+  selected child frame itself and
+  <code>select-frame</code> never moves a redirect there, so a stale redirect would send
+  the host's later keystrokes back to the floating composer: on a terminal
+  hand-over selects the floating composer without redirecting its parent.</li>
+<li><strong>When.</strong> Only the selected window can be a host, and only while it shows
+  neither its cursor's draft position nor a full line of the composer (rail
+  or draft), so it hides as soon as the host fully shows the first line of a
+  composer taller than the window. So it follows
+  the selected window across splits, window selection and frame resizes, and
+  hides while another frame, tab or buffer is selected; closing its parent
+  frame deletes it.</li>
+<li><strong>Focus.</strong> The floating composer never takes compositor focus
+  (<code>no-accept-focus</code>). Under PGTK a child frame that once held compositor
+  focus never returns it to its parent (<code>select-frame-set-input-focus</code> on the
+  parent does not, only deleting the child does), which left the view
+  unattended: stream renders deferred and the rail stopped. Hand-over
+  therefore selects the floating composer's window and redirects the host
+  frame's keystrokes to it with <code>redirect-frame-focus</code>; hand-back clears the
+  redirect and selects the host. Selecting another window from the floating
+  composer, for example by clicking the host, retargets the redirect at the
+  newly selected frame (<code>select-frame</code> does this for the frame holding
+  compositor focus); clicking into the floating composer sets it. Removing
+  the floating composer (view killed, option off) clears the redirect it set,
+  wherever it points by then, unless another view floating over the same
+  frame redirected it since: the frame records the last view to redirect it
+  (<code>niwa-floating-composer-owner</code>). When the host window is deleted or shows
+  another buffer, a window-buffer change hook, installed with the first
+  floating composer and removed when the option goes off, clears the
+  redirect in that redisplay, before the next keystroke, and a timer then deletes the orphaned
+  floating composer.</li>
+<li><strong>Excluded from view geometry.</strong> The floating composer's window carries
+  <code>niwa-view-geometry-excluded</code>, so <code>niwa-view--windows</code>' geometry
+  answer omits it. Viewport capture and restoration (ADR 0126), composer
+  anchoring, blank-space repair and narrowest-window chrome fitting (rail,
+  panel rows, mail notices) ignore it, and its own resizes do not refit the
+  host's rail. It starts at the rail instead of being anchored; a draft
+  taller than the cap scrolls with its cursor, never above the rail.</li>
+<li><strong>Still counted for visibility.</strong> The rail is on screen in the floating
+  composer, so animation visibility keeps counting its window, and its frame
+  carries <code>niwa-view-animate-as-parent</code> so animation's frame choice treats
+  it as its parent.</li>
+<li><strong>Slower rail animation in the floating composer.</strong> While every attended
+  window showing the request label is a floating composer, the label
+  animates at the battery frame-rate ceiling
+  (<code>niwa-view-spinner-battery-framerate</code>, the rate the <code>save</code> power policy
+  always applies), in the Lisp timer and in native presentation alike. The
+  Lisp painter repaints the label only once its own period has passed, even
+  when a pending-tool row wakes the shared timer sooner. When
+  the rail is also visible inline, it runs at the normal rate. Pending-tool
+  rows keep their rate. No option controls this: the user accepted the
+  floating composer's typing cost and chose to slow, not stop, its animation
+  (2026-11-19).</li>
+<li><strong>Placement cost.</strong> The composer's natural height is measured with a pixel
+  limit of the top line, the cap and one more line (the limit counts from
+  the window's top, header included) and cached until the buffer
+  (<code>buffer-modified-tick</code>, so property changes such as a face height count),
+  the window width, the face remapping (text scale) or a face or fontset
+  definition changes (the generations the table layouts keep, which count
+  global text scaling and a named face of the draft changing size), so
+  scrolling the host measures nothing. The top line's <code>↑ N more</code> count is
+  kept on the same terms plus the window start. The top line's height is at least the parent's line
+  height plus <code>overline-margin</code>: until the window is drawn, and after a font
+  change until it is redrawn, Emacs reports an estimate from the font alone,
+  without the overline's margin, and a frame sized by it is too short.
+  Measuring fontifies the draft,
+  which itself
+  modifies the buffer, so the cache records the buffer's state after
+  measuring; keyed before, every key measured twice. Overlay changes do not
+  invalidate it. The key stores a copy of the face remapping, which
+  <code>face-remap-add-relative</code> edits in place. A typed key still measures once before
+  redisplay: a PGTK child frame's resize takes effect before the next
+  redisplay, so measuring later would show the grown draft scrolled in the
+  old height for a frame. Resize and move are one compound call, issued only
+  when the requested geometry differs from the frame's own: restoring a
+  window configuration, as leaving the minibuffer does, rounds the frame to
+  whole lines. Creating the hidden frame and hiding
+  it bind <code>pgtk-wait-for-event-timeout</code> to nil: PGTK otherwise runs its event
+  loop for that whole timeout (0.1 s) on every hide. Updates run after the user's commands in
+  the view and, coalesced into one timer, on the view's render cadence and
+  window size, buffer and selection changes; the timer is not armed while
+  the floating composer is hidden and the selected window's cursor is in the
+  draft.</li>
+</ul>
+<h3 id="cursor-and-scrolling-amends-adr-0126">Cursor and scrolling (amends ADR 0126)<a class="headerlink" href="#cursor-and-scrolling-amends-adr-0126" title="Permanent link">&para;</a></h3>
+<ul>
+<li>When the user's scroll command in the selected window pushes its draft
+  cursor off screen, the floating composer takes the cursor at the same
+  draft offset. The offset is ADR 0126's pending return, captured before
+  native scrolling displaced point; handing over consumes it, so a later
+  inline return cannot overwrite edits made in the floating composer. The
+  host's own point stays in the transcript: it remains a history reader.</li>
+<li>A cursor in the transcript stays there; the floating composer is shown
+  without taking it.</li>
+<li>A scroll command after which the floating composer's cursor position is
+  fully visible in the host hides the floating composer and returns the
+  cursor there, so a draft taller than the window can return too.</li>
+<li>Only <code>post-command-hook</code> moves the cursor. Timers, window hooks, streaming
+  and other background updates only place, show or hide a floating composer
+  that is not selected. Settling a card visited with <code>C-c C-j</code> is the one
+  exception, described below.</li>
+<li><code>C-c C-j</code> from the floating composer moves the cursor to the host first, so
+  the visit and the draft offset it remembers belong to the host, and selects
+  the card there. While a floating composer is shown over the window, a card
+  whose cursor line would be hidden behind it is scrolled to the window's
+  top, or, if the card is too tall for that, its cursor line just above the
+  floating composer. Arriving cards move nothing.</li>
+<li>Settling the visited card, while the host still visits it, returns the
+  cursor to the remembered draft offset: inline when the host fully shows
+  that position, otherwise in the shown floating composer, leaving the host's
+  point in the transcript.</li>
+<li>Sending with <code>C-c RET</code> from the floating composer needs no rule of its own:
+  the host's point is in the transcript, so ADR 0126 keeps its viewport as a
+  history reader, and the cursor stays in the emptied floating composer.
+  Input typed while the submission is prepared is kept as inline.</li>
+<li>With the option off ADR 0126's per-window return-to-draft is unchanged.</li>
+</ul>
+<h3 id="keys-and-pointer">Keys and pointer<a class="headerlink" href="#keys-and-pointer" title="Permanent link">&para;</a></h3>
+<p>Keys act on the selected window; with the cursor in the transcript they keep
+their transcript meaning (<code>n</code>, <code>p</code>, <code>t</code>, <code>TAB</code>, <code>RET</code>).</p>
+<ul>
+<li><code>C-c C-SPC</code> (<code>niwa-floating-composer-toggle</code>) moves the cursor between
+  the composer and the transcript: between the floating composer and its
+  host while it is shown, else between the inline draft and the transcript,
+  each toggle returning to where the previous one left the window's cursor.
+  Clicking the floating composer selects it as the toggle does.</li>
+<li>In the floating composer <code>C-v</code> and <code>M-v</code> page within a capped draft. After
+  every command, and whenever redisplay finds it scrolled above the rail
+  (touchpad momentum scrolls within one command), its window start is
+  clamped to the rail, so neither these
+  keys nor the wheel ever show transcript text in it; an uncapped draft
+  stays pinned at the rail. Redisplay scrolling it down to show point in a
+  frame still too short is left alone: pinning that back made redisplay
+  scroll again without end; a size change of its window schedules a refit
+  instead. Scrolling below the draft's end shows blank
+  space, as in any window.</li>
+<li><code>C-M-v</code>/<code>C-M-S-v</code> there scroll the host: the view sets
+  <code>other-window-scroll-default</code> buffer-locally to return the host from the
+  floating composer and defer to the global default elsewhere.</li>
+<li>The wheel scrolls the window under the pointer (<code>mouse-wheel-follow-mouse</code>)
+  and leaves the selection, and so any keystroke redirect, where it was.</li>
+<li><code>C-x 2</code>/<code>C-x 3</code> there split the host: the floating composer's window
+  carries a <code>split-window</code> parameter that splits the host instead. The
+  cursor stays in the floating composer.</li>
+</ul>
+<h2 id="rationale-and-consequences">Rationale and consequences<a class="headerlink" href="#rationale-and-consequences" title="Permanent link">&para;</a></h2>
+<p>Problem: while writing a prompt the user often needs to look something up in
+the transcript, and had to scroll back and forth.</p>
+<p>Redisplay cost (from the Emacs C source, 30.2 and 32.0.50 trees; measured
+by the performance gate below): a buffer change flags every window showing
+the buffer for its next redisplay, where each is updated incrementally;
+windows showing only other
+buffers are normally skipped. Several changes before one redisplay coalesce.
+The floating composer therefore adds an incremental update of its window to
+redisplays that follow typing or streaming, only while it is shown. Without
+the geometry exclusion it would also add a full anchoring pass per stream
+update (about 1 ms each in ADR 0126's measurements).</p>
+<p>The rail is fitted to the host; the floating composer has the host's text
+width, and its measured height includes any wrap. Since its width follows
+only the host there is no resize loop.</p>
+<h3 id="performance-gate-against-off">Performance gate against "off"<a class="headerlink" href="#performance-gate-against-off" title="Permanent link">&para;</a></h3>
+<p>The floating composer performance gate (see the development guide) first ran
+on the integration tree at <code>b9cb7956</code> (2026-11-19) and did not reach parity.
+Its findings had these causes, now removed:</p>
+<ul>
+<li><strong>Focus loss after the cursor returned inline,</strong> which left the view
+  unattended (renders deferred, rail stopped): PGTK child-frame focus, see
+  "Focus" above. The graphical ERT suite stubbed <code>frame-focus-state</code> and could
+  not see it; it now runs with real compositor focus.</li>
+<li><strong>A constant +100 ms on scrolling back</strong> (105 vs 5 ms): PGTK's
+  <code>make-frame-invisible</code> always runs GTK's event loop for the whole
+  <code>pgtk-wait-for-event-timeout</code>. Creating the hidden frame paid the same wait,
+  100 of the 157 ms first show.</li>
+<li><strong>Per-keystroke height measurement:</strong> the measurement's own fontification
+  modified the buffer after the cache key was taken, so the next update
+  measured again: every key measured twice.</li>
+<li><strong>Idle CPU with a floating-composer frame:</strong> the benchmark scanned every
+  process inside its measured interval, summed per-thread CPU so an exiting
+  thread made it smaller, and its "unfocused" frame showed the view itself.
+  The benchmark now measures per-thread deltas outside the scan, and the
+  unfocused frame shows another buffer. The earlier idle numbers are not
+  comparable with those below.</li>
+</ul>
+<p>Final run, on the complete feature (integration tree at <code>74a0a1e9</code>,
+2026-11-19): Emacs 31.1 pgtk, byte-compiled, private presenting KWin
+(virtual, OpenGL, no lock screen); presentation probes before and after with
+73 and 67 completed frame callbacks; one warm-up round and 6 alternating
+rounds; every measured workload began focused and attended except
+<code>idle-unfocused</code>, which is unattended by design and measured before any
+crossing, so <code>on-never</code> has never created a frame. The power policy is pinned
+to <code>full</code>, so only the floating composer's rule applies the battery ceiling
+(15 fps); earlier runs left it at <code>auto</code>, which in the private session
+animated every rail at the ceiling (<code>off-inline</code> idle with a request: 86-92 ms
+Emacs CPU and 20-21 redisplay cycles per 4 s under <code>auto</code>, 142 ms and 36 under
+<code>full</code>). Crossings count each direction's commands separately; their CPU
+includes the benchmark reading per-thread CPU before each command, equally in
+every scenario. Values are scenario vs baseline; "paired" is the per-round
+difference, median [min, max] over 6 rounds. No parity verdict is recorded
+here. A repeat of the whole gate at <code>34da91d5</code> measured no cost clearly
+above these: medians above a range here were inconclusive (quiet-idle CPU
+under 1 ms, stream redisplay cycles with ranges spanning zero), and the
+visible floating composer measured less (typing ratio 1.34 [1.26, 1.77],
+Emacs CPU +33 [+26, +89] ms; wrapped deletion +29 [+15, +84] ms; stream
+against the hidden rail +169 [+167, +226] ms). The second run, before keys,
+long drafts, <code>C-c C-j</code>, window handling and terminal support landed,
+measured the same within these ranges except where noted.</p>
+<p>Remaining regressions other than visible rail animation:</p>
+<ul>
+<li><strong>Typing in the visible floating composer</strong> (<code>on-visible</code> vs <code>off-inline</code>,
+  40 keys per run): latency including redisplay 2.56 vs 1.52 ms median
+  (pooled, n 240 each), per-round ratio 1.62 [1.42, 1.74]; Emacs CPU
+  +65 [+39, +86] ms per run. A probe in the second run split this: with the
+  floating composer's update disabled, keys still cost 1.88-2.40 ms against
+  1.36-1.82 ms inline (run medians, 4 alternating runs of 40 keys), so most
+  of it is redisplaying the second window; the one remaining measurement
+  per key takes about 0.06 ms of layout. The user accepted this cost
+  (2026-11-19).</li>
+<li><strong>Wrapped-draft deletion in the visible floating composer</strong> (30 keys per
+  run): Emacs CPU +46 [+34, +55] ms per run and one more GC (+1 [+1, +1]);
+  latency is lower, 3.56 vs 4.15 ms median (n 180 each), ratio
+  0.87 [0.83, 0.98].</li>
+<li><strong>Unfocused idle with a floating-composer frame that exists</strong> (4 s, the
+  view's frame unfocused): <code>on-hidden</code> Emacs CPU +6.5 [-0.4, +18.8] ms and
+  redisplay cycles +1 [+0, +8]; <code>on-visible</code> +3.5 [-3.9, +16.7] ms and
+  +1 [+0, +8]. The CPU differences are inconclusive; the never-created
+  control <code>on-never</code> also measured +2.6 [-6.3, +14.3] ms with +1 [-1, +7]
+  redisplay cycles. A probe found an extra redisplay with no Lisp timer due,
+  about 0.9 and 1.4 s after focus left, so the frame's window-system events
+  drive it.</li>
+<li><strong>First show,</strong> which creates the child frame once per view: 50.72 ms
+  median, p90 61.85 ms (n 36), no "off" counterpart, with 2 child-frame
+  move/resize calls each. Without PGTK's wait this is frame creation itself.</li>
+</ul>
+<p>Visible rail animation, with the rail visible only in the floating composer
+and so animating at the battery ceiling:</p>
+<ul>
+<li><strong>Idle with a request, against the hidden rail</strong> (<code>on-visible</code> vs
+  <code>off-away</code>, 4 s): Emacs CPU +88.8 [+80.4, +95.3] ms, KWin CPU
+  +27.9 [+19.4, +32.1] ms, redisplay cycles +19 [+18, +19].</li>
+<li><strong>Idle with a request, against the rail visible inline at the normal rate</strong>
+  (<code>off-inline</code>): Emacs CPU -47.5 [-57.1, -28.7] ms, KWin CPU
+  -19.7 [-33.1, -4.9] ms, redisplay cycles -14 [-14, -13].</li>
+<li><strong>Stream, 100 chunks at 40 ms, against the hidden rail:</strong> Emacs CPU
+  +227.9 [+173.5, +273.1] ms, KWin CPU +28.8 [+6.1, +56.5] ms, redisplay
+  cycles +41 [+40, +43], one more GC. Against the inline rail: Emacs CPU
+  -15.3 [-75.9, +38.8] ms (inconclusive), KWin CPU -1.0 [-37.4, +34.6] ms,
+  redisplay cycles -5 [-9, -4].</li>
+</ul>
+<p>No regression measured:</p>
+<ul>
+<li><strong>Scroll away</strong> (<code>on-never</code> vs <code>off-inline</code>, 12 crossings per run, n 72
+  each): 6.05 vs 7.69 ms median, ratio 0.78 [0.76, 0.83]; Emacs CPU
+  -39 [-45, -27] ms and redisplay cycles -1 [-2, -1] per run; KWin CPU
+  -0.1 [-1.8, +2.6] ms (the second run's +1.5 ms is gone).</li>
+<li><strong>Scroll back:</strong> 3.27 vs 5.88 ms median, ratio 0.56 [0.52, 0.58]; p90
+  5.53 vs 6.55 ms (the second run's p90 tail, 25.63 vs 12.31 ms, did not
+  recur); Emacs CPU +6.6 [-21.7, +18.2] ms (inconclusive; the second run
+  measured -42.6), KWin CPU -4.6 [-6.2, -0.1] ms, redisplay cycles
+  -4 [-5, -4] per run.</li>
+<li><strong>Streaming with the floating composer hidden</strong> (<code>on-hidden</code>): Emacs CPU
+  +25.7 [-44.8, +75.3] ms and KWin CPU +4.9 [-18.7, +25.3] ms per 100 chunks,
+  both inconclusive (the second run measured KWin +10.7 [+3.1, +13.6] ms);
+  <code>on-never</code> +28.6 [-60.7, +82.7] and +3.3 [-13.3, +42.7] ms.</li>
+<li><strong>On but never created</strong> (<code>on-never</code> vs <code>off-inline</code>): wrapped deletion
+  4.28 vs 4.15 ms median, per-round ratio 1.05 [1.01, 1.08], higher in every
+  round of this run only; a repeat of the whole gate at <code>34da91d5</code> measured
+  ratio 0.94 [0.89, 1.12] (rounds 1-5 quiet, round 6 under an unrelated
+  test suite), and isolated per-merge runs and a key-interleaved control
+  straddled zero. Typing 1.70 vs 1.52 ms, ratio 1.03 [0.93, 1.17] (repeat:
+  0.95 [0.78, 1.17]). Idle with a request +3.6 [-8.5, +23.8] ms; quiet idle
+  +0.1 [-0.2, +0.4] ms.</li>
+<li><strong>Hidden after use</strong> (<code>on-hidden</code> vs <code>off-inline</code>): typing 1.42 vs
+  1.52 ms; wrapped deletion 3.61 vs 4.15 ms; idle with a request
+  -0.7 [-7.2, +9.6] ms; quiet idle +0.3 [-0.3, +1.0] ms.</li>
+<li><strong>Visible floating composer, quiet idle:</strong> Emacs CPU +0.3 [-1.2, +0.7] ms.</li>
+<li><strong>Child-frame move/resize</strong> calls were 0 in every paired workload (the
+  draft height did not change); show/hide were 1 per crossing direction.</li>
+</ul>
+<h3 id="rerun-with-the-full-width-frame-and-top-line">Rerun with the full-width frame and top line<a class="headerlink" href="#rerun-with-the-full-width-frame-and-top-line" title="Permanent link">&para;</a></h3>
+<p>Run on the tree at <code>ecef42ff</code> (2026-11-19), after the full-width frame and
+top line replaced the inset, bordered one: Emacs 31.1 pgtk, byte-compiled,
+private presenting KWin; presentation probes before and after with 68 and
+66 completed frame callbacks; one warm-up round and 6 alternating rounds;
+power policy pinned to <code>full</code>. Values and statistics as above (scenario vs
+baseline; paired median [min, max] over 6 rounds); the earlier run's value
+follows in parentheses.</p>
+<p>Crossing and first-show CPU, KWin and redisplay totals are whole-transition
+numbers, not per notch. A scroll-away total covers every notch up to the
+crossing and the settling between them; a scroll-back total likewise
+covers all its notches, starting from the viewport the scroll-away left;
+a first-show total also covers removing the frame, the return crossing and
+the settling around them. Their latencies time only the crossing notch.</p>
+<ul>
+<li><strong>Typing in the visible floating composer</strong> (<code>on-visible</code> vs
+  <code>off-inline</code>, 40 keys per run): latency 2.50 vs 1.72 ms median (n 240
+  each), per-round ratio 1.51 [1.41, 1.67] (1.62 [1.42, 1.74]); Emacs CPU
+  +56 [+38, +64] ms per run (+65 [+39, +86]).</li>
+<li><strong>Wrapped-draft deletion, visible</strong> (30 keys per run): Emacs CPU
+  +46 [+36, +50] ms (+46 [+34, +55]); latency 3.76 vs 4.26 ms median,
+  ratio 0.88 [0.82, 0.89] (0.87 [0.83, 0.98]).</li>
+<li><strong>One child-frame refit per visible session:</strong> typing and wrapped
+  deletion each count one move/resize call per run (the earlier run: 0),
+  not one per key. The cause is unverified; a likely one is that the top
+  line's <code>↑</code>/<code>↓</code> come from a fallback font a pixel taller than the default,
+  so the drawn top line is taller than the height computed before drawing
+  and the size change refits the frame once.</li>
+<li><strong>Scroll back</strong> (<code>on-never</code> vs <code>off-inline</code>, 12 crossings per run, n 72
+  each): 2.83 vs 6.12 ms median, ratio 0.47 [0.43, 0.49] (0.56
+  [0.52, 0.58]); Emacs CPU +74 [+36, +117] ms, redisplay cycles
+  +46 [+45, +47] per run.</li>
+<li><strong>Scroll away is not comparable with earlier runs:</strong> 8.74 vs 7.83 ms
+  median, ratio 1.12 [1.09, 1.16]; Emacs CPU +205 [+187, +220] ms, KWin CPU
+  +17 [+13, +27] ms, redisplay cycles +51 [+49, +51] per run. Since the
+  floating composer appears only once the host shows no composer line
+  (<code>19fbf2c8</code>), one wheel notch no longer always hands the cursor over and
+  the benchmark stopped at its first crossing; <code>ecef42ff</code> makes it scroll
+  away notch by notch, as scrolling back already did, and report the
+  crossing notch's latency. With the option on a crossing now takes an
+  extra notch whose CPU and redisplay cycles the whole-transition totals
+  count, while <code>off</code> leaves the draft after one.</li>
+<li><strong>Idle with a request, visible, against the hidden rail</strong> (<code>off-away</code>,
+  4 s): Emacs CPU +87.7 [+80.5, +109.3] ms (+88.8 [+80.4, +95.3]), KWin CPU
+  +21.8 [+18.7, +29.2] ms, redisplay cycles +19 [+18, +20]. Against the
+  rail visible inline: Emacs CPU -54.2 [-57.8, -37.0] ms (-47.5).</li>
+<li><strong>Quiet idle, visible:</strong> Emacs CPU -0.39 [-0.86, +0.05] ms
+  (+0.3 [-1.2, +0.7]).</li>
+<li><strong>Unfocused idle, visible</strong> (vs <code>off-inline</code>): Emacs CPU
+  -2.5 [-10.2, +28.7] ms, inconclusive (+3.5 [-3.9, +16.7]).</li>
+<li><strong>Stream, visible, against the hidden rail:</strong> Emacs CPU
+  +188.5 [+171.6, +226.8] ms (+227.9 [+173.5, +273.1]), redisplay cycles
+  +40 [+37, +43].</li>
+<li><strong>First show:</strong> latency of the crossing notch 55.81 ms median, p90
+  62.81 ms (n 36) (50.72, p90 61.85).</li>
+</ul>
+<h2 id="alternatives">Alternatives<a class="headerlink" href="#alternatives" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Docked window below the transcript.</strong> Covers nothing, but shrinks the
+  transcript window whenever it appears, reflowing the transcript and firing
+  size hooks across the view; it costs the same extra window redisplay.
+  The child frame was chosen then; <a href="../0136-dock-the-composer-in-its-own-buffer/">ADR 0136</a>
+  later adopted an ordinary split with a separate composer buffer.</li>
+<li><strong>Inline composer with a jump key.</strong> No extra cost, but the user cannot see
+  the draft and the passage being looked up together. Rejected.</li>
+<li><strong>Separate composer buffer.</strong> Initially deferred because migrating the inline
+  input marker and viewport rules was a larger change. It was the only variant
+  expected to stop draft edits and streamed output from invalidating the same
+  buffer's windows. <a href="../0136-dock-the-composer-in-its-own-buffer/">ADR 0136</a> adopted
+  it after the child frame could not reliably host native editing popups.</li>
+</ul>
+<h2 id="decision-history">Decision history<a class="headerlink" href="#decision-history" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The inset, bordered frame was replaced by a full-width frame under a top
+  rule</strong> (2026-11-19). The floating composer was first inset two columns from
+  each side of the host's text area, floated half a line above its bottom and
+  wore the note frame's teal border, active or inactive by focus (on a
+  terminal, box characters in the frame's own <code>border</code> face). The inset left
+  clipped transcript fragments visible around the frame. After comparing
+  Claude Code and Codex with a prototype, the user chose the full-width,
+  flush frame with a rule, <code>↑ N more</code> and a "Back to bottom" button; the
+  border painting and its focus colors were removed. The rule is the header
+  face's overline because the prototype's stretched strike-through segments
+  broke at the fringes.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.top", "navigation.indexes", "content.code.copy", "content.action.edit", "search.suggest"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
