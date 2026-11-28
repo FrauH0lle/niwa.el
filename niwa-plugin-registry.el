@@ -435,6 +435,38 @@ source; activation keeps the portable relative path."
 (defvar niwa-plugins--warned-consent nil
   "The unreadable consent store already reported, if any.")
 
+(defvar niwa-plugins--reviewed-binding nil
+  "The (NAME ROOT KEY SOURCE) a consent write was reviewed for.
+NAME is the plugin, ROOT its reviewed root spelling, KEY and SOURCE the
+physical identities `niwa-plugins--consent-binding' captured.
+Bound by the enable commands around their write, so the consent store
+records the physical identities the user approved, not the ones links
+resolve to when the write lands.  An entry naming another source is
+keyed as usual.")
+
+(defun niwa-plugins--consent-binding (plugin workspace)
+  "Return PLUGIN's physical consent identity in WORKSPACE as (KEY . SOURCE)."
+  (cons (niwa-plugins--workspace-key workspace)
+        (niwa-plugins--consent-source (niwa-plugin-root plugin) workspace)))
+
+(defun niwa-plugins--reviewed (plugin consent)
+  "Return the `niwa-plugins--reviewed-binding' for PLUGIN's CONSENT snapshot."
+  (cons (niwa-plugin-name plugin)
+        (cons (niwa-plugin-root plugin)
+              (let ((binding (plist-get consent :binding)))
+                (list (car binding) (cdr binding))))))
+
+(defun niwa-plugins--binding-unchanged-p (plugin consent workspace)
+  "Return non-nil unless PLUGIN's identity in WORKSPACE moved since CONSENT.
+Otherwise report that the reviewed hook approval was not applied."
+  (or (not (plist-get consent :fingerprint))
+      (equal (plist-get consent :binding)
+             (niwa-plugins--consent-binding plugin workspace))
+      (progn
+        (message "Plugin %s changed location during review; hook approval was not applied"
+                 (niwa-plugin-name plugin))
+        nil)))
+
 (defun niwa-plugins--read-consent ()
   "Return the records in the user's consent store.
 A missing store is created empty first, so the protected-path mount
@@ -483,13 +515,23 @@ given for; the registry also compares its fingerprint and scripts."
 The read, merge and replacement run under the store directory's lock,
 as project trust writes do, and touch only the plugins this write
 changed, so another client's consent or revocation survives."
-  (let* ((key (niwa-plugins--workspace-key workspace))
-         (consent (lambda (state name)
+  (let* ((current (niwa-plugins--workspace-key workspace))
+         (reviewed niwa-plugins--reviewed-binding)
+         (consent (lambda (state name &optional after)
                     (let ((plist (cdr (assoc name state))))
-                      (list (niwa-plugins--consent-source (plist-get plist :source-root) workspace)
-                            (niwa-plugins--keys plist t)))))
+                      ;; The reviewed plugin's approval binds what was reviewed.
+                      (if (and after (equal name (car reviewed))
+                               (niwa-plugins-same-root-p
+                                (nth 1 reviewed) (plist-get plist :source-root)
+                                workspace))
+                          (list (nth 2 reviewed) (nth 3 reviewed)
+                                (niwa-plugins--keys plist t))
+                        (list current
+                              (niwa-plugins--consent-source
+                               (plist-get plist :source-root) workspace)
+                              (niwa-plugins--keys plist t))))))
          (changes (cl-loop for name in (delete-dups (mapcar #'car (append old new)))
-                           for after = (funcall consent new name)
+                           for after = (funcall consent new name t)
                            unless (equal after (funcall consent old name))
                            collect (cons name after))))
     (when changes
@@ -499,8 +541,9 @@ changed, so another client's consent or revocation survives."
        (lambda (_lock)
          (let ((records (cl-remove-if
                          (lambda (record)
-                           (and (equal key (plist-get record :workspace))
-                                (assoc (plist-get record :plugin) changes)))
+                           (let ((change (assoc (plist-get record :plugin) changes)))
+                             (and change
+                                  (equal (nth 1 change) (plist-get record :workspace)))))
                          (let ((file (niwa-plugins--consent-file)))
                            (and (file-exists-p file)
                                 (niwa-plugins--parse-strict
@@ -508,7 +551,7 @@ changed, so another client's consent or revocation survives."
                                                    (buffer-string))
                                  file)))))
                (print-length nil) (print-level nil))
-           (pcase-dolist (`(,name ,source ,plist) changes)
+           (pcase-dolist (`(,name ,key ,source ,plist) changes)
              ;; A revocation is kept too, so it reads back as written.
              (when plist
                (push (append (list :workspace key :plugin name :source source) plist)
@@ -605,11 +648,13 @@ cache, as a destructive adoption must."
                                    (list (cons name (append (niwa-plugins--keys (cdr old))
                                                             consent))))))))))))
 
-(defun niwa-plugins--adopt-legacy (workspace)
+(defun niwa-plugins--adopt-legacy (workspace &optional proof)
   "Move WORKSPACE's untracked top-level plugin state into `state/'.
 Nothing proves who wrote it, so its activation changes since the last
 adopted file apply, but never its hook consent: the user consents once
-more.  A concurrent change leaves the file for the next read."
+more.  A concurrent change leaves the file for the next read.  A remote
+session's lease PROOF leads the locked program, so only the lease owner
+migrates and deletes shared files."
   (let* ((legacy (niwa-plugins--project-state-file workspace))
          (local (niwa-plugins-state-file workspace))
          (base (file-name-concat (file-name-directory local) "plugins-legacy.eld"))
@@ -629,8 +674,12 @@ more.  A concurrent change leaves the file for the next read."
     ;; Recheck the index right before anything destructive.
     (when (and (car state) (eq 'untracked (niwa-plugins--tracking workspace legacy t)))
       (let ((results
-             (niwa-session-control-fs-run-program
-              (list (list :op 'make-directory
+             (niwa-session-artifacts-fenced-results
+              proof
+              (niwa-session-control-fs-run-program
+               (append
+                proof
+                (list (list :op 'make-directory
                           :path (directory-file-name (file-name-directory local))
                           :optional t)
                     (if (nth 1 bytes)
@@ -648,8 +697,8 @@ more.  A concurrent change leaves the file for the next read."
                           :coding 'utf-8-unix)
                     (list :op 'write :path base :content (car bytes)
                           :coding 'no-conversion)
-                    (list :op 'delete-file :path legacy))
-              (niwa-plugins--lock-directory workspace))))
+                    (list :op 'delete-file :path legacy)))
+               (niwa-plugins--lock-directory workspace)))))
         (unless (cl-some (lambda (result)
                            (memq (plist-get result :status) '(mismatch absent conflict)))
                          (seq-take (cdr results) 2))
@@ -662,8 +711,9 @@ A tracked top-level file supplies activation, otherwise the file under
 `state/' does.  Hook consent comes from the user's store only, see
 `niwa-plugins--user-consent'.  An untracked top-level file is an older client's
 and is adopted first; until that succeeds it lists plugins without
-enabling hooks.  When Git cannot say, the file is left alone and read
-as tracked."
+enabling hooks.  Remotely, only an authorized update adopts, see
+`niwa-plugins--change-state': reading proves no lease.  When Git cannot
+say, the file is left alone and read as tracked."
   (when workspace
     (let ((project (niwa-plugins--project-state-file workspace))
           (local (niwa-plugins-state-file workspace)))
@@ -672,7 +722,8 @@ as tracked."
         ((not (file-exists-p project)) (niwa-plugins--read-file local))
         ((not (eq 'untracked (niwa-plugins--tracking workspace project)))
          (niwa-plugins--read-file project))
-        ((ignore-errors (niwa-plugins--adopt-legacy workspace))
+        ((and (not (file-remote-p local))
+              (ignore-errors (niwa-plugins--adopt-legacy workspace)))
          (niwa-plugins--read-file local))
         (t (or (niwa-plugins--read-file local)
                (niwa-plugins--read-file project))))
@@ -745,15 +796,20 @@ The write proves the bytes read are unchanged in one program under the
                       :path (directory-file-name (file-name-directory local))
                       :optional t)
                 (cl-loop for file in files for data in bytes
-                         collect (if data
-                                     (list :op 'verify-hash :path file
-                                           :content (secure-hash 'sha256 data))
-                                   (list :op 'absent :path file)))))
+                        ;; A written file read absent is created exclusively
+                        ;; below, so a creator outside the lock keeps its file
+                        ;; and the conflict rereads it, as the permission
+                        ;; store does.
+                        unless (and (not data) (assoc file writes))
+                        collect (if data
+                                    (list :op 'verify-hash :path file
+                                          :content (secure-hash 'sha256 data))
+                                  (list :op 'absent :path file)))))
          (proved (lambda (results)
                    (not (cl-some (lambda (result)
                                    (memq (plist-get result :status)
                                          '(mismatch absent conflict)))
-                                 (seq-take (cdr results) (length files)))))))
+                                 (cdr results))))))
     (cl-flet ((write (&optional proof)
                 ;; The lock opens `.niwa/', so the state directory must exist.
                 (niwa-session-control-fs-make-directory
@@ -766,14 +822,19 @@ The write proves the bytes read are unchanged in one program under the
                                 (niwa-session-control-fs-run-program
                                  (append proof program
                                          (mapcar (lambda (write)
-                                                   (list :op 'write :path (car write)
+                                                   (list :op (if (nth (cl-position (car write) files
+                                                                                   :test #'equal)
+                                                                      bytes)
+                                                                 'write
+                                                               'create)
+                                                         :path (car write)
                                                          :content (cdr write)
                                                          :coding 'utf-8-unix))
                                                  writes))
                                  (niwa-plugins--lock-directory workspace)))))
                   (when (funcall proved results)
                     (mapc #'niwa-session-control-fs-program-value
-                          (nthcdr (1+ (length files)) results))
+                          (nthcdr (length program) results))
                     t))))
       (when (if (file-remote-p local)
                 ;; The session fences the target; the program's lock and proof
@@ -796,7 +857,17 @@ file, activation goes there and hook consent stays under `state/'."
                    (error "No workspace for plugin state")))
         (project (niwa-plugins--project-state-file workspace)))
     ;; Adopts an untracked legacy file first, so it is not written around.
-    (niwa-plugins--read-state workspace)
+    ;; Remotely the adoption migrates and deletes shared files, so it runs
+    ;; inside the session's fence with the lease proof; reads never adopt.
+    (if (not (file-remote-p local))
+        (niwa-plugins--read-state workspace)
+      (when (and (file-exists-p project)
+                 (eq 'untracked (niwa-plugins--tracking workspace project)))
+        (let ((session (or (niwa-plugins--state-session workspace)
+                           (user-error "Remote plugin state requires its live session"))))
+          (ignore-errors
+            (niwa-session-artifacts-call-fenced
+             session (lambda (&optional proof) (niwa-plugins--adopt-legacy workspace proof)))))))
     ;; A local program pins parents and locks `.niwa/', so both must exist.
     ;; Remote writes create nothing before publication.
     (unless (file-remote-p local)
@@ -1102,9 +1173,10 @@ FUNCTION receives a copy of the entry read inside the write, or nil."
   "Return PLUGIN's approved hook snapshot in WORKSPACE, or nil if refused.
 Ask again when the handlers or the content of a script they name
 changed since the consent recorded in WORKSPACE.  The snapshot, a plist
-of `:fingerprint' and `:scripts', is what was compared or shown, so a
-change after that stays unconsented."
-  (let* ((fingerprint (niwa-plugins--hook-fingerprint plugin workspace))
+of `:fingerprint', `:scripts' and the physical `:binding', is what was
+compared or shown, so a change after that stays unconsented."
+  (let* ((binding (niwa-plugins--consent-binding plugin workspace))
+         (fingerprint (niwa-plugins--hook-fingerprint plugin workspace))
          (state (niwa-plugins--state-plist
                  (niwa-plugin-name plugin) workspace))
          (scripts (and fingerprint
@@ -1123,7 +1195,7 @@ change after that stays unconsented."
                         (format "\nNew or changed scripts: %s"
                                 (mapconcat #'car unconsented ", ")))
                       " ")))
-         (list :fingerprint fingerprint :scripts scripts))))
+         (list :fingerprint fingerprint :scripts scripts :binding binding))))
 
 (defun niwa-plugins--ensure-source-switch-consent
     (plugin &optional workspace)
@@ -1145,8 +1217,10 @@ change after that stays unconsented."
   "Persist PLUGIN as enabled in WORKSPACE, with hooks per CONSENT.
 CONSENT is the snapshot `niwa-plugins--ensure-hook-consent' approved;
 hooks are enabled when it has a fingerprint, recording exactly its
-fingerprint and script hashes."
-  (let ((fingerprint (plist-get consent :fingerprint)))
+fingerprint and script hashes for its reviewed binding."
+  (let ((fingerprint (plist-get consent :fingerprint))
+        (niwa-plugins--reviewed-binding
+         (niwa-plugins--reviewed plugin consent)))
     (niwa-plugins--write-state-entry
      (niwa-plugin-name plugin)
      (list :enabled t
@@ -1164,7 +1238,7 @@ fingerprint and script hashes."
               ((niwa-plugins--ensure-source-switch-consent plugin workspace))
               (consent (niwa-plugins--ensure-hook-consent plugin workspace)))
     (niwa-plugins--write-enabled-state plugin consent workspace)
-    t))
+    (niwa-plugins--binding-unchanged-p plugin consent workspace)))
 
 (defun niwa-plugins-disable (plugin-name &optional workspace)
   "Persist PLUGIN-NAME as disabled in WORKSPACE."
@@ -1188,7 +1262,9 @@ Return non-nil only when the consent landed on the plugin it was given for."
                 ((niwa-plugins-enabled-p plugin workspace))
                 (consent (niwa-plugins--ensure-hook-consent plugin workspace))
                 (root (niwa-plugin-root plugin)))
-      (let (applied)
+      (let ((niwa-plugins--reviewed-binding
+             (niwa-plugins--reviewed plugin consent))
+            applied)
         ;; Only while still enabled from this source: a disable or a source
         ;; switch meanwhile wins, and the consent is not reported as given.
         (niwa-plugins--change-entry
@@ -1205,7 +1281,8 @@ Return non-nil only when the consent landed on the plugin it was given for."
                              (plist-put :hooks-fingerprint fingerprint)
                              (plist-put :hooks-scripts
                                         (and fingerprint (plist-get consent :scripts))))))))
-        applied))))
+        (and applied
+             (niwa-plugins--binding-unchanged-p plugin consent workspace))))))
 
 (defun niwa-plugins-disable-hooks (plugin-name &optional workspace)
   "Persist hooks as disabled for PLUGIN-NAME in WORKSPACE."

@@ -16,6 +16,7 @@
 (require 'niwa-hooks)
 (require 'niwa-plugins)
 (require 'niwa-plugin-lifecycle)
+(require 'niwa-plugin-registry)
 (require 'niwa-session-control-fs)
 (require 'niwa-agent-control)
 (require 'niwa-execution-target)
@@ -2128,6 +2129,53 @@ Return the words the hook scripts logged to ROOT's log file."
         (delete-directory root t)
         (delete-directory copy t)
         (delete-directory user-dir t)))))
+
+(niwa-deftest niwa-plugins-enable/binding-changed-during-review
+  (:doc "a link retargeted while consent is reviewed gets no approval from either command")
+  (let* ((root (file-name-as-directory (make-temp-file "niwa-plugins-review-link" t)))
+         (user-dir (file-name-concat root "user/"))
+         (link (file-name-concat root ".niwa" "plugins"))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory (file-name-concat user-dir ".agents" "plugins"))
+         (workspace (niwa-hooks-test--workspace root))
+         (hooks (lambda ()
+                  (plist-get (niwa-plugins--state-plist "demo" workspace) :hooks-enabled)))
+         (point-at (lambda (set)
+                     (ignore-errors (delete-file link))
+                     (make-symbolic-link (directory-file-name (file-name-concat root set))
+                                         link))))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (unwind-protect
+        (progn
+          ;; Two sources with the same plugin and the same hooks.
+          (dolist (set '("set-a" "set-b"))
+            (let ((plugin-root (file-name-concat root set "repo/")))
+              (make-directory (file-name-concat plugin-root "hooks") t)
+              (with-temp-file (file-name-concat plugin-root "hooks" "hooks.json")
+                (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":"
+                        "[{\"type\":\"command\",\"command\":\"echo v1\"}]}]}}"))
+              (niwa-hooks-test--write-plugin-manifest
+               plugin-root "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")))
+          (make-directory (file-name-concat root ".niwa") t)
+          (dolist (command '(niwa-plugins-enable niwa-plugins-enable-hooks))
+            (ert-info ((symbol-name command))
+              (ignore-errors (delete-directory user-dir t))
+              (funcall point-at "set-a")
+              (when (eq command 'niwa-plugins-enable-hooks)
+                (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+                  (should (niwa-plugins-enable "demo" workspace)))
+                (should (funcall hooks))
+                (niwa-plugins-disable-hooks "demo" workspace)
+                (should-not (funcall hooks)))
+              ;; The reviewed source is replaced once its snapshot is taken.
+              (let ((review (symbol-function 'niwa-plugins--ensure-hook-consent)))
+                (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t))
+                          ((symbol-function 'niwa-plugins--ensure-hook-consent)
+                           (lambda (&rest args)
+                             (prog1 (apply review args) (funcall point-at "set-b")))))
+                  (should-not (funcall command "demo" workspace))))
+              (should-not (funcall hooks)))))
+      (delete-directory root t))))
 
 (niwa-deftest niwa-hooks-run-event/plugin-consent-physical-root
   (:doc "retargeting a workspace symlink to another checkout drops its consent")

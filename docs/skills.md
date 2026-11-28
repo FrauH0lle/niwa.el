@@ -126,6 +126,10 @@ to another checkout does not inherit the old one's consent. A remote
 workspace's identity keeps its TRAMP prefix, so consent is per client
 machine, and two TRAMP aliases for the same host, such as an SSH alias and
 its host name, need separate consent and separate revocation.
+The physical identities are captured with the reviewed snapshot, before the
+prompt, and the approval is recorded for exactly those. If a link changes
+what the workspace or source resolves to during review, the new target gets
+no consent, and enabling reports that the approval was not applied.
 The store is protected like the trust store: tools cannot write it, and niwa
 creates it empty on first read and again when preparing a confined command,
 refusing the launch if it cannot, so confinement always covers it. A store
@@ -147,7 +151,9 @@ file, so hooks wait for one new consent. If an older client writes it again,
 its activation changes since the last adopted file are merged in, again
 without hook consent. The adoption writes the new state before it records
 the adopted file and removes the old one, so an interrupted adoption repeats
-on the next read without losing changes.
+on the next read without losing changes. For a remote workspace, reading
+never adopts: until a plugin-state change adopts it with the session's lease
+proof inside the same locked program, listing reads the files as they are.
 
 Every plugin-state write replaces the file through a rename, so an
 interrupted write leaves the previous activations and hook consent intact
@@ -158,7 +164,9 @@ unchanged; otherwise it applies again to what is stored now, at most three
 times, then asks the user to retry. A concurrent adoption, consent change or
 second Emacs therefore never brings back an entry another writer changed. A
 local write and an adoption also hold the workspace's `.niwa/` lock, the one
-project permission writes hold.
+project permission writes hold. A state file read as absent is created
+exclusively, as the permission store is, so a file another tool created
+meanwhile is reread and merged rather than replaced.
 
 For a remote workspace, plugin-state mutations additionally require the
 live session's lease and use the same disclosed, serialized publication

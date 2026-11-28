@@ -906,6 +906,103 @@
     (should (equal '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f"))
                    (niwa-plugins--read-state workspace)))))
 
+(niwa-deftest niwa-plugins--read-state/remote-adoption-needs-lease
+  (:doc "a remote listing never adopts legacy state; only a leased update does")
+  (niwa-test--with-local-shell-tramp '("plugin-lease")
+    (let* ((local-root (file-name-as-directory
+                        (make-temp-file "niwa-plugins-remote-lease-" t)))
+           (user-dir (file-name-as-directory
+                      (make-temp-file "niwa-plugins-remote-lease-user-" t)))
+           (niwa-user-dir user-dir)
+           (niwa-plugin-install-directory (file-name-concat user-dir ".agents" "plugins"))
+           (workspace (niwa-plugins-test--workspace
+                       (format "/niwamock:plugin-lease:%s" local-root)))
+           (legacy (niwa-plugins--project-state-file workspace))
+           (local (niwa-plugins-state-file workspace))
+           (paths (mapcar #'file-local-name
+                          (list legacy local
+                                (file-name-concat (file-name-directory local)
+                                                  "plugins-legacy.eld"))))
+           (bytes (lambda ()
+                    (mapcar (lambda (path)
+                              (with-temp-buffer
+                                (insert-file-contents-literally path)
+                                (buffer-string)))
+                            paths)))
+           (fenced (lambda (proof)
+                     (lambda (_session function) (funcall function proof)))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory (nth 1 paths)) t)
+            (write-region (niwa-plugins--state-text '(("old" :enabled t)))
+                          nil (nth 0 paths) nil 'silent)
+            (write-region (niwa-plugins--state-text '(("mine" :enabled t)))
+                          nil (nth 1 paths) nil 'silent)
+            (write-region (niwa-plugins--state-text nil) nil (nth 2 paths) nil 'silent)
+            (let ((before (funcall bytes)))
+              ;; A client without the lease lists, and cannot write.
+              (cl-letf (((symbol-function 'niwa-plugins--state-session) #'ignore))
+                (should (equal '(("mine" :enabled t)) (niwa-plugins--read-state workspace)))
+                (niwa-plugins-list workspace)
+                (should-error (niwa-plugins--write-state-entry "x" '(:enabled t) workspace)
+                              :type 'user-error))
+              (should (equal before (funcall bytes)))
+              ;; A lost lease refuses the adoption inside the locked program.
+              (cl-letf (((symbol-function 'niwa-plugins--state-session) (lambda (_) 'session))
+                        ((symbol-function 'niwa-session-artifacts-call-fenced)
+                         (funcall fenced (list (list :op 'verify-hash :path legacy
+                                                     :content (make-string 64 ?0))))))
+                (should-error (niwa-plugins--write-state-entry "x" '(:enabled t) workspace)
+                              :type 'user-error))
+              (should (equal before (funcall bytes))))
+            ;; The lease owner's update adopts.
+            (cl-letf (((symbol-function 'niwa-plugins--state-session) (lambda (_) 'session))
+                      ((symbol-function 'niwa-session-artifacts-call-fenced)
+                       (funcall fenced (list (list :op 'path-exists-p :path local)))))
+              (niwa-plugins--write-state-entry "x" '(:enabled t) workspace))
+            (should-not (file-exists-p (nth 0 paths)))
+            (should (equal '("mine" "old" "x")
+                           (sort (mapcar #'car (niwa-plugins--read-state workspace))
+                                 #'string<))))
+        (delete-directory local-root t)
+        (delete-directory user-dir t)))))
+
+(niwa-deftest niwa-plugins--write-state/exclusive-first-create
+  (:doc "a creator racing the first write of absent state keeps its entry")
+  (let* ((user-dir (file-name-as-directory (make-temp-file "niwa-plugins-create-" t)))
+         (workspace-root (file-name-as-directory
+                          (make-temp-file "niwa-plugins-create-ws-" t)))
+         (workspace (niwa-plugins-test--workspace workspace-root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory (file-name-concat user-dir ".agents" "plugins"))
+         (file (niwa-plugins-state-file workspace))
+         (run (symbol-function 'niwa-session-control-fs-run-program))
+         competed)
+    (unwind-protect
+        (progn
+          (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                     (lambda (operations &rest args)
+                       (let ((at (cl-position-if
+                                  (lambda (op) (and (memq (plist-get op :op) '(write create))
+                                                    (equal file (plist-get op :path))))
+                                  operations)))
+                         (if (or competed (not at))
+                             (apply run operations args)
+                           (setq competed t)
+                           (let ((checked (apply run (seq-take operations at) args)))
+                             ;; An editor outside the lock creates the file
+                             ;; after the program's checks.
+                             (write-region (niwa-plugins--state-text '(("other" :enabled t)))
+                                           nil file nil 'silent)
+                             (append checked (apply run (nthcdr at operations) args))))))))
+            (niwa-plugins--write-state-entry "x" '(:enabled t) workspace))
+          (should competed)
+          (should (equal '(("other" :enabled t) ("x" :enabled t))
+                         (sort (niwa-plugins--read-state workspace)
+                               (lambda (a b) (string< (car a) (car b)))))))
+      (delete-directory user-dir t)
+      (delete-directory workspace-root t))))
+
 (niwa-deftest niwa-plugins-plugin-data-dir
   (:vars* ((workspace-root (file-name-as-directory
                             (make-temp-file "niwa-plugins-root-ws-" t)))
