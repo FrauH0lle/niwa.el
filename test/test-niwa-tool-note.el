@@ -268,6 +268,39 @@
         (niwa--clear-instruction-state workspace)
         (should (string-search "Kept finding" (niwa-tool-note-test--read data-buf address)))))))
 
+(niwa-deftest niwa-tool-note-write/partial-create (:quiet t)
+  ,test
+  (test)
+  :doc "tagging failure leaves a synced creation missing from retry guidance"
+  (niwa-tool-note-test--workspace
+    (let* ((queued (niwa-tool-note-test--create data-buf file))
+           (syncs 0)
+           (sync (symbol-function 'niwa-instruction-store-sync))
+           (outcome
+            (cl-letf (((symbol-function 'niwa-note-set-tags)
+                       (lambda (&rest _) (error "Injected tag failure")))
+                      ((symbol-function 'niwa-instruction-store-sync)
+                       (lambda (&rest args) (cl-incf syncs) (apply sync args))))
+              (niwa-tool-note-test--write
+               data-buf (vector (list :action "send" :id queued)
+                                (list :action "create" :file_path file :start_line 3
+                                      :text "Partial finding" :tags ["review"])))))
+           (report (plist-get outcome :result)))
+      (should (eq 'error (plist-get outcome :status)))
+      (should (string-search "Injected tag failure" report))
+      (should (= 1 syncs))
+      (kill-buffer (find-buffer-visiting file))
+      (niwa--clear-instruction-state workspace)
+      (niwa-instruction-store-observe workspace)
+      (let ((ids (mapcar (lambda (entry) (plist-get entry :uuid)) (niwa-notes-open workspace))))
+        (should (= 2 (length ids)))
+        (let ((address (concat "notes://" (car (remove queued ids)) ".md")))
+          (should (string-search "Partial finding" (niwa-tool-note-test--read data-buf address)))
+          (should-not (string-search address report))))
+      (should-not (string-search queued report))
+      (should (string-search "unsent" (niwa-tool-note-test--read
+                                       data-buf (concat "notes://" queued ".md")))))))
+
 (niwa-deftest niwa-tool-note-write/guards (:quiet t)
   ,test
   (test)
