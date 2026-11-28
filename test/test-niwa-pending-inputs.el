@@ -1398,6 +1398,47 @@
       (should (eq 'reserved
                   (niwa-prompt-submission-state submission))))))
 
+  :doc "after confirmation, an arrival survives and a newly dispatching mark refuses everything"
+  (dolist (race '(arrival dispatching))
+    (niwa-pending-inputs-test--with-session
+      (let* ((submission (niwa-prompt-submission-create
+                          :input "delete" :display-text "delete" :session session
+                          :state 'reserved))
+             (steering (niwa-session-enqueue-pending-input
+                        session 'steering (list :input "delete" :submission submission)))
+             (follow-up (niwa-session-enqueue-pending-input
+                         session 'follow-up '(:input "delete later")))
+             (restore (symbol-function 'niwa-prompt-submission-restore))
+             (releases 0) arrived)
+        (save-window-excursion
+          (let ((cockpit (with-current-buffer view-buf (niwa-pending-inputs-open))))
+            (with-current-buffer cockpit
+              (setq niwa-pending-inputs--marked-ids
+                    (list (plist-get steering :id) (plist-get follow-up :id)))
+              (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                        ;; Between confirmation and mutation, the check yields.
+                        ((symbol-function 'niwa-session-artifacts-assert-new-mutation-authority)
+                         (lambda (_)
+                           (if (eq race 'arrival)
+                               (setq arrived (niwa-session-enqueue-pending-input
+                                              session 'follow-up '(:input "arrived"))))
+                           (when (eq race 'dispatching)
+                             (plist-put follow-up :state 'dispatching))))
+                        ((symbol-function 'niwa-prompt-submission-restore)
+                         (lambda (&rest args) (cl-incf releases) (apply restore args))))
+                (if (eq race 'arrival)
+                    (niwa-pending-inputs-execute-deletions)
+                  (should-error (niwa-pending-inputs-execute-deletions) :type 'user-error))))))
+        (if (eq race 'arrival)
+            (progn
+              (should-not (niwa-session-pending-steering session))
+              (should (equal (list arrived) (niwa-session-pending-follow-ups session)))
+              (should (= 1 releases)))
+          (should (equal (list steering) (niwa-session-pending-steering session)))
+          (should (equal (list follow-up) (niwa-session-pending-follow-ups session)))
+          (should (= 0 releases))
+          (should (eq 'reserved (niwa-prompt-submission-state submission)))))))
+
 (niwa-deftest niwa-pending-inputs-resume-after-failure ()
   ,test
   (test)
@@ -1524,6 +1565,44 @@
       (should (string-match-p "1 steering and 1 follow-up" prompt))
       (should-not (niwa-session-pending-steering session))
       (should-not (niwa-session-pending-follow-ups session))))
+
+  :doc "after confirmation, an arrival survives and a newly dispatching entry refuses everything"
+  (dolist (race '(arrival dispatching))
+    (niwa-pending-inputs-test--with-session
+      (let* ((submission (niwa-prompt-submission-create
+                          :input "clear" :display-text "clear" :session session
+                          :state 'reserved))
+             (steering (niwa-session-enqueue-pending-input
+                        session 'steering (list :input "clear" :submission submission)))
+             (follow-up (niwa-session-enqueue-pending-input
+                         session 'follow-up '(:input "clear later")))
+             (restore (symbol-function 'niwa-prompt-submission-restore))
+             (releases 0) arrived)
+        (with-current-buffer view-buf
+          (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                    ;; Between confirmation and mutation, the check yields.
+                    ((symbol-function 'niwa-session-artifacts-assert-new-mutation-authority)
+                     (lambda (_)
+                       (if (eq race 'arrival)
+                           (setq arrived (niwa-session-enqueue-pending-input
+                                          session 'follow-up '(:input "arrived"))))
+                       (when (eq race 'dispatching)
+                         (plist-put follow-up :state 'dispatching))))
+                    ((symbol-function 'niwa-prompt-submission-restore)
+                     (lambda (&rest args) (cl-incf releases) (apply restore args))))
+            (niwa-test--with-captured-messages nil
+              (if (eq race 'arrival)
+                  (niwa-pending-inputs-clear)
+                (should-error (niwa-pending-inputs-clear) :type 'user-error)))))
+        (if (eq race 'arrival)
+            (progn
+              (should-not (niwa-session-pending-steering session))
+              (should (equal (list arrived) (niwa-session-pending-follow-ups session)))
+              (should (= 1 releases)))
+          (should (equal (list steering) (niwa-session-pending-steering session)))
+          (should (equal (list follow-up) (niwa-session-pending-follow-ups session)))
+          (should (= 0 releases))
+          (should (eq 'reserved (niwa-prompt-submission-state submission)))))))
 
   :doc "quiescing authority preserves both queues"
   (niwa-pending-inputs-test--with-session

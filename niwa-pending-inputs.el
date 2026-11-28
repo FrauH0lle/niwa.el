@@ -711,17 +711,27 @@ Clear SUBMITTED-DRAFT only if the composer still holds that exact text."
                       (plist-get entry :id))))
     (niwa-diagnostic-user-error (niwa-cockpit-diagnostic-scope) "Pending input conversion is still running")))
 
-(defun niwa-pending-inputs--remove (session entry &optional validate)
-  "Remove SESSION's ENTRY after checking authority and delivery ownership.
-Call VALIDATE, when non-nil, immediately before removal, after yielding checks."
+(defun niwa-pending-inputs--remove (session entries &optional validate)
+  "Remove confirmed ENTRIES from SESSION's queues as one checked operation.
+Check authority, then each entry's live ownership, then VALIDATE when non-nil;
+any refusal leaves every queue unchanged.  Remove only ENTRIES, keeping input
+that arrived meanwhile, then release each removed entry's reserved context."
   (niwa-session-artifacts-assert-new-mutation-authority session)
-  ;; Authority checks can yield to a transport.  Recheck the live entry last.
-  (niwa-pending-inputs--assert-removable session entry)
+  ;; Authority checks can yield to a transport.  Recheck the live entries last.
+  (dolist (entry entries)
+    (niwa-pending-inputs--assert-removable session entry))
   (when validate (funcall validate))
-  (let ((category (plist-get entry :category)))
+  ;; Write the queues before releasing context: a failed write must not leave
+  ;; a queued entry whose reservation is already gone.
+  (cl-flet ((keep (queue)
+              (if (cl-some (lambda (entry) (memq entry entries)) queue)
+                  (cl-remove-if (lambda (entry) (memq entry entries)) queue)
+                queue)))
     (niwa-pending-inputs--set-queues
-     session category (remq entry (niwa-session-pending-inputs session category))))
-  (niwa-pending-inputs--discard (list entry)))
+     session
+     'steering (keep (niwa-session-pending-steering session))
+     'follow-up (keep (niwa-session-pending-follow-ups session))))
+  (niwa-pending-inputs--discard entries))
 
 ;;;###autoload
 (defun niwa-pending-inputs-drop-at-point ()
@@ -741,7 +751,7 @@ Call VALIDATE, when non-nil, immediately before removal, after yielding checks."
                               :test #'equal))))
     (unless entry (niwa-diagnostic-user-error (niwa-cockpit-diagnostic-scope) "No queued pending input on this row"))
     (niwa-view--assert-live-tip)
-    (niwa-pending-inputs--remove session entry)
+    (niwa-pending-inputs--remove session (list entry))
     (niwa-view--interaction-rebuild)))
 
 (defun niwa-pending-inputs--assert-retract-composer ()
@@ -779,7 +789,7 @@ Delivery is not paused; an entry already being dispatched cannot be withdrawn."
     (unless entry (niwa-diagnostic-user-error (niwa-cockpit-diagnostic-scope) "No pending input to retract"))
     (niwa-pending-inputs--assert-retract-composer)
     (niwa-pending-inputs--remove
-     session entry
+     session (list entry)
      #'niwa-pending-inputs--assert-retract-composer)
     (niwa-view--restore-composer-snapshot
      (list :text text :point-offset (length text)
@@ -2139,18 +2149,7 @@ input it could not take becomes the next turns, in submission order."
                    (if (= 1 (+ (length steering) (length follow-ups)))
                        ""
                      "s")))
-      (niwa-session-artifacts-assert-new-mutation-authority session)
-      (dolist (entry (append steering follow-ups))
-        (niwa-pending-inputs--assert-removable session entry))
-      (niwa-pending-inputs--discard (append steering follow-ups))
-      (niwa-pending-inputs--set-queues
-       session
-       'steering (cl-remove-if
-                  (lambda (entry) (memq entry steering))
-                  (niwa-session-pending-steering session))
-       'follow-up (cl-remove-if
-                   (lambda (entry) (memq entry follow-ups))
-                   (niwa-session-pending-follow-ups session)))
+      (niwa-pending-inputs--remove session (append steering follow-ups))
       (setq niwa-pending-inputs--marked-ids nil)
       (niwa-pending-inputs--refresh))))
 
@@ -2173,12 +2172,8 @@ input it could not take becomes the next turns, in submission order."
                    (if (= 1 (+ (length steering) (length follow-ups)))
                        ""
                      "s")))
-      (niwa-session-artifacts-assert-new-mutation-authority session)
-      (dolist (entry (append steering follow-ups))
-        (niwa-pending-inputs--assert-removable session entry))
-      (niwa-pending-inputs--discard (append steering follow-ups))
-      (niwa-pending-inputs--set-queues
-       session 'steering nil 'follow-up nil)
+      ;; Clear the confirmed selection only; input arriving meanwhile stays.
+      (niwa-pending-inputs--remove session (append steering follow-ups))
       (when (buffer-live-p view)
         (with-current-buffer view
           (niwa-view--interaction-rebuild)))

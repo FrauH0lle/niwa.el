@@ -132,7 +132,7 @@
                   session 'follow-up '(:input "racing"))))
       (cl-letf (((symbol-function 'niwa-session-artifacts-assert-new-mutation-authority)
                  (lambda (_) (plist-put entry :delivering t))))
-        (should-error (niwa-pending-inputs--remove session entry) :type 'user-error))
+        (should-error (niwa-pending-inputs--remove session (list entry)) :type 'user-error))
       (should (eq entry (car (niwa-session-pending-follow-ups session))))))
   :doc "refuses foreign mutation authority before touching input or its context"
   (niwa-pending-management-test--with-session
@@ -140,7 +140,7 @@
                   session 'follow-up '(:input "read only"))))
       (cl-letf (((symbol-function 'niwa-session-artifacts-assert-new-mutation-authority)
                  (lambda (_) (user-error "Session is read-only"))))
-        (should-error (niwa-pending-inputs--remove session entry) :type 'user-error))
+        (should-error (niwa-pending-inputs--remove session (list entry)) :type 'user-error))
       (should (eq entry (car (niwa-session-pending-follow-ups session)))))))
 
 (niwa-deftest niwa-pending-inputs-drop-at-point ()
@@ -361,7 +361,7 @@
       (niwa-tools-steering-claim session (list first second))
       (dolist (entry (list first second))
         (should (plist-get entry :delivering))
-        (should-error (niwa-pending-inputs--remove session entry) :type 'user-error))
+        (should-error (niwa-pending-inputs--remove session (list entry)) :type 'user-error))
       (with-current-buffer view-buf
         (should-error (niwa-view-retract-pending) :type 'user-error))))
   :doc "rejects a stale snapshot without partially reserving its remaining entries"
@@ -410,8 +410,8 @@
       (should (equal "sent" (plist-get (aref (plist-get data :messages) 0) :content)))
       (should (plist-get first :delivering))
       (should-not (plist-get second :delivering))
-      (should-error (niwa-pending-inputs--remove session first) :type 'user-error)
-      (niwa-pending-inputs--remove session second)
+      (should-error (niwa-pending-inputs--remove session (list first)) :type 'user-error)
+      (niwa-pending-inputs--remove session (list second))
       (should (equal (list first) (niwa-session-pending-steering session))))))
 
 (niwa-deftest niwa-tools-steering-expand/abort-reentry (:quiet t)
