@@ -1070,8 +1070,9 @@ ENTRIES is an alist of logical names and their content strings."
              (niwa-session-artifacts--call-with-first-allocation
               session
               (lambda ()
-                (should (string-match-p
-                         "save not published.*Retry"
+                (should (equal
+                         (concat "The first save is still running. "
+                                 "This save didn't finish; try again after the first save finishes.")
                          (error-message-string
                           (should-error (funcall original session buffer nil t)
                                         :type 'user-error))))

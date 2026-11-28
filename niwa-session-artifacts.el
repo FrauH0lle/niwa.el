@@ -2092,7 +2092,8 @@ and returns nil.  A strict synchronous caller must retry after allocation."
   (if (niwa-session-allocation-in-progress session)
       (progn
         (when (or settled force)
-          (user-error "Session is still allocating; save not published.  Retry after allocation"))
+          (user-error "%s" (concat "The first save is still running. "
+                                   "This save didn't finish; try again after the first save finishes.")))
         (niwa-session-artifacts-defer-first-save
          session (niwa-session-persistence-authoritative-buffer buffer))
         nil)
