@@ -418,6 +418,30 @@ async function testTransportLifecycle() {
   assert.deepEqual(received, [2, 4]);
   assert.deepEqual(events, ['Connecting…']); // Neither frame nor close leaked from the old socket.
 
+  const clock = require('node:test').mock.timers;
+  clock.enable({apis: ['setTimeout']});
+  try {
+    window.setTimeout = setTimeout;
+    context.clearTimeout = clearTimeout;
+    events.length = 0;
+    finalSocket.dispatch('message', {data: staleInbound.buffer});
+    finalSocket.dispatch('message', {data: staleInbound.buffer});
+    await tick();
+    finalSocket.close();
+    clock.tick(2999);
+    await tick();
+    assert.deepEqual(events, []);
+    clock.tick(1);
+    await tick();
+    assert.deepEqual(events, ['Reconnecting…']);
+    clock.tick(1000);
+    assert.notEqual(sockets.at(-1), finalSocket);
+    finishDecrypts.shift()();
+    await tick();
+    assert.deepEqual(events, ['Reconnecting…', 'Connecting…']);
+    assert.equal(finishDecrypts.length, 0, 'the remaining retired frame never decrypts');
+  } finally { clock.reset(); }
+
   retry = null;
   transport.end();
   assert.equal(sockets.at(-1).readyState, Socket.CLOSED);

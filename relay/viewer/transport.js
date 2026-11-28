@@ -2,6 +2,8 @@
 'use strict';
 
 (() => {
+  const CLOSE_DRAIN_MS = 3000;
+
   function base64urlDecode(text) {
     if (typeof text !== 'string' || !/^[A-Za-z0-9_-]+$/.test(text)) return null;
     const standard = text.replace(/-/g, '+').replace(/_/g, '/');
@@ -201,8 +203,14 @@
         }).catch(() => {}).finally(()=>{queuedBytes-=event.data.byteLength;queuedFrames--;});
       });
       nextSocket.addEventListener('close', async event => {
+        if (socket !== nextSocket || ended) return;
         // A final handoff may be on the wire before close but still decrypting.
-        if (queuedFrames) await inbound;
+        if (queuedFrames) {
+          let timer;
+          const deadline = new Promise(done => { timer = window.setTimeout(done, CLOSE_DRAIN_MS); });
+          await Promise.race([inbound, deadline]);
+          clearTimeout(timer);
+        }
         if (socket !== nextSocket || ended) return;
         socket = null;
         binding = null;
