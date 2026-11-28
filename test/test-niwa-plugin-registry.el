@@ -762,6 +762,35 @@
             (should (equal '(("demo" :enabled t :hooks-enabled nil) ("x" :enabled t))
                            (niwa-plugins--read-state workspace))))
         (delete-directory local-root t))))
+  :doc "a malformed state, consent or legacy file keeps every byte"
+  (let* ((local (niwa-plugins-state-file workspace))
+         (project (niwa-plugins--project-state-file workspace))
+         (consent (niwa-plugins--consent-file))
+         (bad "((\"demo\" :enabled t)\n")
+         (bytes (lambda (file)
+                  (with-temp-buffer (insert-file-contents-literally file) (buffer-string)))))
+    (make-directory (file-name-directory local) t)
+    ;; Workspace state: the update refuses and names the file.
+    (write-region bad nil local nil 'silent)
+    (should (string-search local (cadr (should-error
+                                        (niwa-plugins--write-state-entry
+                                         "x" '(:enabled t) workspace)
+                                        :type 'user-error))))
+    (should (equal bad (funcall bytes local)))
+    ;; The user's consent store.
+    (delete-file local)
+    (make-directory (file-name-directory consent) t)
+    (write-region bad nil consent nil 'silent)
+    (should-error (niwa-plugins--write-state
+                   '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f"))
+                   workspace)
+                  :type 'user-error)
+    (should (equal bad (funcall bytes consent)))
+    ;; A migration input: the legacy file is not adopted.
+    (delete-file consent)
+    (write-region bad nil project nil 'silent)
+    (niwa-plugins--read-state workspace)
+    (should (equal bad (funcall bytes project))))
   :doc "a failed Git query leaves the top-level file alone"
   (let ((project (niwa-plugins--project-state-file workspace))
         (process (symbol-function 'process-file)))

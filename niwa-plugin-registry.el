@@ -470,7 +470,12 @@ changed, so another client's consent or revocation survives."
                          (lambda (record)
                            (and (equal key (plist-get record :workspace))
                                 (assoc (plist-get record :plugin) changes)))
-                         (niwa-plugins--read-consent)))
+                         (let ((file (niwa-plugins--consent-file)))
+                           (and (file-exists-p file)
+                                (niwa-plugins--parse-strict
+                                 (with-temp-buffer (insert-file-contents file)
+                                                   (buffer-string))
+                                 file)))))
                (print-length nil) (print-level nil))
            (pcase-dolist (`(,name ,source ,plist) changes)
              ;; A revocation is kept too, so it reads back as written.
@@ -479,6 +484,26 @@ changed, so another client's consent or revocation survives."
                      records)))
            (niwa--write-file-atomically (niwa-plugins--consent-file)
                                         (prin1-to-string records))))))))
+
+(defun niwa-plugins--parse-strict (text file)
+  "Return the plugin state alist TEXT holds, read from FILE.
+Blank TEXT is a valid empty state.  Anything else that is not one list of
+entries signals naming FILE, so an update never replaces state it could
+not read."
+  (if (string-blank-p text)
+      nil
+    (car (or (condition-case nil
+                 (let* ((read-eval nil)
+                        (form (read-from-string text))
+                        (state (car form)))
+                   (and (listp state)
+                        (string-blank-p (replace-regexp-in-string
+                                         "^[ \t]*;.*$" "" (substring text (cdr form))))
+                        (cl-every #'consp state)
+                        (list state)))
+               (error nil))
+             (user-error "Plugin state %s cannot be read; repair or remove it"
+                         file)))))
 
 (defun niwa-plugins--parse-state (text)
   "Return the plugin state alist TEXT holds, or nil when it is unreadable."
@@ -565,10 +590,11 @@ more.  A concurrent change leaves the file for the next read."
                           (and (eq (plist-get result :status) 'ok)
                                (niwa-session-control-fs-program-value result)))
                         reads))
-         (state (mapcar (lambda (data)
-                          (and data (niwa-plugins--parse-state
-                                     (decode-coding-string data 'utf-8-unix))))
-                        bytes)))
+         ;; An unreadable input refuses the adoption and stays as it is.
+         (state (cl-mapcar (lambda (data file)
+                             (and data (niwa-plugins--parse-strict
+                                        (decode-coding-string data 'utf-8-unix) file)))
+                           bytes (list legacy local base))))
     ;; Recheck the index right before anything destructive.
     (when (and (car state) (eq 'untracked (niwa-plugins--tracking workspace legacy t)))
       (let ((results
@@ -661,10 +687,11 @@ the `.niwa/' lock, remotely just before the lease-checked publication."
                                    (list :op 'read :path file :coding 'no-conversion
                                          :optional t))
                                  files))))
-         (parsed (mapcar (lambda (data)
-                           (and data (niwa-plugins--parse-state
-                                      (decode-coding-string data 'utf-8-unix))))
-                         bytes))
+         ;; Unreadable state refuses the update rather than reading as empty.
+         (parsed (cl-mapcar (lambda (data file)
+                              (and data (niwa-plugins--parse-strict
+                                         (decode-coding-string data 'utf-8-unix) file)))
+                            bytes files))
          (activation (lambda (state)
                        (mapcar (lambda (entry)
                                  (cons (car entry) (niwa-plugins--keys (cdr entry))))
