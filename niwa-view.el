@@ -77,6 +77,7 @@
 ;; `niwa-pending-inputs'
 (declare-function niwa-pending-inputs-clear
                   "niwa-pending-inputs" ())
+(defvar niwa-pending-inputs--event-trigger)
 
 ;; `niwa-permission-queue'
 (declare-function niwa-permission-queue-abort-all
@@ -805,6 +806,8 @@ and request progress row.  An editable view owns a separate composer buffer.
   (add-hook 'pre-redisplay-functions #'niwa-composer-invalidate-transcript-end nil t)
   ;; Keep pixel scrolling a forced redisplay start would drop under the caret.
   (add-hook 'pre-redisplay-functions #'niwa-view--note-redisplay-vscroll nil t)
+  ;; The pinned prompt header reads this answer; it must not measure itself.
+  (add-hook 'pre-redisplay-functions #'niwa-view--note-prompt-on-screen nil t)
   (add-hook 'window-scroll-functions #'niwa-view--restore-redisplay-vscroll nil t)
   ;; Resizing (`delete-other-windows', a taller frame) can bring a span
   ;; into view without scrolling, and changes the rail's width.
@@ -1214,6 +1217,26 @@ An unreadable or stale segment cannot supply a clickable prompt."
         (kill-buffer archive)))
     result))
 
+(defun niwa-view--background-trigger-entry-p (entry)
+  "Return non-nil when prompt-index ENTRY is a background-work trigger.
+The index numbers every user region, including the fixed prompt that
+starts a turn for reported background work.  That prompt never governs
+the conversation, so the pinned prompt looks past it.  A preview matches
+when it is the whole trigger, or visibly truncated and a long prefix of
+it; a user prompt that merely starts like the trigger is kept."
+  (when-let* ((trigger (bound-and-true-p niwa-pending-inputs--event-trigger))
+              (preview (plist-get entry :preview))
+              ((stringp preview))
+              (preview (string-trim preview)))
+    (or (equal preview trigger)
+        (when-let* ((marker (cl-find-if (lambda (marker)
+                                          (string-suffix-p marker preview))
+                                        '("..." "…")))
+                    (text (string-trim-right
+                           (string-remove-suffix marker preview))))
+          (and (>= (length text) (min 60 (length trigger)))
+               (string-prefix-p text trigger))))))
+
 (defun niwa-view--refresh-continuation-prompt (data-buffer historical-p)
   "Cache the prompt governing DATA-BUFFER's compacted live segment.
 Resolve archives only on source projection, never during header redisplay."
@@ -1246,13 +1269,21 @@ Resolve archives only on source projection, never during header redisplay."
                               (when indexed
                                 (if (>= skip (length indexed))
                                     (setq skip (- skip (length indexed)))
-                                  ;; An indexed but invalid origin is not a
-                                  ;; reason to jump past it to an older prompt.
-                                  (throw 'found
-                                         (niwa-view--archived-prompt
-                                          session previous
-                                          (nth (- (length indexed) skip 1)
-                                               indexed))))))
+                                  (let ((entry
+                                         (cl-find-if-not
+                                          #'niwa-view--background-trigger-entry-p
+                                          (reverse (seq-take indexed
+                                                             (- (length indexed)
+                                                                skip))))))
+                                    (setq skip 0)
+                                    ;; An indexed but invalid origin is not a
+                                    ;; reason to jump past it to an older
+                                    ;; prompt.  Only background triggers are
+                                    ;; passed over, possibly into older segments.
+                                    (when entry
+                                      (throw 'found
+                                             (niwa-view--archived-prompt
+                                              session previous entry)))))))
                             ;; A fresh segment has no summary.  Do not cross
                             ;; /clear even after later compactions.
                             (let ((archive
@@ -1439,6 +1470,26 @@ text layout changes: size, wrapping, text scale, line spacing or font."
                               (cons key visible))
         visible))))
 
+(defun niwa-view--note-prompt-on-screen (window)
+  "Answer whether a prompt is on screen in WINDOW before it is redisplayed.
+The header line must not measure: a pixel probe run while Emacs draws
+the header formats that same header row and leaves it blank.  So the
+answer is computed here, outside header formatting, and the header only
+reads it."
+  (when (and (window-live-p window)
+             (eq (window-buffer window) (current-buffer))
+             (niwa-view--continuation-prompt))
+    (niwa-view--prompt-on-screen-p window)))
+
+(defun niwa-view--prompt-on-screen-noted-p (window)
+  "Return WINDOW's last answer from `niwa-view--note-prompt-on-screen'.
+A layout change since then shows the previous answer for one frame
+rather than blanking the header.  An answer noted for another buffer
+the window showed does not apply."
+  (let ((noted (window-parameter window 'niwa-view--prompt-on-screen)))
+    (and (eq (car-safe (car-safe noted)) (current-buffer))
+         (cdr noted))))
+
 (defun niwa-view--sticky-prompt-line ()
   "Return the current window's pinned prompt on its own header line."
   (let* ((window (selected-window))
@@ -1453,7 +1504,7 @@ text layout changes: size, wrapping, text scale, line spacing or font."
                         (not (get-text-property
                               (window-start window)
                               'niwa-view-prompt-preview))
-                        (not (niwa-view--prompt-on-screen-p window))
+                        (not (niwa-view--prompt-on-screen-noted-p window))
                         continuation))
          (pinned (or local archived)))
     (when pinned

@@ -32,6 +32,9 @@
              (setq-local niwa-view--continuation-prompt-cache
                          '(nil nil nil nil (:segment 1 :pos 1 :preview "Archived prompt")))
              (setq-local header-line-format '(:eval (niwa-view--sticky-prompt-line)))
+             ;; As the view's mode setup does; the header only reads its answer.
+             (add-hook 'pre-redisplay-functions
+                       #'niwa-view--note-prompt-on-screen nil t)
              (goto-char (point-min))
              (set-window-start nil (point-min) t)
              (let ((probe (lambda (original &rest args)
@@ -46,7 +49,6 @@
                    (let (visible hidden)
                      (redisplay t)
                      (sit-for 0.05)
-                     (set-window-parameter nil 'niwa-view--prompt-on-screen nil)
                      (setq visible (niwa-view--sticky-prompt-line))
                      ;; A content change invalidates the per-window answer.
                      (goto-char (point-min))

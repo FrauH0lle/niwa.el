@@ -1035,10 +1035,14 @@
                                (vertical-motion (window-body-height))
                                (point))))
                   (should-not (invisible-p header))
+                  ;; Batch has no redisplay; note the answer as it would.
+                  (niwa-view--note-prompt-on-screen (selected-window))
                   (should-not (niwa-view--sticky-prompt-line))
                   (set-window-start nil header t)
+                  (niwa-view--note-prompt-on-screen (selected-window))
                   (should-not (niwa-view--sticky-prompt-line))
                   (set-window-start nil answer t)
+                  (niwa-view--note-prompt-on-screen (selected-window))
                   (should (string-search "New local prompt"
                                          (niwa-view--sticky-prompt-line))))
                 ;; An empty fresh segment is a /clear boundary, even if
@@ -2384,7 +2388,115 @@
       (cl-letf (((symbol-function 'niwa-view--prompt-on-screen-p)
                  (lambda (_) (error "Walked the window")))
                 ((symbol-function 'niwa-view--continuation-prompt) #'ignore))
-        (should-not (niwa-view--sticky-prompt-line))))))
+        (should-not (niwa-view--sticky-prompt-line)))))
+
+  :doc "the header reads the pre-redisplay answer and never measures itself"
+  (save-window-excursion
+    (with-temp-buffer
+      (insert "Answer\n"
+              (propertize "Prompt\n" 'niwa-view-prompt-preview "Prompt"))
+      (set-window-buffer (selected-window) (current-buffer))
+      (set-window-start nil (point-min) t)
+      (let ((window (selected-window))
+            (visible t) (probes 0))
+        (set-window-parameter window 'niwa-view--prompt-on-screen nil)
+        (cl-letf (((symbol-function 'niwa-view--continuation-prompt)
+                   (lambda () '(:segment 1 :pos 1 :preview "Archived prompt")))
+                  ((symbol-function 'niwa-view--prompt-on-screen-p)
+                   (lambda (_) (cl-incf probes) visible))
+                  ((symbol-function 'niwa-view--pinned-prompt) #'ignore))
+          ;; Without a noted answer the archived prompt shows, unprobed.
+          (should (string-search "Archived prompt" (niwa-view--sticky-prompt-line)))
+          (should (= probes 0))
+          (set-window-parameter window 'niwa-view--prompt-on-screen
+                                (cons (list (current-buffer)) t))
+          (should-not (niwa-view--sticky-prompt-line))
+          (should (= probes 0))
+          ;; An answer noted while the window showed another buffer.
+          (set-window-parameter window 'niwa-view--prompt-on-screen
+                                (cons (list (get-buffer-create " other")) t))
+          (should (string-search "Archived prompt" (niwa-view--sticky-prompt-line)))
+          ;; The pre-redisplay hook is what measures.
+          (setq visible nil)
+          (niwa-view--note-prompt-on-screen window)
+          (should (= probes 1))
+          (set-window-parameter window 'niwa-view--prompt-on-screen
+                                (list (list (current-buffer))))
+          (should (string-search "Archived prompt" (niwa-view--sticky-prompt-line)))
+          (should (= probes 1))))))
+
+  :doc "only the generated trigger, whole or truncated, counts as background"
+  (let ((niwa-pending-inputs--event-trigger
+         (concat "Background work has reported; its messages follow. "
+                 "This is not a message from the user.")))
+    (should (niwa-view--background-trigger-entry-p
+             (list :preview niwa-pending-inputs--event-trigger)))
+    (should (niwa-view--background-trigger-entry-p
+             (list :preview (concat (substring niwa-pending-inputs--event-trigger 0 75)
+                                    "..."))))
+    (should-not (niwa-view--background-trigger-entry-p
+                 (list :preview "Background work has reported; its messages follow.")))
+    (should-not (niwa-view--background-trigger-entry-p
+                 (list :preview "Background work has reported; its messages follow. Why?")))
+    (should-not (niwa-view--background-trigger-entry-p
+                 (list :preview "Background work has...")))))
+
+(niwa-deftest niwa-view--continuation-prompt-skips-background-trigger
+  (:doc "a compacted continuation pins the user prompt, not a background trigger")
+  (let* ((directory (make-temp-file "niwa-flicker-" t))
+         (path (niwa-session-artifacts-segment-path directory 1))
+         (session (test-niwa-session-persistence--leased-session
+                   directory :name "flicker" :current-segment 2)))
+    (unwind-protect
+        (progn
+          (with-temp-buffer
+            (org-mode)
+            (insert ":PROPERTIES:\n:GPTEL_BOUNDS: nil\n:END:\n\n")
+            (insert "Real user prompt\n")
+            (insert (propertize "Answer\n" 'gptel 'response))
+            (insert niwa-pending-inputs--event-trigger "\n")
+            (insert (propertize "Answer to event\n" 'gptel 'response))
+            ;; Writing the bounds moves the text they describe; repeat
+            ;; until the recorded positions settle.
+            (dotimes (_ 4)
+              (let (bounds)
+                (goto-char (point-min))
+                (dolist (answer '("Answer\n" "Answer to event"))
+                  (search-forward answer)
+                  (push (list 'response (list (match-beginning 0) (match-end 0)))
+                        bounds))
+                (org-entry-put (point-min) "GPTEL_BOUNDS"
+                               (prin1-to-string (nreverse bounds)))))
+            (let ((index (niwa-session-artifacts-collect-prompts (current-buffer))))
+              (should (= 2 (length index)))
+              (setf (niwa-session-prompt-index session)
+                    (list (cons 1 (cl-loop for prompt in index for i from 1
+                                           collect (append prompt
+                                                           (list :cum-turn i)))))))
+            (niwa-view-test--publish session path (buffer-string)))
+          (save-window-excursion
+            (niwa-view-test--with-buffers
+              (with-current-buffer data-buf
+                (setq-local niwa--session session)
+                (insert (niwa-session-artifacts-summary-block "summary"))
+                (insert (propertize
+                         (apply #'concat (make-list 80 "Continuation answer\n"))
+                         'gptel 'response)))
+              (with-current-buffer view-buf
+                (switch-to-buffer view-buf)
+                (niwa-view--full-rerender)
+                (should (equal "Real user prompt"
+                               (plist-get (niwa-view--continuation-prompt)
+                                          :preview)))
+                (goto-char (point-min))
+                (forward-line 30)
+                (set-window-start nil (point) t)
+                (let ((line (niwa-view--sticky-prompt-line)))
+                  (should (string-search "Real user prompt" line))
+                  (should-not (string-search "Background work" line)))))))
+      (niwa-session-persistence-lock-release directory session)
+      (niwa-workspace-clear-registry)
+      (delete-directory directory t))))
 
 (niwa-deftest niwa-view--status-strip-abbreviated
   (:doc "Reuses a root abbreviation and replaces it when the root changes.")
