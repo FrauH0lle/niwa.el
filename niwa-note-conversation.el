@@ -301,10 +301,10 @@ Provider policy, request-time mentions and tools are assembled only on send."
     (pop-to-buffer buffer)
     buffer))
 
-(cl-defun niwa-note-conversation--send-notes (notes &key no-display defer-write)
+(cl-defun niwa-note-conversation--send-notes (notes &key no-display defer-write on-effect)
   "Send or reopen NOTES in one session and return its view.
 NO-DISPLAY leaves windows and focus alone.  DEFER-WRITE leaves the store
-sync to the caller's batch."
+sync to the caller's batch.  ON-EFFECT is as in `niwa-note-send-batch'."
   (unless notes (user-error "Choose at least one note"))
   (require 'niwa-note-settings)
   (let* ((note (car notes))
@@ -343,7 +343,8 @@ sync to the caller's batch."
                         notes)))
         (dolist (item members)
           (when (eq 'buddy (overlay-get item 'niwa-note-author))
-            (niwa-note-keep item)))
+            (niwa-note-keep item (and on-effect
+                                      (lambda () (funcall on-effect 'keep-from-buddy (list item)))))))
         (condition-case err
             (with-current-buffer data
               (if id
@@ -362,6 +363,8 @@ sync to the caller's batch."
           ((error quit)
            (unless id (niwa-chat-discard-buffers data t))
            (signal (car err) (cdr err))))
+        (when on-effect
+          (funcall on-effect (if initial 'dispatched 'reopened) members))
         (when (or initial (cl-some (lambda (item)
                                      (not (eq 'sent (overlay-get item 'niwa-note-state))))
                                    notes))
@@ -391,11 +394,14 @@ NO-DISPLAY leaves focus alone; DEFER-WRITE lets a batch caller sync the store."
                                        :no-display no-display :defer-write defer-write))
 
 ;;;###autoload
-(cl-defun niwa-note-send-batch (notes &key no-display defer-write)
+(cl-defun niwa-note-send-batch (notes &key no-display defer-write on-effect)
   "Send NOTES together in one conversation and return its view.
 An already sent batch reopens its session.  Mixing existing conversations
 refuses rather than losing either thread.  Interactively, choose loaded notes.
-NO-DISPLAY leaves focus alone; DEFER-WRITE lets a batch caller sync the store."
+NO-DISPLAY leaves focus alone; DEFER-WRITE lets a batch caller sync the store.
+ON-EFFECT, if non-nil, receives (KIND NOTES): `keep-from-buddy' with each
+kept note in a singleton list before rendering, `dispatched' with submitted
+members or `reopened' with requested notes before marking."
   (interactive
    (progn
      (niwa--instruction-activate-buffer)
@@ -408,7 +414,8 @@ NO-DISPLAY leaves focus alone; DEFER-WRITE lets a batch caller sync the store."
        (list (mapcar (lambda (choice) (cdr (assoc choice choices)))
                      (completing-read-multiple "Send notes: " choices nil t))))))
   (niwa-note-conversation--send-notes (delete-dups (copy-sequence notes))
-                                       :no-display no-display :defer-write defer-write))
+                                      :no-display no-display :defer-write defer-write
+                                      :on-effect on-effect))
 
 (provide 'niwa-note-conversation)
 ;;; niwa-note-conversation.el ends here

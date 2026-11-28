@@ -80,10 +80,12 @@ and waits for the user's apply command; ask rules do not prompt for preparation.
 An invalid or forbidden suggestion refuses that create operation. Apply uses
 the normal prepared-change stale checks and transaction.
 
-One call syncs the workspace store once, including completed operations before
-a later failure. Such failures report completed operations and their UUID
-addresses so callers do not duplicate them on retry. Sends are batched after
-the other operations. Created notes show `agent` as author. Users can dismiss
+If a batch changes notes, it syncs the workspace store once, even on error.
+An error reports effects and their UUID addresses, not just whole operations:
+if creation succeeds but attachment fails, do not create the note again.
+Sends are batched after the other operations. A queued send is not reported
+as complete; a submitted turn is, even if marking the note sent later fails.
+Created notes show `agent` as author. Users can dismiss
 one with `niwa-note-dismiss`, or all agent-authored notes in the workspace
 with `niwa-note-dismiss-agent-notes`; the latter also syncs once and leaves
 user notes and Buddy remarks alone.

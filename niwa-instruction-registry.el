@@ -195,8 +195,9 @@ Each value is a plist with keys `:instructions', `:id-counter',
                         (nth 2 snapshot) (nth 3 snapshot)
                         (nth 1 snapshot)))))))
 
-(defun niwa--delete-instruction-overlay (instruction)
-  "Remove INSTRUCTION and its auxiliary presentation overlays."
+(defun niwa--delete-instruction-overlay (instruction &optional on-deleted)
+  "Remove INSTRUCTION and its auxiliary presentation overlays.
+If supplied, call ON-DELETED with the detached INSTRUCTION before refreshing."
   (let* ((label (overlay-get instruction 'niwa-label-overlay))
          (buffer (and label (overlay-buffer label)))
          (end (and buffer (overlay-end label)))
@@ -207,6 +208,7 @@ Each value is a plist with keys `:instructions', `:id-counter',
         (delete-overlay overlay)
         (overlay-put instruction property nil)))
     (delete-overlay instruction)
+    (when on-deleted (funcall on-deleted instruction))
     (when buffer
       (with-current-buffer buffer
         (niwa-notes--refresh-label-stacks-in start end)))))

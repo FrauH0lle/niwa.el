@@ -305,8 +305,7 @@
                                        data-buf (concat "notes://" queued ".md"))))
       (should-not (string-search queued report)))))
 
-;; arch-brief-next item 5: creation is not yet reported when tagging fails.
-(niwa-deftest niwa-tool-note-write/partial-create-retry (:quiet t :expected-result :failed)
+(niwa-deftest niwa-tool-note-write/partial-create-retry (:quiet t)
   ,test
   (test)
   :doc "retry guidance identifies the created note, not the undispatched send"
@@ -315,6 +314,29 @@
                  (niwa-tool-note-test--partial-create data-buf file workspace)))
       (should-not (string-search queued report))
       (should (string-search address report)))))
+
+(niwa-deftest niwa-tool-note-write/incomplete-attachment (:quiet t)
+  ,test
+  (test)
+  :doc "attachment failure identifies the created note and the outstanding change"
+  (niwa-tool-note-test--workspace
+    (require 'niwa-note-change)
+    (let* ((outcome
+            (cl-letf (((symbol-function 'niwa-note-change--base-extent)
+                       (lambda (&rest _) (error "Injected extent failure"))))
+              (niwa-tool-note-test--write
+               data-buf (vector (list :action "create" :file_path file :start_line 2
+                                      :prepared_change
+                                      "*** Begin Patch\n*** Update File: source.txt\n@@\n-old\n+new\n*** End Patch")))))
+           (report (plist-get outcome :result))
+           (entry (car (niwa-notes-open workspace)))
+           (note (niwa-note-resolve (plist-get entry :uuid) workspace))
+           (label (format "Note #%s notes://%s.md" (overlay-get note 'niwa-id) (plist-get entry :uuid))))
+      (should (eq 'error (plist-get outcome :status)))
+      (should (string-search "Injected extent failure" report))
+      (should (string-search (concat "create " label) report))
+      (should (string-search (concat "Incomplete:\nprepared change not attached to " label) report))
+      (should-not (overlay-get note 'niwa-note-prepared-change)))))
 
 (niwa-deftest niwa-tool-note-write/guards (:quiet t)
   ,test
@@ -571,6 +593,34 @@
             (should (= 1 restores)))
         (advice-remove 'niwa-notes-open count-build)
         (advice-remove 'niwa--restore-file-instructions count-restore)))))
+
+(niwa-deftest niwa-tool-note-write/post-submit-mark-failure (:quiet t)
+  ,test
+  (test)
+  :doc "retry text identifies the submitted note even when marking it sent fails"
+  (niwa-tool-note-test--workspace
+    (require 'niwa-chat) ; Load the transport owner before replacing its entry point.
+    (let* ((id (niwa-tool-note-test--create data-buf file))
+           (gptel--known-presets nil)
+           (niwa-preset--registry nil)
+           (transcripts nil)
+           (outcome
+            (cl-letf (((symbol-function 'niwa--send-request)
+                       (lambda (&rest _) (push (buffer-string) transcripts)))
+                      ((symbol-function 'niwa-note-mark-sent)
+                       (lambda (&rest _) (error "Injected mark failure"))))
+              (niwa-define-preset niwa-test-send :description "Isolated note conversation")
+              (overlay-put (niwa-note-resolve id workspace) 'niwa-note-settings
+                           '(:preset niwa-test-send))
+              (niwa-tool-note-test--write data-buf (vector (list :action "send" :id id)))))
+           (report (plist-get outcome :result)))
+      (ert-info (report)
+        (should (= 1 (length transcripts)))
+        (should (string-search "Finding" (car transcripts)))
+        (should (eq 'error (plist-get outcome :status)))
+        (should (string-search "Injected mark failure" report))
+        (should (string-match-p (concat "dispatched Note #[0-9]+ notes://"
+                                        (regexp-quote id) "\\.md") report))))))
 
 (provide 'test-niwa-tool-note)
 ;;; test-niwa-tool-note.el ends here

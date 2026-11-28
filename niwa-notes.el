@@ -615,9 +615,10 @@ Refuse unavailable sources before a caller starts mutating the notes."
   tags)
 
 ;;;###autoload
-(defun niwa-note-set-tags (tags &optional note)
+(defun niwa-note-set-tags (tags &optional note on-changed)
   "Replace NOTE's tags with TAGS, a list of symbols.
-Default to the note at point.  An empty list removes every tag."
+Default to the note at point.  An empty list removes every tag.
+If supplied, call ON-CHANGED with NOTE after setting tags, before rendering."
   (interactive
    (let ((note (niwa-notes--at-point)))
      (list (niwa-notes--read-tags note) note)))
@@ -626,12 +627,14 @@ Default to the note at point.  An empty list removes every tag."
     (niwa-with-diagnostic-errors (niwa-diagnostic-scope workspace)
       (niwa-notes--validate-tags tags)
       (overlay-put note 'niwa-note-tags (delete-dups (copy-sequence tags)))
+      (when on-changed (funcall on-changed note))
       (niwa-notes--render note)
       (niwa-instruction-store-touch workspace))))
 
 ;;;###autoload
-(defun niwa-note-edit (text &optional note)
-  "Replace NOTE's text with TEXT; default to the note at point."
+(defun niwa-note-edit (text &optional note on-changed)
+  "Replace NOTE's text with TEXT; default to the note at point.
+If supplied, call ON-CHANGED with the edited NOTE before rendering."
   (interactive (let ((note (niwa-notes--at-point)))
                  (list (read-string "Note: " (overlay-get note 'niwa-note-text))
                        note)))
@@ -641,6 +644,7 @@ Default to the note at point.  An empty list removes every tag."
       (setq note (or note (niwa-notes--at-point)))
       (overlay-put note 'niwa-note-text text)
       (overlay-put note 'niwa-note-buddy-looks-done nil)
+      (when on-changed (funcall on-changed note))
       (niwa-notes--render note)
       (niwa-instruction-store-touch workspace))))
 
@@ -701,12 +705,14 @@ A note keeps its existing session id."
     (niwa-note-conversation-refresh-hint note))
   (when notes (niwa-instruction-store-touch (niwa-notes--workspace notes))))
 
-(defun niwa-note-hold-change (notes record)
+(defun niwa-note-hold-change (notes record &optional on-changed)
   "Hold prepared change RECORD on live NOTES as ready, then touch the store once.
-The caller validates RECORD and computes its :note-extents."
+The caller validates RECORD and computes its :note-extents.
+If supplied, call ON-CHANGED with each newly ready note before rendering it."
   (dolist (note notes)
     (overlay-put note 'niwa-note-prepared-change record)
     (overlay-put note 'niwa-note-attention-state 'ready)
+    (when on-changed (funcall on-changed note))
     (niwa-notes--render note)
     ;; An unlinked suggestion has no conversation; without an id the hint
     ;; would fall back to the current one and advertise changes it cannot apply.
@@ -756,12 +762,14 @@ Touch the store once."
     (overlay-put note 'niwa-note-settings merged)
     (niwa-instruction-store-touch (niwa-notes--workspace (list note)))))
 
-(defun niwa-note-keep (note)
-  "Keep Buddy's NOTE as a user note, touching the store for file-backed buffers."
+(defun niwa-note-keep (note &optional on-kept)
+  "Keep Buddy's NOTE as a user note, touching the store for file-backed buffers.
+If non-nil, call ON-KEPT with no arguments after keeping, before rendering."
   (unless (eq 'buddy (overlay-get note 'niwa-note-author))
     (user-error "Not a Buddy remark"))
   (overlay-put note 'niwa-note-author 'user)
   (overlay-put note 'niwa-note-kept-from-buddy t)
+  (when on-kept (funcall on-kept))
   (niwa--update-instruction-overlay note t)
   (when (buffer-local-value 'buffer-file-name (overlay-buffer note))
     (niwa-instruction-store-touch (niwa-notes--workspace (list note))))
@@ -884,9 +892,10 @@ Return the number dismissed.  User and Buddy notes are left alone."
           (plist-get (niwa--instruction-state (niwa--instruction-operation-state-key))
                      :closed-notes))))
 
-(defun niwa-note-close (note reason)
+(defun niwa-note-close (note reason &optional on-closed)
   "Move live NOTE to recently closed with REASON, retaining its attachments.
-REASON is `done', `deleted' or `dismissed'.  Closing never changes source code."
+REASON is `done', `deleted' or `dismissed'.  Closing never changes source code.
+If supplied, call ON-CLOSED with the detached NOTE before refreshing labels."
   (let* ((buffer (overlay-buffer note))
          (workspace (niwa--instruction-buffer-workspace buffer))
          (niwa--instruction-state-key-override
@@ -917,7 +926,7 @@ REASON is `done', `deleted' or `dismissed'.  Closing never changes source code."
           ;; Explicit closure wins over older source geometry undo.  Reserve the
           ;; display number until expiry, rather than retiring it on close.
           (overlay-put note 'niwa-marked-for-deletion t)
-          (niwa--delete-instruction-overlay note)
+          (niwa--delete-instruction-overlay note on-closed)
           (setf (alist-get buffer (niwa--instruction-alist))
                 (delq note (alist-get buffer (niwa--instruction-alist))))
           (niwa-instruction-store-prune-closed workspace)
@@ -1156,18 +1165,20 @@ Create `.niwa/' only in a recognized project.  Return the actual workspace."
            "Notes outside a project are not saved")))))
   workspace)
 
-(cl-defun niwa-note-make (buffer beg end &key text author span)
+(cl-defun niwa-note-make (buffer beg end &key text author span on-created)
   "Create and render a note in BUFFER over BEG..END, and return its overlay.
 AUTHOR is `user' (default), `agent' or `buddy'.  SPAN is `line' for whole
 lines, `char' for the exact range, or nil to infer the shape.
 The note starts unsent with TEXT (default empty).  Work in
 BUFFER without a file, never read or change the region, point or selected
 window, and neither write nor touch the store: callers prepare the workspace
-and decide durability."
+and decide durability.  If supplied, call ON-CREATED with the initialized
+note before rendering it."
   (let ((note (niwa--create-instruction-overlay-in buffer beg end span)))
     (overlay-put note 'niwa-note-text (or text ""))
     (overlay-put note 'niwa-note-author (or author 'user))
     (overlay-put note 'niwa-note-state 'unsent)
+    (when on-created (funcall on-created note))
     (niwa--update-instruction-overlay note t)
     note))
 

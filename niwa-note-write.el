@@ -76,8 +76,8 @@
              hits start end)))
     range))
 
-(defun niwa-note-write--create (operation session)
-  "Create OPERATION's note in SESSION without syncing the store."
+(defun niwa-note-write--create (operation session on-created)
+  "Create OPERATION's note in SESSION, notifying ON-CREATED before rendering."
   (let* ((file (niwa-note-write--source (plist-get operation :file_path) session))
          (start (plist-get operation :start_line))
          (end (or (plist-get operation :end_line) start))
@@ -113,7 +113,8 @@
                 (setq workspace (niwa-notes--ensure-workspace workspace))
                 (prog1 (niwa-note-make (current-buffer) (car range) (cdr range)
                                           :text (plist-get operation :text)
-                                          :author 'agent :span (and match 'char))
+                                          :author 'agent :span (and match 'char)
+                                          :on-created on-created)
                   (niwa-instruction-store-touch workspace))))))))))
 
 (defun niwa-note-write--resolve (id session)
@@ -156,12 +157,86 @@
       (niwa-tool-patch-assert-baseline proposal)
       (niwa-note-change-record proposal changes (current-buffer)))))
 
+(cl-defstruct (niwa-note-write--outcome (:constructor niwa-note-write--outcome ()))
+  ;; Newest first.  Queued sends alone retain the live overlay for dispatch.
+  effects)
+
+(defun niwa-note-write--record (outcome kind note)
+  "Record KIND for NOTE in OUTCOME and return the new entry."
+  (let ((entry (list kind (format "Note #%s notes://%s.md" (overlay-get note 'niwa-id)
+                                  (overlay-get note 'niwa-uuid))
+                     (and (eq kind 'queued) note))))
+    (push entry (niwa-note-write--outcome-effects outcome))
+    entry))
+
+(defun niwa-note-write--apply (operation session outcome)
+  "Perform OPERATION in SESSION, acknowledging its effects in OUTCOME."
+  (let* ((action (plist-get operation :action))
+         (tags (when (plist-member operation :tags)
+                 (niwa-notes--validate-tags (mapcar #'intern (append (plist-get operation :tags) nil)))))
+         (prepared (when (plist-get operation :prepared_change)
+                     (unless (equal action "create")
+                       (error "Attach prepared_change only when creating a note"))
+                     (niwa-note-write--prepared (plist-get operation :prepared_change) session)))
+         attachment
+         (note (if (equal action "create")
+                   (niwa-note-write--create
+                    operation session
+                    (lambda (created)
+                      (niwa-note-write--record outcome 'create created)
+                      (when prepared
+                        (setq attachment (niwa-note-write--record outcome 'incomplete created)))))
+                 (niwa-note-write--resolve (plist-get operation :id) session))))
+    (pcase action
+      ((or "create" "edit")
+       (when (and (equal action "edit") (plist-member operation :text))
+         (niwa-note-edit (plist-get operation :text) note
+                         (apply-partially #'niwa-note-write--record outcome 'edit-text)))
+       (when prepared
+         (setq prepared (plist-put prepared :note-extents
+                                   (delq nil (list (niwa-note-change--base-extent note prepared)))))
+         (niwa-note-hold-change (list note) prepared (lambda (_) (setcar attachment 'attached))))
+       (cond ((plist-member operation :tags)
+              (niwa-note-set-tags tags note (apply-partially #'niwa-note-write--record outcome 'tags)))
+             ((equal action "create") (niwa-notes--render note))
+             ((and (equal action "edit") (not (plist-member operation :text)))
+              (niwa-note-write--record outcome 'unchanged note))))
+      ((or "close" "done" "delete")
+       (niwa-note-close note (if (equal action "delete") 'deleted 'done)
+                        (apply-partially #'niwa-note-write--record outcome (intern action))))
+      ("send" (niwa-note-write--record outcome 'queued note))
+      (_ (error "Unknown note action: %s" action)))))
+
+(defun niwa-note-write--send (outcome)
+  "Dispatch the sends queued in OUTCOME together, in request order."
+  (let ((notes (nreverse (cl-loop for (kind _ note) in (niwa-note-write--outcome-effects outcome)
+                                  when (eq kind 'queued) collect note))))
+    (when notes
+      (niwa-note-send-batch
+       notes :no-display t :defer-write t
+       :on-effect (lambda (kind members)
+                    (dolist (note members) (niwa-note-write--record outcome kind note)))))))
+
+(defun niwa-note-write--report (outcome &optional failure)
+  "Describe OUTCOME in effect order, qualifying retry guidance after FAILURE."
+  (let (completed incomplete)
+    (dolist (entry (niwa-note-write--outcome-effects outcome))
+      (pcase-let ((`(,kind ,label . ,_) entry))
+        (pcase kind
+          ('queued nil)
+          ('incomplete (push (concat "prepared change not attached to " label) incomplete))
+          (_ (push (format "%s %s" kind label) completed)))))
+    (if (not failure) (string-join completed "\n")
+      (string-join (append (list failure)
+                           (when completed (cons "Completed effects (do not repeat):" completed))
+                           (when incomplete (cons "Incomplete:" incomplete))) "\n"))))
+
 (defun niwa-tool-note-write (args)
   "Perform the workspace note operations in ARGS, syncing once even on failure."
   (let* ((session (or niwa--session (error "Notes require a session")))
          (workspace (niwa-session-workspace session))
          (operations (append (plist-get args :operations) nil))
-         changed results to-send)
+         (outcome (niwa-note-write--outcome)))
     (unless operations (error "Choose at least one note operation"))
     (niwa-note-write--check args session)
     (niwa-session-artifacts-assert-new-mutation-authority session)
@@ -170,54 +245,14 @@
         (unwind-protect
             (progn
               (dolist (operation operations)
-                (let* ((action (plist-get operation :action))
-                       (tags (when (plist-member operation :tags)
-                               (niwa-notes--validate-tags
-                                (mapcar #'intern (append (plist-get operation :tags) nil)))))
-                       (prepared (when (plist-get operation :prepared_change)
-                                   (unless (equal action "create")
-                                     (error "Attach prepared_change only when creating a note"))
-                                   (niwa-note-write--prepared
-                                    (plist-get operation :prepared_change) session)))
-                       (note (if (equal action "create")
-                                 (niwa-note-write--create operation session)
-                               (niwa-note-write--resolve (plist-get operation :id) session))))
-                  (setq changed t)
-                  (pcase action
-                    ((or "create" "edit")
-                     (when (and (equal action "edit") (plist-member operation :text))
-                       (niwa-note-edit (plist-get operation :text) note))
-                     (when prepared
-                       (setq prepared
-                             (plist-put prepared :note-extents
-                                        (delq nil (list (niwa-note-change--base-extent
-                                                         note prepared)))))
-                       (niwa-note-hold-change (list note) prepared))
-                     (if (plist-member operation :tags)
-                         (niwa-note-set-tags tags note)
-                       (when (equal action "create")
-                         (niwa-notes--render note))))
-                    ((or "close" "done") (niwa-note-done note))
-                    ("delete" (niwa-note-delete note))
-                    ("send" (push note to-send))
-                    (_ (error "Unknown note action: %s" action)))
-                  (unless (equal action "send")
-                    (push (format "%s Note #%s notes://%s.md" action (overlay-get note 'niwa-id)
-                                  (overlay-get note 'niwa-uuid)) results))))
-              (when to-send
-                (setq to-send (nreverse to-send))
-                (niwa-note-send-batch to-send :no-display t :defer-write t)
-                (dolist (note to-send)
-                  (push (format "send Note #%s notes://%s.md" (overlay-get note 'niwa-id)
-                                (overlay-get note 'niwa-uuid)) results))))
-          (when changed (niwa-instruction-store-sync workspace)))
+                (niwa-note-write--apply operation session outcome))
+              (niwa-note-write--send outcome))
+          (when (cl-some (lambda (entry) (not (memq (car entry) '(queued unchanged incomplete))))
+                         (niwa-note-write--outcome-effects outcome))
+            (niwa-instruction-store-sync workspace)))
       (error
-       (error "%s%s" (error-message-string err)
-              (if results
-                  (concat "\nCompleted operations (do not repeat):\n"
-                          (mapconcat #'identity (reverse results) "\n"))
-                ""))))
-    (list :result (mapconcat #'identity (nreverse results) "\n"))))
+       (error "%s" (niwa-note-write--report outcome (error-message-string err)))))
+    (list :result (niwa-note-write--report outcome))))
 
 (provide 'niwa-note-write)
 ;;; niwa-note-write.el ends here
