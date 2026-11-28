@@ -118,7 +118,8 @@ the full manifest.
 Hook consent lives outside the workspace, in the user's store
 `plugin-consent.eld` under `niwa-user-dir`, beside project hook trust. Each
 approval names the workspace by its physical root, symlinks resolved, the
-plugin, its source and the approved hook fingerprint and script hashes. A
+plugin, its source (also resolved, even when written relative to the
+workspace) and the approved hook fingerprint and script hashes. A
 copy or restore of a workspace therefore never carries consent, a revocation
 stays revoked whatever an old `.niwa/state/` holds, and a symlink retargeted
 to another checkout does not inherit the old one's consent. A remote
@@ -126,8 +127,10 @@ workspace's identity keeps its TRAMP prefix, so consent is per client
 machine, and two TRAMP aliases for the same host, such as an SSH alias and
 its host name, need separate consent and separate revocation.
 The store is protected like the trust store: tools cannot write it, and niwa
-creates it empty on first read so confinement covers it before any command
-runs.
+creates it empty on first read and again when preparing a confined command,
+refusing the launch if it cannot, so confinement always covers it. A store
+that cannot be read authorizes no hook; niwa says so once and leaves its
+bytes for repair.
 Consent fields in any workspace file, including those older versions wrote
 into `.niwa/state/plugins.eld`, are ignored, so those plugins ask again.
 Writes to the store hold its directory's lock across read, merge and write,

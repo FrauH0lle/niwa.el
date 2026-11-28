@@ -2156,7 +2156,7 @@ Return the words the hook scripts logged to ROOT's log file."
             (set-file-modes script #o755)
             (with-temp-file (file-name-concat plugin-root "hooks" "hooks.json")
               (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":"
-                      "[{\"type\":\"command\",\"command\":\"echo a1 >> log\"}]}]}}"))
+                      "[{\"type\":\"command\",\"command\":\"sh ${CLAUDE_PLUGIN_ROOT}/hooks/a.sh\"}]}]}}"))
             (niwa-hooks-test--write-plugin-manifest
              plugin-root "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
             (make-symbolic-link (directory-file-name real) (directory-file-name root))
@@ -2164,8 +2164,8 @@ Return the words the hook scripts logged to ROOT's log file."
               ;; Written through the real path; the link sees it while it
               ;; points there, since consent names the physical root.
               (should (niwa-plugins-enable "demo" (niwa-hooks-test--workspace real))))
+            ;; The script consented through the real path runs through the link.
             (should (equal '("a1") (runs)))
-            ;; An inline command names no script, so only workspace consent decides.
             ;; The same path now names another checkout with the same plugin.
             (copy-directory real other nil t t)
             (delete-file (file-name-concat other "log"))
@@ -2174,6 +2174,58 @@ Return the words the hook scripts logged to ROOT's log file."
             (should-not (runs)))
         (niwa-hooks-invalidate-config)
         (delete-directory top t)))))
+
+(niwa-deftest niwa-hooks-run-event/plugin-consent-inner-link
+  (:doc "a retargeted plugin link inside the workspace, or an unreadable store, runs no hook")
+  (let* ((root (file-name-as-directory (make-temp-file "niwa-hooks-plugin-inner" t)))
+         (user-dir (file-name-concat root "user/"))
+         ;; Discovery skips a symlinked plugin root, not a symlinked parent.
+         (set-a (file-name-concat root "set-a/"))
+         (set-b (file-name-concat root "set-b/"))
+         (plugin-a (file-name-concat set-a "repo/"))
+         (link (file-name-concat root ".niwa" "plugins"))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory (file-name-concat user-dir ".agents" "plugins"))
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (cl-flet ((runs ()
+                (niwa-hooks-invalidate-config)
+                (let ((workspace (niwa-hooks-test--workspace root)))
+                  (niwa-test--with-captured-diagnostics nil
+                    (niwa-hooks-test--run-logged
+                     root (niwa-session-create "s" workspace root) workspace)))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-concat plugin-a "hooks") t)
+            (with-temp-file (file-name-concat plugin-a "hooks" "hooks.json")
+              (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":"
+                      "[{\"type\":\"command\",\"command\":\"echo a1 >> log\"}]}]}}"))
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-a "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (copy-directory set-a set-b nil t t)
+            (make-directory (file-name-directory link) t)
+            (make-symbolic-link (directory-file-name set-a) link)
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              (should (niwa-plugins-enable "demo" (niwa-hooks-test--workspace root))))
+            (should (equal '("a1") (runs)))
+            ;; Unreadable consent authorizes nothing and keeps its bytes.
+            (let* ((store (niwa-plugins--consent-file))
+                   (bytes (concat (with-temp-buffer (insert-file-contents-literally store)
+                                                    (buffer-string))
+                                  " junk")))
+              (write-region bytes nil store nil 'silent)
+              (should-not (runs))
+              (should (equal bytes (with-temp-buffer (insert-file-contents-literally store)
+                                                     (buffer-string))))
+              (write-region (substring bytes 0 -5) nil store nil 'silent))
+            (should (equal '("a1") (runs)))
+            ;; The same relative source now names another plugin copy.
+            (delete-file link)
+            (make-symbolic-link (directory-file-name set-b) link)
+            (should-not (runs)))
+        (niwa-hooks-invalidate-config)
+        (delete-directory root t)))))
 
 (niwa-deftest niwa-hooks-run-event/plugin-script-consent
   (:doc "runs a plugin hook script only while its consented content is unchanged")

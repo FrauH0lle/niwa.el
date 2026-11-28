@@ -63,10 +63,16 @@
 ;; `niwa-session-control-fs'
 (declare-function niwa-session-control-fs-program-value
                   "niwa-session-control-fs" (result))
+(declare-function niwa-session-control-fs-create-file
+                  "niwa-session-control-fs" (path content &optional coding-system))
+(declare-function niwa-session-control-fs-make-directory
+                  "niwa-session-control-fs" (path &optional parents))
 (declare-function niwa-session-control-fs-run-program
                   "niwa-session-control-fs" (operations &optional lock-directory))
 (autoload 'niwa-session-control-fs-program-value "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-run-program "niwa-session-control-fs")
+(autoload 'niwa-session-control-fs-create-file "niwa-session-control-fs")
+(autoload 'niwa-session-control-fs-make-directory "niwa-session-control-fs")
 
 ;; `niwa-transport'
 (declare-function niwa-transport-busy-p "niwa-transport" (&optional path))
@@ -824,6 +830,10 @@ symlink replacement must not redirect this host mutation."
       (error "Missing protected parent is outside writable roots: %s" path))
     physical))
 
+(defconst niwa-sandbox--created-stores '("plugin-consent.eld")
+  "Protected store names preparation creates empty when missing.
+A missing literal file has no mount, so a child could create it.")
+
 (defun niwa-sandbox--protected-restrictions
     (workdir writable-roots &optional temporary-root candidates)
   "Resolve protected restrictions for WORKDIR and WRITABLE-ROOTS.
@@ -873,6 +883,21 @@ a one-element list; path and symlink checks still happen here."
                   (format
                    "Cannot enforce protected path %s across writable symlink %s"
                    path symlink))))
+              ;; A store a child must not create first: make it empty now,
+              ;; so it is mounted read-only, or refuse the launch.
+              (when (and (not exists-p) (not directory-p)
+                         (member (file-name-nondirectory path) niwa-sandbox--created-stores)
+                         (cl-some (lambda (root) (file-in-directory-p path root))
+                                  writable-roots))
+                (ignore-errors
+                  (niwa-session-control-fs-make-directory
+                   (directory-file-name (file-name-directory path)) t)
+                  (niwa-session-control-fs-create-file path "nil\n"))
+                (unless (file-exists-p path)
+                  (signal 'niwa-sandbox-policy-error
+                          (list (format "Cannot create protected store %s before launch"
+                                        path))))
+                (setq exists-p t))
               (unless exists-p
                 (when (and directory-p
                            (cl-some

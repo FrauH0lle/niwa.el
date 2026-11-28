@@ -753,13 +753,16 @@ passes as written whatever it holds, the word also stripped of
 parentheses, commas, and semicolons, as in embedded code such as
 `require(\\='x/y.js\\')', is an extra candidate under the same rule; the
 literal word always stays one.
-FILE is the absolute path the command names, in ROOT's
-filesystem; commands run from ROOT.  DIGEST is the SHA256 of the readable
+FILE is the physical file a readable script resolves to inside ROOT, so
+the same script matches whichever spelling reaches it and a retargeted
+link names a different file; otherwise it is the absolute path the
+command names, in ROOT's filesystem.  Commands run from ROOT.  DIGEST is
+the SHA256 of the readable
 regular file FILE physically resolves to inside ROOT, otherwise a symbol:
 `ambiguous' for a `..' after a symlink, `outside' for a file outside
 ROOT, and `unavailable' for an unreadable, missing, or non-regular file.
-Keying by FILE keeps a trusted path checked when its symlink is
-retargeted to something that is no regular file."
+A symlinked word that resolves to no regular file stays checked as
+`unavailable', so retargeting it fails closed."
   ;; shortcut: words only, no shell parsing; `$VAR/x', `cd x && ./y' and
   ;; files a script sources are not references.  Upgrade if hooks need them.
   (let* ((root (file-name-as-directory (expand-file-name root)))
@@ -786,13 +789,15 @@ retargeted to something that is no regular file."
               (if (niwa-hooks--dotdot-after-symlink-p word root)
                   (push (cons lexical 'ambiguous) scripts)
                 (let* ((file (file-truename lexical))
-                       (regular (file-regular-p file)))
-                  (when (or regular (assoc lexical trusted))
-                    (push (cons lexical
+                       (regular (file-regular-p file))
+                       (inside (string-prefix-p physical-root file))
+                       (digest (and regular inside (niwa-hooks--file-sha256 file))))
+                  (when (or regular (assoc lexical trusted) (assoc file trusted)
+                            (file-symlink-p lexical))
+                    (push (cons (if digest file lexical)
                                 (cond
-                                 ((not (string-prefix-p physical-root file))
-                                  'outside)
-                                 ((and regular (niwa-hooks--file-sha256 file)))
+                                 ((not inside) 'outside)
+                                 (digest)
                                  (t 'unavailable)))
                           scripts)))))))))))
 

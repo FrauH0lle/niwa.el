@@ -156,10 +156,9 @@
            prepared)
       (unwind-protect
           (progn
-            ;; Reading consent, as hook resolution does before any tool
-            ;; runs, creates the empty store the mount then covers.
-            (should-not (niwa-plugins--read-consent))
-            (should (file-exists-p store))
+            ;; Nothing read the registry: preparation itself creates the
+            ;; empty store, so it is mounted read-only.
+            (should-not (file-exists-p store))
             (setq prepared
                   (niwa-sandbox-prepare
                    (list "sh" "-c"
@@ -170,7 +169,16 @@
             (should (zerop (apply #'call-process (car (plist-get prepared :command))
                                   nil nil nil (cdr (plist-get prepared :command)))))
             (should (equal "nil\n" (with-temp-buffer (insert-file-contents store)
-                                                      (buffer-string)))))
+                                                      (buffer-string))))
+            ;; A store that cannot be created refuses the launch.
+            (niwa-sandbox-cleanup prepared)
+            (setq prepared nil)
+            (delete-file store)
+            (set-file-modes niwa-user-dir #o500)
+            (let ((refused (niwa-sandbox-prepare (list "true") root (list root))))
+              (should (eq 'refused (plist-get refused :state)))
+              (should (string-search "plugin-consent.eld" (plist-get refused :error))))
+            (set-file-modes niwa-user-dir #o700))
         (when prepared (niwa-sandbox-cleanup prepared))
         (delete-directory root t)))))
 

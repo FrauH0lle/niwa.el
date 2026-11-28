@@ -607,6 +607,11 @@ is trusted. By default:
 - interpreters and other files outside the workspace are not covered, nor are
   paths built from variables, `cd` sequences, or files a script loads
   itself; keep such code in a named script or trust it separately.
+- a recorded script is the physical file its path resolves to, so the same
+  approved script runs whichever symlinked spelling reaches it, while a link
+  retargeted to another file needs approval again. A symlinked path that no
+  longer resolves to a regular file stays blocked. Trust or consent recorded
+  before this change under a symlinked spelling asks once more.
 - plugin hook consent covers scripts the same way, inside the plugin root
   rather than the workspace. A plugin-root variable (`$PLUGIN_ROOT`,
   `${CLAUDE_PLUGIN_ROOT}`, `$NIWA_PLUGIN_ROOT`) names that root, and a
