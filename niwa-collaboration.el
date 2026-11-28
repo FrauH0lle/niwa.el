@@ -493,19 +493,15 @@ parent session's room, reached through the side data buffer's parent."
 (defun niwa-collaboration--current-data-buffer ()
   "Return the data buffer associated with the current command context."
   (cond
-   ((and (boundp 'niwa--data-buffer)
-         (buffer-live-p niwa--data-buffer))
+   ((buffer-live-p niwa--data-buffer)
     niwa--data-buffer)
-   ((and (boundp 'niwa--session)
-         niwa--session
+   ((and niwa--session
          (local-variable-p 'niwa--session)
          (not (local-variable-p 'niwa--view-buffer)))
     (current-buffer))
-   ((and (boundp 'niwa--view-buffer)
-         (buffer-live-p niwa--view-buffer))
+   ((buffer-live-p niwa--view-buffer)
     (with-current-buffer niwa--view-buffer
-      (and (boundp 'niwa--data-buffer)
-           (buffer-live-p niwa--data-buffer)
+      (and (buffer-live-p niwa--data-buffer)
            niwa--data-buffer)))))
 
 (defun niwa-collaboration--session-label (session data-buffer)

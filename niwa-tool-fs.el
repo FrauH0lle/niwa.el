@@ -47,12 +47,10 @@
 
 (defun niwa-tool-fs-current-workspace-root ()
   "Return the current workspace root visible to the renderer, or nil."
-  (or (and (boundp 'niwa--workspace)
-           niwa--workspace
+  (or (and niwa--workspace
            (ignore-errors
              (niwa-workspace-root niwa--workspace)))
-      (and (boundp 'niwa--session)
-           niwa--session
+      (and niwa--session
            (ignore-errors
              (niwa-workspace-root
               (niwa-session-workspace niwa--session))))))

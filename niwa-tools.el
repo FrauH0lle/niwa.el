@@ -358,8 +358,7 @@ gptel's generic unknown-tool fallback consumes those calls."
   "Return BUFFER's local session, when it has one."
   (when (and buffer (buffer-live-p buffer))
     (with-current-buffer buffer
-      (and (boundp 'niwa--session)
-           niwa--session))))
+      niwa--session)))
 
 (defun niwa-tools--context-for (fsm)
   "Return the tool context (invocation or session) for FSM.
@@ -381,7 +380,7 @@ carry both."
   "Return the current buffer's invocation or session."
   (or (and (niwa-agent-invocation-p niwa--agent-invocation)
            niwa--agent-invocation)
-      (and (boundp 'niwa--session) niwa--session)))
+      niwa--session))
 
 (defun niwa-tools--current-context ()
   "Return the tool context for the currently-executing tool call.

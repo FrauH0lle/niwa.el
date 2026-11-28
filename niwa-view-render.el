@@ -1832,8 +1832,7 @@ reasoning block that reaches thousands of lines -- on every redraw."
   "Return non-nil when TEXT's proposed-plan protocol blocks should be hidden.
 Active planning hides incomplete streamed blocks.  Complete protocol blocks
 stay hidden on later full rerenders without session-global hash history."
-  (or (and (boundp 'niwa--session)
-           niwa--session
+  (or (and niwa--session
            (niwa-session-plan-mode niwa--session))
       (niwa-plan-extract-proposed text)))
 
@@ -4353,7 +4352,6 @@ stay unchanged, including live terminal completions for archived rows.
 Each caller owns the returned entry's coalescing count."
   (let* ((live-data niwa--data-buffer)
          (state (and niwa-view--activity-entry-cache
-                     (boundp 'niwa--session)
                      (niwa-view--session-render-state-fingerprint
                       niwa--session)))
          (key (and niwa-view--activity-entry-cache

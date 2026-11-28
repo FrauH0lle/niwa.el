@@ -668,8 +668,7 @@ When SUPPRESS-RERENDER is non-nil, do not schedule a parent view refresh."
                     (niwa-tool-render-data-patch-block
                      beg end updated)
                     (setq patched-render-data-p t)))))
-            (when-let* ((view (and (boundp 'niwa--view-buffer)
-                                    niwa--view-buffer))
+            (when-let* ((view niwa--view-buffer)
                         ((buffer-live-p view)))
               ;; A retained handle has marker-backed source coordinates, so
               ;; replacing its metadata need not rebuild unrelated history.

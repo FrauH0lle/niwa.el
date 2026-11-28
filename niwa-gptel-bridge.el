@@ -128,8 +128,7 @@ OVERLAY and INFO identify the original gptel confirmation UI."
 
 (defun niwa-gptel-bridge--assert-menu-backend (&rest _args)
   "Reject gptel request controls for an external session engine."
-  (with-current-buffer (if (and (boundp 'niwa--data-buffer)
-                               (buffer-live-p niwa--data-buffer))
+  (with-current-buffer (if (buffer-live-p niwa--data-buffer)
                           niwa--data-buffer (current-buffer))
     (when (and (bound-and-true-p niwa--session)
                (niwa-engine-external-p gptel-backend))

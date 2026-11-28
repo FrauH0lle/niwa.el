@@ -158,8 +158,7 @@ returns nil when called outside any sub-agent."
 
 (defun niwa-skills--current-request ()
   "Return the active request struct, or nil."
-  (and (boundp 'niwa--current-request)
-       niwa--current-request))
+  niwa--current-request)
 
 (defun niwa-skills--drain-pending-context (request)
   "Drain `niwa-skills--pending-request-context' (buffer-local) into REQUEST.
@@ -294,8 +293,7 @@ own hooks, join this run only."
   (if (not (eq origin 'user))
       (funcall callback prompt nil)
     (let* ((workspace (and session (niwa-session-workspace session)))
-           (request (and (boundp 'niwa--current-request)
-                         niwa--current-request)))
+           (request niwa--current-request))
       (niwa-hooks-run-event
        'UserPromptExpansion
        (niwa-hooks-event-plist
@@ -448,7 +446,7 @@ compaction/replay."
           (setf (niwa-request-attached-skill-records req)
                 (append (niwa-request-attached-skill-records req)
                         (list invoked-skill))))
-        (when-let* ((session (and (boundp 'niwa--session) niwa--session)))
+        (when-let* ((session niwa--session))
           (niwa-skills-commit-invoked-records
            session (list invoked-skill))))))))
 
@@ -554,7 +552,7 @@ ROOTS is a list of plists containing :skill, :arguments, :role, and
   (let* ((roots (mapcar (lambda (root)
                           (append root (list :node nil :policy nil)))
                         roots))
-         (session (and (boundp 'niwa--session) niwa--session))
+         (session niwa--session)
          (nodes (make-hash-table :test #'equal))
          (arguments-by-source (make-hash-table :test #'equal))
          (states (make-hash-table :test #'equal))
@@ -756,7 +754,7 @@ The closure undoes that and calls CALLBACK with its outcome exactly once.
 The skill's rules and hooks are not lent to either: preparation passes
 them to its own commands only."
   (let ((origin-buffer (current-buffer))
-        (turn (and (boundp 'niwa--current-request) niwa--current-request))
+        (turn niwa--current-request)
         (invocation niwa--agent-invocation)
         settled)
     (if turn
@@ -849,7 +847,7 @@ sanitized `UserPromptExpansion' hook decision."
          (role (or (plist-get root :role) 'instruction))
          (policy (or (plist-get root :policy) '(:status ok)))
          (display-callback (plist-get root :display-callback))
-         (session (and (boundp 'niwa--session) niwa--session))
+         (session niwa--session)
          (scope (niwa-diagnostic-scope
                  (or session (niwa-skill-workspace skill))))
          (command-p (eq role 'command))
@@ -869,7 +867,7 @@ sanitized `UserPromptExpansion' hook decision."
                 :effort (plist-get policy :effort)
                 :ignored-policy-fields (plist-get policy :ignored-fields)))
          ;; A turn's preparation runs only while that turn does.
-         (turn (and (boundp 'niwa--current-request) niwa--current-request))
+         (turn niwa--current-request)
          (live-p (and turn
                       (lambda ()
                         (and (eq turn niwa--current-request)
@@ -1199,7 +1197,7 @@ DISPLAY-CALLBACK retain the normal fork dispatch meanings."
          (agent (and skill (niwa-skills--build-fork-agent skill)))
          (context (or request-context
                       (plist-get prepared :request-context)))
-         (session (and (boundp 'niwa--session) niwa--session))
+         (session niwa--session)
          (task-description
           (or description
               (and skill (niwa-skill-description skill))
@@ -1498,7 +1496,7 @@ and projects the outcome plist to a tool-result string: success
 returns the body; error returns a `Error: ' prefixed message."
   (let* ((name (plist-get args :name))
          (arguments (plist-get args :arguments))
-         (session (and (boundp 'niwa--session) niwa--session))
+         (session niwa--session)
          (skill (and session (niwa-session-get-skill session name)))
          (return
           (lambda (result &optional outcome)
@@ -1614,7 +1612,7 @@ the user at them instead of concluding they do not exist."
   "Pipeline handler for the `ListSkills' tool.
 CALLBACK is the async tool callback.  ARGS is a plist with optional :query."
   (let* ((query (plist-get args :query))
-         (session (and (boundp 'niwa--session) niwa--session))
+         (session niwa--session)
          (return (lambda (result)
                    (funcall callback (list :result result)))))
     (cond

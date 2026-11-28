@@ -1146,7 +1146,7 @@ the next scan there so earlier blocks and ignored payloads are not reparsed."
 Only text naming EXECUTION-ID is parsed.  Segments are read newest first and
 the walk stops at the one holding the call that started the execution, since
 nothing concerning it can be older."
-  (let* ((live (and (boundp 'niwa--data-buffer) niwa--data-buffer))
+  (let* ((live niwa--data-buffer)
          (display (niwa-view-segments-display-buffer))
          (session (and (buffer-live-p live)
                        (buffer-local-value 'niwa--session live)))

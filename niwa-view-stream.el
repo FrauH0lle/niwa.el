@@ -342,8 +342,7 @@ The underlying phase continues to advance and resumes without restarting."
 
 (defun niwa-view--spinner-request ()
   "Return the request that owns the current visible spinner, or nil."
-  (when-let* ((data-buf (and (boundp 'niwa--data-buffer)
-                             niwa--data-buffer))
+  (when-let* ((data-buf niwa--data-buffer)
               ((buffer-live-p data-buf)))
     (buffer-local-value 'niwa--current-request data-buf)))
 
@@ -369,8 +368,7 @@ the view has already inserted the in-flight markers."
        (or niwa-view--spinner-start-time
            (niwa-view-stream-in-flight-turn-start-position)
            (let ((buf (or data-buf
-                          (and (boundp 'niwa--data-buffer)
-                               niwa--data-buffer))))
+                          niwa--data-buffer)))
              (and buf
                   (buffer-live-p buf)
                   (buffer-local-value 'niwa--current-request buf))))))
@@ -516,8 +514,7 @@ DATA-BUF is the authoritative data buffer for elapsed-time lookup.
 STATUS is the base label to show; nil preserves the current label or
 falls back to \"Working...\"."
   (let ((niwa--data-buffer (or data-buf
-                                (and (boundp 'niwa--data-buffer)
-                                     niwa--data-buffer))))
+                                niwa--data-buffer)))
     (when (niwa-view--request-progress-active-p data-buf)
       (setq niwa-view--spinner-status
             (or status niwa-view--spinner-status "Working...")))
@@ -1251,7 +1248,6 @@ rechecked without changing the displayed animation phase."
       (when (and niwa-view--pending-tool-calls
                  (not (eq niwa-view--spinner-rendered-tool-style
                           niwa-view-tool-spinner-style))
-                 (boundp 'niwa--data-buffer)
                  (buffer-live-p niwa--data-buffer))
         (niwa-view--schedule-tool-boundary-render niwa--data-buffer))
       (niwa-view--start-spinner-timer))))
@@ -1493,8 +1489,7 @@ Return non-nil when the status was restored."
         niwa-view--spinner-sample-frame nil
         niwa-view--spinner-theme-stale-p nil)
   (unless niwa-view--pending-tool-calls
-    (unless (and (boundp 'niwa--data-buffer)
-                 niwa--data-buffer
+    (unless (and niwa--data-buffer
                  (buffer-live-p niwa--data-buffer)
                  (buffer-local-value 'niwa--current-request
                                      niwa--data-buffer))
@@ -1820,8 +1815,7 @@ batch flushed by `niwa-gptel-stream-bridge' already coalesced its
 chunks: it renders through `niwa-gptel-stream-bridge-after-flush',
 inside the batch's own timer, instead of waking the editor again, and
 shows the text sooner."
-  (when-let* ((view-buf (and (boundp 'niwa--view-buffer)
-                             niwa--view-buffer))
+  (when-let* ((view-buf niwa--view-buffer)
               ((buffer-live-p view-buf))
               (data-buf (current-buffer)))
     (with-current-buffer view-buf
@@ -2018,8 +2012,7 @@ Adds an entry to `niwa-view--pending-tool-calls' on the
 associated view buffer.  gptel runs the hook for every call of a batch
 at once, and the batch shares one debounced render that draws its calls
 running in the turn's trailing activity run."
-  (when-let* ((view-buf (and (boundp 'niwa--view-buffer)
-                             niwa--view-buffer))
+  (when-let* ((view-buf niwa--view-buffer)
               ((buffer-live-p view-buf))
               (name (plist-get args :name))
               (data-buf (current-buffer)))
@@ -2066,8 +2059,7 @@ ARGS is the tool-call plist.  gptel runs the hook for every call of a
 finished batch and then writes their results, so the batch's shared
 render draws the calls settled; until then their rows keep running."
   (niwa-execution-transcript-retry-pending-terminals (current-buffer))
-  (when-let* ((view-buf (and (boundp 'niwa--view-buffer)
-                             niwa--view-buffer))
+  (when-let* ((view-buf niwa--view-buffer)
               ((buffer-live-p view-buf))
               (name (plist-get args :name))
               (data-buf (current-buffer)))

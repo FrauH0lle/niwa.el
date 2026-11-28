@@ -929,13 +929,11 @@ every durable mutation boundary; unchanged targets take no durability I/O."
   (unless niwa-session-artifacts--checking-incarnation
     (let ((buffer
            (or buffer
-               (and (boundp 'niwa--session)
-                    (eq niwa--session session)
+               (and (eq niwa--session session)
                     (current-buffer)))))
       (when (and (buffer-live-p buffer)
                  (with-current-buffer buffer
-                   (and (boundp 'niwa--session)
-                        (eq niwa--session session)
+                   (and (eq niwa--session session)
                         (not (bound-and-true-p niwa--agent-invocation)))))
         (when (or (null (niwa-session-root-buffer session))
                   (eq buffer (niwa-session-root-buffer session)))
@@ -1025,13 +1023,11 @@ materialization uses SESSION's root buffer, or its durable audit parent's."
   (niwa-session-artifacts-recover-working-directory session)
   (let ((buffer
          (or buffer
-             (and (boundp 'niwa--session)
-                  (eq niwa--session session)
+             (and (eq niwa--session session)
                   (current-buffer)))))
     (when (and (buffer-live-p buffer)
                (with-current-buffer buffer
-                 (and (boundp 'niwa--session)
-                      (eq niwa--session session)
+                 (and (eq niwa--session session)
                       (not (bound-and-true-p niwa--agent-invocation))
                       (not (buffer-live-p
                             (niwa-session-root-buffer session))))))
@@ -1545,8 +1541,7 @@ is checked before the artifact is built."
   ;; materialize a session without going through view initialization.
   (when (and (buffer-live-p root-buffer)
              (with-current-buffer root-buffer
-               (and (boundp 'niwa--session)
-                    (eq niwa--session session)
+               (and (eq niwa--session session)
                     (not (bound-and-true-p niwa--agent-invocation)))))
     (niwa-session-control-transfer-register-root-buffer
      session root-buffer))
@@ -1836,8 +1831,7 @@ Edits made after capture remain modified.  Nothing is published here."
         (niwa-session-artifacts--collecting-critical-artifacts-p t))
     ;; Finish I/O-backed preparation before freezing the transcript and every
     ;; root field.  Target I/O can run sentinels that advance the live turn.
-    (when (and (boundp 'niwa--current-request)
-               niwa--current-request)
+    (when niwa--current-request
       (niwa-session-artifacts-snapshot-modified
        session
        (or (niwa-session-turn-count session) 0)
@@ -2010,8 +2004,7 @@ the caller's gate token."
   ;; registered data buffer, never the view projection itself.
   (when (and (buffer-live-p buffer)
              (with-current-buffer buffer
-               (and (boundp 'niwa--session)
-                    (eq niwa--session session)
+               (and (eq niwa--session session)
                     (not (bound-and-true-p niwa--agent-invocation)))))
     (when (or (null (niwa-session-root-buffer session))
               (eq buffer (niwa-session-root-buffer session)))

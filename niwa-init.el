@@ -52,16 +52,13 @@
   "Return non-nil when BUFFER is a niwa chat data buffer."
   (and (buffer-live-p buffer)
        (with-current-buffer buffer
-         (and (boundp 'niwa--session)
-              niwa--session
-              (not (and (boundp 'niwa--data-buffer)
-                        niwa--data-buffer))))))
+         (and niwa--session
+              (not niwa--data-buffer)))))
 
 (defun niwa-init--current-data-buffer ()
   "Return the current niwa data buffer, or nil outside niwa."
   (cond
-   ((and (boundp 'niwa--data-buffer)
-         niwa--data-buffer
+   ((and niwa--data-buffer
          (niwa-init--data-buffer-p niwa--data-buffer))
     niwa--data-buffer)
    ((niwa-init--data-buffer-p (current-buffer))

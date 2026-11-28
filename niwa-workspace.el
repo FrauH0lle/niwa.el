@@ -281,16 +281,15 @@ registry, creating one lazily if needed."
   (with-current-buffer (or buffer (current-buffer))
     (cond
      ;; Chat buffer with session: canonical path
-     ((and (boundp 'niwa--session) niwa--session)
+     (niwa--session
       (niwa-session-workspace niwa--session))
      ;; Composer and other satellite buffers reach the session via their data buffer
-     ((and (boundp 'niwa--data-buffer)
-           (buffer-live-p niwa--data-buffer)
+     ((and (buffer-live-p niwa--data-buffer)
            (buffer-local-value 'niwa--session niwa--data-buffer))
       (niwa-session-workspace
        (buffer-local-value 'niwa--session niwa--data-buffer)))
      ;; Cached workspace (during buffer setup, before session exists)
-     ((and (boundp 'niwa--workspace) niwa--workspace)
+     (niwa--workspace
       niwa--workspace)
      ;; Auto-detect from buffer context
      (t
@@ -421,9 +420,8 @@ the execution target's temporary directory, and any additional roots via
          (workspace-root (niwa-workspace-root (niwa-workspace buffer)))
          (session
           (with-current-buffer buffer
-            (or (and (boundp 'niwa--session) niwa--session)
-                (and (boundp 'niwa--data-buffer)
-                     (buffer-live-p niwa--data-buffer)
+            (or niwa--session
+                (and (buffer-live-p niwa--data-buffer)
                      (buffer-local-value
                       'niwa--session niwa--data-buffer)))))
          (target

@@ -288,8 +288,7 @@
   (when (bound-and-true-p niwa--data-buffer)
     (niwa-view--assert-live-tip))
   (cond
-   ((and (boundp 'niwa--data-buffer)
-         niwa--data-buffer
+   ((and niwa--data-buffer
          (niwa-review--data-buffer-p niwa--data-buffer))
     niwa--data-buffer)
    ((niwa-review--data-buffer-p (current-buffer))
@@ -301,8 +300,7 @@
   "Return non-nil when BUFFER is a niwa chat data buffer."
   (and (buffer-live-p buffer)
        (with-current-buffer buffer
-         (and (boundp 'niwa--session)
-              niwa--session
+         (and niwa--session
               (not (bound-and-true-p niwa--data-buffer))))))
 
 (defun niwa-review--standalone-session-name (workspace cwd)
@@ -1059,8 +1057,7 @@ Dispatch only while the admitted request still owns DATA-BUFFER."
       (goto-char (point-max))
       (unless (bolp) (insert "\n"))
       (insert block)
-      (when-let* ((view-buffer (and (boundp 'niwa--view-buffer)
-                                    niwa--view-buffer))
+      (when-let* ((view-buffer niwa--view-buffer)
                   ((buffer-live-p view-buffer)))
         (let ((data-buffer (current-buffer)))
           (niwa-view-rerender view-buffer)

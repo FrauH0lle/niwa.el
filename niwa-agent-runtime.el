@@ -878,7 +878,7 @@ blocked transition."
   "Prepare one new AGENT task asynchronously and call CALLBACK.
 PATH is the reserved canonical child path.  CALLBACK receives an outcome
 plist carrying either `:turn' and `:start-hook-audits' or `:error'."
-  (let* ((session (and (boundp 'niwa--session) niwa--session))
+  (let* ((session niwa--session)
          (workspace (and session (niwa-session-workspace session)))
          (invocation (niwa-agent-invocation-create agent))
          settled)
@@ -1049,7 +1049,7 @@ conversation's optional execution directory, never a resource grant."
                                    (current-time) (random))))))
          (invocation (niwa-agent-invocation-create agent))
          (parent-buffer (current-buffer))
-         (session (and (boundp 'niwa--session) niwa--session))
+         (session niwa--session)
          (previous-issue
           (and session retained-p
                (cl-find (concat "agent:" agent-id)

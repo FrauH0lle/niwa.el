@@ -796,8 +796,7 @@ identity, owner liveness, target and policy must still remain unchanged.
 REQUIRED forces confinement independently of the permission mode."
   (let* ((buffer (current-buffer))
          (request niwa--current-request)
-         (invocation (and (boundp 'niwa--agent-invocation)
-                          niwa--agent-invocation))
+         (invocation niwa--agent-invocation)
          ;; A local snapshot can omit the execution SESSION while retaining
          ;; its caller's live policy.  Capture identity, not policy values.
          (policy-session (or session
@@ -3184,8 +3183,7 @@ relaxing request identity, owner, target or policy validation."
 NAME, COMMAND, WORKDIR, TIMEOUT, SESSION and OWNER describe the child and
 its telemetry.  TEARDOWN-FUNCTION handles owner destruction without delivery."
   (let* ((invocation
-          (and (boundp 'niwa--agent-invocation)
-               niwa--agent-invocation))
+          niwa--agent-invocation)
          (telemetry-context
           (niwa-execution-telemetry-context-create
            :session session :owner owner :invocation invocation

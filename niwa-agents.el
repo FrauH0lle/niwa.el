@@ -529,8 +529,7 @@ and render-data markers are runtime-only caches for cheap live updates."
 
 (defun niwa-plan-read-only-request-p ()
   "Return non-nil when the ambient request or invocation is Plan read-only."
-  (or (and (boundp 'niwa--current-request)
-           niwa--current-request
+  (or (and niwa--current-request
            (niwa-request-plan-read-only niwa--current-request))
       (and niwa--agent-invocation
            (niwa-agent-invocation-plan-read-only
@@ -544,7 +543,7 @@ the ambient agent invocation's root session."
   (or (niwa-plan-read-only-request-p)
       (niwa-plan-mode-active-p
        (or session
-           (and (boundp 'niwa--session) niwa--session)
+           niwa--session
            (and niwa--agent-invocation
                 (niwa-agent-invocation-parent-session
                  niwa--agent-invocation))))))

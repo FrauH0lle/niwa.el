@@ -138,9 +138,8 @@ PROPOSAL is the prepared proposal whose physical fields are private."
 
 (defun niwa-tool-patch--ensure-work-session ()
   "Return the current durable session for a session-owned work operand."
-  (let ((session (and (boundp 'niwa--session) niwa--session))
-        (request (and (boundp 'niwa--current-request)
-                      niwa--current-request)))
+  (let ((session niwa--session)
+        (request niwa--current-request))
     (unless session
       (error "Session working files require a session (work://)"))
     (when (and request (niwa-request-ephemeral-p request))
@@ -349,8 +348,7 @@ tolerated, and content lines are kept raw."
     (error "Parameter patch is required"))
   (let* ((root (file-name-as-directory (expand-file-name (or root default-directory))))
          (target
-          (or (and (boundp 'niwa--session)
-                   niwa--session
+          (or (and niwa--session
                    (niwa-session-execution-target niwa--session))
               (niwa-execution-target-create root)))
          (resolve
@@ -1598,12 +1596,11 @@ file buttons, rewritten links, or inline images."
 (defun niwa-tool-patch--effective-mode ()
   "Return the active permission mode for patch review."
   (let ((mode (niwa-permission-mode-effective
-               (and (boundp 'niwa--session) niwa--session)
+               niwa--session
                (current-buffer))))
     (cond
      ((eq mode 'full-auto) mode)
-     ((and (boundp 'niwa--current-request)
-           niwa--current-request
+     ((and niwa--current-request
            (niwa-request-one-shot-mutations-p niwa--current-request))
       'ask)
      ((and (boundp 'niwa-pipeline--auto-apply-edit-p)
@@ -1688,7 +1685,7 @@ matches fails as it does for a local file."
 
 (defun niwa-tool-patch--workspace ()
   "Return the current session's workspace, which remote files belong to."
-  (or (and (boundp 'niwa--session) niwa--session
+  (or (and niwa--session
            (niwa-session-workspace niwa--session))
       (error "Remote artifact files require a session")))
 

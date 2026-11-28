@@ -55,7 +55,7 @@ A plist with :key, :state (`ready', `failed' or `checking'), the failure
   "Clear SESSION's resolved readiness issues IDS and wake its retained input."
   (when (apply #'niwa-recovery-clear session ids)
     (niwa-recovery-save session)
-    (when (and (boundp 'niwa--view-buffer) (buffer-live-p niwa--view-buffer))
+    (when (buffer-live-p niwa--view-buffer)
       (with-current-buffer niwa--view-buffer
         (niwa-pending-inputs-schedule-held-input-delivery)))))
 

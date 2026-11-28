@@ -981,8 +981,7 @@ to conversation delivery, leaving only the stable system contract."
          (cond
           ((and (buffer-live-p niwa-system--prompt-inspector-data-buffer)
                 niwa-system--prompt-inspector-data-buffer))
-          ((and (boundp 'niwa--data-buffer)
-                (buffer-live-p niwa--data-buffer))
+          ((buffer-live-p niwa--data-buffer)
            niwa--data-buffer)
           ((bound-and-true-p niwa--session) (current-buffer)))))
     (unless (and (buffer-live-p buffer)

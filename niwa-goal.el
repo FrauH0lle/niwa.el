@@ -395,8 +395,7 @@ never discloses session storage paths."
   "Return non-nil when SESSION has a pending user interaction."
   (or (niwa-session-permission-queue session)
       (niwa-session-pending-plan-approval session)
-      (and (boundp 'niwa--view-buffer)
-           (buffer-live-p niwa--view-buffer)
+      (and (buffer-live-p niwa--view-buffer)
            (niwa-view-interaction-pending-p niwa--view-buffer))))
 
 (defun niwa-goal--budget-exhausted-p (goal)
@@ -923,8 +922,7 @@ is BUFFER's running root request when that request is charged to a Goal."
   (with-current-buffer (or buffer (current-buffer))
     (if-let* ((invocation niwa--agent-invocation))
         (niwa-agent-invocation-goal-owner invocation)
-      (when-let* ((request (and (boundp 'niwa--current-request)
-                                niwa--current-request))
+      (when-let* ((request niwa--current-request)
                   (fsm (niwa-engine-owner request))
                   ((plist-get (niwa-engine-info fsm)
                               :niwa-goal-accounting-id)))

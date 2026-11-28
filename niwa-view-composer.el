@@ -406,9 +406,8 @@ draft starts where the prompt ends."
 (defun niwa-view--effective-permission-mode ()
   "Return the permission mode to apply to the current view buffer."
   (niwa-permission-mode-effective
-   (and (boundp 'niwa--session) niwa--session)
-   (and (boundp 'niwa--data-buffer)
-        (buffer-live-p niwa--data-buffer)
+   niwa--session
+   (and (buffer-live-p niwa--data-buffer)
         niwa--data-buffer)
    (current-buffer)))
 
@@ -423,8 +422,7 @@ draft starts where the prompt ends."
 
 (defun niwa-view--plan-mode-p ()
   "Return non-nil when the current view's session is in Plan mode."
-  (and (boundp 'niwa--session)
-       niwa--session
+  (and niwa--session
        (niwa-session-plan-mode niwa--session)))
 
 (defconst niwa-view--permission-mode-cycle
@@ -1242,11 +1240,9 @@ ATTRIBUTION names who the turn speaks for when that is not the user."
 Callable from either half of a view/data pair: prompt-affecting state
 changes land in the data buffer, and the prompt lives in the view."
   (let ((view-buf (cond
-                   ((and (boundp 'niwa--view-buffer)
-                         (buffer-live-p niwa--view-buffer))
+                   ((buffer-live-p niwa--view-buffer)
                     niwa--view-buffer)
-                   ((and (boundp 'niwa--data-buffer)
-                         (buffer-live-p niwa--data-buffer))
+                   ((buffer-live-p niwa--data-buffer)
                     (buffer-local-value 'niwa--view-buffer
                                         niwa--data-buffer)))))
     (when (buffer-live-p view-buf)
@@ -1350,11 +1346,10 @@ overriding read-only protections."
 (defun niwa-view-cycle-permission-mode ()
   "Cycle the current session's permission mode from the view buffer."
   (interactive)
-  (let* ((data-buf (and (boundp 'niwa--data-buffer)
-                        niwa--data-buffer
+  (let* ((data-buf (and niwa--data-buffer
                         (buffer-live-p niwa--data-buffer)
                         niwa--data-buffer))
-         (session (or (and (boundp 'niwa--session) niwa--session)
+         (session (or niwa--session
                       (and data-buf
                            (buffer-local-value 'niwa--session data-buf)))))
     (unless (and data-buf session)
@@ -1371,11 +1366,10 @@ overriding read-only protections."
 (defun niwa-view-toggle-plan-mode ()
   "Toggle Plan for the current session without changing permissions."
   (interactive)
-  (let* ((data-buf (and (boundp 'niwa--data-buffer)
-                        niwa--data-buffer
+  (let* ((data-buf (and niwa--data-buffer
                         (buffer-live-p niwa--data-buffer)
                         niwa--data-buffer))
-         (session (or (and (boundp 'niwa--session) niwa--session)
+         (session (or niwa--session
                       (and data-buf
                            (buffer-local-value 'niwa--session data-buf)))))
     (unless (and data-buf session)
@@ -1488,9 +1482,8 @@ When FORCE is non-nil, replace the current draft unconditionally."
 
 (defun niwa-view--session ()
   "Return the session associated with the current view buffer."
-  (or (and (boundp 'niwa--session) niwa--session)
-      (and (boundp 'niwa--data-buffer)
-           (buffer-live-p niwa--data-buffer)
+  (or niwa--session
+      (and (buffer-live-p niwa--data-buffer)
            (buffer-local-value 'niwa--session niwa--data-buffer))))
 
 (defun niwa-view--reserved-goal-handoff-id (&optional session)

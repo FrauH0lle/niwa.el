@@ -444,8 +444,7 @@ is deleted before returning."
 A session keeps them with its tool results.  Without one they go to the
 caller's `niwa-tool-fs-read--scratch-directory', or else to a private
 directory that this Emacs deletes when it exits."
-  (let* ((buffer (if (and (boundp 'niwa--data-buffer)
-                          niwa--data-buffer
+  (let* ((buffer (if (and niwa--data-buffer
                           (buffer-live-p niwa--data-buffer))
                      niwa--data-buffer
                    (current-buffer)))

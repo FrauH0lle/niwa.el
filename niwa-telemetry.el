@@ -281,13 +281,11 @@ they never move backwards within the process."
   (let ((buffer (or buffer (current-buffer))))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        (or (and (boundp 'niwa--session) niwa--session)
-            (and (boundp 'niwa--data-buffer)
-                 (buffer-live-p niwa--data-buffer)
+        (or niwa--session
+            (and (buffer-live-p niwa--data-buffer)
                  (buffer-local-value 'niwa--session
                                      niwa--data-buffer))
-            (and (boundp 'niwa--agent-invocation)
-                 (fboundp 'niwa-agent-invocation-p)
+            (and (fboundp 'niwa-agent-invocation-p)
                  (niwa-agent-invocation-p niwa--agent-invocation)
                  (fboundp 'niwa-agent-invocation-parent-session)
                  (niwa-agent-invocation-parent-session

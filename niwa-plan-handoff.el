@@ -178,9 +178,8 @@
 (defun niwa-plan-handoff--current-session (&optional session)
   "Return SESSION or the session reachable from the current buffer."
   (or session
-      (and (boundp 'niwa--session) niwa--session)
-      (and (boundp 'niwa--data-buffer)
-           (buffer-live-p niwa--data-buffer)
+      niwa--session
+      (and (buffer-live-p niwa--data-buffer)
            (buffer-local-value 'niwa--session niwa--data-buffer))))
 
 (defun niwa-plan-handoff-reserved-goal-id (&optional session)
@@ -945,8 +944,7 @@ the durable retry was retained"
   (let* ((session (niwa-plan-handoff--current-session session))
          (chat-buffer
           (or chat-buffer
-              (and (boundp 'niwa--data-buffer)
-                   (buffer-live-p niwa--data-buffer)
+              (and (buffer-live-p niwa--data-buffer)
                    niwa--data-buffer)
               (current-buffer))))
     (unless (and session

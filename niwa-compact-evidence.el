@@ -417,7 +417,7 @@ reconstructed into a child conversation."
 
 (defun niwa-compact-evidence-summary-context-evidence (tool-use-id)
   "Return frozen parent evidence excluding TOOL-USE-ID's tool segment."
-  (let* ((session (and (boundp 'niwa--session) niwa--session))
+  (let* ((session niwa--session)
          (agent-path
           (if-let* ((invocation niwa--agent-invocation))
               (niwa-agent-invocation-require-path invocation)

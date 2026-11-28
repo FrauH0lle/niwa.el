@@ -57,13 +57,10 @@ authoritative data buffer.  Returns nil for any buffer not tied to a
 session -- Customize UI, `*scratch*', init-file load, etc."
   (let ((cur (current-buffer)))
     (cond
-     ((and (boundp 'niwa--session)
-           (buffer-local-value 'niwa--session cur))
+     ((buffer-local-value 'niwa--session cur)
       cur)
-     ((let ((db (and (boundp 'niwa--data-buffer)
-                     (buffer-local-value 'niwa--data-buffer cur))))
+     ((let ((db (buffer-local-value 'niwa--data-buffer cur)))
         (and db (buffer-live-p db)
-             (boundp 'niwa--session)
              (buffer-local-value 'niwa--session db)
              db))))))
 
@@ -163,7 +160,6 @@ only the UI-local fallback when no session mode exists."
     (or scoped-mode
         (and session (niwa-session-permission-mode session))
         (and (buffer-live-p data-buffer)
-             (boundp 'niwa--session)
              (when-let* ((data-session
                           (buffer-local-value 'niwa--session data-buffer)))
                (niwa-session-permission-mode data-session)))

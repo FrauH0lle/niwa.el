@@ -139,15 +139,13 @@ duplicates are skipped.  History navigation state is reset."
 
 (defun niwa-view-history--session ()
   "Return the session associated with the current view buffer."
-  (or (and (boundp 'niwa--session) niwa--session)
-      (and (boundp 'niwa--data-buffer)
-           (buffer-live-p niwa--data-buffer)
+  (or niwa--session
+      (and (buffer-live-p niwa--data-buffer)
            (buffer-local-value 'niwa--session niwa--data-buffer))))
 
 (defun niwa-view-history--read-only-p ()
   "Return non-nil when the associated data buffer is read-only."
-  (and (boundp 'niwa--data-buffer)
-       (buffer-live-p niwa--data-buffer)
+  (and (buffer-live-p niwa--data-buffer)
        (buffer-local-value 'niwa-session--read-only-mode
                            niwa--data-buffer)))
 

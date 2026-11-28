@@ -538,7 +538,7 @@ enabling hooks."
 (defun niwa-plugins--state-session (workspace)
   "Return the live session authorized to mutate WORKSPACE plugin state."
   (let ((session
-         (or (and (boundp 'niwa--session) niwa--session)
+         (or niwa--session
              (ignore-errors
                (niwa-cockpit-context-session
                 (niwa-cockpit-current-context))))))

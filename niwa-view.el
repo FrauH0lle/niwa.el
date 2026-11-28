@@ -1892,8 +1892,7 @@ incremental refresh."
   (let ((view-buffer (or buffer (current-buffer))))
     (when (buffer-live-p view-buffer)
       (with-current-buffer view-buffer
-        (when (and (boundp 'niwa--data-buffer)
-                   (buffer-live-p niwa--data-buffer))
+        (when (buffer-live-p niwa--data-buffer)
           (niwa-view--schedule-render
            'full niwa--data-buffer niwa-view-rerender-debounce))))))
 
@@ -2001,9 +2000,8 @@ the editable composer signal instead of settling queued interactions."
   (or (and data-buf
            (buffer-live-p data-buf)
            (buffer-local-value 'niwa--session data-buf))
-      (and (boundp 'niwa--session) niwa--session)
-      (and (boundp 'niwa--data-buffer)
-           (buffer-live-p niwa--data-buffer)
+      niwa--session
+      (and (buffer-live-p niwa--data-buffer)
            (buffer-local-value 'niwa--session niwa--data-buffer))))
 
 (defun niwa-view--status-model (&optional data-buf)
@@ -2162,8 +2160,7 @@ tweaks via `customize-face' apply uniformly."
                   (eq (char-after end) ?\n))
              (1+ end)
            end))))
-   (when-let* ((data-buf (and (boundp 'niwa--data-buffer)
-                              niwa--data-buffer))
+   (when-let* ((data-buf niwa--data-buffer)
                ((buffer-live-p data-buf))
                (header (substring-no-properties
                         (niwa-view--header-string data-buf)))

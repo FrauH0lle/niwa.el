@@ -740,8 +740,7 @@ Unassociated ordinary buffers remain eligible for low-level inspection, but
 session buffers must cross the session-owned root registration seam."
   (and (buffer-live-p buffer)
        (with-current-buffer buffer
-         (let ((session (and (boundp 'niwa--session)
-                             niwa--session)))
+         (let ((session niwa--session))
            (and (not niwa--agent-invocation)
                 (or (and session
                          (eq buffer (niwa-session-root-buffer session)))
@@ -757,7 +756,7 @@ know.  View buffers never become roots because an initialized view has
 already registered the session-owned data buffer."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
-      (let ((session (and (boundp 'niwa--session) niwa--session)))
+      (let ((session niwa--session))
         (cond
          (niwa--agent-invocation nil)
          ((and session (buffer-live-p (niwa-session-root-buffer session)))
@@ -802,8 +801,7 @@ SESSION supplies the live owner; TOKEN is the caller's mutation gate token."
 Publication work is drained before the final save and lease release.  A root
 buffer also stops new admissions.  An unresolved job keeps the session's
 state and lease for explicit publication recovery."
-  (when (and (boundp 'niwa--session)
-             niwa--session)
+  (when niwa--session
     (when (niwa-session-persistence--drain-for-close
            niwa--session (current-buffer))
       (niwa-session-persistence-autosave-buffer (current-buffer))
@@ -871,7 +869,7 @@ A `kill-buffer-query-functions' member: it drains an owned root buffer's
 publication work while teardown has not yet started, and refuses the close
 with a message when a job stays unresolved, so explicit recovery remains
 possible."
-  (or (not (and (boundp 'niwa--session) niwa--session))
+  (or (not niwa--session)
       (not (niwa-session-persistence--gate-owner-p niwa--session))
       (not (eq (current-buffer) (niwa-session-root-buffer niwa--session)))
       ;; The drain is the decision.  Another query may still veto the close,
@@ -1123,10 +1121,9 @@ input and an unattended turn receives none."
 
 (defun niwa-session-persistence--request-in-flight-p ()
   "Return non-nil when some niwa buffer has a request in flight."
-  (and (boundp 'niwa--current-request)
-       (cl-some (lambda (buffer)
-                  (buffer-local-value 'niwa--current-request buffer))
-                (buffer-list))))
+  (cl-some (lambda (buffer)
+             (buffer-local-value 'niwa--current-request buffer))
+           (buffer-list)))
 
 (defun niwa-session-persistence--checkpoint-tick ()
   "Checkpoint modified conversations; stop once no request is in flight.
@@ -1658,8 +1655,8 @@ To rename the current session in place, use `niwa-rename-session'."
   (interactive "P")
   (let* ((data-buf
           (cond
-           ((and (boundp 'niwa--session) niwa--session) (current-buffer))
-           ((and (boundp 'niwa--data-buffer) niwa--data-buffer
+           (niwa--session (current-buffer))
+           ((and niwa--data-buffer
                  (buffer-live-p niwa--data-buffer))
             niwa--data-buffer)
            (t (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "Not in a niwa chat or view buffer"))))
@@ -1730,8 +1727,7 @@ Repoint DATA-BUF at the child after it commits."
           (lambda (buffer)
             (and (buffer-live-p buffer)
                  (with-current-buffer buffer
-                   (when (and (boundp 'niwa--session)
-                              niwa--session)
+                   (when niwa--session
                      (setq scope (niwa-diagnostic-scope niwa--session))
                      (cond
                       ;; Queued and in-flight async publication drains here,
@@ -1856,8 +1852,7 @@ remains possible; execution teardown still runs."
       (dolist (buf (buffer-list))
         (when (buffer-live-p buf)
           (with-current-buffer buf
-            (when (and (boundp 'niwa--session)
-                       niwa--session
+            (when (and niwa--session
                        (not niwa--agent-invocation)
                        (not (memq niwa--session blocked)))
               (when (or (buffer-modified-p)

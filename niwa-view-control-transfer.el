@@ -178,8 +178,7 @@ transfer in flight wants a cadence the idle session does not."
       ;; Only portable sessions transfer control; another session's poll
       ;; signals, and re-arming it woke the view every few seconds forever.
       (unless (or niwa-view--control-transfer-torn-down-p
-                  (and-let* ((data (and (boundp 'niwa--data-buffer)
-                                        (buffer-live-p niwa--data-buffer)
+                  (and-let* ((data (and (buffer-live-p niwa--data-buffer)
                                         niwa--data-buffer))
                              (session (buffer-local-value 'niwa--session data)))
                     (condition-case nil
@@ -187,8 +186,7 @@ transfer in flight wants a cadence the idle session does not."
                       (error nil))))
         (let ((interval
                (niwa-view--control-transfer-poll-seconds
-                (and (boundp 'niwa--data-buffer)
-                     (buffer-live-p niwa--data-buffer)
+                (and (buffer-live-p niwa--data-buffer)
                      (buffer-local-value 'niwa--session
                                          niwa--data-buffer)))))
           (setq-local niwa-view--control-transfer-timer
@@ -230,8 +228,7 @@ transfer in flight wants a cadence the idle session does not."
 
 (defun niwa-view--control-transfer-data-buffer ()
   "Return the live data buffer for the current view, or nil."
-  (and (boundp 'niwa--data-buffer)
-       (buffer-live-p niwa--data-buffer)
+  (and (buffer-live-p niwa--data-buffer)
        niwa--data-buffer))
 
 (defun niwa-view--control-transfer-refresh (&optional view)
@@ -471,8 +468,7 @@ can still use its root registration to seal journal work before teardown."
      niwa-view--session-observer)
     (setq niwa-view--session-observer-session nil
           niwa-view--session-observer nil))
-  (when (and (boundp 'niwa--data-buffer)
-             (buffer-live-p niwa--data-buffer)
+  (when (and (buffer-live-p niwa--data-buffer)
              (not niwa-view--agent-transcript-p))
     (let ((session (buffer-local-value 'niwa--session
                                        niwa--data-buffer)))
@@ -496,8 +492,7 @@ can still use its root registration to seal journal work before teardown."
   (setq-local niwa-view--control-transfer-torn-down-p nil)
   (setq-local niwa-view--control-transfer-descriptor 'unset)
   (setq-local niwa-view--control-transfer-rebuild-function rebuild-function)
-  (when (and (boundp 'niwa--data-buffer)
-             (buffer-live-p niwa--data-buffer)
+  (when (and (buffer-live-p niwa--data-buffer)
              (not niwa-view--agent-transcript-p))
     (let ((session (buffer-local-value 'niwa--session
                                        niwa--data-buffer))

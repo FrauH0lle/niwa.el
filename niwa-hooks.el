@@ -1786,8 +1786,7 @@ EVENT labels each generated hook event block."
 
 (defun niwa-hooks--progress-snapshot ()
   "Return the leased view progress and its buffer, or nil."
-  (when-let* ((view-buffer (and (boundp 'niwa--view-buffer)
-                                niwa--view-buffer))
+  (when-let* ((view-buffer niwa--view-buffer)
               (_ (buffer-live-p view-buffer))
               (lease (niwa-view-stream-lease-progress view-buffer)))
     (list :buffer view-buffer :status lease)))
@@ -2624,12 +2623,11 @@ decision plist.  SCOPED-RULES, a preparing skill's hooks, join this
 run only, innermost."
   (let* ((event (niwa-hooks--event-symbol event))
          (session (or session
-                      (and (boundp 'niwa--session) niwa--session)))
+                      niwa--session))
          (workspace (or workspace
                         (and session (niwa-session-workspace session))))
          (request (or request
-                      (and (boundp 'niwa--current-request)
-                           niwa--current-request)))
+                      niwa--current-request))
          (invocation (or invocation
                          niwa--agent-invocation))
          (dispatch-buffer (current-buffer)))
@@ -2786,12 +2784,11 @@ display the dry-run result."
                     (list target-key target))
                nil)))
          (session (or session
-                      (and (boundp 'niwa--session) niwa--session)))
+                      niwa--session))
          (workspace (or workspace
                         (and session (niwa-session-workspace session))))
          (request (or request
-                      (and (boundp 'niwa--current-request)
-                           niwa--current-request)))
+                      niwa--current-request))
          (invocation (or invocation
                          niwa--agent-invocation))
          (payload (plist-put event-plist :hook-event-name event))
@@ -2822,7 +2819,7 @@ display the dry-run result."
 (defun niwa-hooks-list (&optional session)
   "Display effective hooks for SESSION or current buffer."
   (interactive)
-  (let* ((session (or session (and (boundp 'niwa--session) niwa--session)))
+  (let* ((session (or session niwa--session))
          (workspace (and session (niwa-session-workspace session)))
          (rules (niwa-hooks-effective-rules session workspace)))
     (niwa-report-show

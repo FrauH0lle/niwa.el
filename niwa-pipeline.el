@@ -921,8 +921,7 @@ permission or handler work begins."
 
 (defun niwa-pipeline--current-request ()
   "Return the current niwa request struct, if any."
-  (and (boundp 'niwa--current-request)
-       niwa--current-request))
+  niwa--current-request)
 
 (defun niwa-pipeline--current-invocation ()
   "Return the current agent invocation struct, if any."
@@ -1749,11 +1748,11 @@ recursion already delivered a success result to CALLBACK) would
 double-fire.  Errors from the wrapped invocation are caught and
 logged so a misbehaving CALLBACK cannot strand the pipeline."
   (let* ((dispatch-buffer (current-buffer))
-         (session (and (boundp 'niwa--session) niwa--session))
+         (session niwa--session)
          (workspace
           (cond
            (session (niwa-session-workspace session))
-           ((and (boundp 'niwa--workspace) niwa--workspace))))
+           (niwa--workspace)))
          (scope (niwa-diagnostic-scope (or workspace session)))
          (workdir (file-name-as-directory
                    (niwa-conversation-working-directory session)))

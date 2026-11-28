@@ -279,7 +279,7 @@ repositories and submodules have different common directories."
 
 (defun niwa-worktree--current-context ()
   "Return a plist describing the current session command context."
-  (let* ((session (and (boundp 'niwa--session) niwa--session))
+  (let* ((session niwa--session)
          (workspace (and session (niwa-session-workspace session))))
     (list :data-buffer (and session (current-buffer))
           :session session

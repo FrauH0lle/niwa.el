@@ -32,11 +32,9 @@
 
 (defun niwa-plugins-current-workspace ()
   "Return the current chat workspace, if available."
-  (or (and (boundp 'niwa--session)
-           niwa--session
+  (or (and niwa--session
            (niwa-session-workspace niwa--session))
-      (and (boundp 'niwa--workspace)
-           niwa--workspace)))
+      niwa--workspace))
 
 (defun niwa-plugins-refresh-session (&optional context)
   "Refresh CONTEXT's session skills when `niwa-skills' is available.

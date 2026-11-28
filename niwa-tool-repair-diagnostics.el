@@ -115,7 +115,7 @@ Report formatting failures in the originating SCOPE."
 
 (defun niwa-tool-repair--current-session ()
   "Return the top-level session associated with the current buffer."
-  (or (and (boundp 'niwa--session) niwa--session)
+  (or niwa--session
       (and (fboundp 'niwa-agent-invocation-p)
            (niwa-agent-invocation-p niwa--agent-invocation)
            (niwa-agent-invocation-parent-session

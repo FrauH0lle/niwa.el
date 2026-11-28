@@ -80,12 +80,10 @@ already is a niwa data buffer, return BUFFER."
     (with-current-buffer buffer
       (cond
        ((and (derived-mode-p 'niwa-view-mode)
-             (boundp 'niwa--data-buffer)
              niwa--data-buffer
              (buffer-live-p niwa--data-buffer))
         niwa--data-buffer)
-       ((and (boundp 'niwa--view-buffer)
-             niwa--view-buffer
+       ((and niwa--view-buffer
              (buffer-live-p niwa--view-buffer)
              (with-current-buffer niwa--view-buffer
                (and (derived-mode-p 'niwa-view-mode)

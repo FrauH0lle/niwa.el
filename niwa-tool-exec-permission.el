@@ -351,7 +351,7 @@ PERMISSION-CONTEXT supplies the session execution target."
     (niwa-tool-exec-permission--policy-error
      "Sandbox Eval cannot request additional permissions or escalation; use fresh Eval"))
   (let* ((session (or (plist-get permission-context :session)
-                      (and (boundp 'niwa--session) niwa--session)))
+                      niwa--session))
          (directory
           (or (plist-get permission-context :execution-directory)
               (niwa-conversation-working-directory

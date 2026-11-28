@@ -832,8 +832,7 @@ usual.  Keyboard invocation outside an attribution signals a user error."
 
 (defun niwa-view--session ()
   "Return the root session displayed by the current view, or nil."
-  (when-let* ((data-buf (and (boundp 'niwa--data-buffer)
-                             niwa--data-buffer))
+  (when-let* ((data-buf niwa--data-buffer)
               ((buffer-live-p data-buf)))
     (buffer-local-value 'niwa--session data-buf)))
 
@@ -858,8 +857,7 @@ usual.  Keyboard invocation outside an attribution signals a user error."
 Retained agents resolve through their conversation buffer when it is resident;
 otherwise their validated transcript file is opened.
 Signals `user-error' when no transcript source can be opened."
-  (let* ((data-buf (and (boundp 'niwa--data-buffer)
-                        niwa--data-buffer))
+  (let* ((data-buf niwa--data-buffer)
          (session (and data-buf (buffer-live-p data-buf)
                        (buffer-local-value 'niwa--session data-buf)))
          (record (and session (niwa-view--agent-record agent-path)))
@@ -1068,8 +1066,7 @@ buffer whether running or idle."
   (interactive
    (list (completing-read
           "Agent transcript: "
-          (when-let* ((data-buf (and (boundp 'niwa--data-buffer)
-                                     niwa--data-buffer))
+          (when-let* ((data-buf niwa--data-buffer)
                       ((buffer-live-p data-buf))
                       (session (buffer-local-value
                                 'niwa--session data-buf)))
@@ -1182,8 +1179,7 @@ does not search the transcript."
               (end
                (niwa-agent-invocation-render-data-end-marker
                 invocation))
-              (data-buf (and (boundp 'niwa--data-buffer)
-                             niwa--data-buffer))
+              (data-buf niwa--data-buffer)
               ((buffer-live-p data-buf))
               ((markerp start))
               ((markerp end)))

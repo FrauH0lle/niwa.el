@@ -995,9 +995,8 @@ cost a process start inside every committing publication."
 
 (defun niwa-session-publication--current-session ()
   "Return the session reached from the current data or view buffer."
-  (or (and (boundp 'niwa--session) niwa--session)
-      (and (boundp 'niwa--data-buffer)
-           (buffer-live-p niwa--data-buffer)
+  (or niwa--session
+      (and (buffer-live-p niwa--data-buffer)
            (buffer-local-value 'niwa--session niwa--data-buffer))
       (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "No active niwa session")))
 

@@ -190,8 +190,7 @@
    (niwa--compact-auto-disabled "auto-compaction is disabled after repeated failures")
    (niwa-compact-run-in-flight "compaction is already in progress")
    ((bound-and-true-p niwa-session--read-only-mode) "session is read-only")
-   ((not (and (boundp 'niwa--session)
-              niwa--session
+   ((not (and niwa--session
               (niwa-session-save-path niwa--session)))
     "session is not materialized on disk")
     ((not (niwa-compact-target-current-persisted-p))

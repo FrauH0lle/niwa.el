@@ -72,7 +72,7 @@ Without CONTEXT, use the invoking transient's explicit context."
   "Return BUFFER's local session, or nil."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
-      (and (boundp 'niwa--session) niwa--session))))
+      niwa--session)))
 
 (defun niwa-cockpit--make-context (view-buffer data-buffer origin-buffer)
   "Return a cockpit context for VIEW-BUFFER, DATA-BUFFER, and ORIGIN-BUFFER."
@@ -97,14 +97,11 @@ Without CONTEXT, use the invoking transient's explicit context."
         (niwa-cockpit--make-context
          niwa-composer--view niwa--data-buffer buffer))
        ((and (derived-mode-p 'niwa-view-mode)
-             (boundp 'niwa--data-buffer)
              (buffer-live-p niwa--data-buffer))
         (niwa-cockpit--make-context buffer niwa--data-buffer buffer))
-       ((and (boundp 'niwa--view-buffer)
-             (buffer-live-p niwa--view-buffer)
+       ((and (buffer-live-p niwa--view-buffer)
              (with-current-buffer niwa--view-buffer
                (and (derived-mode-p 'niwa-view-mode)
-                    (boundp 'niwa--data-buffer)
                     (eq niwa--data-buffer buffer))))
         (niwa-cockpit--make-context niwa--view-buffer buffer buffer))))))
 

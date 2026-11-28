@@ -105,15 +105,14 @@ unsaved readers use the execution module's temporary spool instead."
     (when-let* ((root
                  (niwa-pipeline-tool-results-dir
                   session
-                  (or (and (boundp 'niwa--data-buffer)
-                           niwa--data-buffer)
+                  (or niwa--data-buffer
                       (current-buffer))
                   nil read-only-p)))
       (file-name-concat root "executions"))))
 
 (defun niwa-tool-exec--sandbox-temporary-root (workdir)
   "Return the execution target's temporary directory for WORKDIR."
-  (let* ((session (and (boundp 'niwa--session) niwa--session))
+  (let* ((session niwa--session)
          (target (and session (niwa-session-execution-target session))))
     (if (and target (niwa-execution-target-remote-p target))
         (niwa-execution-target-expand-path
@@ -126,7 +125,7 @@ unsaved readers use the execution module's temporary spool instead."
 
 (defun niwa-tool-exec--sandbox-writable-roots (workdir)
   "Return writable child-confinement roots for WORKDIR."
-  (let* ((session (and (boundp 'niwa--session) niwa--session))
+  (let* ((session niwa--session)
          (target (and session (niwa-session-execution-target session)))
          (remote (and target
                       (niwa-execution-target-remote-p target)))

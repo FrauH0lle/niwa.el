@@ -262,8 +262,7 @@ renderer to fall back to the bare `Tool' one-liner."
                      (extract (niwa-view-render--parse-step
                                (niwa-tool-render-data-extract
                                full-result
-                               (and (boundp 'niwa--session)
-                                    niwa--session)
+                               niwa--session
                                tool-id
                                (and (stringp tool-id)
                                     (not (string-empty-p tool-id))
@@ -1421,8 +1420,7 @@ Archived rows also depend on the live transcript's terminal completions."
             (end (niwa-view--source-position seg-end)))
         (let ((key (list data-buf start end
                          (niwa-view--source-revision start end)
-                         (and (boundp 'niwa--session)
-                              (niwa-view--session-render-state-fingerprint niwa--session))
+                         (niwa-view--session-render-state-fingerprint niwa--session)
                          (and collapsed-only t)
                          (niwa-view--tool-source-properties start end)
                          (and (buffer-live-p live-data)

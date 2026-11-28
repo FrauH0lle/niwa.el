@@ -281,9 +281,8 @@ silently placing controls in a data buffer."
            (or (let ((view (buffer-local-value 'niwa--view-buffer
                                                buf)))
                  (and (live-interaction-view-p view) view))
-               (when-let* ((inv (and (boundp 'niwa--agent-invocation)
-                                     (buffer-local-value
-                                      'niwa--agent-invocation buf)))
+               (when-let* ((inv (buffer-local-value
+                                 'niwa--agent-invocation buf))
                            ((niwa-agent-invocation-p inv))
                            (parent (niwa-agent-invocation-parent-data-buffer
                                     inv)))
@@ -296,8 +295,7 @@ silently placing controls in a data buffer."
           (or (and (live-interaction-view-p (current-buffer))
                    (current-buffer))
               (view-for-data-buffer (current-buffer))
-              (and (boundp 'niwa--view-buffer)
-                   (live-interaction-view-p niwa--view-buffer)
+              (and (live-interaction-view-p niwa--view-buffer)
                    niwa--view-buffer)))
         (error "No live view for queued prompt"))))
 
@@ -734,7 +732,6 @@ and nothing else resumes them once the user settles it while the root
 session is idle -- for example a child agent's permission card or a Plan
 approval."
   (when (and (not niwa-view--agent-transcript-p)
-             (boundp 'niwa--data-buffer)
              (buffer-live-p niwa--data-buffer)
              (eq (current-buffer)
                  (buffer-local-value 'niwa--view-buffer

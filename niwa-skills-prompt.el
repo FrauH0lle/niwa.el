@@ -255,7 +255,7 @@ Catalogue activation is shared.  Notices are evaluated for this recipient
 even if another conversation previously activated the same skill.  Post-tool
 discovery cannot enforce required pre-action instructions.  Failed path
 attempts can also make optional guidance discoverable."
-  (when-let* ((session (or (and (boundp 'niwa--session) niwa--session)
+  (when-let* ((session (or niwa--session
                            (when-let* ((inv (niwa-skills--current-invocation)))
                              (niwa-agent-invocation-parent-session inv))))
               (tool-name (plist-get info :tool-name))

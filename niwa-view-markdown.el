@@ -147,15 +147,14 @@ only for as long as the renderer was allowed to touch the connection."
 Resolve RAW in the execution target of the session tied to the current data
 buffer."
   (when (stringp raw)
-    (if-let* ((session (and (boundp 'niwa--session) niwa--session))
+    (if-let* ((session niwa--session)
               (target (ignore-errors
                         (niwa-session-execution-target session))))
         (unless (niwa-view--foreign-spelling-p raw target)
           (ignore-errors (niwa-execution-target-expand-path target raw)))
       (if (file-name-absolute-p raw)
           raw
-        (when-let* ((session (and (boundp 'niwa--session)
-                                  niwa--session))
+        (when-let* ((session niwa--session)
                     (workspace (ignore-errors
                                  (niwa-session-workspace session)))
                     (root (ignore-errors

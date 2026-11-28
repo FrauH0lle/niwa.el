@@ -114,8 +114,7 @@
             :working-directory (niwa-tool-ui--optional-string args :working_directory)
             :parent-tool-use-id
             (niwa-pipeline-active-tool-use-id))))
-      (when (and (boundp 'niwa--current-request)
-                 niwa--current-request)
+      (when niwa--current-request
         (niwa-request-push-canceller niwa--current-request cancel)))))
 
 (defun niwa-tool-ui--list-agents (args)

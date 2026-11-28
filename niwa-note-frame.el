@@ -226,8 +226,7 @@ Leads with note identity, then the state that changes while the
 conversation runs.  Session facts the parent frame's status strip
 already shows -- session name, workspace root, execution target, preset
 -- are deliberately absent: this header has a fraction of the width."
-  (when (and (boundp 'niwa--data-buffer)
-             (buffer-live-p niwa--data-buffer))
+  (when (buffer-live-p niwa--data-buffer)
     (let* ((data-buffer niwa--data-buffer)
            (id niwa-note-frame--note-id)
            (state (niwa-request-state-label data-buffer))

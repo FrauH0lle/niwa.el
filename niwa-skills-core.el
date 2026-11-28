@@ -1817,7 +1817,7 @@ Use this when a hot-reload strategy missed an event (e.g. on remote
 filesystems where `file-notify' is silently unreliable, or when
 `niwa-skills-check-for-modifications' is nil)."
   (interactive)
-  (let ((session (and (boundp 'niwa--session) niwa--session)))
+  (let ((session niwa--session))
     (unless session
       (niwa-diagnostic-user-error
        (niwa-diagnostic-scope (current-buffer))

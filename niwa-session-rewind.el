@@ -2342,10 +2342,10 @@ conversation and captured files can be restored with `niwa-redo'."
 (defun niwa-session-rewind--command-buffer ()
   "Return the session data buffer the current buffer commands."
   (cond
-   ((and (boundp 'niwa--data-buffer) niwa--data-buffer
+   ((and niwa--data-buffer
          (buffer-live-p niwa--data-buffer))
     niwa--data-buffer)
-   ((and (boundp 'niwa--session) niwa--session)
+   (niwa--session
     (current-buffer))
    (t (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "Not in a niwa chat or view buffer"))))
 

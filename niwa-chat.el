@@ -452,8 +452,7 @@ sessions keep their existing startup behavior and return nil."
   (let* ((data-buffer
           (cond
            ((bound-and-true-p niwa--session) (current-buffer))
-           ((and (boundp 'niwa--data-buffer)
-                 (buffer-live-p niwa--data-buffer))
+           ((buffer-live-p niwa--data-buffer)
             niwa--data-buffer)
            (t (niwa--active-chat-buffer))))
          (session (and (buffer-live-p data-buffer)
@@ -508,8 +507,7 @@ sessions keep their existing startup behavior and return nil."
            :boundary source :emacs-version emacs-version
            (bound-and-true-p niwa--load-provenance))
     (let ((buffer (current-buffer))
-          (workspace (or (and (boundp 'niwa--workspace)
-                              niwa--workspace)
+          (workspace (or niwa--workspace
                          (niwa-session-workspace niwa--session)))
           done)
       (setq-local niwa--session-start-hooks-pending t)
@@ -542,8 +540,7 @@ settled."
   (let ((niwa-session-end-reason (or reason "kill-buffer")))
     (run-hooks 'niwa-session-end-hook)
     (if (bound-and-true-p niwa--session)
-        (let ((workspace (or (and (boundp 'niwa--workspace)
-                                  niwa--workspace)
+        (let ((workspace (or niwa--workspace
                              (niwa-session-workspace niwa--session))))
           (niwa-hooks-run-event
            'SessionEnd
@@ -1192,8 +1189,7 @@ as a background event's, is recorded with the turn and consumed."
       (setq niwa-view--pending-guest-attribution nil))
     (niwa-collaboration--safe-accepted-prompt (current-buffer))
     (let ((data-turn-start (copy-marker (point) nil)))
-      (when-let* ((view (and (boundp 'niwa--view-buffer)
-                            niwa--view-buffer))
+      (when-let* ((view niwa--view-buffer)
                   ((buffer-live-p view))
                   ((fboundp 'niwa-view--begin-external-turn)))
         (with-current-buffer view

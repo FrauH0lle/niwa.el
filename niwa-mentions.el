@@ -572,7 +572,7 @@ media encoding.  Staged bytes expire with REQUEST.  No chat buffer's
       (niwa-permission--invocation-context
        :tool-name "Read" :session session
        :workspace (and session (niwa-session-workspace session))
-       :request (and (boundp 'niwa--current-request) niwa--current-request)
+       :request niwa--current-request
        :buffer chat-buffer :path path
        :workspace-root (plist-get info :workspace-root)
        :allowed-roots (niwa-mentions--allowed-roots info)))))

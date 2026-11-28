@@ -101,7 +101,7 @@ Signals an error on unknown values."
 
 (defun niwa-tool-task--session ()
   "Return the active session, or signal an error."
-  (or (and (boundp 'niwa--session) niwa--session)
+  (or niwa--session
       (error "No active niwa session in %s" (buffer-name))))
 
 (defun niwa-tool-task--next-id (session)
@@ -886,9 +886,8 @@ change the panel's height as it changes length."
 
 (defun niwa-tool-task-refresh-display ()
   "Render the current session's task status in its view buffer."
-  (when-let* ((session (and (boundp 'niwa--session) niwa--session))
-              (view-buf (and (boundp 'niwa--view-buffer)
-                             niwa--view-buffer
+  (when-let* ((session niwa--session)
+              (view-buf (and niwa--view-buffer
                              (buffer-live-p niwa--view-buffer)
                              niwa--view-buffer)))
     (with-current-buffer view-buf

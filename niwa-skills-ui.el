@@ -364,8 +364,7 @@ current buffer belongs to a live session pair."
   (if (and args (not (string-blank-p args)))
       (let ((trimmed (string-trim args)))
         (if-let* ((provider (niwa-model-resolve-provider trimmed t)))
-            (let ((session (and (boundp 'niwa--session)
-                                niwa--session)))
+            (let ((session niwa--session))
               (if session
                   (niwa-model-set-session-provider
                    session provider (current-buffer))
@@ -983,8 +982,7 @@ drain it."
                     "Session is open read-only (another host holds the lock)"))
                  (niwa--dispatch-request nil (lambda () (apply orig-fn args))))
              (niwa-skills-input-clear-pending))))
-      (if (and (boundp 'niwa--view-buffer)
-               (buffer-live-p niwa--view-buffer))
+      (if (buffer-live-p niwa--view-buffer)
           (continue)
         (when-let* ((region (niwa-skills-input-current-prompt-region)))
           (let* ((text (buffer-substring (car region) (cdr region)))
@@ -1494,8 +1492,7 @@ and the transcript prefix made each one cost seconds on a long session.")
 (defun niwa-skills--fontify-dollar-keyword (end)
   "Find a known `$skill' mention before END for font-lock."
   (when-let* ((session (or (bound-and-true-p niwa--session)
-                          (and (boundp 'niwa--data-buffer)
-                               (buffer-live-p niwa--data-buffer)
+                          (and (buffer-live-p niwa--data-buffer)
                                (buffer-local-value 'niwa--session
                                                    niwa--data-buffer))))
               (origin (max (point-min)

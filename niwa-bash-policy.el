@@ -651,7 +651,7 @@ have none.  The executable stays literal; paths are not reduced to names."
   "Return effective permission mode for PERMISSION-CONTEXT."
   (let ((session (if permission-context
                      (plist-get permission-context :session)
-                   (and (boundp 'niwa--session) niwa--session))))
+                   niwa--session)))
     (or (and permission-context
              (plist-get permission-context :mode))
         (if permission-context
@@ -664,7 +664,7 @@ have none.  The executable stays literal; paths are not reduced to names."
   (niwa-sandbox-mode-effective
    (if permission-context
        (plist-get permission-context :session)
-     (and (boundp 'niwa--session) niwa--session))
+     niwa--session)
    (niwa-bash-policy-effective-permission-mode permission-context)))
 
 (defun niwa-bash-policy--bash-protected-path-p
@@ -757,7 +757,7 @@ allowed.  ANALYSIS is the normalized result for COMMAND when already known."
   "Return PERMISSION-CONTEXT's session, or the ambient one without a context."
   (if permission-context
       (plist-get permission-context :session)
-    (and (boundp 'niwa--session) niwa--session)))
+    niwa--session))
 
 (defun niwa-bash-policy--context-workspace (permission-context)
   "Return PERMISSION-CONTEXT's workspace, or the ambient one without a context."
@@ -765,7 +765,7 @@ allowed.  ANALYSIS is the normalized result for COMMAND when already known."
     (or (and session (niwa-session-workspace session))
         (if permission-context
             (plist-get permission-context :workspace)
-          (and (boundp 'niwa--workspace) niwa--workspace)))))
+          niwa--workspace))))
 
 (defun niwa-bash-policy-buckets (&optional permission-context)
   "Return Bash buckets for PERMISSION-CONTEXT, innermost-first.
@@ -781,8 +781,7 @@ the Bash tool path because Bash had its own flattened resolver."
              (request
               (if permission-context
                   (plist-get permission-context :request)
-                (and (boundp 'niwa--current-request)
-                     niwa--current-request)))
+                niwa--current-request))
              (invocation
               (if permission-context
                   (plist-get permission-context :invocation)
