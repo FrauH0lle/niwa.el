@@ -4736,7 +4736,7 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
         (delete-directory tempdir t)
         (niwa-workspace-clear-registry))))
 
-  :doc "deletes sessions older than the cap and removes them from the picker scan"
+  :doc "rechecks expired candidates and lists survivors without another target program"
   (cl-destructuring-bind (workspace . tempdir)
       (test-niwa-session-persistence--make-tempdir-workspace)
     (unwind-protect
@@ -4770,21 +4770,37 @@ BOOT replaces the fixed fixture boot id, standing in for another boot."
                 ;; Expiry must come from the publication, not its fixed cache.
                 (delete-file (niwa-session-artifacts-sidecar-path
                               (niwa-session-save-path s1)))
-                ;; Close both so cleanup may delete the expired one.
+                (test-niwa-session-persistence--expire-session s2)
+                ;; Both are ordinary expired sessions when the picker scans.
                 (test-niwa-session-persistence--release-and-kill b1 s1)
                 (test-niwa-session-persistence--release-and-kill b2 s2)
-                (let* ((scan (niwa-session-persistence--scan workspace "\\`[^.]"))
-                       (deleted
-                        (test-niwa-session-persistence--call-later
-                         (lambda ()
-                           (niwa-session-persistence-cleanup-expired workspace t scan)))))
-                  (should (= 1 deleted))
+                (let ((scan (niwa-session-persistence--scan workspace "\\`[^.]")))
+                  ;; A later publication turns the second candidate into a
+                  ;; referenced note.  Only a fresh sidecar read can see it.
+                  (test-niwa-session-persistence--edit-published-sidecar
+                   workspace (niwa-session-save-path s2)
+                   (lambda (metadata) (plist-put metadata :note-conversation t)))
+                  (require 'niwa-persistence)
+                  (cl-letf (((symbol-function 'niwa-instruction-store-note-session-ids)
+                             (lambda (_) (list (niwa-session-session-id s2)))))
+                    (should (= 1 (test-niwa-session-persistence--call-later
+                                  (lambda ()
+                                    (niwa-session-persistence-cleanup-expired
+                                     workspace t scan))))))
                   (should-not (file-directory-p
                                (niwa-session-save-path s1)))
                   (should (file-directory-p
                            (niwa-session-save-path s2)))
-                  (let ((rows (niwa-session-persistence--enumerate-sessions
-                               workspace nil scan)))
+                  (let* ((programs 0)
+                         (run (symbol-function 'niwa-session-control-fs-run-program))
+                         (rows
+                          (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                                     (lambda (ops &rest args)
+                                       (when ops (cl-incf programs))
+                                       (apply run ops args))))
+                            (niwa-session-persistence--enumerate-sessions
+                             workspace nil scan))))
+                    (should (zerop programs))
                     (should-not (plist-get rows :incompatible))
                     (should (equal (mapcar (lambda (row) (plist-get row :save-path))
                                            (plist-get rows :sessions))

@@ -266,27 +266,33 @@ listing failed is left out, and lists for itself."
                when (eq t (file-attribute-type attrs)) collect (cons path attrs))
     (file-missing nil)))
 
-(defun niwa-session-persistence--publication-observations (entries)
-  "Return control, listing and publication observations for ENTRIES."
+(defun niwa-session-persistence--observe-directories (entries)
+  "Return a row per (PATH . ATTRIBUTES) in ENTRIES, in discovery order."
   (when entries
-    (let* ((controls (niwa-session-persistence--control-artifacts entries))
-           (listings (niwa-session-persistence--lease-listings entries)))
-      (list controls listings
-            (if (file-remote-p (car entries))
+    (let* ((paths (mapcar #'car entries))
+           (controls (niwa-session-persistence--control-artifacts paths))
+           (listings (niwa-session-persistence--lease-listings paths))
+           (reads
+            (if (file-remote-p (car paths))
                 ;; Larger programs use the input carrier rather than the
                 ;; optional archive; don't split a remote discovery into trips.
-                (niwa-session-publication-read-batch entries listings)
+                (niwa-session-publication-read-batch paths listings)
               (mapcan (lambda (batch)
                         (niwa-session-publication-read-batch batch listings))
-                      (seq-partition entries 32)))))))
+                      (seq-partition paths 32)))))
+      (cl-loop for (path . attrs) in entries
+               collect (list path :attributes attrs
+                             :controls (cdr (assoc path controls))
+                             :listing (cdr (assoc path listings))
+                             :publication-read (cdr (assoc path reads)))))))
 
 (defun niwa-session-persistence--scan (workspace regexp)
-  "Observe WORKSPACE session directories matching REGEXP and their publications."
+  "Return a fresh catalog scan for WORKSPACE directories matching REGEXP.
+Its :rows alist holds one observation per directory, in discovery order."
   (niwa-session-durability-with-transaction
     (let ((entries (niwa-session-persistence--directory-entries
                     (niwa-session-artifacts-sessions-dir workspace) regexp)))
-      (cons entries (niwa-session-persistence--publication-observations
-                     (mapcar #'car entries))))))
+      (list :rows (niwa-session-persistence--observe-directories entries)))))
 
 (defun niwa-session-persistence--observed-update-time
     (updated-at sidecar-path save-path &optional attributes)
@@ -388,17 +394,16 @@ OBSERVE-SIDECAR receives each compatible directory and its verified sidecar."
                incompatible)
           ;; Share the target clock reading across the listing.
           (niwa-session-durability-with-transaction
-           (pcase-let ((`(,entries ,controls ,listings ,observations)
-                        (or scan (niwa-session-persistence--scan
-                                  workspace "\\`\\(?:[^.]\\|\\.niwa-save-as-\\)"))))
-             (pcase-dolist (`(,entry . ,_) entries)
-               (let* ((observation (cdr (assoc entry observations)))
+           (let ((scan (or scan (niwa-session-persistence--scan
+                                 workspace "\\`\\(?:[^.]\\|\\.niwa-save-as-\\)"))))
+             (pcase-dolist (`(,entry . ,row) (plist-get scan :rows))
+               (let* ((observation (plist-get row :publication-read))
                       (record
                        (condition-case err
                            (niwa-session-persistence--discover-entry
                             entry authority-mode
-                            (cdr (assoc entry controls))
-                            (cdr (assoc entry listings)) observation)
+                            (plist-get row :controls)
+                            (plist-get row :listing) observation)
                          ;; Discovery itself failed, so not even the
                          ;; transcript can be trusted for inspection.
                          (error
@@ -1195,19 +1200,19 @@ workspace was swept too recently."
               (candidates     nil)
               (note-candidates nil)
               (note-session-ids 'unread))
-          (pcase-let ((`(,entries ,_controls ,_listings ,observations)
-                       (or scan (niwa-session-persistence--scan workspace "\\`[^.]"))))
-            (dolist (entry entries)
-              (let ((save-path (car entry)))
+          (let ((rows (plist-get (or scan (niwa-session-persistence--scan workspace "\\`[^.]"))
+                                 :rows)))
+            (pcase-dolist (`(,save-path . ,row) rows)
+              (let ((observation (plist-get row :publication-read)))
                 (unless (string-prefix-p "." (file-name-nondirectory save-path))
-                  (let* ((observation (cdr (assoc save-path observations)))
-                         (publication (plist-get observation :publication))
+                  (let* ((publication (plist-get observation :publication))
                          (data (plist-get observation :sidecar-data))
                          (sidecar (and (listp data) data))
                          (parsed-time
                           (niwa-session-persistence--observed-update-time
                            (plist-get sidecar :updated-at)
-                           (plist-get publication :sidecar) save-path (cdr entry))))
+                           (plist-get publication :sidecar) save-path
+                           (plist-get row :attributes))))
                     (let ((candidate (list save-path
                                            (and parsed-time (float-time parsed-time))
                                            (plist-get sidecar :session-id))))
@@ -1257,7 +1262,8 @@ workspace was swept too recently."
                          (error nil)))
               (cl-incf deleted)
               (when scan
-                (setcar scan (assoc-delete-all save-path (car scan))))))
+                (setf (plist-get scan :rows)
+                      (assoc-delete-all save-path (plist-get scan :rows))))))
           (when (> deleted 0)
             (message "Cleaned up %d expired session%s"
                      deleted (if (= deleted 1) "" "s")))
