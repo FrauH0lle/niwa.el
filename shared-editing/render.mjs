@@ -361,6 +361,13 @@ export function displayedOpacity(e, scene) {
   const frame = e.frameId && scene.byId.get(e.frameId);
   return ((frame && ['frame', 'magicframe'].includes(frame.type) ? frame.opacity : 100) * e.opacity) / 10000;
 }
+/* Whether element E's frame clips all of it away: their boxes are apart. */
+export function clippedAway(e, scene) {
+  const frame = e.frameId && scene.byId.get(e.frameId);
+  if (!frame || !['frame', 'magicframe'].includes(frame.type)) return false;
+  const [x, y, w, h] = e.box, [fx, fy, fw, fh] = frame.box;
+  return x >= fx + fw || x + w <= fx || y >= fy + fh || y + h <= fy;
+}
 /* Clip paths for frames, so elements inside a frame stay inside it. */
 function frameClips(scene) {
   return scene.order.filter((e) => e.type === 'frame' || e.type === 'magicframe').map((f) =>

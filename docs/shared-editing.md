@@ -325,7 +325,8 @@ Each pointer sample is decided once, separately for x and y, and the same
 translation moves every member, shows to other participants and is saved on
 release:
 
-1. Holding Alt places the selection freely, from the moment it is pressed.
+1. Holding Alt places the selection freely, from the moment it is pressed,
+   for other participants too.
 2. With smart guides, the nearest guide within 6 screen pixels wins. Guides
    are the left, centre and right (top, middle, bottom) of another object
    against the same feature of the selection's bounding box, an edge against
@@ -338,8 +339,8 @@ release:
 
 Shapes, sticky notes, text, images and frames at least partly on screen are
 guide targets, locked ones included; arrows, lines, freehand drawings,
-bound labels and objects drawn fully transparent, by their own opacity or
-their frame's, are not. One translation moves the whole selection, so a
+bound labels, objects drawn fully transparent, by their own opacity or
+their frame's, and objects their frame clips away entirely are not. One translation moves the whole selection, so a
 coordinate the move does not change is saved exactly as it was. Guides appear only for what holds exactly at the
 shown position: a line through aligned objects, a capped bar with the gap's
 size in each equal gap, a dashed line labelled **Centre of your view**, and

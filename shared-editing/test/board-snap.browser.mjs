@@ -160,6 +160,39 @@ test('board grid, snap to grid and smart guides', async (t) => {
     await page.close();
   });
 
+  await t.test('a peer sees Alt release the snap without another pointer sample', async () => {
+    const content = [odd, rect('m', 100, 600, 20, 50), rect('z', 700, 150, 30, 30)];
+    const mover = await open({content, viewport:{width:1400, height:900}}), peer = await open({content, viewport:{width:1400, height:900}});
+    // What the peer's editor draws for m once it has the mover's latest preview.
+    const peerSees = async () => {
+      const preview = (await sent(mover.page, 'presence')).filter(m => m.preview).at(-1);
+      await peer.page.evaluate(m => window.port.postMessage({...m, peer:42, name:'Alice'}), preview);
+      await peer.frame.locator('#scene [data-shape="m"][data-live-preview="true"]').waitFor();
+      return [preview.preview.shapes[0].box[0], await peer.frame.locator('#scene [data-shape="m"]').evaluate(n => n.getBBox().x)];
+    };
+    const previews = () => mover.page.evaluate(() => window.messages.filter(m => m.type === 'presence' && m.preview).length);
+    // The left edge comes to 252, five units from the edge at 247, and snaps.
+    const from = await at(mover.page, mover.frame, 110, 625);
+    await mover.page.mouse.move(...from);
+    await mover.page.mouse.down();
+    await mover.page.mouse.move(from[0] + 100, from[1]);
+    await mover.page.mouse.move(from[0] + 152, from[1]);
+    await mover.page.waitForFunction(() => window.messages.findLast(m => m.type === 'presence' && m.preview)?.preview.shapes[0].box[0] === 247);
+    const [snapped, drawn] = await peerSees(), count = await previews();
+    assert.equal(snapped, 247);
+    // Alt alone, the pointer still: the peer must learn of the free position
+    // at once, not from the presence heartbeat a second and a half later.
+    await mover.page.keyboard.down('Alt');
+    await mover.page.waitForFunction(count => window.messages.filter(m => m.type === 'presence' && m.preview).length > count, count, {timeout:400});
+    const [free, redrawn] = await peerSees();
+    assert.equal(free, 252);
+    near([redrawn - drawn], [5]);
+    await mover.page.keyboard.up('Alt');
+    await mover.page.mouse.up();
+    await mover.page.close();
+    await peer.page.close();
+  });
+
   await t.test('equal spacing continues a row and shows the gap', async () => {
     const {page, frame} = await open({content:[rect('a', 100, 120, 160, 80), rect('b', 320, 120, 160, 80), rect('c', 580, 163, 160, 80)]});
     await dragTo(page, frame, [660, 203], [617, 163]);
@@ -215,6 +248,8 @@ test('board grid, snap to grid and smart guides', async (t) => {
     const hidden = {id:'f', type:'frame', x:200, y:350, width:300, height:200, opacity:0};
     assert.deepEqual(await drag([hidden, {...odd, frameId:'f'}]), [251, false]);
     assert.deepEqual(await drag([{...hidden, opacity:100}, {...odd, frameId:'f'}]), [247, true]);
+    // The same child placed outside its frame is clipped away entirely.
+    assert.deepEqual(await drag([{...hidden, opacity:100}, {...odd, y:100, frameId:'f'}]), [251, false]);
   });
 
   await t.test('a tie between two targets does not depend on their layers', async () => {

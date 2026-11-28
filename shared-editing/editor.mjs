@@ -22,7 +22,7 @@ import {
 import { extensions, schema, seedEmptyText, selectionPositions, validateDocument } from './document.mjs';
 import { restore, encode, inspect, filesOf, putElement, putFile, validateElement, validate, compareOrder, GEOMETRY } from './model.mjs';
 import { validateImage } from './image.mjs';
-import { sceneSVG, elementSVG, escape, resolveScene, bounds, extent, shapesInRegion, displayedOpacity } from './render.mjs';
+import { sceneSVG, elementSVG, escape, resolveScene, bounds, extent, shapesInRegion, displayedOpacity, clippedAway } from './render.mjs';
 import { CONTAINERS, LINEAR, pointBounds } from './scene.mjs';
 import { gridLevels, guidesSVG, snapMove } from './snap.mjs';
 import { containerTextBox, containerSizeFor, fontStack, measure, FONT_FILES } from './text.mjs';
@@ -443,7 +443,7 @@ function placeMove(d, bypass) {
     // independent of their layers.
     d.targetScene = scene;
     d.targets = scene.order.filter((e) => !e.bound && !d.ids.has(e.id) && !LINEAR.includes(e.type) && e.type !== 'freedraw'
-      && displayedOpacity(e, scene) > 0).sort((a, b) => (a.id < b.id ? -1 : 1)).map((e) => e.box);
+      && displayedOpacity(e, scene) > 0 && !clippedAway(e, scene)).sort((a, b) => (a.id < b.id ? -1 : 1)).map((e) => e.box);
   }
   // The visible canvas, which is wider or taller than the viewBox.
   const frame = canvas.getBoundingClientRect(), inverse = matrix.inverse();
@@ -2101,6 +2101,8 @@ function board() {
     event.preventDefault();
     placeMove(drag, event.type === 'keydown');
     previewDrag();
+    // Peers follow the key as they follow the pointer.
+    if (pointing) presence(pointing.point);
     draw();
     return true;
   };
