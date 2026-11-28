@@ -619,7 +619,7 @@ CODER is the ImageMagick output coder, PNG by default."
                   (file-name-concat dir "broken.png") 1600 800))
            (make (symbol-function 'make-process))
            (identity (symbol-function 'niwa-view-thumbnail--converter-identity))
-           (replaced nil)
+           (state 'old)
            (conversions 0)
            (reads 0))
       (with-temp-buffer
@@ -633,7 +633,10 @@ CODER is the ImageMagick output coder, PNG by default."
                    (lambda ()
                      (cl-incf reads)
                      (let ((found (funcall identity)))
-                       (if replaced (cons (car found) '(replaced)) found)))))
+                       (pcase state
+                         ('old found)
+                         ('absent nil)
+                         (_ (cons (car found) '(replaced))))))))
           (should-not (niwa-view-thumbnail-image file 300))
           (niwa-thumbnail-test--wait)
           (should (= 1 conversions))
@@ -644,8 +647,14 @@ CODER is the ImageMagick output coder, PNG by default."
             (niwa-thumbnail-test--wait))
           (should (= 1 reads))
           (should (= 1 conversions))
+          ;; An absent `magick' keeps the old converter and its miss.
+          (let ((old niwa-view-thumbnail--converter))
+            (setq state 'absent niwa-view-thumbnail--converter-checked 0)
+            (should-not (niwa-view-thumbnail-image file 300))
+            (should (equal old niwa-view-thumbnail--converter))
+            (should (= 1 conversions)))
           ;; Within the minute a replaced converter is not yet noticed.
-          (setq replaced t)
+          (setq state 'replaced)
           (should-not (niwa-view-thumbnail-image file 300))
           (should (= 1 conversions))
           ;; After it, the change drops the miss and retries once.
@@ -658,6 +667,37 @@ CODER is the ImageMagick output coder, PNG by default."
           (should-not (niwa-view-thumbnail-image file 300))
           (niwa-thumbnail-test--wait)
           (should (= 2 conversions)))))))
+
+(niwa-deftest niwa-view-thumbnail--converter-changed-p/ready ()
+  ,test
+  (test)
+  :doc "a retried miss shows a thumbnail the new converter already made"
+  (niwa-thumbnail-test--with-state
+    (let* ((file (niwa-thumbnail-test--header-png
+                  (file-name-concat dir "image.png") 1600 800))
+           (old '("magick" "/old/magick" 1 (1 0 0 0)))
+           (new '("magick" "/new/magick" 2 (2 0 0 0)))
+           (source (niwa-view-thumbnail--source file)))
+      (with-temp-buffer
+        (setq-local niwa--session session)
+        (let* ((directory (car (niwa-view-thumbnail--session-entry session)))
+               (name (lambda (converter)
+                       (file-name-concat
+                        directory
+                        (concat (niwa-view-thumbnail--key source 512 converter)
+                                ".png")))))
+          (setq niwa-view-thumbnail--converter old
+                niwa-view-thumbnail--coders 'unknown)
+          (puthash (funcall name old) t niwa-view-thumbnail--misses)
+          (copy-file file (funcall name new))
+          (cl-letf (((symbol-function 'niwa-view-thumbnail--converter-identity)
+                     (lambda () new))
+                    ((symbol-function 'niwa-view-thumbnail--probe-coders) #'ignore)
+                    ((symbol-function 'niwa-view-thumbnail--start) #'ignore))
+            (should (equal (funcall name new)
+                           (plist-get (cdr (niwa-view-thumbnail-image file 300))
+                                      :file)))
+            (should (zerop (hash-table-count niwa-view-thumbnail--jobs)))))))))
 
 (provide 'test-niwa-view-thumbnail)
 

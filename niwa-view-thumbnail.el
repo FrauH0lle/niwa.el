@@ -137,11 +137,13 @@ Reads its identity at most once a minute; a change forgets the converter
 and its coder listing so the next use detects them afresh."
   (when (< 60 (- (float-time) niwa-view-thumbnail--converter-checked))
     (setq niwa-view-thumbnail--converter-checked (float-time))
-    (unless (equal niwa-view-thumbnail--converter
-                   (niwa-view-thumbnail--converter-identity))
-      (setq niwa-view-thumbnail--converter 'unknown
-            niwa-view-thumbnail--coders 'unknown)
-      t)))
+    (let ((fresh (niwa-view-thumbnail--converter-identity)))
+      ;; A missing `magick' (mid-upgrade, say) is not a new converter:
+      ;; keep the old one and its misses, and look again later.
+      (when (and fresh (not (equal niwa-view-thumbnail--converter fresh)))
+        (setq niwa-view-thumbnail--converter 'unknown
+              niwa-view-thumbnail--coders 'unknown)
+        t))))
 
 (defun niwa-view-thumbnail--probe-coders (program)
   "Record which table coders PROGRAM can read, asynchronously.
@@ -335,11 +337,13 @@ thumbnail is missing, queue it for the current view buffer."
         ;; unless that converter has since been replaced: then retry once
         ;; under the new converter's key.
         (if (not (gethash file niwa-view-thumbnail--misses))
-            (niwa-view-thumbnail--request file source cap session entry path)
+            (progn
+              (niwa-view-thumbnail--request file source cap session entry path)
+              nil)
           (when (niwa-view-thumbnail--converter-changed-p)
             (remhash file niwa-view-thumbnail--misses)
-            (niwa-view-thumbnail-image path max-width)))
-        nil))))
+            ;; A thumbnail the new converter already made shows at once.
+            (niwa-view-thumbnail-image path max-width)))))))
 
 (defun niwa-view-thumbnail--request (file source cap session entry path)
   "Queue FILE from SOURCE at CAP for SESSION's ENTRY, shown as PATH here."
