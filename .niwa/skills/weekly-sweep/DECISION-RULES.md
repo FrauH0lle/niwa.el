@@ -55,8 +55,12 @@ rule they corrected, and deletes one they overruled.
 13. **Reuse existing mechanisms.** Prefer an existing primitive, a
     buffer-local override or derivation from existing data; add no new state,
     migration or alias. Instrument internal promises with test-only helpers,
-    not a production debug mode. *Source: CODING_STANDARDS NO BACKWARDS
-    COMPATIBILITY; the user at the 2026-11-07 intake.*
+   not a production debug mode. Exception: one bounded, buffer-local cache
+   invalidated by an existing tick is acceptable when matched measurements
+   show a large win (the agent-lookup cache in `niwa-view-agent.el`, 7.6 ->
+   0.9 ms per refresh at 600 turns). *Source: CODING_STANDARDS NO BACKWARDS
+   COMPATIBILITY; the user at the 2026-11-07 intake; the user at the
+   2026-11-27 intake.*
 14. **Fix the owner of a load-order gap.** Repair cold-start or load-order
     gaps in the production module that owns them, with a fresh-Emacs
     regression. *Source: memory verify-compiled-runtime-artifacts; T4, C07.*
@@ -78,6 +82,10 @@ rule they corrected, and deletes one they overruled.
     needs a clear, stated justification (a measured loss the single one cannot
     fix). A replacement replaces; it does not add a parallel path. *Source:
     the user, 2026-11-14 (session locking, memory-topic writes).*
+20. **Explicit window commands act, non-destructively.** An explicit
+    `delete-window` on a frame-filling view/composer pair quits the pair
+    non-destructively instead of refusing. *Source: the user, 2026-11-27
+    intake (2026-11-21 dispute).*
 
 ## Tie-breaks
 
@@ -91,9 +99,11 @@ rule they corrected, and deletes one they overruled.
 
 Ask the user at the next intake, then fold the answer into a rule.
 
-- 2026-11-21: explicit `delete-window` on a frame-filling view/composer pair:
-  (A) quit it non-destructively (taken by the coordinator from the user's bug
-  report; overrode the proxy) or (B) keep the documented last-window refusal.
-- 2026-11-21: one buffer-local, tick-checked agent-lookup cache in
-  `niwa-view-agent.el` for 7.6 -> 0.9 ms per refresh at 600 turns: (A) accept
-  as a rule-13 exception (taken) or (B) drop it and keep only stateless bounds.
+- Plugin hook consent location (needs-user #10, 2026-11-27): (A) keep it in
+  `.niwa/state/` with a per-user signing key, accepting that a restored
+  workspace can bring back old consent; or (B) keep activation in
+  `.niwa/state/` but store hook consent in user storage outside the workspace.
+- Merging a security-tightening change with a new interactive confirmation
+  (trust-scope's listing before `niwa-hooks-trust-project` records trust)
+  without a user decision: treated as within earlier decisions; confirm or
+  require escalation.

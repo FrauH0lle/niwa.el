@@ -18,7 +18,9 @@ whose closing report lived in a removed worktree, use
 baseline is `20261114-222430-799374` (550 files, 14525 results, 576 s wall,
 4 workers). After the 2026-11-21 sweep the baseline is
 `20261121-170945-164138` (572 files, 14862 results, 664 s wall, 2279
-test-seconds, 4 workers). The close copies its report into the main checkout's
+test-seconds, 4 workers). After the 2026-11-27 sweep the baseline is
+`20261128-073453-013576` (578 files, 15156 results, 334 s wall, 2379
+test-seconds, 8 workers). The close copies its report into the main checkout's
 `.scratch/test-suite-performance/`. Commands and tiers:
 `docs/development.md`, checks
 table and testing section. The runner needs `eask` on PATH; without network,

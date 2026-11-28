@@ -51,6 +51,10 @@ The architecture track runs this skill unattended, with the overrides in
   branches under it). `master` stays untouched until the close.
 - **One merger.** Once an integrator agent exists, only it merges into the
   integration branch; the coordinator sends it the branch.
+  It lands a branch by rebasing its commits onto the integration tip and
+  fast-forwarding, never with a merge commit, so the integration history can
+  land on `master` as is ([commits.md](../../../docs/commits.md#merges-and-history);
+  the 2026-11-27 sweep's `Merge commit '…' into …` commits had to be rebuilt).
 - **The ledger is the run's memory**: `work://shared/weekly-sweep/DATE/ledger.md`.
   Record every dispatch, result, quota reading, measurement and decision there,
   so a fresh session can resume from the ledger alone. Stamp entries with the
@@ -195,8 +199,11 @@ The architecture track runs this skill unattended, with the overrides in
      checkout's `.scratch/test-suite-performance/` (worktrees are removed),
      and record its name in TEST-TRACK.md as the next baseline. Shared notes
      expire after 14 days; the skill directory and `.scratch` reports persist.
-   - Fast-forward `master` to the integration tip once both merge-time gates
-     pass ([checks table](../../../docs/development.md#checks-before-committing));
+   - Land the integration branch on `master` as a linear history without merge
+     commits ([commits.md](../../../docs/commits.md#merges-and-history)):
+     combine related commits into coherent ones, check that the rebuilt tree
+     equals the tested integration tip, and fast-forward once both merge-time
+     gates pass ([checks table](../../../docs/development.md#checks-before-committing));
      preserve the user's uncommitted edits in the main checkout. Then commit
      this skill's updated DECISION-RULES.md and TEST-TRACK.md on `master`.
    Done when the report is written, every branch is accounted for, and every
