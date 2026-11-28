@@ -1815,6 +1815,11 @@ A first primary click on a background-work row or control in an unselected Emacs
 window only selects that window and places point. Clicking again in the
 selected window activates it; no timed double-click is required. Dragging in
 the selected window retains normal text selection.
+Every row and control that highlights on hover also carries a `help-echo`.
+That is what makes the highlight appear at once: a PGTK frame draws it on
+pointer motion but presents it only at the end of the next redisplay, and
+motion causes a redisplay only over text with a `help-echo`. A highlighted row
+without one lit up as late as the next elapsed tick, up to a second later.
 Only one row is expanded at a time. An expanded agent row shows its provider,
 model and effort with **Open transcript**, **Show in conversation** (the Agent
 call that started it), and **Interrupt**, which interrupts the agent's current

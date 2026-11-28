@@ -562,18 +562,27 @@ click activation.  A focus-changing press consumes only its click release."
   :doc "Background-work mouse press handling before shared activation."
   "<down-mouse-1>" #'niwa-view-execution--mouse-press)
 
-(defun niwa-view-execution--action (text function)
-  "Return TEXT carrying the local action FUNCTION, including its margins.
-A trailing newline stays activatable but gets no `mouse-face': Emacs
-highlights a contiguous run of one `mouse-face' as a single region, so
-highlighting row ends would join adjacent rows into one hover."
+(defun niwa-view-execution--action (text function help)
+  "Return TEXT carrying the local action FUNCTION, described by HELP.
+The action includes TEXT's margins.  A trailing newline stays activatable
+but gets no `mouse-face': Emacs highlights a contiguous run of one
+`mouse-face' as a single region, so highlighting row ends would join
+adjacent rows into one hover.
+
+HELP is required, not decoration.  A PGTK frame draws the hover
+highlight into its back buffer and presents it only at the end of the
+next redisplay; a pointer motion causes one only when the text under it
+has a `help-echo'.  Without it the highlight waited for an unrelated
+redisplay, up to the one-second elapsed tick."
   (let ((text (propertize text
                           'keymap (niwa-view--display-fragment-keymap
                                    niwa-view-execution--action-map)
                           'mouse-face 'highlight
+                          'help-echo help
                           'niwa-view-zone-activate function)))
     (when (string-suffix-p "\n" text)
-      (remove-text-properties (1- (length text)) (length text) '(mouse-face nil) text))
+      (remove-text-properties (1- (length text)) (length text)
+                              '(mouse-face nil help-echo nil) text))
     text))
 
 (defun niwa-view-execution--face (text face)
@@ -586,9 +595,8 @@ highlighting row ends would join adjacent rows into one hover."
 
 (defun niwa-view-execution--button (text function help)
   "Return link-styled TEXT activating FUNCTION, described by HELP."
-  (propertize (niwa-view-execution--action
-               (niwa-view-execution--face text 'link) function)
-              'help-echo help))
+  (niwa-view-execution--action
+   (niwa-view-execution--face text 'link) function help))
 
 (defun niwa-view-execution--callback (action session &optional owner id)
   "Build ACTION for SESSION, OWNER and ID, retaining no volatile snapshot.
@@ -704,7 +712,8 @@ the metadata is cut."
                             (truncate-string-to-width line limit nil nil "…")
                           line)
                         "\n")
-                (plist-get spec :callback))))
+                (plist-get spec :callback)
+                "RET: show or hide this row's actions")))
       (when (plist-get spec :started-at)
         (put-text-property 0 (length row) 'niwa-view-background-elapsed spec row))
       row)))

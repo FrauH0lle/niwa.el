@@ -96,6 +96,50 @@ mouse events in them, which later interactive calls would read."
                        niwa-view-zone-toggle))
       (should-not (text-property-not-all start end property nil)))))
 
+;; A PGTK frame presents a hover highlight only at the next redisplay, and a
+;; pointer motion causes one only over text with a `help-echo'.  Highlighted
+;; text without one lit up as late as the next elapsed tick.
+(niwa-deftest niwa-view-execution--action ()
+  ,test
+  (test)
+  :doc "every highlighted character of the panel has a help-echo, so hovering redisplays at once"
+  (niwa-view-execution-test--with-view
+    (setq niwa-view-execution--selected
+          (list :session session :owner "/root" :execution-id "e1"))
+    (let* ((body (plist-get (niwa-view-execution-fragment session) :body))
+           (highlighted 0))
+      (dotimes (index (length body))
+        (when (get-text-property index 'mouse-face body)
+          (cl-incf highlighted)
+          (unless (get-text-property index 'help-echo body)
+            (ert-fail (format "highlighted without help-echo at %d: %S"
+                              index (substring-no-properties
+                                     body index (min (length body) (+ index 30))))))))
+      ;; The header toggle, the row, its actions and Manage.
+      (should (> highlighted 40))
+      (should (string-search "▾ Running" body))))
+  :doc "a row's line end carries neither the highlight nor its help"
+  (let ((row (niwa-view-execution--action "  row\n" #'ignore "RET: act")))
+    (should (equal "RET: act" (get-text-property 0 'help-echo row)))
+    (should (eq 'highlight (get-text-property 4 'mouse-face row)))
+    (should-not (get-text-property 5 'mouse-face row))
+    (should-not (get-text-property 5 'help-echo row))
+    (should (eq #'ignore (get-text-property 5 'niwa-view-zone-activate row))))
+  :doc "an elapsed tick keeps the row's help-echo"
+  (niwa-view-execution-test--with-view
+    (let* ((spec (list :state "Running" :state-face 'bold :kind "bash"
+                       :label "make" :started-at (- (float-time) 61)
+                       :callback #'ignore))
+           (before (niwa-view-execution--row spec))
+           (after (niwa-view-execution--row
+                   (plist-put (copy-sequence spec)
+                              :started-at (- (float-time) 3700)))))
+      (should-not (equal (substring-no-properties before)
+                         (substring-no-properties after)))
+      (dolist (row (list before after))
+        (should (get-text-property 0 'niwa-view-background-elapsed row))
+        (should (stringp (get-text-property 3 'help-echo row)))))))
+
 (niwa-deftest niwa-view-execution-fragment ()
   ,test
   (test)
@@ -461,7 +505,9 @@ mouse events in them, which later interactive calls would read."
       (setf (plist-get (nth 1 live) :output-tail) (make-string 36 ?a))
       (niwa-view--render-status)
       (should (looking-at-p "est-oldest"))
-      (should-not (get-text-property (point) 'help-echo))))
+      ;; Still the row, whose help says so; a button has its own.
+      (should (equal "RET: show or hide this row's actions"
+                     (get-text-property (point) 'help-echo)))))
   :doc "pending reduction survives failed computation, but an empty fragment consumes it"
   (niwa-view-execution-test--with-view
     (setq niwa-view-execution--reflow-pending t)
