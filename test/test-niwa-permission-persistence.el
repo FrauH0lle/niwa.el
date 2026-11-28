@@ -12,6 +12,8 @@
 (require 'niwa-execution-target)
 (require 'niwa-permission-persistence)
 (require 'niwa-permissions)
+(require 'niwa-permission-mode)
+(require 'niwa-session-artifacts)
 (require 'niwa-session-control-fs)
 (require 'niwa-session-durability)
 (require 'niwa-structs)
@@ -1034,6 +1036,71 @@
           "/ssh:dev@target:/home/dev/.niwa/permissions.eld"
           '(:rules nil :resource-grants nil))
          :type 'user-error)))))
+
+(defun niwa-permission-persistence-test--revocation-race (root)
+  "Check that a revocation committed during an update under ROOT survives.
+Writer A adds a rule.  Right after A's program proving the stored bytes
+returns, writer B revokes another rule: the audited failing order, in
+which A then published the older rules over B's revocation."
+  (let* ((workspace (niwa-workspace--create :type 'project :id root :root root))
+         (session (niwa-session--create :workspace workspace))
+         (file (niwa-permission-persistence-file workspace 'workspace))
+         (keep '("Bash" :pattern "make keep" :action allow))
+         (revoked '("Bash" :pattern "make revoked" :action allow))
+         (added '("Bash" :pattern "make added" :action allow))
+         (run (symbol-function 'niwa-session-control-fs-run-program))
+         competed)
+    (with-temp-buffer
+      (setq-local niwa--session session)
+      ;; Neither the session fence nor the former publication is under test;
+      ;; the stubs let both versions reach their target writes.
+      (cl-letf (((symbol-function 'niwa-permission-mode-data-buffer)
+                 (let ((buffer (current-buffer))) (lambda () buffer)))
+                ((symbol-function 'niwa-session-artifacts-call-fenced)
+                 (lambda (_session function) (funcall function)))
+                ((symbol-function 'niwa-session-artifacts-publish-text)
+                 (lambda (_session path content coding)
+                   (niwa-session-control-fs-write-file path content coding))))
+        ;; A live session's workspace already has its state directory.
+        (make-directory (file-name-directory file) t)
+        (niwa-permission-persistence-save-rule workspace keep)
+        (niwa-permission-persistence-save-rule workspace revoked)
+        (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                   (lambda (operations &rest args)
+                     (prog1 (apply run operations args)
+                       (when (and (not competed)
+                                  (cl-some (lambda (op)
+                                             (and (eq 'verify-hash (plist-get op :op))
+                                                  (equal file (plist-get op :path))))
+                                           operations))
+                         (setq competed t)
+                         (niwa-permission-remove-persistent-rule
+                          workspace 'workspace revoked))))))
+          (niwa-permission-persistence-save-rule workspace added))
+        (should competed)
+        (should (equal (list keep added)
+                       (plist-get (plist-get (niwa-permission--editable-status
+                                              file (niwa-permission--workspace-target
+                                                    workspace)
+                                              root)
+                                             :store)
+                                  :rules)))))))
+
+(niwa-deftest niwa-permission-persistence-save-rule/competing-revocation
+  (:vars ((niwa-hooks-require-project-trust nil)))
+  ,test
+  (test)
+  :doc "keeps a revocation committed between proof and write on a local store"
+  (let ((root (file-name-as-directory (make-temp-file "niwa-perm-race-" t))))
+    (unwind-protect (niwa-permission-persistence-test--revocation-race root)
+      (delete-directory root t)))
+  :doc "keeps a revocation committed between proof and write on a remote store"
+  (niwa-test--with-local-shell-tramp '("perm-race")
+    (let ((local (file-name-as-directory (make-temp-file "niwa-perm-race-remote-" t))))
+      (unwind-protect
+          (niwa-permission-persistence-test--revocation-race
+           (format "/niwamock:perm-race:%s" local))
+        (delete-directory local t)))))
 
 (provide 'test-niwa-permission-persistence)
 ;;; test-niwa-permission-persistence.el ends here

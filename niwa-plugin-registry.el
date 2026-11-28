@@ -44,11 +44,9 @@
                   "niwa-hooks" (file &optional content))
 
 ;; `niwa-session-artifacts'
-(declare-function niwa-session-artifacts-publish-text
-                  "niwa-session-artifacts"
-                  (session path content &optional coding))
-(autoload 'niwa-session-artifacts-publish-text
-  "niwa-session-artifacts")
+(declare-function niwa-session-artifacts-call-fenced
+                  "niwa-session-artifacts" (session function))
+(autoload 'niwa-session-artifacts-call-fenced "niwa-session-artifacts")
 
 ;; `niwa-utilities'
 (declare-function niwa--write-file-atomically
@@ -706,8 +704,8 @@ The project permission store's writers hold the same `.niwa/' lock."
   "Apply FUNCTION once to WORKSPACE's stored plugin state.
 Return non-nil when the result was written.
 LOCAL is the state file; PROJECT, when non-nil, the tracked activation file.
-The write proves the bytes read are unchanged: locally in one program under
-the `.niwa/' lock, remotely just before the lease-checked publication."
+The write proves the bytes read are unchanged in one program under the
+`.niwa/' lock; a remote write also runs inside its session's fence."
   (let* ((files (delq nil (list local project)))
          (bytes (mapcar (lambda (result)
                           (and (eq (plist-get result :status) 'ok)
@@ -753,44 +751,34 @@ the `.niwa/' lock, remotely just before the lease-checked publication."
                                    (memq (plist-get result :status)
                                          '(mismatch absent conflict)))
                                  (seq-take (cdr results) (length files)))))))
-    (if (file-remote-p local)
-        ;; shortcut: publication takes no lock and has no precondition, so the
-        ;; proof precedes the synchronous, lease-checked write, as the project
-        ;; permission store's remote writes do; a write in between still races.
-        (let ((session (or (niwa-plugins--state-session workspace)
-                           (user-error "Remote plugin state requires its live session"))))
-          ;; Read-only probes, so nothing is written before publication,
-          ;; which also creates a missing `state/'.
-          (when (cl-every
-                 (lambda (pair)
-                   (eq (plist-get (cdr pair) :status) (if (car pair) 'ok 'absent)))
-                 (cl-mapcar
-                  #'cons bytes
-                  (niwa-session-control-fs-run-program
-                   (cl-loop for file in files for data in bytes
-                            collect (if data
-                                        (list :op 'verify-hash :path file :optional t
-                                              :content (secure-hash 'sha256 data))
-                                      (list :op 'path-exists-p :path file :optional t))))))
-            (dolist (write writes)
-              (niwa-session-artifacts-publish-text
-               session (car write) (cdr write) 'utf-8-unix))
-            (niwa-plugins--store-consent workspace old new)
-            t))
-      ;; Each file is a whole record, read as nil when truncated, so the
-      ;; program's rename-into-place write matters.
-      (let ((results (niwa-session-control-fs-run-program
-                      (append program
-                              (mapcar (lambda (write)
-                                        (list :op 'write :path (car write)
-                                              :content (cdr write) :coding 'utf-8-unix))
-                                      writes))
-                      (niwa-plugins--lock-directory workspace))))
-        (when (funcall proved results)
-          (mapc #'niwa-session-control-fs-program-value
-                (nthcdr (1+ (length files)) results))
-          (niwa-plugins--store-consent workspace old new)
-          t)))))
+    (cl-flet ((write ()
+                ;; The lock opens `.niwa/', so the state directory must exist.
+                (niwa-session-control-fs-make-directory
+                 (directory-file-name (file-name-directory local)) t)
+                ;; Each file is a whole record, read as nil when truncated, so
+                ;; the program's rename-into-place write matters.
+                (let ((results (niwa-session-control-fs-run-program
+                                (append program
+                                        (mapcar (lambda (write)
+                                                  (list :op 'write :path (car write)
+                                                        :content (cdr write)
+                                                        :coding 'utf-8-unix))
+                                                writes))
+                                (niwa-plugins--lock-directory workspace))))
+                  (when (funcall proved results)
+                    (mapc #'niwa-session-control-fs-program-value
+                          (nthcdr (1+ (length files)) results))
+                    t))))
+      (when (if (file-remote-p local)
+                ;; The session fences the target; the program's lock and proof
+                ;; exclude every other writer of these shared files.
+                (niwa-session-artifacts-call-fenced
+                 (or (niwa-plugins--state-session workspace)
+                     (user-error "Remote plugin state requires its live session"))
+                 #'write)
+              (write))
+        (niwa-plugins--store-consent workspace old new)
+        t))))
 
 (defun niwa-plugins--change-state (workspace function)
   "Apply FUNCTION to WORKSPACE's plugin state alist and persist the result.

@@ -131,8 +131,12 @@
 ;; `niwa-session-durability'
 (declare-function niwa-session-durability-disclose "niwa-session-durability" (session))
 (declare-function niwa-session-durability-lease-owned-p "niwa-session-durability" (session))
+(declare-function niwa-session-durability-call-with-reserved-lease
+                  "niwa-session-durability" (session function &optional token))
 (defvar niwa-session-durability--transaction-clock)
 (autoload 'niwa-session-durability-disclose "niwa-session-durability")
+(autoload 'niwa-session-durability-call-with-reserved-lease
+  "niwa-session-durability")
 (autoload 'niwa-session-durability-lease-owned-p
   "niwa-session-durability")
 
@@ -1533,6 +1537,17 @@ Writes enter the session publication queue.  Return the publication outcome."
     (niwa-session-publication-publish
      session (list (list :path path :content content :coding coding))
      nil prepared token)))
+
+(defun niwa-session-artifacts-call-fenced (session function)
+  "Call FUNCTION as SESSION's fenced target mutation and return its value.
+The fence is `niwa-session-artifacts-publish-text''s: disclosure, admission
+and SESSION's lease.  FUNCTION writes through its own control program, so a
+file other sessions share can prove its bytes under that file's own lock;
+the publication queue has neither a precondition nor such a lock."
+  (niwa-session-artifacts--barrier session nil)
+  (niwa-session-durability-with-transaction
+    (niwa-session-artifacts-assert-mutation-authority session)
+    (niwa-session-durability-call-with-reserved-lease session function)))
 
 (defun niwa-session-artifacts--sidecar-publication-artifact
     (session root-buffer &optional checkpoint)

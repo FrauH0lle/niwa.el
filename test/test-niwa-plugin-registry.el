@@ -738,9 +738,10 @@
            (run (symbol-function 'niwa-session-control-fs-run-program))
            paused)
       (unwind-protect
-          ;; The lease-checked publication itself, which also creates a
-          ;; missing parent, is not under test.
+          ;; The session fence and the former publication are not under test.
           (cl-letf (((symbol-function 'niwa-plugins--state-session) (lambda (_) 'session))
+                    ((symbol-function 'niwa-session-artifacts-call-fenced)
+                     (lambda (_session function) (funcall function)))
                     ((symbol-function 'niwa-session-artifacts-publish-text)
                      (lambda (_session path content _coding)
                        (make-directory (file-name-directory path) t)
@@ -761,6 +762,44 @@
             (should paused)
             (should (equal '(("demo" :enabled t :hooks-enabled nil) ("x" :enabled t))
                            (niwa-plugins--read-state workspace))))
+        (delete-directory local-root t))))
+  :doc "a remote disable committed between proof and write survives"
+  (niwa-test--with-local-shell-tramp '("plugin-race")
+    (let* ((local-root (file-name-as-directory (make-temp-file "niwa-plugins-remote-race-" t)))
+           (workspace (niwa-plugins-test--workspace
+                       (format "/niwamock:plugin-race:%s" local-root)))
+           (file (niwa-plugins-state-file workspace))
+           (run (symbol-function 'niwa-session-control-fs-run-program))
+           competed)
+      (unwind-protect
+          ;; The session fence and the former publication are not under test.
+          (cl-letf (((symbol-function 'niwa-plugins--state-session) (lambda (_) 'session))
+                    ((symbol-function 'niwa-session-artifacts-call-fenced)
+                     (lambda (_session function) (funcall function)))
+                    ((symbol-function 'niwa-session-artifacts-publish-text)
+                     (lambda (_session path content _coding)
+                       (make-directory (file-name-directory path) t)
+                       (write-region content nil path nil 'silent))))
+            (niwa-plugins--write-state
+             '(("demo" :enabled t :hooks-enabled t :hooks-fingerprint "f")) workspace)
+            ;; Writer B revokes right after writer A's proof of the bytes it read.
+            (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                       (lambda (operations &rest args)
+                         (prog1 (apply run operations args)
+                           (when (and (not competed)
+                                      (cl-some (lambda (op)
+                                                 (and (eq 'verify-hash (plist-get op :op))
+                                                      (equal file (plist-get op :path))))
+                                               operations))
+                             (setq competed t)
+                             ;; Activation, unlike consent, lives in this file.
+                             (niwa-plugins--write-state-entry
+                              "demo" '(:enabled nil) workspace))))))
+              (niwa-plugins--write-state-entry "x" '(:enabled t) workspace))
+            (should competed)
+            (let ((state (niwa-plugins--read-state workspace)))
+              (should-not (plist-get (cdr (assoc "demo" state)) :enabled))
+              (should (plist-get (cdr (assoc "x" state)) :enabled))))
         (delete-directory local-root t))))
   :doc "a malformed state, consent or legacy file keeps every byte"
   (let* ((local (niwa-plugins-state-file workspace))

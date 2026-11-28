@@ -326,40 +326,5 @@ This is an outside writer landing between niwa's read and its write."
                                 (plist-get rules :rules))))))
         (when (process-live-p process) (delete-process process))))))
 
-(niwa-deftest niwa-permission-persistence-write-store/remote-precondition
-  (:doc "publishes a remote store only after proving the bytes it replaces")
-  (niwa-permission-project-trust-test--with-workspace
-    (let (published programs status)
-      (cl-letf (((symbol-function 'file-remote-p)
-                 (lambda (file &rest _) (equal file store)))
-                ((symbol-function 'niwa-permission-mode-data-buffer)
-                 (lambda () data-buf))
-                ((symbol-function 'niwa-session-publication-active-p) #'ignore)
-                ((symbol-function 'niwa-session-control-fs-run-program)
-                 (lambda (operations &rest _)
-                   (push operations programs)
-                   (list (list :status status))))
-                ((symbol-function 'niwa-session-artifacts-publish-text)
-                 (lambda (_session file content &rest _)
-                   (push (cons file content) published))))
-        (ert-info ("A changed file publishes nothing")
-          (setq status 'mismatch)
-          (should-not (niwa-permission-persistence-write-store
-                       store '(:rules nil :resource-grants nil) nil nil
-                       (make-string 64 ?a)))
-          (should-not published)
-          (should (equal (make-string 64 ?a)
-                         (plist-get (car (car programs)) :content))))
-        (ert-info ("An unchanged absent file is published and its hash returned")
-          (setq status 'ok)
-          (let ((hash (niwa-permission-persistence-write-store
-                       store '(:rules nil :resource-grants nil) nil nil
-                       'missing)))
-            (should (equal (plist-get (car (car programs)) :content) nil))
-            (should (= 1 (length published)))
-            (should (equal hash (secure-hash
-                                 'sha256 (encode-coding-string
-                                          (cdar published) 'utf-8-unix))))))))))
-
 (provide 'test-niwa-permission-project-trust)
 ;;; test-niwa-permission-project-trust.el ends here

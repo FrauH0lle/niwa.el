@@ -522,9 +522,12 @@ store's `.niwa/` directory across the proof and the write, so concurrent niwa
 writers are serialized. An editor outside niwa takes no lock and can still
 change the file after the proof. If the file changed in between, niwa reads it
 again and reapplies the change. After three lost races it stops and asks the
-user to retry. A remote store is written through the session's lease-checked
-publication, which cannot carry that proof, so niwa checks right before the
-synchronous publication. That narrows the window but does not close it.
+user to retry. A remote store takes the same locked program on its target,
+run inside the live session's disclosure and lease fence. The lease only
+orders that session's own writers, and the remote account's global store is
+shared by every workspace on the account. So the target-side lock and proof,
+not the lease, are what exclude other niwa writers. Plugin state writes work
+the same way.
 
 The permissions cockpit lists only authority in effect, so open the file to
 review what trust would add. A store with only deny and ask rules needs no
