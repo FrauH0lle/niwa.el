@@ -944,11 +944,13 @@ BODY delivers the receipt and a Read call through `connection', `content' and
                          (let (parts)
                            (maphash (lambda (_id record) (push (format "%S" record) parts)) guest)
                            (apply #'concat parts))))
+           ;; A missing segment reads as nil while waiting, never as "".
            (disk (lambda ()
-                   (or (ignore-errors
-                         (niwa-session-artifacts-read-artifact session "segment-0001.chat.org" t))
-                       ""))))
+                   (ignore-errors
+                     (niwa-session-artifacts-read-artifact session "segment-0001.chat.org" t)))))
       (puthash 1 (list :ready t) guests)
+      ;; Earlier transcript text every snapshot must retain.
+      (insert "Retained prefix\n")
       (add-hook 'gptel-post-stream-hook #'niwa-collaboration--safe-post-response nil t)
       (cl-letf (((symbol-function 'niwa-collaboration--transport-send)
                  (lambda (_transport peer frame)
@@ -973,23 +975,34 @@ BODY delivers the receipt and a Read call through `connection', `content' and
         (should (string-search "pondering" (funcall guest-text)))
         (niwa-session-persistence-checkpoint-buffer buffer)
         (niwa-test--await 5 "Checkpoint did not persist the abandoned attempt"
-          (string-search "stalling" (funcall disk)))
+          (string-search "stalling" (or (funcall disk) "")))
         ;; Before the retry emits anything, the guest's frames drop all of it
         ;; and the persisted transcript follows.
         (niwa-test--await 5 "Guest kept the abandoned attempt"
           (not (string-search "stalling" (funcall guest-text))))
         (should-not (string-search "pondering" (funcall guest-text)))
         (niwa-test--await 5 "Checkpoint kept the abandoned attempt"
-          (not (string-search "stalling" (funcall disk))))
-        (should-not (string-search "pondering" (funcall disk)))
+          (when-let* ((snapshot (funcall disk))) (not (string-search "stalling" snapshot))))
+        ;; One snapshot, read strictly: it must exist and hold the transcript.
+        (let ((snapshot (niwa-session-artifacts-read-artifact session "segment-0001.chat.org" t)))
+          (should (equal "Retained prefix\n\n" snapshot))
+          (should-not (string-search "stalling" snapshot))
+          (should-not (string-search "pondering" snapshot)))
         (should-not (string-search "recovered" (buffer-string)))
         (should (niwa-turn-busy-p buffer))
         (niwa-test--await 8 "Retried turn did not settle" (not (niwa-turn-busy-p buffer))))
       (should (eq 'success (plist-get (niwa-engine-info request) :niwa-acp-outcome)))
       ;; The stored answer is exactly the retry's, without the abandoned
-      ;; text or reasoning block.
-      (should (equal ":PROPERTIES:\n:GPTEL_BOUNDS: ((response (56 65)))\n:END:\nrecovered\n"
-                     (buffer-substring-no-properties (point-min) (point-max))))
+      ;; text or reasoning block, after the retained prefix.
+      (let ((pos (point-min)) answer)
+        (while (setq pos (text-property-any pos (point-max) 'gptel 'response))
+          (let ((end (or (next-single-property-change pos 'gptel) (point-max))))
+            (push (buffer-substring-no-properties pos end) answer)
+            (setq pos end)))
+        (should (equal '("recovered") answer)))
+      (should (string-search "Retained prefix\n\n\nrecovered\n" (buffer-string)))
+      (should-not (string-search "stalling" (buffer-string)))
+      (should-not (string-search "pondering" (buffer-string)))
       ;; The retry sent no message id; the abandoned one must not survive.
       (should-not (plist-get (niwa-engine-info request) :niwa-native-message-id))))
 
