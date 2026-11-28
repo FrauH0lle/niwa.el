@@ -1025,6 +1025,16 @@ is."
         (reverse (copy-sequence (niwa-execution--record-monitor-lines record)))
         :monitor-omitted (niwa-execution--record-monitor-omitted record)))
 
+(defun niwa-execution--monitor-arm-flush (record)
+  "Schedule one flush when live RECORD has lines or an omission notice."
+  (when (and (not (niwa-execution--record-monitor-timer record))
+             (not (niwa-execution--record-stop-p record))
+             (not (niwa-execution--record-finished-p record))
+             (or (niwa-execution--record-monitor-lines record)
+                 (> (niwa-execution--record-monitor-omitted record) 0)))
+    (setf (niwa-execution--record-monitor-timer record)
+          (niwa-transport-run-at-time 0.2 #'niwa-execution--monitor-flush record))))
+
 (defun niwa-execution--monitor-batch-settled
     (record event lines omitted success)
   "Settle RECORD's in-flight batch of LINES and OMITTED after delivery.
@@ -1049,13 +1059,7 @@ batch was pending, and publishes EVENT.  Failure keeps every line."
                    (niwa-execution--record-execution-id record))
                   (* 64 1024)))
       (niwa-execution--stop-process record 'flood))
-    (when (and (niwa-execution--record-monitor-lines record)
-               (not (niwa-execution--record-finished-p record))
-               (not (niwa-execution--record-stop-p record))
-               (not (niwa-execution--record-monitor-timer record)))
-      (setf (niwa-execution--record-monitor-timer record)
-            (niwa-transport-run-at-time
-             0.2 #'niwa-execution--monitor-flush record))))
+    (niwa-execution--monitor-arm-flush record))
   (when-let* ((after (niwa-execution--record-monitor-after record)))
     (setf (niwa-execution--record-monitor-after record) nil)
     (funcall after)))
@@ -1115,11 +1119,7 @@ FINAL retains the last line at settlement without stopping or arming a timer."
     (unless final
       (if (> (length (niwa-execution--record-monitor-times record)) 100)
           (niwa-execution--stop-process record 'flood)
-        (unless (or (niwa-execution--record-monitor-timer record)
-                    (niwa-execution--record-stop-p record))
-          (setf (niwa-execution--record-monitor-timer record)
-                (niwa-transport-run-at-time
-                 0.2 #'niwa-execution--monitor-flush record)))))))
+        (niwa-execution--monitor-arm-flush record)))))
 
 (defun niwa-execution--monitor-frame (record chunk)
   "Frame stdout CHUNK into RECORD's bounded partial line and pending batch."
