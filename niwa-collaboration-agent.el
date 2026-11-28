@@ -80,6 +80,7 @@
 (autoload 'niwa-resource-visit-path "niwa-resource")
 
 ;; `niwa-session-artifacts'
+(autoload 'niwa-session-artifacts-find-in-transcript "niwa-session-artifacts")
 (declare-function niwa-session-artifacts-read-transcript-segment
                   "niwa-session-artifacts" (session descriptor))
 (declare-function niwa-session-artifacts-transcript-segments
@@ -400,35 +401,12 @@ Optional positive integer `:segment' selects this child's compact archive."
                #'resume))
              (t (fetch)))))))))
 
-(defun niwa-collaboration--find-transcript-evidence (session live-buffer find)
-  "Run FIND on SESSION's readable source-backed segments of LIVE-BUFFER.
-Return the newest matching value.  Archive buffers are always released."
-  (when (and session (buffer-live-p live-buffer))
-    (catch 'found
-      (dolist (descriptor (reverse
-                           (niwa-session-artifacts-transcript-segments
-                            session live-buffer)))
-        (when (eq (plist-get descriptor :status) 'readable)
-          (let ((buffer (if (plist-get descriptor :current-p) live-buffer
-                          (condition-case nil
-                              (niwa-session-artifacts-read-transcript-segment
-                               session descriptor)
-                            (error nil)))))
-            (when (buffer-live-p buffer)
-              (unwind-protect
-                  (with-current-buffer buffer
-                    (save-restriction
-                      (widen)
-                      (when-let* ((value (funcall find)))
-                        (throw 'found value))))
-                (unless (eq buffer live-buffer) (kill-buffer buffer))))))))))
-
 (defun niwa-collaboration--forwarded-evidence (room owner id)
   "Return validated parent mailbox evidence for OWNER and execution ID.
 Only a matching forwarded completion in this room authorizes a fetch."
-  (niwa-collaboration--find-transcript-evidence
+  (niwa-session-artifacts-find-in-transcript
    (plist-get room :session) (plist-get room :data-buffer)
-   (lambda ()
+   (lambda (_descriptor)
      (cl-some
       (lambda (segment)
         (when (eq (car segment) 'mailbox)
@@ -462,9 +440,9 @@ a client cannot authorize a result by naming another agent or a path."
                               (not (equal owner "/root")))))
                   (list :owner owner :execution-id id :live t
                         :tool-use-id (plist-get facts :tool-use-id) :facts facts))
-                (niwa-collaboration--find-transcript-evidence
+                (niwa-session-artifacts-find-in-transcript
                  session buffer
-                 (lambda ()
+                 (lambda (_descriptor)
                    (cl-some
                     (lambda (span)
                       (let ((audit (plist-get span :record)))
@@ -472,31 +450,35 @@ a client cannot authorize a result by naming another agent or a path."
                                    (equal id (plist-get audit :execution-id)))
                           audit)))
                     (reverse (niwa-transcript-audit-buffer-spans
-                              'execution-breadcrumb))))))))
+                              'execution-breadcrumb))))
+                 (not (equal owner "/root"))))))
     (cons record buffer)))
 
-(defun niwa-collaboration--execution-row-facts (buffer tool-id id)
-  "Find TOOL-ID's terminal Bash render data for ID in BUFFER's segments."
+(defun niwa-collaboration--execution-row-facts (buffer tool-id id agent-transcript-p)
+  "Find TOOL-ID's terminal Bash render data for ID in BUFFER's segments.
+AGENT-TRANSCRIPT-P selects child history."
   (when (and (stringp tool-id) (buffer-live-p buffer))
-    (niwa-collaboration--find-transcript-evidence
+    (niwa-session-artifacts-find-in-transcript
      (buffer-local-value 'niwa--session buffer) buffer
-     (lambda ()
+     (lambda (_descriptor)
        (let ((data (niwa-tool-render-data-for-tool
                     (current-buffer) tool-id)))
          (when (and (equal (plist-get data :execution-id) id)
                     (memq (plist-get data :state)
                           '(completed interrupted lost)))
-           data))))))
+           data)))
+     agent-transcript-p)))
 
 (defun niwa-collaboration--terminal-execution-facts
-    (buffer id &optional tool-id)
+    (buffer id agent-transcript-p &optional tool-id)
   "Find trusted terminal audit facts for ID in BUFFER's source segments.
+AGENT-TRANSCRIPT-P selects child history.
 When TOOL-ID is supplied by an authorized local breadcrumb, require its
 matching tool-use id; nested ToolCall Bash children have no separate row."
   (when (buffer-live-p buffer)
-    (niwa-collaboration--find-transcript-evidence
+    (niwa-session-artifacts-find-in-transcript
      (buffer-local-value 'niwa--session buffer) buffer
-     (lambda ()
+     (lambda (_descriptor)
        (cl-some
         (lambda (span)
           (let* ((record (plist-get span :record))
@@ -507,7 +489,8 @@ matching tool-use id; nested ToolCall Bash children have no separate row."
                        (or (null tool-id)
                            (equal tool-id (plist-get record :tool-use-id))))
               facts)))
-        (reverse (niwa-transcript-audit-buffer-spans)))))))
+        (reverse (niwa-transcript-audit-buffer-spans))))
+     agent-transcript-p)))
 
 (defun niwa-collaboration--child-execution-facts (room owner id)
   "Return source-backed terminal facts for OWNER's ID when the child is live.
@@ -518,11 +501,11 @@ has no resident transcript, so its forwarded parent delivery is the fallback."
               (buffer (niwa-agent-record-conversation-buffer (cdr entry)))
               ((buffer-live-p buffer))
               ((buffer-local-value 'niwa--session buffer)))
-    (or (niwa-collaboration--terminal-execution-facts buffer id)
+    (or (niwa-collaboration--terminal-execution-facts buffer id t)
         (when-let* ((breadcrumb (car (niwa-collaboration--local-execution
                                       room owner id))))
           (or (niwa-collaboration--execution-row-facts
-               buffer (plist-get breadcrumb :tool-use-id) id)
+               buffer (plist-get breadcrumb :tool-use-id) id t)
               (plist-get breadcrumb :facts))))))
 
 (defun niwa-collaboration--retained-execution-output (session facts)
@@ -578,10 +561,11 @@ path grants authority."
                               room owner id))
                         (and local
                              (or (niwa-collaboration--execution-row-facts
-                                  child-buffer (plist-get (car local) :tool-use-id) id)
+                                  child-buffer (plist-get (car local) :tool-use-id) id
+                                  (not (equal owner "/root")))
                                  (and (stringp (plist-get (car local) :tool-use-id))
                                       (niwa-collaboration--terminal-execution-facts
-                                       child-buffer id
+                                       child-buffer id (not (equal owner "/root"))
                                        (plist-get (car local) :tool-use-id)))
                                  (plist-get (car local) :facts)))))
              (canonical-output (and facts (or child-session

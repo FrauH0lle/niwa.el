@@ -48,6 +48,7 @@
   "niwa-tool-repair-diagnostics")
 
 ;; `niwa-session-artifacts'
+(autoload 'niwa-session-artifacts-find-in-transcript "niwa-session-artifacts")
 (declare-function niwa-session-artifacts-read-transcript-segment
                   "niwa-session-artifacts" (session descriptor))
 (declare-function niwa-session-artifacts-transcript-segments
@@ -740,21 +741,11 @@ the forwarded mailbox message appears only in the parent's current segment."
                   'execution-breadcrumb))))))
          (current (and (buffer-live-p data) (funcall find-record data))))
     (or current
-        (and session
-             (catch 'found
-               (dolist (descriptor (reverse (niwa-session-artifacts-transcript-segments
-                                             session data niwa-view--agent-transcript-p)))
-                 (when (and (eq (plist-get descriptor :status) 'readable)
-                            (not (plist-get descriptor :current-p)))
-                   (when-let* ((older
-                                (condition-case nil
-                                    (niwa-session-artifacts-read-transcript-segment
-                                     session descriptor)
-                                  (error nil))))
-                     (unwind-protect
-                         (when-let* ((owner-record (funcall find-record older)))
-                           (throw 'found owner-record))
-                       (kill-buffer older)))))))
+        (niwa-session-artifacts-find-in-transcript
+         session data (lambda (descriptor)
+                        (unless (plist-get descriptor :current-p)
+                          (funcall find-record (current-buffer))))
+         niwa-view--agent-transcript-p)
         record)))
 
 (defun niwa-view-audit-locate-source (session live-buffer tool-id &optional agent-transcript-p)
@@ -763,35 +754,17 @@ AGENT-TRANSCRIPT-P selects the child's own compact archives, never root
 history.  Nested ToolCall IDs resolve their outer source.  This read-only
 lookup releases archive buffers and never selects or modifies a view."
   (when (and session (buffer-live-p live-buffer) (stringp tool-id))
-    (let ((parent-id tool-id)
-          (descriptors (reverse (niwa-session-artifacts-transcript-segments
-                                 session live-buffer agent-transcript-p)))
-          chosen)
+    (let ((parent-id tool-id))
       (while (string-match "/[0-9]+\\'" parent-id)
         (setq parent-id (substring parent-id 0 (match-beginning 0))))
-      (dolist (descriptor descriptors)
-        (when (and (not chosen) (eq (plist-get descriptor :status) 'readable))
-          (let* ((current-p (plist-get descriptor :current-p))
-                 (buffer (if current-p live-buffer
-                           (condition-case nil
-                               (niwa-session-artifacts-read-transcript-segment
-                                session descriptor)
-                             (error nil)))))
-            (when (buffer-live-p buffer)
-              (unwind-protect
-                  (with-current-buffer buffer
-                    (save-restriction
-                      (widen)
-                      (let ((at (point-min)))
-                        (while (and (< at (point-max)) (not chosen))
-                          (when (equal (get-text-property at 'gptel)
-                                       (cons 'tool parent-id))
-                            (setq chosen descriptor))
-                          (setq at (or (next-single-property-change
-                                        at 'gptel nil (point-max))
-                                       (point-max)))))))
-                (unless current-p (kill-buffer buffer)))))))
-      chosen)))
+      (niwa-session-artifacts-find-in-transcript
+       session live-buffer
+       (lambda (descriptor)
+         (save-excursion
+           (goto-char (point-min))
+           (and (text-property-search-forward 'gptel (cons 'tool parent-id) t)
+                descriptor)))
+       agent-transcript-p))))
 
 (defun niwa-view-audit--select-source (record)
   "Select the archived segment owning RECORD's tool row, if any.
@@ -1027,19 +1000,12 @@ Search current and readable older transcripts without opening a view.
 AGENT-TRANSCRIPT-P restricts history to this child's own compact archives."
   (when (buffer-live-p live)
     (or (niwa-view-audit--control-record-in-buffer live execution-id)
-        (and session (catch 'found
-          (dolist (descriptor (reverse (niwa-session-artifacts-transcript-segments
-                                        session live agent-transcript-p)))
-            (when (and (eq (plist-get descriptor :status) 'readable)
-                       (not (plist-get descriptor :current-p)))
-              (when-let* ((older
-                           (condition-case nil
-                               (niwa-session-artifacts-read-transcript-segment session descriptor)
-                             (error nil))))
-                (unwind-protect
-                    (when-let* ((match (niwa-view-audit--control-record-in-buffer older execution-id)))
-                      (throw 'found match))
-                  (kill-buffer older))))))))))
+        (niwa-session-artifacts-find-in-transcript
+         session live (lambda (descriptor)
+                        (unless (plist-get descriptor :current-p)
+                          (niwa-view-audit--control-record-in-buffer
+                           (current-buffer) execution-id)))
+         agent-transcript-p))))
 
 (defun niwa-view-audit-show-control-result (execution-id)
   "Open EXECUTION-ID's original Bash row from an input or stop interaction.

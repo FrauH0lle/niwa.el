@@ -830,6 +830,82 @@ ENTRIES is an alist of logical names and their content strings."
       (test-niwa-session-persistence--cleanup tempdir))))
 
 
+(niwa-deftest niwa-session-artifacts-find-in-transcript ()
+  (cl-destructuring-bind (session . tempdir)
+      (test-niwa-session-persistence--make-materialized-session)
+    (unwind-protect
+        (with-temp-buffer
+          (let ((live (current-buffer)))
+            (setf (niwa-session-current-segment session) 3)
+            (dolist (number '(1 2))
+              (niwa-session-artifacts-publish-text
+               session (niwa-session-artifacts-segment-path
+                        (niwa-session-save-path session) number)
+               (if (= number 1) "parent-tool-id\n" "newer archive\n")
+               'utf-8-unix))
+            (insert "live-tool-id\nother text\n")
+            (narrow-to-region 14 (point-max))
+            ,test))
+      (test-niwa-session-persistence--cleanup tempdir)))
+  (test)
+  :doc "A live hit sees the widened transcript and opens no archives"
+  (let (opened)
+    (cl-letf (((symbol-function 'niwa-session-artifacts-read-transcript-segment)
+               (lambda (&rest _) (setq opened t) (error "Unexpected read"))))
+      (should
+       (equal '(3 "live-tool-id")
+              (niwa-session-artifacts-find-in-transcript
+               session live
+               (lambda (descriptor)
+                 (should (eq live (current-buffer)))
+                 (goto-char (point-min))
+                 (when (looking-at "live-tool-id")
+                   (list (plist-get descriptor :number) (match-string 0))))))))
+    (should-not opened)
+    (should (= 14 (point-min))))
+  :doc "A newer archive read failure does not hide an older match"
+  (let ((reader (symbol-function 'niwa-session-artifacts-read-transcript-segment))
+        opened borrowed)
+    (cl-letf (((symbol-function 'niwa-session-artifacts-read-transcript-segment)
+               (lambda (owner descriptor)
+                 (push (plist-get descriptor :number) opened)
+                 (if (= 2 (car opened)) (user-error "Archive unavailable")
+                   (funcall reader owner descriptor)))))
+      (should
+       (equal 1 (niwa-session-artifacts-find-in-transcript
+                 session live
+                 (lambda (descriptor)
+                   (goto-char (point-min))
+                   (when (search-forward "parent-tool-id" nil t)
+                     (setq borrowed (current-buffer))
+                     (plist-get descriptor :number)))))))
+    (should (equal '(2 1) (nreverse opened)))
+    (should (bufferp borrowed))
+    (should-not (buffer-live-p borrowed))
+    (should (buffer-live-p live)))
+  :doc "A fileless child cannot match a tool ID in its parent's archive"
+  (let ((matcher (lambda (_descriptor)
+                   (goto-char (point-min))
+                   (search-forward "parent-tool-id" nil t))))
+    (should (niwa-session-artifacts-find-in-transcript session live matcher))
+    (should-not (niwa-session-artifacts-find-in-transcript session live matcher t)))
+  :doc "A matcher error propagates after releasing only the borrowed buffer"
+  (let (borrowed)
+    (should
+     (equal '(user-error "Matcher failed")
+            (should-error
+             (niwa-session-artifacts-find-in-transcript
+              session live
+              (lambda (descriptor)
+                (unless (plist-get descriptor :current-p)
+                  (setq borrowed (current-buffer))
+                  (user-error "Matcher failed"))))
+             :type 'user-error)))
+    (should (bufferp borrowed))
+    (should-not (buffer-live-p borrowed))
+    (should (buffer-live-p live))
+    (should (= 14 (point-min)))))
+
 (niwa-deftest niwa-session-artifacts-ensure-files ()
   ,test
   (test)

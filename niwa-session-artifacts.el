@@ -806,6 +806,31 @@ source cannot be identified without reading it."
     (niwa-session-artifacts-read-segment
      session (plist-get descriptor :number))))
 
+(defun niwa-session-artifacts-find-in-transcript
+    (session live-buffer matcher &optional agent-transcript-p)
+  "Search SESSION's readable segments of LIVE-BUFFER, newest first.
+Call MATCHER with each descriptor in its widened transcript buffer and
+return the first non-nil result.  Skip unreadable archives, but propagate
+matcher errors after releasing the buffer.  AGENT-TRANSCRIPT-P restricts
+history to the receiving child's own transcript."
+  (when (and session (buffer-live-p live-buffer))
+    (cl-some
+     (lambda (descriptor)
+       (when-let* (((eq (plist-get descriptor :status) 'readable))
+                   (buffer (if (plist-get descriptor :current-p) live-buffer
+                             (ignore-errors
+                               (niwa-session-artifacts-read-transcript-segment
+                                session descriptor))))
+                   ((buffer-live-p buffer)))
+         (unwind-protect
+             (with-current-buffer buffer
+               (save-restriction
+                 (widen)
+                 (funcall matcher descriptor)))
+           (unless (eq buffer live-buffer) (kill-buffer buffer)))))
+     (reverse (niwa-session-artifacts-transcript-segments
+               session live-buffer agent-transcript-p)))))
+
 (defun niwa-session-artifacts-sidecar-path (save-path)
   "Return the absolute path to the session sidecar under SAVE-PATH."
   (file-name-concat save-path "session.meta.eld"))
