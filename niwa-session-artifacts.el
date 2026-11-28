@@ -849,8 +849,12 @@ history to the receiving child's own transcript."
 ;;
 ;;; Lazy materialization
 
-(defun niwa-session-artifacts-allocate (session buffer)
-  "Allocate a new durable directory for SESSION and return its path.
+(defvar niwa-session-artifacts--allocation-locks
+  (make-hash-table :test #'eq :weakness 'key)
+  "Mutexes for first saves of the same live session in different threads.")
+
+(cl-defun niwa-session-artifacts-allocate (session buffer)
+  "Allocate SESSION's durable directory, or reuse a concurrent first save's.
 Claim the lease for BUFFER without attaching it to a segment or publishing
 a sidecar."
   (when (niwa-execution-target-remote-p (niwa-session-execution-target session))
@@ -863,18 +867,29 @@ a sidecar."
            (path (file-name-as-directory (file-name-concat sessions-dir session-id)))
            (now (format-time-string "%FT%H-%M-%S")))
       (make-directory sessions-dir t)
-      (make-directory path)
-      (make-directory (file-name-concat path "agents") t)
-      (make-directory (file-name-concat path "file-history") t)
-      (niwa-session-persistence-lock-acquire path (buffer-name buffer) session)
-      (setf (niwa-session-session-id session) session-id
-            (niwa-session-save-path session) path
-            (niwa-session-created-at session) now
-            (niwa-session-updated-at session) now
-            (niwa-session-current-segment session) 1)
-      (niwa-session-persistence-flush-diagnostic-logs session)
-      (niwa-workspace-ensure-generated-state-ignored workspace)
-      path)))
+      ;; A contender must not observe the new directory before lease installation.
+      (with-mutex (or (gethash session niwa-session-artifacts--allocation-locks)
+                      (puthash session (make-mutex)
+                               niwa-session-artifacts--allocation-locks))
+        (condition-case err
+            (make-directory path)
+          (file-already-exists
+           ;; Target I/O can run another first save before our mkdir returns.
+           (if (and (equal path (niwa-session-save-path session))
+                    (niwa-session-durability-lease-owned-p session))
+               (cl-return-from niwa-session-artifacts-allocate path)
+             (signal (car err) (cdr err)))))
+        (make-directory (file-name-concat path "agents") t)
+        (make-directory (file-name-concat path "file-history") t)
+        (niwa-session-persistence-lock-acquire path (buffer-name buffer) session)
+        (setf (niwa-session-session-id session) session-id
+              (niwa-session-save-path session) path
+              (niwa-session-created-at session) now
+              (niwa-session-updated-at session) now
+              (niwa-session-current-segment session) 1)
+        (niwa-session-persistence-flush-diagnostic-logs session)
+        (niwa-workspace-ensure-generated-state-ignored workspace)
+        path))))
 
 (defun niwa-session-artifacts-ensure-files (session buffer)
   "Ensure SESSION's durable tree and attach BUFFER to its current segment.

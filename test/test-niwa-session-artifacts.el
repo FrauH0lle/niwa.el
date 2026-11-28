@@ -1047,6 +1047,72 @@ ENTRIES is an alist of logical names and their content strings."
       (niwa-workspace-clear-registry))))
 
 
+(niwa-deftest niwa-session-artifacts-save/overlapping-first-saves (:quiet t)
+  ,test
+  (test)
+  (dolist (order '(before-mkdir after-mkdir))
+    (let* ((root (make-temp-file "niwa-first-saves-" t))
+           (workspace (test-niwa-session-persistence--make-workspace root))
+           (session (niwa-session-create "main" workspace))
+           (buffer (generate-new-buffer " *first saves*"))
+           (sessions (niwa-session-artifacts-sessions-dir workspace))
+           (id (niwa-session-session-id session))
+           (path (file-name-as-directory (file-name-concat sessions id)))
+           (mkdir (symbol-function 'make-directory))
+           (acquire (symbol-function 'niwa-session-durability-lease-acquire))
+           (claims 0) worker arrived nested outer)
+      (unwind-protect
+          (with-current-buffer buffer
+            (org-mode)
+            (insert "First transcript\n")
+            (cl-flet ((save ()
+                        (condition-case err
+                            (progn (niwa-session-artifacts-save session buffer) 'saved)
+                          (error err))))
+              (cl-letf (((symbol-function 'niwa-session-durability-lease-acquire)
+                         (lambda (&rest args) (cl-incf claims) (apply acquire args)))
+                        ((symbol-function 'make-directory)
+                         (lambda (dir &optional parents)
+                           (when (and worker (eq worker (current-thread))
+                                      parents (equal dir sessions))
+                             (setq arrived t))
+                           (when (and (not worker) parents
+                                      (equal dir (if (eq order 'before-mkdir) sessions
+                                                   (file-name-concat path "agents"))))
+                             (should-not (niwa-session-save-path session))
+                             (should (eq (file-directory-p path) (eq order 'after-mkdir)))
+                             (should (zerop claims))
+                             (setq worker (make-thread (lambda () (with-current-buffer buffer (save)))))
+                             (if (eq order 'before-mkdir)
+                                 (progn
+                                   (setq nested (thread-join worker))
+                                   (with-current-buffer buffer
+                                     (goto-char (point-max))
+                                     (insert "After nested save\n")))
+                               ;; Resume the initializer only after the contender exited or blocked.
+                               (let ((limit (+ 5 (float-time))))
+                                 (while (and (< (float-time) limit) (thread-live-p worker)
+                                             (not (and arrived (mutexp (thread--blocker worker)))))
+                                   (thread-yield))
+                                 (should (or (not (thread-live-p worker))
+                                             (and arrived (mutexp (thread--blocker worker))))))))
+                           (funcall mkdir dir parents))))
+                (setq outer (save))
+                (when (eq order 'after-mkdir) (setq nested (thread-join worker)))))
+            (should (equal (list nested outer) '(saved saved)))
+            (should (= claims 1))
+            (should (equal (directory-files sessions nil directory-files-no-dot-files-regexp)
+                           (list id)))
+            (should (niwa-session-durability-lease-owned-p session))
+            (should (equal (niwa-session-artifacts-read-artifact
+                            session "segment-0001.chat.org" t)
+                           (if (eq order 'before-mkdir)
+                               "First transcript\nAfter nested save\n"
+                             "First transcript\n"))))
+        (test-niwa-session-persistence--release-and-kill buffer session)
+        (niwa-workspace-clear-registry)
+        (delete-directory root t)))))
+
 (niwa-deftest niwa-session-artifacts-save (:quiet t)
   ,test
   (test)
