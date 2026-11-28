@@ -83,6 +83,21 @@ accepted without rewording or GNU file entries. The default merge-revert body
 also qualifies. A custom revert message follows the ordinary format, using the
 `revert` type and GNU entries.
 
+## Merges and history
+
+`master` has a linear history with no merge commits. Land a branch by
+combining the commits that belong together into a few coherent commits, each
+in the format above, rebasing them onto `master`, and fast-forwarding. Check
+that the rebuilt tree equals the tested one, and rerun the merge-time checks
+from the [development guide](development.md) before moving `master`.
+
+A private integration branch should stay linear too: rebase or cherry-pick a
+finished branch onto it and fast-forward, so its history can land without
+rebuilding. Git's default subjects, such as `Merge commit '1a2b3c4d' into
+integration` or `Merge branch 'feature'`, describe nothing and never reach
+`master`. The commit-message hook exempts merge commits, so this rule is not
+checked automatically.
+
 ## Trailers
 
 Separate trailers from the body with a blank line. Use `Token: value`, with
