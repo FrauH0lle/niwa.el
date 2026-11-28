@@ -58,32 +58,6 @@
 (autoload 'niwa--display-chat-buffer "niwa-chat")
 
 ;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-data-buffer "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-for-buffer "niwa-cockpit" (buffer))
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-workspace
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context "niwa-cockpit" ())
-(declare-function niwa-cockpit-format-header
-                  "niwa-cockpit" (name scope state))
-(declare-function niwa-cockpit-number-cell "niwa-cockpit" (text number))
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-require-owner
-                  "niwa-cockpit" (&optional label context))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
-(declare-function niwa-cockpit-sort-by-number "niwa-cockpit" (column))
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-(declare-function niwa-cockpit-surface-selected
-                  "niwa-cockpit" (&optional no-error))
-(declare-function niwa-cockpit-workspace-context
-                  "niwa-cockpit" (workspace &optional origin-buffer))
 (autoload 'niwa-cockpit-context-for-buffer "niwa-cockpit")
 (autoload 'niwa-cockpit-context-session "niwa-cockpit")
 (autoload 'niwa-cockpit-context-workspace "niwa-cockpit")
@@ -147,14 +121,6 @@
 (autoload 'niwa-shared-editing-create "niwa-shared-editing")
 (autoload 'niwa-shared-editing-save-version "niwa-shared-editing")
 (autoload 'niwa-shared-editing-session-writable-p "niwa-shared-editing")
-
-;; `niwa-structs'
-(declare-function niwa-session-attached-artifacts "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-name "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))

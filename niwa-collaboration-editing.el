@@ -12,10 +12,6 @@
 (require 'niwa-shared-conversation)
 (require 'niwa-shared-library)
 
-;; `niwa-artifact-store'
-(declare-function niwa-artifact-store-attach
-                  "niwa-artifact-store" (session id &optional buffer))
-
 ;; `niwa-collaboration'
 (declare-function niwa-collaboration--guest "niwa-collaboration" (room peer))
 (declare-function niwa-collaboration--room-for-session "niwa-collaboration" (session))
@@ -39,9 +35,6 @@
 
 ;; `niwa-collaboration-transport'
 (declare-function niwa-collaboration--transport-send "niwa-collaboration-transport" (transport peer frame))
-
-;; `niwa-structs'
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 
 (defun niwa-collaboration-editing--browser-value (value)
   "Project VALUE for an editor without duplicating content and image snapshots.

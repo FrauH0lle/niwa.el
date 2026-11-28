@@ -15,7 +15,6 @@
 (require 'subr-x)
 
 ;; `niwa-utilities'
-(declare-function niwa--emacs-executable "niwa-utilities" ())
 (autoload 'niwa--emacs-executable "niwa-utilities")
 
 (defcustom niwa-eval-sandbox-idle-timeout 600

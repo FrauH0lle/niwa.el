@@ -56,25 +56,10 @@
 (declare-function niwa-collaboration-notify-request-changed
                   "niwa-collaboration" (data-buffer &optional completed-trigger))
 
-;; `niwa-compact-estimation'
-(declare-function niwa-compact-estimation-record-token-baseline
-                  "niwa-compact-estimation" (fsm))
-
 ;; `niwa-execution'
 (declare-function niwa-execution-session-live-p "niwa-execution" (session))
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-probe
-                  "niwa-execution-target"
-                  (target &optional refresh sandbox-mode))
-(declare-function niwa-execution-target-readiness-message
-                  "niwa-execution-target" (target))
-(declare-function niwa-execution-target-ready-p
-                  "niwa-execution-target" (target))
-(declare-function niwa-execution-target-refresh-incarnation
-                  "niwa-execution-target" (target))
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
 
 ;; `niwa-goal'
@@ -256,19 +241,6 @@
 (autoload 'niwa-sleep-update "niwa-sleep")
 
 ;; `niwa-structs'
-(declare-function niwa-request-edited-artifacts "niwa-structs" (cl-x))
-(declare-function niwa-request-id "niwa-structs" (cl-x))
-(declare-function niwa-request-origin "niwa-structs" (cl-x))
-(declare-function niwa-request-started-at "niwa-structs" (cl-x))
-(declare-function niwa-session-pending-publication
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-steering
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-ptc-checkpoints "niwa-structs" (cl-x))
-(declare-function niwa-session-set-pending-input-failure-paused
-                  "niwa-structs" (session paused))
-(declare-function niwa-session-set-pending-inputs
-                  "niwa-structs" (session category entries))
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 
@@ -276,20 +248,8 @@
 (declare-function niwa-readiness-record-turn "niwa-readiness" (info outcome message))
 (autoload 'niwa-readiness-record-turn "niwa-readiness")
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
-;; `niwa-transport'
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (key path thunk &optional on-cancel delay))
-(declare-function niwa-transport-cancel-pending "niwa-transport" (&optional key))
-
 ;; `niwa-utilities'
-(declare-function niwa--gc-hold "niwa-utilities" (key live-p))
 (defvar niwa--gc-settlement-grace)
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 ;; `niwa-view-interaction'
 (declare-function niwa-view--interaction-rebuild

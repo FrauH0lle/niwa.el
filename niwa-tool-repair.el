@@ -31,16 +31,6 @@
                   (name &optional category))
 (declare-function niwa-tool-name "niwa-tool-registry" (cl-x) t)
 
-;; `niwa-resource'
-(declare-function niwa-resource-address-like-p "niwa-resource" (value))
-
-;; `niwa-turn'
-(declare-function niwa-current-origin "niwa-turn" ())
-
-;; `niwa-utilities'
-(declare-function niwa--format-hook-audit-record
-                  "niwa-utilities" (record))
-
 (defvar niwa--agent-invocation)
 (defvar niwa--session)
 

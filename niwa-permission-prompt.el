@@ -98,10 +98,6 @@
 (autoload 'niwa-side-conversation-mutation-warning-pending-p
   "niwa-side-conversation")
 
-;; `niwa-structs'
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (session))
-
 ;; `niwa-view-interaction'
 (declare-function niwa-view--interaction-register
                   "niwa-view-interaction" (descriptor))

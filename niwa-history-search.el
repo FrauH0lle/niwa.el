@@ -33,10 +33,6 @@
                   "niwa-session-publication" (directories listings))
 (autoload 'niwa-session-publication-read-batch "niwa-session-publication")
 
-;; `niwa-structs'
-(declare-function niwa-session-authority-mode-for-workspace
-                  "niwa-structs" (workspace))
-
 ;; `niwa-tool-fs-read'
 (declare-function niwa-tool-fs-read--virtual-text
                   "niwa-tool-fs-read" (text args address))

@@ -37,23 +37,6 @@
 (autoload 'niwa--patch-buffer "niwa-chat")
 (autoload 'niwa--replace-patch-buffer "niwa-chat")
 
-;; `niwa-instruction-registry'
-(declare-function niwa--instruction-buffer-workspace
-                  "niwa-instruction-registry" (buffer))
-(declare-function niwa--instruction-id
-                  "niwa-instruction-registry" (instruction))
-(declare-function niwa--instruction-inlinks
-                  "niwa-instruction-registry" (instruction))
-(declare-function niwa--instruction-outlinks
-                  "niwa-instruction-registry" (instruction))
-(declare-function niwa--instruction-with-id
-                  "niwa-instruction-registry"
-                  (target-id &optional workspace))
-(declare-function niwa-link-instructions
-                  "niwa-instruction-registry" (from-list to-list))
-(declare-function niwa-unlink-instructions
-                  "niwa-instruction-registry" (from-list to-list))
-
 ;; `niwa-menu'
 (declare-function niwa-menu-open-model-selection
                   "niwa-menu" (&rest options))
@@ -107,15 +90,6 @@
 (declare-function niwa-skills-user-visible-skills
                   "niwa-skills-ui" (session &optional inline-only))
 (autoload 'niwa-skills-user-visible-skills "niwa-skills-ui")
-
-;; `niwa-structs'
-;; `niwa-utilities'
-(declare-function niwa--fill-label-string
-                  "niwa-utilities"
-                  (string &optional prefix-string padding buffer))
-(declare-function niwa--tint
-                  "niwa-utilities"
-                  (source-color-name tint-color-name &optional intensity))
 
 ;; `niwa-view-disclosure'
 (declare-function niwa-view-toggle-section "niwa-view-disclosure" ())

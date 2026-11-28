@@ -36,13 +36,7 @@
 (declare-function niwa-state-cleanup "niwa-state-cleanup" (workspace))
 (autoload 'niwa-state-cleanup "niwa-state-cleanup")
 
-;; `niwa-transport'
-(declare-function niwa-transport-run-when-idle "niwa-transport"
-                  (key path thunk &optional on-cancel))
-
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
 (autoload 'niwa-diagnostic-message "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 

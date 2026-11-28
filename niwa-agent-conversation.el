@@ -40,7 +40,6 @@
 (defvar gptel-org-convert-response)
 
 ;; `niwa-engine'
-(declare-function niwa-engine-record-history-edit "niwa-engine" (begin end))
 (autoload 'niwa-engine-record-history-edit "niwa-engine")
 
 ;; `niwa-session-artifacts'
@@ -107,12 +106,6 @@
 (autoload 'niwa-skills-install-activation-hook "niwa-skills-prompt")
 
 ;; `niwa-structs'
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-tool-results-directory "niwa-structs" (session))
-(declare-function niwa-session-working-directory
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 (defvar niwa--workspace)
@@ -148,8 +141,6 @@
   "niwa-transcript-restore")
 
 ;; `niwa-transport'
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (key path thunk &optional on-cancel delay))
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 
 ;; `niwa-turn'
@@ -158,14 +149,6 @@
 (autoload 'niwa-request-end "niwa-turn")
 
 ;; `niwa-utilities'
-(declare-function niwa--insert-user-role-block-at-marker
-                  "niwa-utilities" (block &optional marker))
-(declare-function niwa--optimize-transcript-buffer
-                  "niwa-utilities" ())
-(declare-function niwa--same-file-p
-                  "niwa-utilities" (file-a file-b))
-(declare-function niwa--transcript-org-mode
-                  "niwa-utilities" ())
 (autoload 'niwa--insert-user-role-block-at-marker "niwa-utilities")
 (autoload 'niwa--optimize-transcript-buffer "niwa-utilities")
 (autoload 'niwa--same-file-p "niwa-utilities")

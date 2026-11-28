@@ -59,15 +59,6 @@
   "niwa-compact-estimation")
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-acknowledge-incarnation "niwa-execution-target" (target))
-(declare-function niwa-execution-target-incarnation-changed-p "niwa-execution-target" (cl-x))
-(declare-function niwa-execution-target-native-root "niwa-execution-target" (cl-x))
-(declare-function niwa-execution-target-observe-incarnation "niwa-execution-target" (target))
-(declare-function niwa-execution-target-prepare-incarnation-acknowledgement "niwa-execution-target" (target))
-(declare-function niwa-execution-target-probe "niwa-execution-target" (target &optional refresh sandbox-mode))
-(declare-function niwa-execution-target-readiness "niwa-execution-target" (cl-x))
-(declare-function niwa-execution-target-refresh-incarnation "niwa-execution-target" (target))
-(declare-function niwa-execution-target-remote-p "niwa-execution-target" (target))
 (autoload 'niwa-execution-target-acknowledge-incarnation
   "niwa-execution-target")
 (autoload 'niwa-execution-target-incarnation-changed-p
@@ -218,29 +209,6 @@
 (autoload 'niwa-session-recovery-refresh "niwa-session-recovery")
 
 ;; `niwa-structs'
-(declare-function niwa-request-file-snapshots "niwa-structs" (cl-x))
-(declare-function niwa-request-untracked-effects "niwa-structs" (cl-x))
-(declare-function niwa-request-turn "niwa-structs" (cl-x))
-(declare-function niwa-session-chapters "niwa-structs" (cl-x))
-(declare-function niwa-session-control-transfer "niwa-structs" (cl-x))
-(declare-function niwa-session-created-at "niwa-structs" (cl-x))
-(declare-function niwa-session-current-segment "niwa-structs" (cl-x))
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x))
-(declare-function niwa-session-file-snapshots "niwa-structs" (cl-x))
-(declare-function niwa-session-untracked-effects "niwa-structs" (cl-x))
-(declare-function niwa-session-pending-publication "niwa-structs" (cl-x))
-(declare-function niwa-session-permission-rules "niwa-structs" (cl-x))
-(declare-function niwa-session-prompt-index "niwa-structs" (cl-x))
-(declare-function niwa-session-publication "niwa-structs" (cl-x))
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x))
-(declare-function niwa-session-sandbox-mode "niwa-structs" (cl-x))
-(declare-function niwa-session-save-path "niwa-structs" (cl-x))
-(declare-function niwa-session-session-id "niwa-structs" (cl-x))
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x))
-(declare-function niwa-session-updated-at "niwa-structs" (cl-x))
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x))
-(declare-function niwa-session-workspace "niwa-structs" (cl-x))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x))
 (defvar niwa--agent-invocation)
 (defvar niwa--current-request)
 (defvar niwa--session)
@@ -255,24 +223,10 @@
 (autoload 'niwa-transcript-restore-properties "niwa-transcript-restore")
 
 ;; `niwa-transport'
-(declare-function niwa-transport--call-with-exclusive-connection
-                  "niwa-transport" (thunk))
 (autoload 'niwa-transport--call-with-exclusive-connection
   "niwa-transport")
 
 ;; `niwa-utilities'
-(declare-function niwa--forget-place "niwa-utilities" nil)
-(declare-function niwa--ordered-completion-table "niwa-utilities" (displays category))
-(declare-function niwa--transcript-org-mode "niwa-utilities" nil)
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
-(declare-function niwa--write-file-atomically
-                  "niwa-utilities" (path content &optional coding mode))
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
-(declare-function niwa-version "niwa-utilities" (&optional here message))
 (autoload 'niwa--forget-place "niwa-utilities")
 (autoload 'niwa--ordered-completion-table "niwa-utilities")
 (autoload 'niwa--transcript-org-mode "niwa-utilities")

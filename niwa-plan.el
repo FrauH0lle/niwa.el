@@ -33,11 +33,6 @@
   "niwa-session-artifacts")
 
 ;; `niwa-structs'
-(declare-function niwa-session-plan-metadata "niwa-structs"
-		  (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x)
-		  t)
 (defvar niwa--session)
 
 ;; `niwa-utilities'

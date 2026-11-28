@@ -90,14 +90,6 @@
 (declare-function niwa-view-call-preserving-user-view-state
                   "niwa-view-viewport" (thunk &optional region follow-output))
 
-;; `niwa-view-zone'
-(declare-function niwa-view-zone-collapse-state
-                  "niwa-view-zone" (key &optional default))
-(declare-function niwa-view-zone-fragment-bounds "niwa-view-zone" (zone id))
-(declare-function niwa-view-zone-set-collapse-state
-                  "niwa-view-zone" (key collapsed))
-(declare-function niwa-view-zone-width "niwa-view-zone" ())
-
 (defconst niwa-view-execution--collapse-key '(status background)
   "Fragment collapse key of the background-work panel.")
 

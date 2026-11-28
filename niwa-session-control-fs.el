@@ -27,17 +27,11 @@
 (require 'tar-mode)
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-create
-                  "niwa-execution-target" (workspace-root))
-(declare-function niwa-execution-target-direct-async-capable-p
-                  "niwa-execution-target" (target))
 (autoload 'niwa-execution-target-create "niwa-execution-target")
 (autoload 'niwa-execution-target-direct-async-capable-p
   "niwa-execution-target")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 

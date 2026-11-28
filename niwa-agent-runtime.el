@@ -172,19 +172,8 @@
 (defvar niwa-session--read-only-mode)
 
 ;; `niwa-structs'
-(declare-function niwa-session-agent-transcripts
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-p "niwa-structs" (cl-x))
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
 
 ;; `niwa-tool-task'
 (declare-function niwa-tool-task-refresh-display "niwa-tool-task" ())
@@ -206,9 +195,6 @@
 (defvar niwa-transcript-audit--buffer-records)
 
 ;; `niwa-transport'
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport"
-                  (key path thunk &optional on-cancel delay))
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 
 ;; `niwa-turn'

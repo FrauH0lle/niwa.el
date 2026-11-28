@@ -20,12 +20,6 @@
 (autoload 'niwa-artifact-store-dedicated-p "niwa-artifact-store")
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-create "niwa-execution-target" (directory))
-(declare-function niwa-execution-target-incarnation-changed-p "niwa-execution-target" (cl-x) t)
-(declare-function niwa-execution-target-observe-incarnation "niwa-execution-target" (target))
-(declare-function niwa-execution-target-probe "niwa-execution-target" (target &optional refresh sandbox-mode))
-(declare-function niwa-execution-target-remote-p "niwa-execution-target" (target))
-(declare-function niwa-execution-target-restore-incarnation "niwa-execution-target" (target incarnation))
 (autoload 'niwa-execution-target-create "niwa-execution-target")
 (autoload 'niwa-execution-target-observe-incarnation "niwa-execution-target")
 (autoload 'niwa-execution-target-probe "niwa-execution-target")
@@ -50,11 +44,6 @@
 (declare-function niwa-instruction-store-note-session-ids "niwa-persistence" (workspace))
 
 ;; `niwa-session-control-fs'
-(declare-function niwa-session-control-fs-async-busy-p "niwa-session-control-fs" (directory))
-(declare-function niwa-session-control-fs-physical-path "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-program-value "niwa-session-control-fs" (result))
-(declare-function niwa-session-control-fs-run-program "niwa-session-control-fs" (operations &optional lock-directory))
-(declare-function niwa-session-control-fs-tree-sizes "niwa-session-control-fs" (paths))
 (autoload 'niwa-session-control-fs-physical-path
   "niwa-session-control-fs")
 
@@ -88,8 +77,6 @@
   "niwa-session-rewind")
 
 ;; `niwa-transport'
-(declare-function niwa-transport-schedule-idle
-                  "niwa-transport" (table key tag path thunk))
 (autoload 'niwa-transport-schedule-idle "niwa-transport")
 
 ;; `niwa-workspace-identity'

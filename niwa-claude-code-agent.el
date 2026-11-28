@@ -19,9 +19,6 @@
 ;; `gptel'
 (defvar gptel-reasoning-effort)
 
-;; `niwa-turn'
-(declare-function niwa-request-begin "niwa-turn" (session &optional options))
-
 (defun niwa-claude-code-agent-next-sample (invocation &optional boundary)
   "Prepare INVOCATION's next sample, or stop at BOUNDARY when its cap is spent.
 The initial prompt and each completed tool batch precede one model sample.

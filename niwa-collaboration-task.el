@@ -14,15 +14,6 @@
 (declare-function niwa-collaboration--broadcast
                   "niwa-collaboration" (room frame))
 
-;; `niwa-structs'
-(declare-function niwa-session-tasks "niwa-structs" (session))
-(declare-function niwa-task-blocked-by "niwa-structs" (task))
-(declare-function niwa-task-completed-turn "niwa-structs" (task))
-(declare-function niwa-task-id "niwa-structs" (task))
-(declare-function niwa-task-owner "niwa-structs" (task))
-(declare-function niwa-task-status "niwa-structs" (task))
-(declare-function niwa-task-subject "niwa-structs" (task))
-
 
 ;;
 ;;; Projection and publication

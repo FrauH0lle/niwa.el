@@ -48,21 +48,6 @@
 (declare-function niwa-session-collection-schedule "niwa-session-collection" (session))
 (autoload 'niwa-session-collection-schedule "niwa-session-collection")
 
-;; `niwa-session-control-fs'
-(declare-function niwa-session-control-fs-append-file
-                  "niwa-session-control-fs"
-                  (path content &optional coding-system))
-(declare-function niwa-session-control-fs-make-directory
-                  "niwa-session-control-fs" (path &optional parents))
-(declare-function niwa-session-control-fs-physical-path
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-program-value
-                  "niwa-session-control-fs" (result))
-(declare-function niwa-session-control-fs-run-program
-                  "niwa-session-control-fs" (operations))
-(declare-function niwa-session-control-fs-run-program-async
-                  "niwa-session-control-fs" (operations callback &optional scope))
-
 ;; `niwa-session-codec'
 (declare-function niwa-session-codec-portable-authority-p
                   "niwa-session-codec" (session))
@@ -75,34 +60,6 @@
 (autoload 'niwa-session-codec-write "niwa-session-codec")
 
 ;; `niwa-session-durability'
-(declare-function niwa-session-durability--create-plist
-                  "niwa-session-durability" (path plist))
-(declare-function niwa-session-durability-lease-head
-                  "niwa-session-durability" (directory))
-(declare-function niwa-session-durability--lease-path
-                  "niwa-session-durability" (session-dir))
-(declare-function niwa-session-durability-record-read
-                  "niwa-session-durability" (path))
-(declare-function niwa-session-durability--renew-publication-lease
-                  "niwa-session-durability" (session))
-(declare-function niwa-session-durability--valid-relative-path-p
-                  "niwa-session-durability" (path))
-(declare-function niwa-session-durability-call-with-reserved-lease
-                  "niwa-session-durability" (session function &optional token))
-(declare-function niwa-session-durability-call-in-context
-                  "niwa-session-durability" (context function))
-(declare-function niwa-session-durability-call-outside-transaction
-                  "niwa-session-durability" (function))
-(declare-function niwa-session-durability-commit-publication-head
-                  "niwa-session-durability" (session head))
-(declare-function niwa-session-durability-fresh-context
-                  "niwa-session-durability" (process-function))
-(declare-function niwa-session-durability-lease-owned-p
-                  "niwa-session-durability" (session))
-(declare-function niwa-session-durability-lease-renew
-                  "niwa-session-durability" (session &optional token))
-(declare-function niwa-session-durability-publication-head
-                  "niwa-session-durability" (session-dir &optional names))
 (defvar niwa-session-durability--final-commit)
 (defvar niwa-session-durability--transaction-clock)
 
@@ -121,26 +78,7 @@
 (autoload 'niwa-session-recovery-refresh-session-buffers
   "niwa-session-recovery")
 
-;; `niwa-structs'
-(declare-function niwa-session-control-transfer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-lease "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-publication
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-active-p
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-queue
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-uncommitted-batches
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")

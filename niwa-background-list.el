@@ -24,24 +24,6 @@
 (autoload 'niwa-agent-control-interrupt-user "niwa-agent-control")
 
 ;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context "niwa-cockpit" ())
-(declare-function niwa-cockpit-format-header
-                  "niwa-cockpit" (name scope state))
-(declare-function niwa-cockpit-number-cell "niwa-cockpit" (text number))
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
-(declare-function niwa-cockpit-sort-by-number "niwa-cockpit" (column))
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-(declare-function niwa-cockpit-surface-selected
-                  "niwa-cockpit" (&optional no-error))
 (autoload 'niwa-cockpit-context-session "niwa-cockpit")
 (autoload 'niwa-cockpit-current-context "niwa-cockpit")
 (autoload 'niwa-cockpit-format-header "niwa-cockpit")
@@ -91,15 +73,7 @@
 (autoload 'niwa-schedule-now "niwa-schedule")
 (autoload 'niwa-schedule-resume "niwa-schedule")
 
-;; `niwa-structs'
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-schedules "niwa-structs" (cl-x) t)
-
 ;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
-(declare-function niwa--truncate-display
-                  "niwa-utilities" (text width &optional ellipsis))
 (autoload 'niwa--duration-label "niwa-utilities")
 (autoload 'niwa--truncate-display "niwa-utilities")
 

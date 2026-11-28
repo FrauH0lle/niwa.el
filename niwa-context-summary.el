@@ -52,7 +52,6 @@
 (declare-function niwa-model-usable-input-tokens "niwa-models" (policy))
 
 ;; `niwa-structs'
-(declare-function niwa-session-p "niwa-structs" (object))
 (defvar niwa--agent-invocation)
 (defvar niwa--data-buffer)
 (defvar niwa--session)

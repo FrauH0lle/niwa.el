@@ -37,9 +37,6 @@
 (declare-function niwa-current-origin "niwa-turn" ())
 (autoload 'niwa-current-origin "niwa-turn")
 
-;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
-
 (defconst niwa-tool-schedule--modes '(ask edits full-auto)
   "Permission modes from least to most permissive.")
 

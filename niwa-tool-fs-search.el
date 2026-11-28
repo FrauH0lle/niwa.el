@@ -16,11 +16,6 @@
 (require 'niwa-tool-registry)
 (require 'niwa-turn)
 
-;; `niwa-execution'
-(declare-function niwa-execution-start-helper
-                  "niwa-execution"
-                  (callback name command read-paths writable-roots &rest keys))
-
 ;; `niwa-pipeline'
 (declare-function niwa-pipeline-handler-resumable "niwa-pipeline" (function))
 (autoload 'niwa-pipeline-handler-resumable "niwa-pipeline")
@@ -29,9 +24,6 @@
 (declare-function niwa-artifact-backend-catalog "niwa-artifact-backend"
                   (workspace &optional detail))
 (autoload 'niwa-artifact-backend-catalog "niwa-artifact-backend")
-
-;; `niwa-structs'
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 
 ;; `niwa-tool-editing'
 (declare-function niwa-tool-editing-view "niwa-tool-editing" (components callback &optional search))
@@ -42,38 +34,8 @@
                   "niwa-history-search" (callback args descriptor))
 (autoload 'niwa-history-search-start "niwa-history-search")
 
-;; `niwa-resource'
-(declare-function niwa-resource-error-message "niwa-resource"
-                  (failure &optional address private-paths))
-(declare-function niwa-resource-execute-async
-                  "niwa-resource" (attempt callback executor &optional options))
-
 ;; `niwa-structs'
 (defvar niwa--session)
-
-;; `niwa-tool-fs'
-(declare-function niwa-tool-fs-executable-find "niwa-tool-fs" (name path))
-(declare-function niwa-tool-fs-handler-result "niwa-tool-fs" (result))
-(declare-function niwa-tool-fs-resource-attempt "niwa-tool-fs" (address))
-(declare-function niwa-tool-fs-resource-child-address
-                  "niwa-tool-fs"
-                  (address root path &optional address-prefix))
-(declare-function niwa-tool-fs-resource-rg-exclusions
-                  "niwa-tool-fs" (address))
-(declare-function niwa-tool-fs-strip-system-reminders
-                  "niwa-tool-fs" (result))
-(declare-function niwa-tool-fs-visible-path
-                  "niwa-tool-fs" (path &optional resource-address))
-
-;; `niwa-tool-registry'
-(declare-function niwa-tool-integer-arg "niwa-tool-registry"
-                  (args key &optional default))
-(declare-function niwa-tool-string-arg "niwa-tool-registry"
-                  (args key &optional default))
-(declare-function niwa-tool-truthy-p "niwa-tool-registry" (value))
-
-;; `niwa-turn'
-(declare-function niwa-current-origin "niwa-turn" ())
 
 (defvar niwa-tool-fs-search--resource-address nil
   "Authored resource address for the current search.")

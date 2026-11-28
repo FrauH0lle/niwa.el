@@ -93,8 +93,6 @@
 (defvar niwa-session--read-only-mode)
 
 ;; `niwa-structs'
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-p "niwa-structs" (object))
 (defvar niwa--view-buffer)
 
 ;; `niwa-view-stream'

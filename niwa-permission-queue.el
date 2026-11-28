@@ -96,22 +96,11 @@
   "niwa-session-artifacts")
 
 ;; `niwa-structs'
-(declare-function niwa-request-cancelled-p "niwa-structs" (cl-x) t)
-(declare-function niwa-session-control-transfer
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-absence
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry-forwarded-audit-p
-                  "niwa-telemetry" (session))
-(declare-function niwa-telemetry-record-audit
-                  "niwa-telemetry" (session event &rest props))
 (autoload 'niwa-telemetry-forwarded-audit-p "niwa-telemetry")
 (autoload 'niwa-telemetry-record-audit "niwa-telemetry")
 
@@ -124,8 +113,6 @@
 (autoload 'niwa-tool-exec-permission-reevaluate "niwa-tool-exec-permission")
 
 ;; `niwa-transport'
-(declare-function niwa-transport-run-at-time
-                  "niwa-transport" (seconds function &rest args))
 (autoload 'niwa-transport-run-at-time "niwa-transport")
 
 ;; `niwa-view-interaction'

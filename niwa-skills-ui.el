@@ -69,31 +69,6 @@
 (autoload 'niwa-collaboration-lobby-stop "niwa-collaboration-lobby")
 
 ;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-data-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-workspace
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context "niwa-cockpit" ())
-(declare-function niwa-cockpit-format-header
-                  "niwa-cockpit" (name scope state))
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
-(declare-function niwa-cockpit-show-help
-                  "niwa-cockpit" (buffer text))
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-details "niwa-cockpit" ())
-(declare-function niwa-cockpit-surface-key-help-text
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-(declare-function niwa-cockpit-surface-selected
-                  "niwa-cockpit" (&optional no-error))
 (autoload 'niwa-cockpit-context-data-buffer "niwa-cockpit")
 (autoload 'niwa-cockpit-context-session "niwa-cockpit")
 (autoload 'niwa-cockpit-context-workspace "niwa-cockpit")
@@ -124,8 +99,6 @@
   "niwa-compact-estimation")
 
 ;; `niwa-engine'
-(declare-function niwa-engine-assert-local-history
-                  "niwa-engine" (session operation &optional backend root-only))
 (autoload 'niwa-engine-assert-local-history "niwa-engine")
 
 ;; `niwa-execution'
@@ -177,10 +150,6 @@
 
 ;; `niwa-menu'
 (declare-function niwa-menu-open "niwa-menu" (area))
-
-;; `niwa-models'
-(declare-function niwa-model-resolve-provider
-                  "niwa-models" (spec &optional noerror))
 
 ;; `niwa-permission-mode'
 (declare-function niwa-permission-mode-normalize
@@ -274,12 +243,6 @@
   "niwa-skills-preparation")
 
 ;; `niwa-structs'
-(declare-function niwa-goal-objective "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-input-p
-                  "niwa-structs" (session))
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 (defvar niwa--view-buffer)

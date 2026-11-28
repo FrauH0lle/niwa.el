@@ -41,43 +41,10 @@
 ;; `niwa-session-artifacts'
 (declare-function niwa-execution-session-live-spools "niwa-execution" (session))
 (autoload 'niwa-execution-session-live-spools "niwa-execution")
-(declare-function niwa-session-artifacts--live-sidecar
-                  "niwa-session-artifacts" (session &optional data-buffer))
-(declare-function niwa-session-artifacts-printed-value
-                  "niwa-session-artifacts" (value))
-(declare-function niwa-session-artifacts-sidecar-path
-                  "niwa-session-artifacts" (save-path))
-
-;; `niwa-session-codec'
-(declare-function niwa-session-codec-portable-authority-p
-                  "niwa-session-codec" (session))
-(declare-function niwa-session-codec-write "niwa-session-codec"
-                  (path plist))
-
-;; `niwa-session-durability'
-(declare-function niwa-session-durability-adopt-owned-lease
-                  "niwa-session-durability" (session source))
-(declare-function niwa-session-durability-call-with-reserved-lease
-                  "niwa-session-durability" (session function))
-(declare-function niwa-session-durability-forget-removed-session
-                  "niwa-session-durability" (session))
-
-;; `niwa-session-fork'
-(declare-function niwa-session-fork-clone-session
-                  "niwa-session-fork"
-                  (session policy &rest keys))
 
 ;; `niwa-session-naming'
 (declare-function niwa-session-naming-adopt-explicit "niwa-session-naming" (session name))
 (autoload 'niwa-session-naming-adopt-explicit "niwa-session-naming")
-
-;; `niwa-session-persistence'
-(declare-function niwa-session-persistence-lock-acquire
-                  "niwa-session-persistence"
-                  (session-dir buffer-name &optional session))
-(declare-function niwa-session-persistence-lock-release
-                  "niwa-session-persistence"
-                  (session-dir &optional session))
 
 ;; `niwa-session-publication'
 (declare-function niwa-session-publication-publish
@@ -87,44 +54,7 @@
                   "niwa-session-publication"
                   (session-dir &optional head names))
 
-;; `niwa-session-rewind'
-(declare-function niwa-session-rewind-materialize-publication
-                  "niwa-session-rewind"
-                  (session publication staging-path))
-(declare-function niwa-session-rewind-rewind-publication-artifacts
-                  "niwa-session-rewind"
-                  (session buffer staging-path &optional state))
-
-;; `niwa-structs'
-(declare-function niwa-session-buffer-name
-                  "niwa-structs" (session-name workspace))
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-forked-from-session-id
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-forked-from-turn
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-lease
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-updated-at
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace
-                  "niwa-structs" (cl-x) t)
-
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-warning "niwa-utilities"
-                  (scope type message &optional level buffer-name))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 

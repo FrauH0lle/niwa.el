@@ -68,11 +68,6 @@
 (autoload 'niwa-session-control-fs-program-value "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-run-program "niwa-session-control-fs")
 
-;; `niwa-structs'
-(declare-function niwa-session--set-sandbox-mode
-                  "niwa-structs" (session mode))
-(declare-function niwa-session-sandbox-mode "niwa-structs" (cl-x) t)
-
 ;; `niwa-transport'
 (declare-function niwa-transport-busy-p "niwa-transport" (&optional path))
 (declare-function niwa-transport-run-when-idle

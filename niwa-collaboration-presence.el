@@ -38,13 +38,6 @@
 (declare-function niwa-collaboration--workspace-key
                   "niwa-collaboration-guest" (room))
 
-;; `niwa-collaboration'
-(declare-function niwa-collaboration--send-guarded
-                  "niwa-collaboration" (room peer frame))
-
-;; `niwa-structs'
-(declare-function niwa-session-session-id "niwa-structs" (cl-x))
-
 
 (defun niwa-collaboration-presence--rooms (key)
   "Return the live session rooms, lobby and artifact rooms of workspace KEY."

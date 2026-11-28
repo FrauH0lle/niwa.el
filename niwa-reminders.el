@@ -126,10 +126,6 @@
 (autoload 'niwa-session-fork-provenance-body "niwa-session-fork")
 
 ;; `niwa-structs'
-(declare-function niwa-goal-plan-reference "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-metadata "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 
 ;; `niwa-telemetry'
@@ -154,14 +150,6 @@
 (autoload 'niwa--format-hook-audit-record "niwa-transcript-audit")
 
 ;; `niwa-utilities'
-(declare-function niwa--active-response-marker
-                  "niwa-utilities" (info buffer))
-(declare-function niwa--plain-data-p "niwa-utilities" (value))
-(declare-function niwa--split-open-reasoning-before-user-input
-                  "niwa-utilities" (info))
-(declare-function niwa-generate-diff
-                  "niwa-utilities"
-                  (original modified filepath callback &optional labels-real settlement))
 (autoload 'niwa--active-response-marker "niwa-utilities")
 (autoload 'niwa--plain-data-p "niwa-utilities")
 (autoload 'niwa--split-open-reasoning-before-user-input

@@ -17,12 +17,9 @@
 (require 'niwa-workspace)
 
 ;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-workspace "niwa-cockpit" (&optional context))
 (autoload 'niwa-cockpit-context-workspace "niwa-cockpit")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 

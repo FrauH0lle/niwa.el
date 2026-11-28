@@ -54,21 +54,6 @@
 (autoload 'niwa-plan-approval-render "niwa-plan-mode")
 
 ;; `niwa-structs'
-(declare-function niwa-request-p "niwa-structs" (cl-x))
-(declare-function niwa-request-set-active-work-paused
-                  "niwa-structs" (request paused &optional now))
-(declare-function niwa-session-pending-follow-ups
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-input-failure-paused
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-plan-approval
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-steering
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-mode "niwa-structs"
-                  (cl-x) t)
-(declare-function niwa-session-permission-queue "niwa-structs"
-                  (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
@@ -76,10 +61,6 @@
 
 ;; `niwa-telemetry'
 ;; `niwa-utilities'
-(declare-function niwa--normalize-message-text "niwa-utilities"
-		  (text))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 

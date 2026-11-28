@@ -20,59 +20,10 @@
 (require 'niwa-utilities)
 
 ;; `niwa-agents'
-(declare-function niwa-agent-invocation-skill-permission-rules
-                  "niwa-agents" (cl-x) t)
-(declare-function niwa-plan-read-only-p "niwa-agents"
-                  (&optional session))
 (defvar niwa--agent-invocation)
 
 ;; `niwa-permission-mode'
-(declare-function niwa-permission-mode-data-buffer
-                  "niwa-permission-mode" ())
-(declare-function niwa-permission-mode-decision
-                  "niwa-permission-mode"
-                  (mode read-only-p &optional native-edit-p reviewed-edit-p))
 (defvar niwa-permission-mode)
-
-;; `niwa-permission-persistence'
-(declare-function niwa-permission-persistence-load-resource-grants
-                  "niwa-permission-persistence" (workspace))
-(declare-function niwa-permission-persistence-load-rules
-                  "niwa-permission-persistence" (workspace))
-(declare-function niwa-permission-persistence-save-resource-grant
-                  "niwa-permission-persistence"
-                  (workspace path access &optional recursive origin))
-(declare-function niwa-permission-persistence-save-rule
-                  "niwa-permission-persistence"
-                  (workspace rule))
-
-;; `niwa-permission-rules'
-(declare-function niwa-permission-rules-build-rule
-                  "niwa-permission-rules"
-                  (tool-name action spec-key spec-value &rest keys))
-(declare-function niwa-permission-rules-collect-buckets
-                  "niwa-permission-rules"
-                  (invocation-rules request-rules session-rules persistent-rules))
-(declare-function niwa-permission-rules-first-action-with-bucket
-                  "niwa-permission-rules"
-                  (buckets tool-name path pattern domain name))
-(declare-function niwa-permission-rules-first-deny-bucket
-                  "niwa-permission-rules"
-                  (buckets tool-name path pattern domain name))
-(declare-function niwa-permission-rules-merge-resource-grant
-                  "niwa-permission-rules"
-                  (grants path access &optional recursive origin))
-(declare-function niwa-permission-rules-path-in-allowed-roots-p
-                  "niwa-permission-rules" (path roots))
-(declare-function niwa-permission-rules-path-in-exact-allowed-paths-p
-                  "niwa-permission-rules" (path allowed-paths))
-(declare-function niwa-permission-rules-path-protected-p
-                  "niwa-permission-rules" (path &optional target access))
-(declare-function niwa-permission-rules-resource-grant
-                  "niwa-permission-rules" (path access &optional recursive origin))
-(declare-function niwa-permission-rules-resource-granted-p
-                  "niwa-permission-rules"
-                  (path access grants &optional recursive))
 
 ;; `niwa-plan-mode'
 (declare-function niwa-plan-mode-exit
@@ -83,23 +34,6 @@
                   "niwa-session-artifacts" (session &optional buffer))
 
 ;; `niwa-structs'
-(declare-function niwa-request-goal-plan-read-path
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-request-one-shot-mutations-p
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-request-skill-permission-rules
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-active-dropped-file-grants
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-dropped-file-grants
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-rules "niwa-structs" (cl-x) t)
-(declare-function niwa-session-resource-grants "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 
@@ -108,18 +42,6 @@
   (require 'niwa-structs))
 
 ;; `niwa-tool-registry'
-(declare-function niwa-tool-check-permission "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-check-permission-async "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-ensure "niwa-tool-registry" (name))
-(declare-function niwa-tool-get "niwa-tool-registry" (name &optional category))
-(declare-function niwa-tool-get-domain "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-get-name "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-get-path "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-get-paths "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-get-pattern "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-groups "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-name "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-read-only-p "niwa-tool-registry" (cl-x) t)
 (defvar niwa-tool-registry--source-dir)
 
 ;; `niwa-workspace'

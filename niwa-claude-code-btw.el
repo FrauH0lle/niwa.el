@@ -19,10 +19,6 @@
 (defvar niwa-side-conversation--frozen-context)
 (defvar niwa-side-conversation--frozen-request-denies)
 
-;; `niwa-view-render'
-(declare-function niwa-view--append-request-summary
-                  "niwa-view-render" (data-buf search-start &optional extra))
-
 (cl-defstruct (niwa-claude-code-btw--fork
                (:constructor niwa-claude-code-btw--make-fork))
   "One owned native fork, including late cleanup after its buffer dies."

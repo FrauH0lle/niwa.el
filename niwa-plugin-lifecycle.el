@@ -12,43 +12,6 @@
 (require 'niwa-plugin-registry)
 
 ;; `niwa-plugin-registry'
-(declare-function niwa-plugin-name
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-root
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugins-dir "niwa-plugin-registry" ())
-(declare-function niwa-plugins-find
-                  "niwa-plugin-registry" (name &optional workspace))
-(declare-function niwa-plugins-list
-                  "niwa-plugin-registry" (&optional workspace))
-(declare-function niwa-plugins-forget-update
-                  "niwa-plugin-registry" (root))
-(declare-function niwa-plugins--update-entry-for-root
-                  "niwa-plugin-registry" (root))
-(declare-function niwa-plugins--update-mark-notified
-                  "niwa-plugin-registry" (root))
-(declare-function niwa-plugins--update-save
-                  "niwa-plugin-registry" (state))
-(declare-function niwa-plugins--update-set-entry
-                  "niwa-plugin-registry" (root plist))
-(declare-function niwa-plugins--update-state
-                  "niwa-plugin-registry" ())
-(declare-function niwa-plugins-hooks-stale-p
-                  "niwa-plugin-registry" (plugin &optional workspace))
-(declare-function niwa-plugins-managed-roots
-                  "niwa-plugin-registry" ())
-(declare-function niwa-plugins-read-manifest
-                  "niwa-plugin-registry" (root &optional workspace))
-(declare-function niwa-plugins-remove-state-for-source
-                  "niwa-plugin-registry"
-                  (name root &optional workspace))
-(declare-function niwa-plugins-source-root
-                  "niwa-plugin-registry" (root &optional workspace))
-(declare-function niwa-plugins-state-entry
-                  "niwa-plugin-registry" (plugin &optional workspace))
-(declare-function niwa-plugins-transfer-state-entry
-                  "niwa-plugin-registry"
-                  (old-name new-name root &optional workspace))
 (declare-function niwa-hooks-invalidate-config "niwa-hooks" ())
 
 ;;; Git install/update

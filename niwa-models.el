@@ -29,14 +29,6 @@
 (defvar gptel-model)
 (defvar gptel-reasoning-effort)
 
-;; `niwa-structs'
-(declare-function niwa-session-model-provider "niwa-structs" (cl-x) t)
-(declare-function niwa-session-reasoning-effort "niwa-structs" (cl-x) t)
-(declare-function niwa-session-set-model-provider
-                  "niwa-structs" (session provider))
-(declare-function niwa-session-set-reasoning-effort
-                  "niwa-structs" (session effort))
-
 
 ;;
 ;;; Customization

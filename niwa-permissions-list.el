@@ -15,30 +15,6 @@
 (require 'niwa-cockpit)
 (require 'niwa-permission-rules)
 
-;; `niwa-cockpit'
-(declare-function niwa-cockpit-call-in-data
-                  "niwa-cockpit" (context function &rest args))
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-workspace
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context "niwa-cockpit" ())
-(declare-function niwa-cockpit-format-header
-                  "niwa-cockpit" (name scope state))
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-key-help-text
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-(declare-function niwa-cockpit-surface-selected
-                  "niwa-cockpit" (&optional no-error))
-
 ;; `niwa-permission-persistence'
 (declare-function niwa-permission-persistence-file
                   "niwa-permission-persistence" (workspace scope))
@@ -74,11 +50,6 @@
 (autoload 'niwa-permission-remove-session-resource-grant
   "niwa-permissions")
 (autoload 'niwa-permission-remove-session-rule "niwa-permissions")
-
-;; `niwa-structs'
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-rules "niwa-structs" (cl-x) t)
-(declare-function niwa-session-resource-grants "niwa-structs" (cl-x) t)
 
 ;; `niwa-transport'
 (declare-function niwa-transport-busy-p "niwa-transport" (&optional path))

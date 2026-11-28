@@ -21,7 +21,6 @@
 (declare-function niwa-patch-review-start "niwa-patch-review" (proposal callback data-buffer))
 
 ;; `niwa-session-rewind'
-(declare-function niwa-session-artifacts-read-backup "niwa-session-artifacts" (session backup-name))
 (autoload 'niwa-session-artifacts-read-backup "niwa-session-artifacts")
 
 (defun niwa-note-change-record (proposal changes data-buffer)

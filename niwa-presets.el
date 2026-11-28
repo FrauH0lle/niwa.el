@@ -59,8 +59,6 @@
 (autoload 'niwa--compact-handle-wait "niwa-compact")
 
 ;; `niwa-compact-estimation'
-(declare-function niwa-compact-estimation-record-token-baseline
-                  "niwa-compact-estimation" (fsm))
 (autoload 'niwa-compact-estimation-record-token-baseline
   "niwa-compact-estimation")
 
@@ -73,12 +71,6 @@
 (autoload 'niwa-implementation-policy-assert-preparation
   "niwa-implementation-policy")
 (defvar niwa-implementation-policy--admission-preparation)
-
-;; `niwa-models'
-(declare-function niwa-model-merge-tiers
-                  "niwa-models" (additions current))
-(declare-function niwa-model-merge-workloads
-                  "niwa-models" (additions current))
 
 ;; `niwa-note-conversation'
 (declare-function niwa-note-conversation-setup "niwa-note-conversation" ())
@@ -96,8 +88,6 @@
 (autoload 'niwa-skills--drain-pending-context "niwa-skills-invoke")
 
 ;; `niwa-structs'
-(declare-function niwa-session-preset-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-forked-from-session-id "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 
@@ -139,21 +129,8 @@
                   "niwa-tools" (info))
 
 ;; `niwa-transport'
-(declare-function niwa-transport-busy-p "niwa-transport" (&optional path))
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (key path thunk &optional on-cancel))
 (autoload 'niwa-transport-busy-p "niwa-transport")
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
-
-;; `niwa-turn'
-(declare-function niwa--complete-turn "niwa-turn" (fsm))
-(declare-function niwa--fail-turn "niwa-turn" (fsm status))
-(declare-function niwa--safe-fsm-handler "niwa-turn" (handler))
-(declare-function niwa--turn-current-p "niwa-turn" (fsm))
-(declare-function niwa--turn-hold "niwa-turn" (fsm))
-(declare-function niwa--turn-release "niwa-turn" (fsm))
-(declare-function niwa-request-begin
-                  "niwa-turn" (session &optional options))
 
 ;; `niwa-view-stream'
 (declare-function niwa-view-stream-ensure-progress-for-fsm

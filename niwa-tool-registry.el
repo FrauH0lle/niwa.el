@@ -21,11 +21,6 @@
 (autoload 'niwa-ptc-tool-name-p "niwa-ptc-interpreter")
 
 ;; `niwa-utilities'
-(declare-function niwa--truncate-display
-                  "niwa-utilities" (text width &optional ellipsis))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
-(declare-function niwa-library-source-directory "niwa-utilities" (file))
 (autoload 'niwa--truncate-display "niwa-utilities")
 (autoload 'niwa--warn-once "niwa-utilities")
 (autoload 'niwa-library-source-directory "niwa-utilities")

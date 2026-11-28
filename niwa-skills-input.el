@@ -28,22 +28,6 @@
 ;; `gptel-request'
 (declare-function gptel-fsm-info "ext:gptel-request" (cl-x) t)
 
-;; `niwa-mention-bindings'
-(declare-function niwa-mention-bindings-at
-                  "niwa-mention-bindings" (text start end kind token))
-(declare-function niwa-mention-bindings-copy-text
-                  "niwa-mention-bindings" (text))
-(declare-function niwa-mention-bindings-ranges
-                  "niwa-mention-bindings" (text))
-(declare-function niwa-mention-bindings-set
-                  "niwa-mention-bindings" (start end binding &optional object))
-(declare-function niwa-mention-bindings-skill-token-occurrences
-                  "niwa-mention-bindings" (text))
-(declare-function niwa-mention-bindings-starting-at
-                  "niwa-mention-bindings" (text start))
-(declare-function niwa-mention-bindings-valid-p
-                  "niwa-mention-bindings" (text))
-
 ;; `niwa-mentions'
 (declare-function niwa-mentions-replace-with-placeholder
                   "niwa-mentions" (start end placeholder))
@@ -128,7 +112,6 @@
   "niwa-skills-syntax")
 
 ;; `niwa-structs'
-(declare-function niwa-request-id "niwa-structs" (cl-x))
 (defvar niwa--current-request)
 (defvar niwa--session)
 
@@ -158,8 +141,6 @@
 (autoload 'niwa-request-begin "niwa-turn")
 
 ;; `niwa-utilities'
-(declare-function niwa--clear-user-turn-gptel-properties
-                  "niwa-utilities" (start end))
 (autoload 'niwa--clear-user-turn-gptel-properties "niwa-utilities")
 
 ;; `text-property-search'

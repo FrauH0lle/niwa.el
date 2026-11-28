@@ -24,10 +24,6 @@
 ;; `niwa-chat'
 (defvar niwa--session)
 
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
-
 ;; `niwa-session-diagnostics'
 (declare-function niwa-session-publication-append-diagnostic
                   "niwa-session-diagnostics" (session path content))
@@ -41,17 +37,9 @@
 (defvar niwa-tool-repair-log-limit)
 (defvar niwa-tool-repair-persist-log)
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record-audit
-                  "niwa-telemetry" (session event &rest props))
-
 ;; `niwa-transcript-audit'
 (declare-function niwa--format-hook-audit-record
                   "niwa-transcript-audit" (record))
-
-;; `niwa-utilities'
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 (defun niwa-tool-repair--audit-identifier-p (value)
   "Return non-nil when VALUE is a bounded value-free identifier."

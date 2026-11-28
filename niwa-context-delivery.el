@@ -26,9 +26,6 @@
                   (fsm type body &optional commit))
 
 ;; `niwa-structs'
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace-instruction-hashes "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 
 ;; `niwa-tool-fs-read'

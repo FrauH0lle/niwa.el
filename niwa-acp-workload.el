@@ -13,8 +13,6 @@
 (require 'niwa-utilities)
 
 ;; `niwa-utilities'
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 (autoload 'niwa--warn-once "niwa-utilities")
 
 (defun niwa-acp-workload-request (launch prompt tools callback before-tool boundary)

@@ -36,8 +36,6 @@
   "niwa-session-artifacts")
 
 ;; `niwa-structs'
-(declare-function niwa-session-current-segment
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--view-buffer)
 

@@ -17,7 +17,6 @@
 
 ;; `niwa-transport'
 (autoload 'niwa-transport-run-at-time "niwa-transport")
-(declare-function niwa-transport-run-at-time "niwa-transport" (seconds function &rest args))
 
 (defcustom niwa-claude-code-auto-update t
   "Maintain the native Claude CLI and managed ACP adapter automatically."

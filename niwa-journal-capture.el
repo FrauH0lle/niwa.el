@@ -52,12 +52,9 @@
 (eval-when-compile (require 'niwa-session-durability))
 
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry-record "niwa-telemetry" (session event &rest props))
 (autoload 'niwa-telemetry-record "niwa-telemetry")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 

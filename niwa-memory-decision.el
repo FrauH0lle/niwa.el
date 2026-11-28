@@ -17,9 +17,6 @@
 (require 'niwa-utilities)
 (require 'niwa-workspace-identity)
 
-;; `niwa-journal-cleanup'
-(declare-function niwa-journal-cleanup-active-p "niwa-journal-cleanup" (workspace))
-
 ;; `niwa-memory-notes'
 (autoload 'niwa-memory-notes-commit "niwa-memory-notes")
 (autoload 'niwa-memory-notes-observe "niwa-memory-notes")
@@ -38,12 +35,9 @@
 (defvar niwa-memory-pass--running)
 
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry--monotonic-now "niwa-telemetry" ())
 (autoload 'niwa-telemetry--monotonic-now "niwa-telemetry")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 

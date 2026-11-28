@@ -34,8 +34,6 @@
 (defvar niwa-session--read-only-mode)
 
 ;; `niwa-utilities'
-(declare-function niwa--insert-user-turn
-                  "niwa-utilities" (input))
 (autoload 'niwa--insert-user-turn "niwa-utilities")
 
 ;; `niwa-view-composer'

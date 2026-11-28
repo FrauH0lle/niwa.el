@@ -27,9 +27,6 @@
                   "niwa-session-artifacts" (session logical &optional committed-only))
 (autoload 'niwa-session-artifacts-read-artifact "niwa-session-artifacts")
 
-;; `niwa-structs'
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-
 ;; `niwa-tool-fs-read'
 (declare-function niwa-tool-fs-read--binary-extension-p "niwa-tool-fs-read" (filename))
 (autoload 'niwa-tool-fs-read--binary-extension-p "niwa-tool-fs-read")

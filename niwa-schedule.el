@@ -91,10 +91,6 @@
 (autoload 'niwa-session-publication-read "niwa-session-publication")
 
 ;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (context))
-(declare-function niwa-diagnostic-warning "niwa-utilities"
-                  (scope type message &optional level buffer-name))
 (autoload 'niwa--duration-label "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")

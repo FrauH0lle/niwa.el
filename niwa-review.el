@@ -90,9 +90,6 @@
 (autoload 'niwa-execution-target-native-path "niwa-execution-target")
 
 ;; `niwa-models'
-(declare-function niwa-model-resolve-workload
-                  "niwa-models"
-                  (workload &optional explicit-selector explicit-effort))
 (autoload 'niwa-model-resolve-workload "niwa-models")
 
 ;; `niwa-session-artifacts'
@@ -100,13 +97,6 @@
                   "niwa-session-artifacts" (session))
 (autoload 'niwa-session-artifacts-assert-new-mutation-authority
   "niwa-session-artifacts")
-
-;; `niwa-skills-core'
-(declare-function niwa-skill-agent "niwa-skills-core" (cl-x) t)
-(declare-function niwa-skill-context "niwa-skills-core" (cl-x) t)
-(declare-function niwa-skill-name "niwa-skills-core" (cl-x) t)
-(declare-function niwa-skill-p "niwa-skills-core" (object))
-(declare-function niwa-skill-source "niwa-skills-core" (cl-x) t)
 
 ;; `niwa-skills-input'
 (declare-function niwa-skills-input-insert-fork-result
@@ -117,11 +107,6 @@
 (defvar niwa-slash-commands)
 
 ;; `niwa-structs'
-(declare-function niwa-session-agent-registry
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
@@ -148,8 +133,6 @@
 (autoload 'niwa-request-push-canceller "niwa-turn")
 
 ;; `niwa-utilities'
-(declare-function niwa--insert-user-turn
-                  "niwa-utilities" (input))
 (autoload 'niwa--insert-user-turn "niwa-utilities")
 
 ;; `niwa-view'

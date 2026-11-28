@@ -32,8 +32,6 @@
 (defvar niwa-memory-pass--inhibit-scheduling)
 
 ;; `niwa-utilities'
-(declare-function niwa--emacs-executable "niwa-utilities" ())
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa--emacs-executable "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 

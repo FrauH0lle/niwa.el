@@ -35,21 +35,11 @@
 ;; `niwa-compact-run'
 (defvar niwa-compact-run-in-flight)
 
-;; `niwa-execution-transcript'
-(declare-function niwa-execution-transcript-handle-event
-                  "niwa-execution-transcript" (event))
-(declare-function niwa-execution-transcript-retry-pending-terminals
-                  "niwa-execution-transcript" (data-buffer))
-
 ;; `niwa-gptel-stream-bridge'
 (declare-function niwa-gptel-stream-bridge-after-flush
                   "niwa-gptel-stream-bridge" (function))
 
 ;; `niwa-structs'
-(declare-function niwa-request-active-elapsed-seconds
-                  "niwa-structs" (request &optional now))
-(declare-function niwa-request-active-work-pause-started-at
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
@@ -59,22 +49,7 @@
 (declare-function niwa-schedule-now "niwa-schedule" ())
 (autoload 'niwa-schedules-list-open "niwa-schedules-list" nil t)
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-current-session
-                  "niwa-telemetry" (&optional buffer))
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
-;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-segment-bounds
-                  "niwa-tool-render-data" (tool-use-id))
-
 ;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
-(declare-function niwa--timer-pending-p "niwa-utilities" (timer))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
 (autoload 'niwa--warn-once "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 
@@ -133,30 +108,7 @@
                   "niwa-view-audit" (record before))
 
 ;; `niwa-view-render'
-(declare-function niwa-view-render-mutate
-                  "niwa-view-render" (key function &optional replacement cleanup))
-(declare-function niwa-view-render-terminal "niwa-view-render" ())
-(declare-function niwa-view-render--settle-now
-                  "niwa-view-render" (data-buf start end))
 (defvar niwa-view-render--terminal-p)
-(declare-function niwa-view--append-request-summary
-                  "niwa-view-render" (data-buf start))
-(declare-function niwa-view--cache-put
-                  "niwa-view-render" (table key value counter-symbol))
-(declare-function niwa-view--debug-log
-                  "niwa-view-render" (event &rest data))
-(declare-function niwa-view--debug-state
-                  "niwa-view-render" (&optional data-buf start end))
-(declare-function niwa-view--history-insertion-marker
-                  "niwa-view-render" ())
-(declare-function niwa-view--render-live-region
-                  "niwa-view-render" (data-buf settle-p &optional start end))
-(declare-function niwa-view--retire-pending-decorations
-                  "niwa-view-render" (start end))
-(declare-function niwa-view-render-live-update
-                  "niwa-view-render" (data-buf))
-(declare-function niwa-view-render-settle
-                  "niwa-view-render" (data-buf start end))
 
 ;; `niwa-view-segments'
 (declare-function niwa-view-segments-display-buffer
@@ -165,20 +117,11 @@
 ;; `niwa-transcript-audit'
 (defvar niwa--hook-audit-open)
 
-;; `niwa-view-tool-render'
-(declare-function niwa-view--refresh-tool-row
-                  "niwa-view-tool-render" (data-buffer tool-use-id))
-
 ;; `niwa-view-viewport'
 (declare-function niwa-view-call-preserving-user-view-state
                   "niwa-view-viewport" (thunk &optional region follow-output))
 (declare-function niwa-view--call-with-render-boundaries-advancing
                   "niwa-view-viewport" (thunk &optional types))
-
-;; `niwa-view-zone'
-(declare-function niwa-view-zone-clear "niwa-view-zone" (namespace))
-(declare-function niwa-view-zone-reconcile "niwa-view-zone" (namespace start end fragments))
-(declare-function niwa-view-zone-region "niwa-view-zone" (namespace))
 
 (defvar-local niwa-view--spinner-status nil
   "Current base status text shown by the request-progress row.")

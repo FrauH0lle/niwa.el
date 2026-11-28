@@ -40,17 +40,7 @@
 (autoload 'niwa-bash-analysis-analyze "niwa-bash-analysis")
 
 ;; `niwa-execution-telemetry'
-(declare-function niwa-execution-telemetry-sandbox-summary-class
-                  "niwa-execution-telemetry" (summary))
 (defvar niwa-execution-telemetry-summary-cell)
-
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-expand-path
-                  "niwa-execution-target" (target path &optional directory))
-(declare-function niwa-execution-target-native-path
-                  "niwa-execution-target" (target path))
-(declare-function niwa-execution-target-prefix
-                  "niwa-execution-target" (cl-x) t)
 
 ;; `niwa-goal'
 (declare-function niwa-goal-pause-runtime-failure
@@ -59,17 +49,6 @@
                   "niwa-goal" (session fsm))
 (autoload 'niwa-goal-pause-runtime-failure "niwa-goal")
 (autoload 'niwa-goal-tool-result-budget-warnings "niwa-goal")
-
-;; `niwa-hooks'
-(declare-function niwa-hooks-context-audit-records
-                  "niwa-hooks" (decision event type &optional omit-context))
-(declare-function niwa-hooks-decision-reason
-                  "niwa-hooks" (decision))
-(declare-function niwa-hooks-run-event "niwa-hooks"
-                  (event event-plist callback
-                         &optional session workspace request invocation))
-(declare-function niwa-hooks-tool-event-plist
-                  "niwa-hooks" (event context &rest extra))
 
 ;; `niwa-ptc-checkpoint'
 (declare-function niwa-ptc-checkpoint-update
@@ -82,17 +61,6 @@
 (autoload 'niwa-reminders-queue-turn-event "niwa-reminders")
 
 ;; `niwa-resource'
-(declare-function niwa-resource-address-like-p "niwa-resource" (value))
-(declare-function niwa-resource-artifact-address "niwa-resource"
-                  (path session))
-(declare-function niwa-resource-discard-attempts "niwa-resource"
-                  (attempts))
-(declare-function niwa-resource-error-message "niwa-resource"
-                  (failure &optional address private-paths))
-(declare-function niwa-resource-normalize-file-path "niwa-resource"
-                  (value &optional directory))
-(declare-function niwa-resource-prepare "niwa-resource"
-                  (operation address context))
 (defvar niwa-resource-attempts-cell)
 (defvar niwa-resource-current-attempts)
 
@@ -114,32 +82,10 @@
   "niwa-session-persistence")
 
 ;; `niwa-structs'
-(declare-function niwa-request-ephemeral-p "niwa-structs" (cl-x) t)
-(declare-function niwa-request-file-snapshots "niwa-structs" (cl-x) t)
-(declare-function niwa-request-id "niwa-structs" (cl-x))
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--session)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-detailed-p "niwa-telemetry" (session))
-(declare-function niwa-telemetry-finish "niwa-telemetry" (span &rest props))
-(declare-function niwa-telemetry-record-audit
-                  "niwa-telemetry" (session event &rest props))
-(declare-function niwa-telemetry-start
-                  "niwa-telemetry" (session event &rest props))
 
 ;; `niwa-tool-exec-permission'
 (defvar niwa-tool-exec-permission-approved-resources)
-
-;; `niwa-tool-media'
-(declare-function niwa-tool-media-attach-result
-                  "niwa-tool-media"
-                  (result media tool-results-dir tool-use-id &optional session))
-(declare-function niwa-tool-media-normalize-items
-                  "niwa-tool-media" (items))
-(declare-function niwa-tool-media-result-for-hooks
-                  "niwa-tool-media" (result media))
 
 ;; `niwa-tool-patch'
 (declare-function niwa-tool-patch-parse
@@ -148,43 +94,6 @@
                   "niwa-tool-patch" (proposal))
 (defvar niwa-tool-patch-prepared-proposal)
 (autoload 'niwa-tool-patch-prepare-resources "niwa-tool-patch")
-
-;; `niwa-tool-permission'
-(declare-function niwa-tool-permission-deny
-                  "niwa-tool-permission"
-                  (context fail reason &optional model-reason provenance))
-(declare-function niwa-tool-permission-log-decision
-                  "niwa-tool-permission" (context decision &rest props))
-(declare-function niwa-tool-permission-paths
-                  "niwa-tool-permission" (tool args &optional context))
-(declare-function niwa-tool-permission-read-paths
-                  "niwa-tool-permission" (tool args))
-(declare-function niwa-tool-permission-step
-                  "niwa-tool-permission" (context next fail))
-
-;; `niwa-tool-registry'
-(declare-function niwa-tool-arg-access "niwa-tool-registry" (arg-spec))
-(declare-function niwa-tool-args "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-async-p "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-get-paths "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-groups "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-handler "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-max-result-size "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-name "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-read-only-p "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-render-transform
-                  "niwa-tool-registry" (cl-x) t)
-(declare-function niwa-tool-snapshot-p "niwa-tool-registry" (cl-x) t)
-
-;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-format
-                  "niwa-tool-render-data"
-                  (render-data &optional tool-use-id))
-(declare-function niwa-tool-render-data-size
-                  "niwa-tool-render-data" (data))
-(declare-function niwa-tool-render-data-strip-non-media
-                  "niwa-tool-render-data"
-                  (string &optional expected-tool-use-id))
 
 ;; `niwa-tool-repair-diagnostics'
 (declare-function niwa-tool-repair-audit-record
@@ -198,28 +107,11 @@
 (defvar niwa-tools--current-engine)
 
 ;; `niwa-transport'
-(declare-function niwa-transport-cancel-pending
-                  "niwa-transport" (&optional key))
-(declare-function niwa-transport-busy-p
-                  "niwa-transport" (&optional path))
-(declare-function niwa-transport-nested-p "niwa-transport" ())
-(declare-function niwa-transport-run-at-time
-                  "niwa-transport" (seconds function &rest args))
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (key path thunk &optional on-cancel))
 (autoload 'niwa-transport-cancel-pending "niwa-transport")
 (autoload 'niwa-transport-busy-p "niwa-transport")
 (autoload 'niwa-transport-nested-p "niwa-transport")
 (autoload 'niwa-transport-run-at-time "niwa-transport")
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
-
-;; `niwa-turn'
-(declare-function niwa-current-origin "niwa-turn" ())
-(declare-function niwa-request-note-untracked-effect
-                  "niwa-turn" (request source reason))
-(declare-function niwa-request-push-canceller
-                  "niwa-turn" (request canceller))
-(declare-function niwa-turn-end-at-boundary "niwa-turn" (fsm reason))
 
 ;; `niwa-workspace'
 (declare-function niwa-workspace-ensure-generated-state-ignored

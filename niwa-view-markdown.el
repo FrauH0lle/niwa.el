@@ -60,16 +60,9 @@
   "niwa-session-publication")
 
 ;; `niwa-structs'
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 
@@ -89,12 +82,6 @@
 (declare-function niwa-view-render-mutate "niwa-view-render"
                   (key function &optional replacement cleanup))
 (autoload 'niwa-view-render-mutate "niwa-view-render")
-
-;; `niwa-view-table'
-(declare-function niwa-view-table-decorate "niwa-view-table"
-                  (start end avoid-ranges))
-(declare-function niwa-view-table-rerender "niwa-view-table"
-                  (&optional window))
 
 ;; `niwa-view-viewport'
 (declare-function niwa-view--call-preserving-window-state

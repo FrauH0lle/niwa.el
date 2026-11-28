@@ -23,19 +23,12 @@
 (autoload 'niwa-memory-list--finished "niwa-memory-list")
 
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry--monotonic-now "niwa-telemetry" ())
-(declare-function niwa-telemetry-memory-pass-settle "niwa-telemetry" (handle))
-(declare-function niwa-telemetry-memory-pass-start "niwa-telemetry" (workspace pass-id))
-(declare-function niwa-telemetry-record-workspace "niwa-telemetry" (workspace event &rest props))
 (autoload 'niwa-telemetry--monotonic-now "niwa-telemetry")
 (autoload 'niwa-telemetry-memory-pass-settle "niwa-telemetry")
 (autoload 'niwa-telemetry-memory-pass-start "niwa-telemetry")
 (autoload 'niwa-telemetry-record-workspace "niwa-telemetry")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")

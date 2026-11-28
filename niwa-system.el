@@ -70,15 +70,6 @@
 (autoload 'niwa-skills-prompt-section "niwa-skills-prompt")
 
 ;; `niwa-structs'
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x) t)
-(declare-function niwa-session-p "niwa-structs" (cl-x))
-(declare-function niwa-session-permission-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-preset-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-reasoning-effort "niwa-structs" (cl-x) t)
-(declare-function niwa-session-sandbox-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 
@@ -93,9 +84,6 @@
 (autoload 'niwa-tools-listing-section "niwa-tools")
 
 ;; `niwa-utilities'
-(declare-function niwa--environment-info-string "niwa-utilities"
-                  (&optional workspace working-directory execution-target))
-(declare-function niwa-library-source-directory "niwa-utilities" (file))
 (autoload 'niwa-library-source-directory "niwa-utilities")
 
 ;; `niwa-workspace'

@@ -20,7 +20,6 @@
 (declare-function niwa-report-show "niwa-report" (buffer report &optional noselect))
 
 ;; `niwa-structs'
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa-composer--view)
 (defvar niwa--session)

@@ -142,32 +142,6 @@
   "niwa-session-artifacts")
 
 ;; `niwa-structs'
-(declare-function niwa-request-ephemeral-p "niwa-structs" (cl-x) t)
-(declare-function niwa-request-fsm "niwa-structs" (cl-x) t)
-(declare-function niwa-request-id "niwa-structs" (cl-x) t)
-(declare-function niwa-request-one-shot-mutations-p
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-request-skill-permission-rules
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-request-turn "niwa-structs" (cl-x) t)
-(declare-function niwa-session-audit-session
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-create
-                  "niwa-structs" (name workspace &optional working-directory))
-(declare-function niwa-session-hook-rules "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-mode
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-rules
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-resource-grants
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-sandbox-mode
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
@@ -196,9 +170,6 @@
 (autoload 'niwa-request-end "niwa-turn")
 
 ;; `niwa-utilities'
-(declare-function niwa--restore-overlay
-                  "niwa-utilities"
-                  (buffer overlay-start overlay-end properties))
 (autoload 'niwa--restore-overlay "niwa-utilities")
 
 ;; `niwa-view'

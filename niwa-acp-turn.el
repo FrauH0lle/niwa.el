@@ -27,10 +27,6 @@
 ;; `niwa-goal'
 (declare-function niwa-goal-capture-request "niwa-goal" (request))
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
 (defconst niwa-acp-turn--lost-reply-limit 8
   "Lost MCP replies one turn records for diagnosis.")
 

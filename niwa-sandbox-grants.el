@@ -17,8 +17,6 @@
 (require 'niwa-execution-grants)
 
 ;; `niwa-permission-rules'
-(declare-function niwa-permission-rules-path-in-allowed-roots-p
-                  "niwa-permission-rules" (path roots))
 (autoload 'niwa-permission-rules-path-in-allowed-roots-p "niwa-permission-rules")
 
 

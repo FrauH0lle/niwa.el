@@ -48,22 +48,6 @@
                   "niwa-artifact-store" (session changes &optional request))
 (autoload 'niwa-artifact-store-note-writes "niwa-artifact-store")
 
-;; `niwa-edit-diagnostics'
-(declare-function niwa-edit-diagnostics-after-edit
-                  "niwa-edit-diagnostics" (buffer path continuation))
-(declare-function niwa-edit-diagnostics-before-edit
-                  "niwa-edit-diagnostics" (buffer path))
-
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-create
-                  "niwa-execution-target" (workspace-root))
-(declare-function niwa-execution-target-expand-path
-                  "niwa-execution-target" (target path &optional directory))
-
-;; `niwa-file-state'
-(declare-function niwa-session-record-file-access
-                  "niwa-file-state" (session path kind &optional offset limit))
-
 ;; `niwa-note-change'
 (autoload 'niwa-note-prepare-change "niwa-note-change")
 
@@ -85,29 +69,11 @@
 (defvar niwa-pipeline--auto-apply-edit-p)
 (defvar niwa-pipeline--handler-active-p)
 
-;; `niwa-resource'
-(declare-function niwa-resource-address-like-p
-                  "niwa-resource" (value))
-(declare-function niwa-resource-error-message "niwa-resource"
-                  (failure &optional address private-paths))
-(declare-function niwa-resource-execute
-                  "niwa-resource" (attempt &optional executor options))
-(declare-function niwa-resource-prepare
-                  "niwa-resource" (operation address context))
-(declare-function niwa-resource-remote-file "niwa-resource" (address))
-
 ;; `niwa-session-persistence'
 (declare-function niwa-session-persistence-shallow-ensure-files
                   "niwa-session-persistence" (session buffer))
 
 ;; `niwa-structs'
-(declare-function niwa-request-ephemeral-p "niwa-structs" (cl-x) t)
-(declare-function niwa-request-one-shot-mutations-p
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 

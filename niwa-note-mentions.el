@@ -16,7 +16,6 @@
 (autoload 'niwa-mentions-read-permission-context "niwa-mentions")
 
 ;; `niwa-permissions'
-(declare-function niwa-check-permission "niwa-permissions" (tool-name &rest args))
 (autoload 'niwa-check-permission "niwa-permissions")
 
 (defun niwa-note-mentions-resolve (identity workspace)

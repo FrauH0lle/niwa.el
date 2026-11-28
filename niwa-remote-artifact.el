@@ -60,7 +60,6 @@
 (autoload 'niwa-shared-editing-op-id "niwa-shared-editing")
 
 ;; `niwa-workspace'
-(declare-function niwa-workspace-current "niwa-workspace" ())
 (autoload 'niwa-workspace-current "niwa-workspace")
 
 (defcustom niwa-remote-artifact-command nil

@@ -47,10 +47,6 @@
                   "niwa-note-frame" ())
 
 
-;; `niwa-plan'
-(declare-function niwa-plan-extract-proposed "niwa-plan" (text))
-(declare-function niwa-plan-strip-proposed "niwa-plan" (text))
-
 ;; `niwa-review'
 (declare-function niwa-review-strip-user-action-blocks
 		  "niwa-review" (text))
@@ -69,12 +65,6 @@
 
 
 ;; `niwa-structs'
-(declare-function niwa-request-active-elapsed-seconds
-                  "niwa-structs" (request &optional now))
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
 (defvar niwa--agent-invocation)
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
@@ -88,22 +78,6 @@
 (declare-function niwa-tool-exec-completion "niwa-tool-exec"
                   (termination outcome))
 (autoload 'niwa-tool-exec-completion "niwa-tool-exec")
-
-;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-block-at
-                  "niwa-tool-render-data" (start &optional limit))
-(declare-function niwa-tool-render-data-blocks
-                  "niwa-tool-render-data" (string))
-(declare-function niwa-tool-render-data-extract
-                  "niwa-tool-render-data"
-                  (result-string &optional session expected-tool-use-id
-                                 allow-payload-tool-use-id))
-(declare-function niwa-tool-render-data-format
-                  "niwa-tool-render-data" (render-data &optional tool-use-id))
-(declare-function niwa-tool-render-data-strip
-                  "niwa-tool-render-data" (string &optional expected-tool-use-id))
-(declare-function niwa-tool-render-data-trusted-range-p
-                  "niwa-tool-render-data" (start end &optional object))
 
 ;; `niwa-tool-ui'
 (declare-function niwa-tool-ui--render-agent "niwa-tool-ui"
@@ -131,21 +105,9 @@
 (defvar niwa-view--path-link-memo)
 
 ;; `niwa-transcript-audit'
-(declare-function niwa-transcript-audit-buffer-only-p
-                  "niwa-transcript-audit" (start end))
-(declare-function niwa-transcript-audit-only-p
-                  "niwa-transcript-audit" (text))
-(declare-function niwa-transcript-audit-shared-context
-                  "niwa-transcript-audit" (text shared))
 (autoload 'niwa--strip-hook-audit-blocks "niwa-transcript-audit")
 
 ;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
 (defvar niwa--hook-audit-close)
 (defvar niwa--hook-audit-open)
 (defvar niwa-transcript-audit--decode-cache)
@@ -231,10 +193,6 @@
 ;; `niwa-view-markdown'
 (declare-function niwa-view--last-live-response-boundary
                   "niwa-view-markdown" (data-buf start end))
-
-;; `niwa-view-prepare'
-(declare-function niwa-view-prepare-cancel "niwa-view-prepare" ())
-(declare-function niwa-view-prepare-initialize "niwa-view-prepare" ())
 
 
 ;; `niwa-view-redraw'

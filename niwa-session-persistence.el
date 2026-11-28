@@ -71,7 +71,6 @@
 (autoload 'niwa-execution-unsettled-mutation-p "niwa-execution")
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-remote-p "niwa-execution-target" (target))
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
 
 ;; `niwa-hooks'
@@ -98,8 +97,6 @@
 (declare-function niwa-permission-log-flush "niwa-permission-log" (session))
 
 ;; `niwa-ptc-checkpoint'
-(declare-function niwa-ptc-checkpoint-reconcile
-                  "niwa-ptc-checkpoint" (session))
 (autoload 'niwa-ptc-checkpoint-reconcile "niwa-ptc-checkpoint")
 
 ;; `niwa-sandbox'
@@ -110,46 +107,17 @@
 (autoload 'niwa-schedule-restore-session "niwa-schedule")
 
 ;; `niwa-session-artifacts'
-(declare-function niwa-session-artifacts--live-sidecar "niwa-session-artifacts" (session buffer))
-(declare-function niwa-session-artifacts--sidecar-artifact "niwa-session-artifacts" (session buffer &optional checkpoint))
-(declare-function niwa-session-artifacts-artifact-present-p "niwa-session-artifacts" (session logical &optional committed-only))
-(declare-function niwa-session-artifacts-assert-mutation-authority "niwa-session-artifacts" (session &optional buffer))
-(declare-function niwa-session-artifacts-build-sidecar "niwa-session-artifacts" (session buffer &optional checkpoint))
-(declare-function niwa-session-artifacts-check-target-incarnation "niwa-session-artifacts" (session buffer))
-(declare-function niwa-session-artifacts-collect-prompts "niwa-session-artifacts" (buffer &optional preview-length))
-(declare-function niwa-session-artifacts-disown-save-machinery "niwa-session-artifacts" nil)
-(declare-function niwa-session-artifacts-find-artifact-noselect "niwa-session-artifacts" (session logical &optional inspection committed-only))
-(declare-function niwa-session-artifacts-inhibit-so-long "niwa-session-artifacts" ())
-(declare-function niwa-session-artifacts-load-instructions "niwa-session-artifacts" (session))
-(declare-function niwa-session-artifacts-printed-value "niwa-session-artifacts" (value))
-(declare-function niwa-session-artifacts-publish-sidecar-state "niwa-session-artifacts" (session root-buffer &optional token))
-(declare-function niwa-session-artifacts-publish-text "niwa-session-artifacts" (session path content &optional coding prepared token))
-(declare-function niwa-session-artifacts-reconcile-relocation "niwa-session-artifacts" (session saved-workspace-plist))
-(declare-function niwa-session-artifacts-save "niwa-session-artifacts" (session buffer &optional settled force token))
-(declare-function niwa-session-artifacts-save-agent-registry "niwa-session-artifacts" (session buffer &optional token))
-(declare-function niwa-session-artifacts-segment-path "niwa-session-artifacts" (save-path n))
-(declare-function niwa-session-artifacts-sessions-dir "niwa-session-artifacts" (workspace))
-(declare-function niwa-session-artifacts-sidecar-path "niwa-session-artifacts" (save-path))
-(declare-function niwa-session-artifacts-stabilize-gptel-bounds "niwa-session-artifacts" nil)
 (autoload 'niwa-session-artifacts-inhibit-so-long
   "niwa-session-artifacts")
 (defvar niwa-session-artifacts-require-agent-commit-p)
 (defvar niwa-session-artifacts--terminal-sessions)
 
 ;; `niwa-session-checkpoint'
-(declare-function niwa-session-checkpoint-capture "niwa-session-checkpoint" (session conversation &optional root-projection))
-(declare-function niwa-session-checkpoint-install "niwa-session-checkpoint" (session candidate))
-(declare-function niwa-session-checkpoint-project "niwa-session-checkpoint" (session sidecar &optional candidate))
 (autoload 'niwa-session-checkpoint-capture "niwa-session-checkpoint")
 (autoload 'niwa-session-checkpoint-install "niwa-session-checkpoint")
 (autoload 'niwa-session-checkpoint-project "niwa-session-checkpoint")
 
 ;; `niwa-session-codec'
-(declare-function niwa-session-codec-authority-mode-for-path "niwa-session-codec" (session-dir &optional session explicit-mode))
-(declare-function niwa-session-codec-deserialize "niwa-session-codec" (plist workspace))
-(declare-function niwa-session-codec-portable-authority-p "niwa-session-codec" (session))
-(declare-function niwa-session-codec-read "niwa-session-codec" (path))
-(declare-function niwa-session-codec-validate-current-sidecar "niwa-session-codec" (plist))
 (defvar niwa-session-codec-format-version)
 
 ;; `niwa-session-collection'
@@ -158,12 +126,6 @@
 
 ;; `niwa-session-control-fs'
 (defvar niwa-session-control-fs--async-wait)
-(declare-function niwa-session-control-fs-append-rotating "niwa-session-control-fs"
-                  (path content max-bytes))
-(declare-function niwa-session-control-fs-path-exists-p "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-physical-path "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-wait-async "niwa-session-control-fs" (&optional seconds))
-(declare-function niwa-session-control-fs-write-file "niwa-session-control-fs" (path content))
 (autoload 'niwa-session-control-fs-append-rotating
   "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-path-exists-p
@@ -195,12 +157,6 @@
   "niwa-session-diagnostics")
 
 ;; `niwa-session-durability'
-(declare-function niwa-session-durability-call-with-reserved-lease "niwa-session-durability" (session function))
-(declare-function niwa-session-durability-disclose "niwa-session-durability" (session))
-(declare-function niwa-session-durability-lease-acquire "niwa-session-durability" (session-dir buffer-name &optional session))
-(declare-function niwa-session-durability-lease-owned-p "niwa-session-durability" (session))
-(declare-function niwa-session-durability-lease-release "niwa-session-durability" (session-dir &optional session token))
-(declare-function niwa-session-durability-lease-status "niwa-session-durability" (session-dir))
 (defvar niwa-session-durability--transaction-clock)
 (autoload 'niwa-session-durability-disclose "niwa-session-durability")
 (autoload 'niwa-session-durability-lease-acquire
@@ -265,44 +221,12 @@
 (autoload 'niwa-session-save-as-run "niwa-session-save-as")
 
 ;; `niwa-transport'
-(declare-function niwa-transport-cancel-idle "niwa-transport" (table tag))
-(declare-function niwa-transport-cancel-pending
-                  "niwa-transport" (&optional key))
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (owner remote-path function))
-(declare-function niwa-transport-schedule-idle
-                  "niwa-transport" (table key tag path thunk))
 (autoload 'niwa-transport-cancel-idle "niwa-transport")
 (autoload 'niwa-transport-cancel-pending "niwa-transport")
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 (autoload 'niwa-transport-schedule-idle "niwa-transport")
 
 ;; `niwa-structs'
-(declare-function niwa-session-authority-mode-for-session "niwa-structs" (session))
-(declare-function niwa-session-authority-mode-for-workspace "niwa-structs" (workspace))
-(declare-function niwa-session-buffer-name "niwa-structs" (session-name workspace))
-(declare-function niwa-session-created-at "niwa-structs" (cl-x))
-(declare-function niwa-session-current-segment "niwa-structs" (cl-x))
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x))
-(declare-function niwa-session-forked-from-turn "niwa-structs" (cl-x))
-(declare-function niwa-session-generate-id "niwa-structs" ())
-(declare-function niwa-session-lease "niwa-structs" (cl-x))
-(declare-function niwa-session-mail-notifications "niwa-structs" (cl-x))
-(declare-function niwa-session-name "niwa-structs" (cl-x))
-(declare-function niwa-session-pending-publication "niwa-structs" (cl-x))
-(declare-function niwa-session-permission-log-pending "niwa-structs" (cl-x))
-(declare-function niwa-session-publication "niwa-structs" (cl-x))
-(declare-function niwa-session-publication-active-p "niwa-structs" (cl-x))
-(declare-function niwa-session-publication-stopping-p "niwa-structs" (cl-x))
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x))
-(declare-function niwa-session-save-path "niwa-structs" (cl-x))
-(declare-function niwa-session-session-id "niwa-structs" (cl-x))
-(declare-function niwa-session-set-root-buffer "niwa-structs" (session buffer))
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x))
-(declare-function niwa-session-updated-at "niwa-structs" (cl-x))
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x))
-(declare-function niwa-session-workspace "niwa-structs" (cl-x))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x))
 (defvar niwa--agent-invocation)
 (defvar niwa--current-request)
 (defvar niwa--session)
@@ -313,15 +237,6 @@
 (declare-function niwa-tool-repair-flush-log "niwa-tool-repair-diagnostics" (session))
 
 ;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-blocks
-                  "niwa-tool-render-data" (string))
-(declare-function niwa-tool-render-data-call-range-p
-                  "niwa-tool-render-data" (data beg end))
-(declare-function niwa-tool-render-data-reconcile-lost-executions
-                  "niwa-tool-render-data"
-                  (buffer &optional successor-execution-ids lost-monitor))
-(declare-function niwa-tool-render-data-without-owner
-                  "niwa-tool-render-data" (data))
 (defvar niwa-tool-render-data-close)
 (defvar niwa-tool-render-data-open)
 (autoload 'niwa-tool-render-data-blocks "niwa-tool-render-data")
@@ -332,7 +247,6 @@
   "niwa-tool-render-data")
 
 ;; `niwa-transcript-audit'
-(declare-function niwa-transcript-audit-records "niwa-transcript-audit" (text &optional type))
 (autoload 'niwa-transcript-audit-records "niwa-transcript-audit")
 
 ;; `niwa-transcript-restore'
@@ -343,14 +257,6 @@
 (autoload 'niwa-transcript-restore-properties "niwa-transcript-restore")
 
 ;; `niwa-utilities'
-(declare-function niwa--call-with-bare-transcript-mode
-                  "niwa-utilities" (function))
-(declare-function niwa--forget-place "niwa-utilities" nil)
-(declare-function niwa--transcript-org-mode "niwa-utilities" nil)
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa--call-with-bare-transcript-mode "niwa-utilities")
 (autoload 'niwa--forget-place "niwa-utilities")
 (autoload 'niwa--transcript-org-mode "niwa-utilities")

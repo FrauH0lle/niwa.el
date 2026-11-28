@@ -21,9 +21,6 @@
 (autoload 'niwa-journal-jobs "niwa-journal-jobs" nil t)
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
 (autoload 'niwa-diagnostic-message "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")

@@ -19,59 +19,7 @@
 ;; `files'
 (defvar remote-file-name-inhibit-cache)
 
-;; `niwa-session-control-fs'
-(declare-function niwa-session-control-fs-create-file
-                  "niwa-session-control-fs"
-                  (path content &optional coding-system))
-(declare-function niwa-session-control-fs-delete-directory
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-delete-file
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-directory-p
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-list-directory
-                  "niwa-session-control-fs" (directory regexp))
-(declare-function niwa-session-control-fs-make-directory
-                  "niwa-session-control-fs" (path &optional parents))
-(declare-function niwa-session-control-fs-path-exists-p
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-physical-path
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-run-program
-                  "niwa-session-control-fs" (operations))
-(declare-function niwa-session-control-fs-write-file
-                  "niwa-session-control-fs"
-                  (path content &optional coding-system))
-
-;; `niwa-session-control-transfer'
-(declare-function niwa-session-control-transfer-notify
-                  "niwa-session-control-transfer"
-                  (session event &rest args))
-(declare-function niwa-session-control-transfer-root-buffer
-                  "niwa-session-control-transfer" (session))
-
 ;; `niwa-session-durability'
-(declare-function niwa-session-durability--clock-operation
-                  "niwa-session-durability" (directory))
-(declare-function niwa-session-durability--lease-path
-                  "niwa-session-durability" (session-dir))
-(declare-function niwa-session-durability--portable-session-p
-                  "niwa-session-durability" (session))
-(declare-function niwa-session-durability-record-read
-                  "niwa-session-durability" (path))
-(declare-function niwa-session-durability--settle-clock
-                  "niwa-session-durability" (directory result))
-(declare-function niwa-session-durability--valid-relative-path-p
-                  "niwa-session-durability" (path))
-(declare-function niwa-session-durability--write-plist
-                  "niwa-session-durability" (path plist))
-(declare-function niwa-session-durability-call-with-reserved-lease
-                  "niwa-session-durability" (session function))
-(declare-function niwa-session-durability-lease-acquire
-                  "niwa-session-durability"
-                  (session-dir buffer-name &optional session))
-(declare-function niwa-session-durability-lease-owned-p
-                  "niwa-session-durability" (session))
 (defvar niwa-session-durability--client-id)
 (defvar niwa-session-recovery--mutation-cache nil
   "Cons cell collecting sessions whose marker was read this mutation, or nil.
@@ -82,15 +30,8 @@ marker, so the second read is a target round trip for an answer already held.
 A caller that spans one mutation binds this to a fresh `(list nil)'; outside
 such a binding every call reads the target.")
 
-;; `niwa-structs'
-(declare-function niwa-session-pending-publication
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 

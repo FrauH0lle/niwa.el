@@ -27,28 +27,16 @@
 (defvar niwa--view-buffer)
 
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry-current-session
-                  "niwa-telemetry" (&optional buffer))
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
 (autoload 'niwa-telemetry-current-session "niwa-telemetry")
 (autoload 'niwa-telemetry-record "niwa-telemetry")
 
 ;; `niwa-transport'
-(declare-function niwa-transport-run-at-time
-                  "niwa-transport" (seconds function &rest args))
-(declare-function niwa-transport-pause-process "niwa-transport" (process seconds))
-(declare-function niwa-transport-resume-process "niwa-transport" (process))
-(declare-function niwa-transport-resume-paused "niwa-transport" (&optional within))
 (autoload 'niwa-transport-run-at-time "niwa-transport")
 (autoload 'niwa-transport-pause-process "niwa-transport")
 (autoload 'niwa-transport-resume-process "niwa-transport")
 (autoload 'niwa-transport-resume-paused "niwa-transport")
 
 ;; `niwa-utilities'
-(declare-function niwa--timer-pending-p "niwa-utilities" (timer))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 (autoload 'niwa--timer-pending-p "niwa-utilities")
 (autoload 'niwa--warn-once "niwa-utilities")
 (eval-when-compile (require 'niwa-utilities))

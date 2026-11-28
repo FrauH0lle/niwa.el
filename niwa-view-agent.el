@@ -97,13 +97,6 @@
   "niwa-session-artifacts")
 
 ;; `niwa-structs'
-(declare-function niwa-session-agent-transcripts "niwa-structs" (cl-x) t)
-(declare-function niwa-session-agent-registry "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-queue
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
@@ -122,12 +115,6 @@
 (autoload 'niwa-transcript-restore-properties "niwa-transcript-restore")
 
 ;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
 (autoload 'niwa--duration-label "niwa-utilities")
 (autoload 'niwa--warn-once "niwa-utilities")
 (autoload 'niwa-diagnostic-message "niwa-utilities")
@@ -216,11 +203,6 @@
                   "niwa-view-viewport" (thunk &optional region follow-output))
 (declare-function niwa-view-transcript-tail "niwa-view-viewport" ())
 (declare-function niwa-view-transcript-tail-marker "niwa-view-viewport" ())
-
-;; `niwa-view-zone'
-(declare-function niwa-view-zone-collapse-state "niwa-view-zone" (key &optional default))
-(declare-function niwa-view-zone-collapse-state-set-p "niwa-view-zone" (key))
-(declare-function niwa-view-zone-set-collapse-state "niwa-view-zone" (key collapsed))
 
 
 ;;

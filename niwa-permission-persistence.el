@@ -73,12 +73,6 @@
   "niwa-session-control-fs")
 
 ;; `niwa-structs'
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-active-p
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 (defvar niwa-user-dir)
 

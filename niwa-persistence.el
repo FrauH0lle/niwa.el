@@ -31,12 +31,6 @@
 ;; `niwa-instruction-edit'
 (autoload 'niwa-instruction-replace-buffer-contents "niwa-instruction-edit")
 
-;; `niwa-note-source'
-(declare-function niwa--mark-buffer-source-missing
-                  "niwa-note-source" (buffer))
-(declare-function niwa--reconcile-note-sources
-                  "niwa-note-source" (workspace))
-
 ;; `niwa-notes'
 (declare-function niwa-notes-rewind-instruction "niwa-notes"
                   (instruction session-id surviving-turn))
@@ -68,28 +62,12 @@
 (autoload 'niwa-session-control-fs-run-program-async "niwa-session-control-fs")
 (autoload 'niwa-session-control-fs-file-hash "niwa-session-control-fs")
 
-;; `niwa-structs'
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace--create "niwa-structs" (&rest slots))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-type "niwa-structs" (cl-x) t)
-
 ;; `niwa-utilities'
-(declare-function niwa--file-relative-name-or-absolute
-                  "niwa-utilities" (file directory))
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
-(declare-function niwa-version "niwa-utilities" (&optional here message))
 (autoload 'niwa-diagnostic-message "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")
 
 ;; `niwa-workspace'
-(declare-function niwa-workspace-state-dir "niwa-workspace" (workspace))
 (autoload 'niwa-workspace-state-dir "niwa-workspace")
 (defvar niwa--workspace)
 

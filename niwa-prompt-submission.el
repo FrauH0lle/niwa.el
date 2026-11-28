@@ -16,12 +16,6 @@
                   "niwa-hooks" (session entries))
 (autoload 'niwa-hooks-consume-session-context "niwa-hooks")
 
-;; `niwa-structs'
-(declare-function niwa-session-hook-context-pending
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-set-hook-context-pending
-                  "niwa-structs" (session entries))
-
 (cl-defstruct
     (niwa-prompt-submission
      (:constructor niwa-prompt-submission-create))

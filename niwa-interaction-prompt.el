@@ -25,9 +25,6 @@
 (autoload 'niwa-request-push-canceller "niwa-turn")
 
 ;; `niwa-utilities'
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 
 ;; `niwa-view-interaction'

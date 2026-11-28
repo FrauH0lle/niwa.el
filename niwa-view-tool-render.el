@@ -46,12 +46,6 @@
 (autoload 'niwa-session-artifacts-read-transcript-segment "niwa-session-artifacts")
 (autoload 'niwa-session-artifacts-transcript-segments "niwa-session-artifacts")
 
-;; `niwa-structs'
-(declare-function niwa-session-pending-plan-approval
-		  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-queue "niwa-structs"
-		  (cl-x) t)
-
 ;; `niwa-tool-registry'
 (declare-function niwa-tool-display-string "niwa-tool-registry"
                   (tool-name args &optional scope))
@@ -63,15 +57,7 @@
                   t)
 (defvar niwa-tool-render-summary-only)
 
-;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-direct-call
-                  "niwa-tool-render-data" (name data))
-(declare-function niwa-tool-render-data-segment-bounds
-                  "niwa-tool-render-data" (tool-use-id))
-
 ;; `niwa-utilities'
-(declare-function niwa--trim-tool-result "niwa-utilities" (text))
-(declare-function niwa-diagnostic-format "niwa-utilities" (scope format &rest args))
 (autoload 'niwa-diagnostic-format "niwa-utilities")
 
 ;; `niwa-view-agent'

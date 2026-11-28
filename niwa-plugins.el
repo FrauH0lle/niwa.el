@@ -31,7 +31,6 @@
 (declare-function niwa-skills-rescan "niwa-skills-core" ())
 
 ;; `niwa-structs'
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 (defvar niwa--workspace)
 

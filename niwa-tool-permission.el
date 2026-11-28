@@ -30,21 +30,7 @@
 (autoload 'niwa-bash-policy-decision-specifier-value "niwa-bash-policy")
 
 ;; `niwa-permission-mode'
-(declare-function niwa-permission-mode-effective
-                  "niwa-permission-mode"
-                  (&optional session data-buffer surface-buffer request invocation))
-(declare-function niwa-permission-mode-for-context
-                  "niwa-permission-mode" (context))
 (defvar niwa-permission-mode)
-
-;; `niwa-permission-persistence'
-(declare-function niwa-permission-persistence-load-resource-grants
-                  "niwa-permission-persistence" (workspace))
-(declare-function niwa-permission-persistence-load-rules
-                  "niwa-permission-persistence" (workspace))
-(declare-function niwa-permission-persistence-refresh
-                  "niwa-permission-persistence"
-                  (workspace continuation &optional on-cancel on-error))
 
 ;; `niwa-resource'
 (declare-function niwa-resource-address-like-p "niwa-resource" (value))

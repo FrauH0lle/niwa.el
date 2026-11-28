@@ -65,17 +65,6 @@
 (autoload 'niwa-mention-bindings-ranges "niwa-mention-bindings")
 (autoload 'niwa-mention-bindings-set "niwa-mention-bindings")
 
-;; `niwa-plan'
-(declare-function niwa-plan--metadata-put "niwa-plan"
-                  (session key value))
-(declare-function niwa-plan-archive-accepted "niwa-plan"
-                  (artifact session &optional relative-path source-session))
-(declare-function niwa-plan-artifact-path-p "niwa-plan" (path))
-(declare-function niwa-plan-read-artifact "niwa-plan"
-                  (session artifact))
-(declare-function niwa-plan-resource-address "niwa-plan"
-                  (relative-path))
-
 ;; `niwa-presets'
 (declare-function niwa-preset-restore-session "niwa-presets"
                   (session &optional buffer))
@@ -146,17 +135,6 @@
 (autoload 'niwa-skills-input-prepare-user-input "niwa-skills-input")
 
 ;; `niwa-structs'
-(declare-function niwa-session-current-segment "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-forked-from-session-id
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-metadata "niwa-structs" (cl-x) t)
-(declare-function niwa-session-prompt-index "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 

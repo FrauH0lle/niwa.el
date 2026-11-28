@@ -73,10 +73,6 @@
 ;; `niwa-structs'
 (defvar niwa--session)
 
-;; `niwa-utilities'
-(declare-function niwa--write-file-atomically
-                  "niwa-utilities" (path content &optional coding mode))
-
 ;; `niwa-workspace'
 (declare-function niwa-workspace-state-dir
                   "niwa-workspace" (workspace))

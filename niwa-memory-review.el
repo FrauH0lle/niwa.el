@@ -41,12 +41,9 @@
 (defvar niwa--session)
 
 ;; `niwa-system'
-(declare-function niwa-system-render-prompt-file "niwa-system" (relative-path &optional replacements))
 (autoload 'niwa-system-render-prompt-file "niwa-system")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 

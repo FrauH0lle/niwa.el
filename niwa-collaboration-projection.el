@@ -13,17 +13,9 @@
 (declare-function niwa-agent-record-conversation-buffer
                   "niwa-agent-control" (record))
 
-;; `niwa-collaboration-artifact-projection'
-(declare-function niwa-collaboration--artifact-fields
-                  "niwa-collaboration-artifact-projection" (render-data))
-
 ;; `niwa-execution'
 (declare-function niwa-execution-list-user
                   "niwa-execution" (session))
-
-;; `niwa-execution-transcript'
-(declare-function niwa-execution-transcript-pending-render-data
-                  "niwa-execution-transcript" (data-buffer tool-use-id))
 
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-read-transcript-segment
@@ -54,86 +46,17 @@
 ;; `niwa-structs'
 (defvar niwa--session)
 
-;; `niwa-tool-registry'
-(declare-function niwa-tool-for-call "niwa-tool-registry" (name))
-
 ;; `niwa-tool-exec'
 ;; `niwa-view-render' autoloads it before this library loads.
 (declare-function niwa-tool-exec-completion "niwa-tool-exec"
                   (termination outcome))
 
-;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-direct-call
-                  "niwa-tool-render-data" (name data))
-(declare-function niwa-tool-render-data-extract
-                  "niwa-tool-render-data"
-                  (result-string &optional session expected-tool-use-id allow-payload-tool-use-id))
-
-;; `niwa-transcript'
-(declare-function niwa-transcript--mailbox-any-block-at-point
-                  "niwa-transcript" (limit))
-(declare-function niwa-transcript-segments
-                  "niwa-transcript" (start end))
-(declare-function niwa-transcript-summary-source
-                  "niwa-transcript" (scan-start &optional agent-p))
-(declare-function niwa-transcript-summary-body
-                  "niwa-transcript" (source))
-(declare-function niwa-transcript--skip-leading-properties-drawer
-                  "niwa-transcript" (pos))
-
-;; `niwa-transcript-audit'
-(declare-function niwa--strip-hook-audit-blocks
-                  "niwa-transcript-audit" (text))
-(declare-function niwa-transcript-audit-buffer-only-p
-                  "niwa-transcript-audit" (start end))
-(declare-function niwa-transcript-audit-buffer-spans
-                  "niwa-transcript-audit" (&optional type start end))
-(declare-function niwa-transcript-audit-turn-attributions
-                  "niwa-transcript-audit" ())
-
-;; `niwa-utilities'
-(declare-function niwa--trim-tool-result "niwa-utilities" (text))
-
 ;; `niwa-view-render'
-(declare-function niwa-view--blank-segment-p
-                  "niwa-view-render" (data-buf seg-start seg-end))
-(declare-function niwa-view--clean-reasoning-text
-                  "niwa-view-render" (text))
-(declare-function niwa-view--mail-attribute
-                  "niwa-view-render" (open-tag attribute))
-(declare-function niwa-view--request-summary-details
-                  "niwa-view-render" (render-data))
-(declare-function niwa-view--request-summary-line
-                  "niwa-view-render" (render-data))
-(declare-function niwa-view--request-summary-render-data-from-text
-                  "niwa-view-render" (text))
-(declare-function niwa-view--scaffolding-only-p
-                  "niwa-view-render" (data-buf seg-start seg-end))
-(declare-function niwa-view--tool-block-bounds
-                  "niwa-view-render" (seg-start seg-end))
-(declare-function niwa-view--tool-group-entry-p
-                  "niwa-view-render" (entry))
-(declare-function niwa-view--user-turn-text
-                  "niwa-view-render" (segments data-buf))
-(declare-function niwa-view--visible-response-text
-                  "niwa-view-render" (text))
 (defvar niwa-view-tool-group-collapse-threshold)
 
 ;; `niwa-view-audit'
 (declare-function niwa-view-audit-displayed-p "niwa-view-audit" (record))
 (autoload 'niwa-view-audit-displayed-p "niwa-view-audit")
-
-;; `niwa-view-tool-render'
-(declare-function niwa-view--generic-tool-rendering
-                  "niwa-view-tool-render" (name args result &optional collapsed-only render-data))
-(declare-function niwa-view--invoke-renderer
-                  "niwa-view-tool-render" (tool render-data args result))
-(declare-function niwa-view--rendering-status
-                  "niwa-view-tool-render" (rendering &optional render-data))
-(declare-function niwa-view--sandbox-summary-line
-                  "niwa-view-tool-render" (summary))
-(declare-function niwa-view--tool-call-parse
-                  "niwa-view-tool-render" (data-buf start end &optional raw))
 
 (require 'niwa-activity-group)
 (require 'niwa-collaboration-artifact-projection)

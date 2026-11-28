@@ -28,15 +28,6 @@
 (require 'niwa-utilities)
 
 ;; `niwa-artifact-store'
-(declare-function niwa-artifact-store-attach
-                  "niwa-artifact-store" (session id &optional buffer))
-(declare-function niwa-artifact-store-bookkeeping-directory
-                  "niwa-artifact-store" (workspace id))
-(declare-function niwa-artifact-store-conversation
-                  "niwa-artifact-store" (workspace id))
-(declare-function niwa-artifact-store-meta "niwa-artifact-store" (workspace id))
-(declare-function niwa-artifact-store-session-buffer
-                  "niwa-artifact-store" (workspace session-id))
 (autoload 'niwa-artifact-store-attach "niwa-artifact-store")
 (autoload 'niwa-artifact-store-bookkeeping-directory "niwa-artifact-store")
 (autoload 'niwa-artifact-store-conversation "niwa-artifact-store")
@@ -97,20 +88,12 @@
 (autoload 'niwa-shared-conversation-archived-question-p "niwa-shared-conversation")
 
 ;; `niwa-structs'
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-follow-ups "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 
 ;; `niwa-transcript-audit'
 (declare-function niwa-transcript-audit-guest-prompts
                   "niwa-transcript-audit" ())
-
-;; `niwa-utilities'
-(declare-function niwa--write-file-atomically
-                  "niwa-utilities" (path content &optional coding mode))
 
 
 ;;

@@ -87,15 +87,6 @@
 (autoload 'niwa-hooks-run-event "niwa-hooks")
 (autoload 'niwa-hooks-sanitize-final-decision "niwa-hooks")
 
-;; `niwa-models'
-(declare-function niwa-model-merge-skill-policy
-                  "niwa-models" (skill-name model effort))
-(declare-function niwa-model-resolve-workload
-                  "niwa-models"
-                  (workload &optional explicit-selector explicit-effort))
-(declare-function niwa-model-skill-policy-fields
-                  "niwa-models" (skill-name model effort))
-
 ;; `niwa-reminders'
 (declare-function niwa-reminders-format-block
                   "niwa-reminders" (content))
@@ -123,50 +114,15 @@
   "niwa-skills-preparation")
 
 ;; `niwa-skills-syntax'
-(declare-function niwa-skills-syntax-parse-dependencies
-                  "niwa-skills-syntax" (text))
 (autoload 'niwa-skills-syntax-parse-dependencies "niwa-skills-syntax")
 
 ;; `niwa-structs'
-(declare-function niwa-request-attached-skill-records
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-request-hook-rules
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-request-ptc-primitives
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-request-skill-permission-rules
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-agent-registry
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-invoked-skills
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-current-session
-                  "niwa-telemetry" (&optional buffer))
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
-;; `niwa-tool-registry'
-(declare-function niwa-tool-get "niwa-tool-registry"
-                  (name &optional category))
-
 ;; `niwa-transcript-audit'
-(declare-function niwa--hook-prompt-rewrite-audit-record
-                  "niwa-transcript-audit"
-                  (event original submitted &optional reason))
 (autoload 'niwa--hook-prompt-rewrite-audit-record
   "niwa-transcript-audit")
-
-;; `niwa-turn'
-(declare-function niwa-current-origin "niwa-turn" ())
-(declare-function niwa-request-begin "niwa-turn"
-                  (session &optional options))
 
 ;;
 ;;; Request-scoped skill context

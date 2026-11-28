@@ -15,9 +15,6 @@
 
 (require 'diff-mode)
 
-;; `niwa-structs'
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
-
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))
 

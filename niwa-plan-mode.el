@@ -49,14 +49,6 @@
 (autoload 'niwa-view-enqueue-external-follow-up "niwa-pending-inputs")
 
 ;; `niwa-plan'
-(declare-function niwa-plan-accept "niwa-plan"
-		  (plan-markdown session buffer &optional skip-verification
-				 current-relative-path accepted-relative-path))
-(declare-function niwa-plan-current-body "niwa-plan"
-		  (&optional session))
-(declare-function niwa-plan-hash "niwa-plan" (plan-markdown))
-(declare-function niwa-plan-resource-address "niwa-plan"
-		  (relative-path))
 (defvar niwa-plan--relative-current-path)
 
 ;; `niwa-plan-handoff'
@@ -110,21 +102,6 @@
 (autoload 'niwa-skills-user-visible-skills "niwa-skills-ui")
 
 ;; `niwa-structs'
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-follow-ups
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-plan-approval
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-steering
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-mode "niwa-structs"
-		  (cl-x) t)
-(declare-function niwa-session-plan-metadata "niwa-structs"
-		  (cl-x) t)
-(declare-function niwa-session-plan-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs"
-		  (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 (defvar niwa-goal-token-budget)
@@ -133,12 +110,6 @@
 (declare-function niwa-transcript-segments "niwa-transcript"
 		  (start end))
 (autoload 'niwa-transcript-segments "niwa-transcript")
-
-;; `niwa-utilities'
-(declare-function niwa--normalize-message-text "niwa-utilities"
-		  (text))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 ;; `niwa-view-composer'
 (declare-function niwa-view--clear-input "niwa-view-composer"

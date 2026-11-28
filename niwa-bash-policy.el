@@ -22,79 +22,25 @@
 (require 'subr-x)
 
 ;; `niwa-agents'
-(declare-function niwa-agent-invocation-skill-permission-rules
-                  "niwa-agents" (cl-x) t)
-(declare-function niwa-plan-read-only-p "niwa-agents"
-                  (&optional session))
 (defvar niwa--agent-invocation)
 
 ;; `niwa-bash-analysis'
-(declare-function niwa-bash-analysis-analyze
-                  "niwa-bash-analysis" (source))
 (defvar niwa-bash-dangerous-commands)
 
 ;; `niwa-bash-git'
 (declare-function niwa-bash-git-read-only-p "niwa-bash-git" (argv))
 (autoload 'niwa-bash-git-read-only-p "niwa-bash-git")
 
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-create
-                  "niwa-execution-target" (workspace-root))
-(declare-function niwa-execution-target-expand-path
-                  "niwa-execution-target" (target path &optional directory))
-(declare-function niwa-execution-target-native-path
-                  "niwa-execution-target" (target path))
-
 ;; `niwa-permission-mode'
 (defvar niwa-permission-mode)
 
-;; `niwa-permission-persistence'
-(declare-function niwa-permission-persistence-load-rules
-                  "niwa-permission-persistence" (workspace))
-(declare-function niwa-permission-persistence-load-safe-env-vars
-                  "niwa-permission-persistence" (workspace))
-
 ;; `niwa-permission-rules'
-(declare-function niwa-permission-protected-path-policy
-                  "niwa-permission-rules" ())
-(declare-function niwa-permission-rules-action
-                  "niwa-permission-rules" (rules tool-name &rest keys))
-(declare-function niwa-permission-rules-collect-buckets
-                  "niwa-permission-rules"
-                  (invocation-rules request-rules
-                                    session-rules persistent-rules))
-(declare-function niwa-permission-rules-first-action-with-bucket
-                  "niwa-permission-rules"
-                  (buckets tool-name path pattern domain name))
-(declare-function niwa-permission-rules-path-in-allowed-roots-p
-                  "niwa-permission-rules" (path roots))
-(declare-function niwa-permission-rules-path-protected-p
-                  "niwa-permission-rules" (path &optional target access))
-(declare-function niwa-permission-rules-resource-granted-p
-                  "niwa-permission-rules"
-                  (path access grants &optional recursive))
-(declare-function niwa-permission-rules-strip-safe-assignments
-                  "niwa-permission-rules" (command names))
 (defvar niwa-permission-rules-builtin-safe-env-vars)
 
 ;; `niwa-sandbox'
-(declare-function niwa-sandbox-mode-effective
-                  "niwa-sandbox" (&optional session permission-mode))
 (defvar niwa-sandbox-intrinsic-paths)
 
 ;; `niwa-structs'
-(declare-function niwa-request-skill-permission-rules
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-mode
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-rules
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 (defvar niwa--workspace)

@@ -50,27 +50,6 @@
                   "niwa-file-state" (session path kind &optional offset limit))
 (autoload 'niwa-session-record-file-access "niwa-file-state")
 
-;; `niwa-instruction-registry'
-(declare-function niwa--instruction-activate-buffer
-                  "niwa-instruction-registry" (&optional buffer))
-(declare-function niwa--instruction-alist-value
-                  "niwa-instruction-registry" ())
-(declare-function niwa--instruction-with-id
-                  "niwa-instruction-registry" (target-id &optional workspace))
-(declare-function niwa--instruction-with-uuid
-                  "niwa-instruction-registry" (uuid &optional workspace))
-
-;; `niwa-mention-bindings'
-(declare-function niwa-mention-bindings-at
-                  "niwa-mention-bindings" (text start end kind token))
-(declare-function niwa-mention-bindings-copy-text
-                  "niwa-mention-bindings" (text))
-(declare-function niwa-mention-bindings-set
-                  "niwa-mention-bindings"
-                  (start end binding &optional object))
-(declare-function niwa-mention-bindings-valid-p
-                  "niwa-mention-bindings" (text))
-
 ;; `niwa-note-mentions'
 (declare-function niwa-note-mentions-handle "niwa-note-mentions" (info))
 (declare-function niwa-note-mentions-resolve "niwa-note-mentions" (identity workspace))
@@ -134,14 +113,6 @@
   "niwa-session-publication")
 
 ;; `niwa-structs'
-(declare-function niwa-request-p "niwa-structs" (cl-x))
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x) t)
-(declare-function niwa-session-mentions-shown "niwa-structs" (session))
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (session))
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (session))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (autoload 'niwa-request-p "niwa-structs")
 (defvar niwa--current-request)
 (defvar niwa--session)
@@ -186,13 +157,6 @@
 (declare-function niwa-request-push-canceller
                   "niwa-turn" (request canceller))
 (autoload 'niwa-request-push-canceller "niwa-turn")
-
-;; `niwa-utilities'
-(declare-function niwa--delimiting-markdown-backticks
-                  "niwa-utilities" (str))
-(declare-function niwa--markdown-enquote "niwa-utilities" (text))
-(declare-function niwa--overlay-region-info
-                  "niwa-utilities" (overlay))
 
 ;; `niwa-workspace'
 (declare-function niwa--all-allowed-roots

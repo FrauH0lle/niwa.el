@@ -18,12 +18,6 @@
 (require 'niwa-utilities)
 (require 'niwa-transport)
 
-;; `niwa-mention-bindings'
-(declare-function niwa-mention-bindings-copy-text
-                  "niwa-mention-bindings" (text))
-(declare-function niwa-mention-bindings-valid-p
-                  "niwa-mention-bindings" (text))
-
 ;; `niwa-session-codec'
 (declare-function niwa-session-codec-read
                   "niwa-session-codec" (path))
@@ -43,11 +37,6 @@
 
 ;; `niwa-session-persistence'
 (defvar niwa-session--read-only-mode)
-
-;; `niwa-structs'
-(declare-function niwa-session-clear-dropped-file-grants
-                  "niwa-structs" (session))
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 
 ;; `niwa-view'
 (defvar niwa--data-buffer)

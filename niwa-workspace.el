@@ -44,11 +44,6 @@
 (autoload 'niwa-instruction-store-activate "niwa-persistence")
 
 ;; `niwa-structs'
-(declare-function niwa-file-cache--create "niwa-structs" (&rest slots))
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace--create "niwa-structs" (&rest slots))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 

@@ -76,11 +76,6 @@
 (declare-function niwa-turn-busy-p "niwa-turn" (&optional buffer))
 (autoload 'niwa-turn-busy-p "niwa-turn")
 
-;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
-(declare-function niwa-diagnostic-warning "niwa-utilities"
-                  (scope type message &optional level buffer-name))
-
 (defconst niwa-workspace-schedule-max 50
   "Most active or paused workspace schedules one workspace may hold.")
 

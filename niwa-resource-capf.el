@@ -20,10 +20,6 @@
                   "niwa-agent-control" (record))
 
 ;; `niwa-resource'
-(declare-function niwa-resource-completion-metadata
-                  "niwa-resource" (context &optional scheme))
-(declare-function niwa-resource-encode-component
-                  "niwa-resource" (value))
 (defvar niwa-resource-supported-schemes)
 
 ;; `niwa-skills-core'

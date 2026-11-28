@@ -68,14 +68,6 @@
 (autoload 'niwa-reminders-serialize-agent-templates "niwa-reminders")
 
 ;; `niwa-structs'
-(declare-function niwa-agent-path-p "niwa-structs" (path))
-(declare-function niwa-request-p "niwa-structs" (cl-x))
-(declare-function niwa-request-plan-read-only "niwa-structs" (cl-x) t)
-(declare-function niwa-request-permission-mode-override
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (autoload 'niwa-agent-path-p "niwa-structs")
 (defvar niwa--current-request)
 (defvar niwa--session)

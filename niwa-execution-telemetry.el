@@ -20,33 +20,9 @@
 (autoload 'niwa-agent-invocation-sandbox-summary-cell "niwa-agents")
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-native-path
-                  "niwa-execution-target" (target path))
-(declare-function niwa-execution-target-prefix
-                  "niwa-execution-target" (cl-x) t)
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
 (autoload 'niwa-execution-target-native-path "niwa-execution-target")
 (autoload 'niwa-execution-target-prefix "niwa-execution-target")
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
-
-;; `niwa-structs'
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-finish
-                  "niwa-telemetry" (span &rest props))
-(declare-function niwa-telemetry-forwarded-audit-p
-                  "niwa-telemetry" (session))
-(declare-function niwa-telemetry-profiler-directory
-                  "niwa-telemetry" (session))
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-(declare-function niwa-telemetry-record-audit
-                  "niwa-telemetry" (session event &rest props))
-(declare-function niwa-telemetry-start
-                  "niwa-telemetry" (session event &rest props))
 
 (require 'niwa-telemetry)
 (require 'niwa-utilities)

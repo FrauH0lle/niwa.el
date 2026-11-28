@@ -28,10 +28,6 @@
 (declare-function niwa-agent-invocation-parent-session
                   "niwa-agents" (cl-x) t)
 
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
-
 ;; `niwa-native'
 (declare-function niwa-native-load "niwa-native" ())
 (autoload 'niwa-native-load "niwa-native")
@@ -70,25 +66,7 @@
   "niwa-session-diagnostics")
 
 ;; `niwa-structs'
-(declare-function niwa-goal-id "niwa-structs" (cl-x))
-(declare-function niwa-goal-p "niwa-structs" (cl-x))
-(declare-function niwa-goal-status "niwa-structs" (cl-x))
-(declare-function niwa-goal-tokens-incomplete-p "niwa-structs" (cl-x))
-(declare-function niwa-goal-tokens-used "niwa-structs" (cl-x))
-(declare-function niwa-goal-turns-run "niwa-structs" (cl-x))
 (declare-function niwa-session-audit-target "niwa-structs" (session))
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-goal "niwa-structs" (cl-x))
-(declare-function niwa-session-preset-name "niwa-structs" (cl-x))
-(declare-function niwa-session-sandbox-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x))
-(declare-function niwa-session-session-id "niwa-structs" (cl-x))
-(declare-function niwa-session-telemetry-pending
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x))
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--agent-invocation)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
@@ -97,13 +75,6 @@
 (defvar niwa-transport--depth)
 
 ;; `niwa-utilities'
-(declare-function niwa--run-periodic-timer
-                  "niwa-utilities" (scope period function &rest arguments))
-(declare-function niwa--ui-timer-cancel "niwa-utilities" (timer))
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format-string &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))
-(declare-function niwa-library-provenance "niwa-utilities" (file))
 (autoload 'niwa--run-periodic-timer "niwa-utilities")
 (autoload 'niwa--ui-timer-cancel "niwa-utilities")
 (autoload 'niwa-diagnostic-message "niwa-utilities")

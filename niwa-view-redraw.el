@@ -24,9 +24,6 @@
 (declare-function niwa-session-persistence-list-sessions
                   "niwa-session-catalog" (workspace &optional cached observe-sidecar))
 
-;; `niwa-structs'
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-
 ;; `niwa-transcript'
 (declare-function niwa-transcript--overlay-range
                   "niwa-transcript" (segments segment))
@@ -48,14 +45,6 @@
 ;; `niwa-transcript-restore'
 (declare-function niwa-transcript-restore-properties
                   "niwa-transcript-restore" (&optional only-if-missing))
-
-;; `niwa-transport'
-(declare-function niwa-transport-busy-p "niwa-transport" (target))
-
-;; `niwa-utilities'
-(declare-function niwa--gc-hold "niwa-utilities" (key live-p))
-(declare-function niwa--gc-release "niwa-utilities" (key))
-(declare-function niwa--timer-pending-p "niwa-utilities" (timer))
 
 ;; `niwa-view'
 (declare-function niwa-view--header-string

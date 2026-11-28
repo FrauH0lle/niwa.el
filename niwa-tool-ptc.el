@@ -24,7 +24,6 @@
 (require 'niwa-execution-telemetry)
 
 ;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
 (autoload 'niwa--duration-label "niwa-utilities")
 
 ;; `gptel'

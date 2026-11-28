@@ -96,24 +96,14 @@
 (autoload 'niwa-request-push-canceller "niwa-turn")
 
 ;; `niwa-structs'
-(declare-function niwa-request-id "niwa-structs" (cl-x))
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
 
 ;; `niwa-tools'
 (declare-function niwa-tools--handle-steering-inject
                   "niwa-tools" (fsm &optional skip-compaction-gate))
 (autoload 'niwa-tools--handle-steering-inject "niwa-tools")
-
-;; `niwa-utilities'
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 ;; `niwa-view-composer'
 (declare-function niwa-view--assert-live-tip

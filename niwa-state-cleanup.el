@@ -23,8 +23,6 @@
 (defvar gptel-context)
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
 (autoload 'niwa-diagnostic-message "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 

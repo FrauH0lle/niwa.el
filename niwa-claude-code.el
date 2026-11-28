@@ -23,11 +23,6 @@
 ;; `gptel'
 (defvar gptel-reasoning-effort)
 
-;; `niwa-acp'
-(declare-function niwa-acp--fail "niwa-acp" (connection error))
-(declare-function niwa-acp--send "niwa-acp" (connection request success))
-(declare-function niwa-acp-state "niwa-acp" (cl-x) t)
-
 ;; `niwa-acp-text'
 (declare-function niwa-acp-text-request "niwa-acp-text"
                   (launch prompt callback &optional stream ready))
@@ -75,7 +70,6 @@
 (declare-function niwa-reminders-queue-turn-event "niwa-reminders" (buffer key body &optional commit))
 
 ;; `niwa-structs'
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
 (defvar niwa--agent-invocation)
 (defvar niwa--session)
 

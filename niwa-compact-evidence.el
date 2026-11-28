@@ -39,30 +39,6 @@
   "niwa-session-artifacts")
 
 ;; `niwa-structs'
-(declare-function niwa-session-invoked-skills "niwa-structs" (cl-x) t)
-(declare-function niwa-session-tool-results-directory
-                  "niwa-structs" (session))
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-agent-path
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-args
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-dependency-depth
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-name
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-origin
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-prepared-body
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-required-by-source-path
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-role
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-source-path
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-skill-invocation-record-turn
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--agent-invocation)
 (defvar niwa--session)
 

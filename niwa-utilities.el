@@ -83,8 +83,6 @@
 (autoload 'niwa-session-control-fs-run-program "niwa-session-control-fs")
 
 ;; `niwa-structs'
-(declare-function niwa-request-p "niwa-structs" (cl-x))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 
 ;; `niwa-transcript'

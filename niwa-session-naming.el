@@ -44,13 +44,9 @@
                   "niwa-session-publication" (session))
 
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry-record "niwa-telemetry" (session event &rest props))
 (autoload 'niwa-telemetry-record "niwa-telemetry")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format &rest args))
 (autoload 'niwa-diagnostic-message "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")

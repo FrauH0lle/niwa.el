@@ -21,22 +21,7 @@
 (autoload 'niwa-ptc-start "niwa-ptc-interpreter")
 
 ;; `niwa-tool-media'
-(declare-function niwa-tool-media-extract
-                  "niwa-tool-media"
-                  (result-string &optional tool-results-dir
-                                 expected-tool-use-id
-                                 allow-payload-tool-use-id))
 (autoload 'niwa-tool-media-extract "niwa-tool-media")
-
-;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-trusted-range-p
-                  "niwa-tool-render-data" (start end &optional object))
-
-;; `niwa-transcript-audit'
-(declare-function niwa-transcript-audit-buffer-spans
-                  "niwa-transcript-audit" (&optional type start end))
-(declare-function niwa-transcript-audit-trusted-range-p
-                  "niwa-transcript-audit" (start end &optional object))
 
 ;; `org'
 (declare-function org-entry-get

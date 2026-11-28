@@ -221,66 +221,16 @@
 (autoload 'niwa-session-publication-enqueue "niwa-session-publication")
 (autoload 'niwa-session-publication-submit "niwa-session-publication")
 
-;; `niwa-structs'
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-agent-path-p "niwa-structs" (path))
-(declare-function niwa-session--set-agent-registry
-                  "niwa-structs" (session registry))
-(declare-function niwa-session--set-agent-reservations
-                  "niwa-structs" (session reservations))
-(declare-function niwa-session--set-agent-root-waiter
-                  "niwa-structs" (session waiter))
-(declare-function niwa-session--set-messages
-                  "niwa-structs" (session messages))
-(declare-function niwa-session-agent-registry
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-agent-reservations
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-agent-root-activity
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-agent-root-waiter
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-agent-turn-capacity
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-messages
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-p "niwa-structs" (object))
-(declare-function niwa-session-save-path
-                  "niwa-structs" (cl-x) t)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
 ;; `niwa-transcript-audit'
 (declare-function niwa--format-hook-audit-record
                   "niwa-transcript-audit" (record))
 (autoload 'niwa--format-hook-audit-record "niwa-transcript-audit")
 
 ;; `niwa-transport'
-(declare-function niwa-transport-busy-p "niwa-transport" (&optional path))
-(declare-function niwa-transport-cancel-pending
-                  "niwa-transport" (&optional key))
-(declare-function niwa-transport-run-at-time
-                  "niwa-transport" (seconds function &rest args))
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport"
-                  (key path thunk &optional on-cancel delay))
 (autoload 'niwa-transport-busy-p "niwa-transport")
 (autoload 'niwa-transport-cancel-pending "niwa-transport")
 (autoload 'niwa-transport-run-at-time "niwa-transport")
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
-
-;; `niwa-utilities'
-(declare-function niwa--clamped-integer
-                  "niwa-utilities" (value default minimum maximum))
-(declare-function niwa--head-tail-preview-parts
-                  "niwa-utilities"
-                  (head tail total-length &optional preview-size))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 (defconst niwa-agent-control--result-limit (* 32 1024)
   "Maximum number of characters in an inline RESULT payload.")

@@ -32,43 +32,11 @@
 ;; `gptel-transient'
 (declare-function gptel-menu "ext:gptel-transient" ())
 
-;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-data-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-format-header
-                  "niwa-cockpit" (name scope state))
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
-(declare-function niwa-cockpit-show-help
-                  "niwa-cockpit" (buffer text))
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-details
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-surface-key-help-text
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-
-;; `niwa-structs'
-(declare-function niwa-session-tool-catalog
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-
 ;; `niwa-tools'
 (declare-function niwa-tools--tool-search
                   "niwa-tools" (callback query owner engine restriction &optional include-hidden))
 
 ;; `niwa-utilities'
-(declare-function niwa--truncate-display
-                  "niwa-utilities" (text width &optional ellipsis))
 (autoload 'niwa--truncate-display "niwa-utilities")
 
 ;; `tabulated-list'

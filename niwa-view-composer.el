@@ -105,22 +105,6 @@
 (autoload 'niwa-implementation-policy-pause-failure
   "niwa-implementation-policy")
 
-;; `niwa-instruction-registry'
-(declare-function niwa--instruction-buffer-workspace
-                  "niwa-instruction-registry" (buffer))
-
-;; `niwa-mention-bindings'
-(declare-function niwa-mention-bindings-copy-text
-		  "niwa-mention-bindings" (text))
-(declare-function niwa-mention-bindings-invalidate-edit
-		  "niwa-mention-bindings"
-		  (start end minimum maximum))
-(declare-function niwa-mention-bindings-ranges
-		  "niwa-mention-bindings" (text))
-(declare-function niwa-mention-bindings-set
-		  "niwa-mention-bindings"
-		  (start end binding &optional object))
-
 ;; `niwa-mentions'
 (declare-function niwa-mentions-expand-user-input
 			  "niwa-mentions" (text session &optional fresh-p model))
@@ -139,23 +123,11 @@
 (declare-function niwa-menu "niwa-menu" nil)
 
 ;; `niwa-pending-inputs'
-(declare-function niwa-pending-inputs-cancel-resume
-                  "niwa-pending-inputs" ())
-(declare-function niwa-view--queue-prepared-steering
-                  "niwa-pending-inputs"
-                  (submission request &optional submitted-draft))
 (defvar niwa-view--pending-guest-attribution)
 (defvar niwa-view--pending-input-edit)
 (defvar niwa-view--turn-guest-attribution)
 
 ;; `niwa-permission-mode'
-(declare-function niwa-permission-mode-effective
-                  "niwa-permission-mode"
-                  (&optional session data-buffer surface-buffer))
-(declare-function niwa-permission-mode-label "niwa-permission-mode"
-                  (&optional mode))
-(declare-function niwa-permission-mode-transition
-                  "niwa-permission-mode" (mode))
 (defvar niwa-permission-mode)
 
 ;; `niwa-permission-queue'
@@ -177,33 +149,6 @@
                   (&optional session))
 (autoload 'niwa-plan-mode-enter "niwa-plan-mode" nil t)
 (autoload 'niwa-plan-mode-exit "niwa-plan-mode" nil t)
-
-;; `niwa-prompt-submission'
-(declare-function niwa-prompt-submission-accept
-		  "niwa-prompt-submission"
-		  (submission input context audits context-entries))
-(declare-function niwa-prompt-submission-audits
-		  "niwa-prompt-submission" (cl-x) t)
-(declare-function niwa-prompt-submission-cancel
-		  "niwa-prompt-submission" (submission))
-(declare-function niwa-prompt-submission-commit
-		  "niwa-prompt-submission" (submission))
-(declare-function niwa-prompt-submission-context
-		  "niwa-prompt-submission" (cl-x) t)
-(declare-function niwa-prompt-submission-create
-		  "niwa-prompt-submission" (&rest args))
-(declare-function niwa-prompt-submission-display-text
-		  "niwa-prompt-submission" (cl-x) t)
-(declare-function niwa-prompt-submission-input
-		  "niwa-prompt-submission" (cl-x) t)
-(declare-function niwa-prompt-submission-outcome
-		  "niwa-prompt-submission" (cl-x) t)
-(declare-function niwa-prompt-submission-reserve
-		  "niwa-prompt-submission" (submission))
-(declare-function niwa-prompt-submission-restore
-		  "niwa-prompt-submission" (submission))
-(declare-function niwa-prompt-submission-set-outcome
-		  "niwa-prompt-submission" (submission outcome))
 
 ;; `niwa-readiness'
 (declare-function niwa-readiness-assert "niwa-readiness" (session &optional backend))
@@ -257,23 +202,6 @@
                   "niwa-side-conversation" ())
 (autoload 'niwa-side-conversation-send "niwa-side-conversation" nil t)
 
-;; `niwa-skills-core'
-(declare-function niwa-session-get-skill "niwa-skills-core"
-		  (session name))
-(declare-function niwa-skill-name "niwa-skills-core" (cl-x) t)
-(declare-function niwa-skill-user-invocable-p "niwa-skills-core"
-		  (cl-x) t)
-
-;; `niwa-skills-input'
-(declare-function niwa-skills-input-insert-fork-result
-                  "niwa-skills-input" (outcome))
-(declare-function niwa-skills-input-parse-skill-line
-                  "niwa-skills-input" (text))
-(declare-function niwa-skills-input-prepare-user-input
-                  "niwa-skills-input" (text session))
-(declare-function niwa-skills-input-refresh-bound-input
-                  "niwa-skills-input" (text session))
-
 ;; `niwa-skills-invoke'
 (declare-function niwa-skills-commit-invoked-records
 		  "niwa-skills-invoke" (session records))
@@ -301,49 +229,11 @@
 (autoload 'niwa-skills-plan-render-data "niwa-skills-plan")
 
 ;; `niwa-skills-ui'
-(declare-function niwa-skills-install-font-lock "niwa-skills-ui"
-                  (&optional origin-function))
-(declare-function niwa-skills-local-command-active-request-p
-		  "niwa-skills-ui" (name args))
-(declare-function niwa-skills-parse-slash-line "niwa-skills-ui"
-		  (text))
-(declare-function niwa-skills-remaining-argument-hint
-		  "niwa-skills-ui" (skill arguments))
-(declare-function niwa-skills-slash-capf "niwa-skills-ui"
-		  (buffer session local-commands &optional input-start))
-(declare-function niwa-skills-user-visible-skills
-		  "niwa-skills-ui" (session &optional inline-only))
 (autoload 'niwa-skills-install-font-lock "niwa-skills-ui")
 (autoload 'niwa-skills-user-visible-skills "niwa-skills-ui")
 (defvar niwa-slash-commands)
 
 ;; `niwa-structs'
-(declare-function niwa-goal-id "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-request-fsm "niwa-structs" (cl-x) t)
-(declare-function niwa-request-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session--set-dropped-file-grants
-                  "niwa-structs" (session paths))
-(declare-function niwa-session-clear-dropped-file-grants
-		  "niwa-structs" (session))
-(declare-function niwa-session-dropped-file-grants
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-forked-from-fork-point-id
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-hook-context-pending
-		  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-follow-ups
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-plan-approval
-		  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-mode "niwa-structs"
-		  (cl-x) t)
-(declare-function niwa-session-plan-metadata "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x)
-		  t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--agent-invocation)
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
@@ -385,13 +275,6 @@
 (autoload 'niwa-turn-busy-p "niwa-turn")
 
 ;; `niwa-utilities'
-(declare-function niwa--insert-user-turn
-                  "niwa-utilities" (input))
-(declare-function niwa--normalize-message-text "niwa-utilities"
-		  (text))
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format-string &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))
 (autoload 'niwa--insert-user-turn "niwa-utilities")
 (autoload 'niwa--normalize-message-text "niwa-utilities")
 (autoload 'niwa-diagnostic-message "niwa-utilities")
@@ -416,10 +299,6 @@
                   "niwa-view-disclosure" (data-buffer start end))
 (declare-function niwa-view-disclosure-source-start
                   "niwa-view-disclosure" (source))
-
-;; `niwa-view-fontify'
-(declare-function niwa-view--fontify-markdown-blocks "niwa-view-fontify"
-                  (text from to))
 
 ;; `niwa-view-history'
 (declare-function niwa-view-history-add "niwa-view-history"

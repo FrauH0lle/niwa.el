@@ -21,9 +21,6 @@
 (autoload 'niwa-session-artifacts-read-segment "niwa-session-artifacts")
 
 ;; `niwa-structs'
-(declare-function niwa-session-current-segment "niwa-structs" (cl-x) t)
-(declare-function niwa-session-tool-results-directory "niwa-structs" (session))
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 
 (defconst niwa-shared-conversation--history-limit 128000

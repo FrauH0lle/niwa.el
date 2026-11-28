@@ -24,9 +24,6 @@
 (require 'niwa-utilities)
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-message "niwa-utilities" (scope format-string &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))
 (autoload 'niwa-diagnostic-message "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")

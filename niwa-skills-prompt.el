@@ -28,26 +28,8 @@
 (defvar niwa-post-tool-use-functions)
 
 ;; `niwa-models'
-(declare-function niwa-model-effective-context-window "niwa-models"
-                  (&optional model))
 (defvar niwa-model-context-limit)
 (autoload 'niwa-model-effective-context-window "niwa-models")
-
-;; `niwa-skills-invoke'
-(declare-function niwa-skills--current-invocation
-                  "niwa-skills-invoke" ())
-(declare-function niwa-skills--entry-base
-                  "niwa-skills-invoke" (skill &optional dormant))
-(declare-function niwa-skills--entry-description
-                  "niwa-skills-invoke" (skill &optional dormant))
-(declare-function niwa-skills--listing-candidates
-                  "niwa-skills-invoke" (session))
-(declare-function niwa-skills--model-visible-p
-                  "niwa-skills-invoke" (skill &optional active-only))
-(declare-function niwa-skills--truncate-text
-                  "niwa-skills-invoke" (text limit))
-(declare-function niwa-skills-request-model-policy
-                  "niwa-skills-invoke" ())
 
 ;; `niwa-structs'
 (defvar niwa--session)
@@ -63,10 +45,6 @@
 (declare-function niwa-tool-permission-paths "niwa-tool-permission"
                   (tool args &optional context))
 (autoload 'niwa-tool-permission-paths "niwa-tool-permission")
-
-;; `niwa-tool-registry'
-(declare-function niwa-tool-get
-                  "niwa-tool-registry" (name &optional category))
 
 
 

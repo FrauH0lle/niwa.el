@@ -17,27 +17,7 @@
 ;; `gptel-request'
 (declare-function gptel-make-tool "ext:gptel-request" (&rest slots))
 
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-native-path
-                  "niwa-execution-target" (target path))
-
-;; `niwa-resource'
-(declare-function niwa-resource-address-like-p
-                  "niwa-resource" (value))
-(declare-function niwa-resource-current-attempt
-                  "niwa-resource" (address))
-(declare-function niwa-resource-encode-component
-                  "niwa-resource" (value))
-(declare-function niwa-resource-parse-address
-                  "niwa-resource" (address))
-(declare-function niwa-resource-within-root-p
-                  "niwa-resource" (path root))
-
 ;; `niwa-structs'
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 
 ;; `niwa-tool-fs-read'
@@ -66,8 +46,6 @@
 (autoload 'niwa-tool-fs-search-render-grep "niwa-tool-fs-search")
 
 ;; `niwa-utilities'
-(declare-function niwa--executable-find
-                  "niwa-utilities" (name &optional remote))
 (autoload 'niwa--executable-find "niwa-utilities")
 
 ;; `niwa-workspace'

@@ -41,9 +41,6 @@
 (defvar niwa-execution-event-functions)
 
 ;; `niwa-transport'
-(declare-function niwa-transport-busy-p "niwa-transport" (&optional path))
-(declare-function niwa-transport-run-at-time "niwa-transport" (seconds function &rest args))
-(declare-function niwa-transport-run-when-idle "niwa-transport" (key path function &optional on-cancel))
 (autoload 'niwa-transport-busy-p "niwa-transport")
 (autoload 'niwa-transport-run-at-time "niwa-transport")
 (autoload 'niwa-transport-run-when-idle "niwa-transport")

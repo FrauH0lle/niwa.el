@@ -14,10 +14,6 @@
 ;; `niwa-hooks'
 (declare-function niwa-hooks-decision-reason "niwa-hooks" (decision))
 
-;; `niwa-execution-transcript'
-(declare-function niwa-execution-transcript-pending-render-data
-                  "niwa-execution-transcript" (data-buffer tool-use-id))
-
 ;; `niwa-reminders'
 (declare-function niwa-reminders--entry-label
                   "niwa-reminders" (type))
@@ -31,7 +27,6 @@
 ;; `niwa-structs'
 (defvar niwa--data-buffer)
 (defvar niwa--session)
-(declare-function niwa-session-current-segment "niwa-structs" (cl-x) t)
 
 ;; `niwa-transcript'
 (declare-function niwa-transcript--mailbox-any-block-at-point
@@ -56,15 +51,6 @@
 (autoload 'niwa-tool-repair-normalize-audit-record
   "niwa-tool-repair-diagnostics")
 
-;; `niwa-transcript-audit'
-(declare-function niwa--hook-prompt-rewrite-audit-record
-                  "niwa-transcript-audit"
-                  (event original submitted &optional reason))
-(declare-function niwa-transcript-audit-spans
-                  "niwa-transcript-audit" (text &optional type))
-(declare-function niwa-transcript-audit-records
-                  "niwa-transcript-audit" (text &optional type))
-
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-read-transcript-segment
                   "niwa-session-artifacts" (session descriptor))
@@ -79,9 +65,6 @@
   "niwa-session-artifacts")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-format "niwa-utilities" (scope format-string &rest args))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))
 (autoload 'niwa-diagnostic-format "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
@@ -105,25 +88,7 @@
 (autoload 'niwa-view-historical-segment-p "niwa-view-segments")
 (autoload 'niwa-view-return-to-latest-segment "niwa-view-segments" nil t)
 
-;; `niwa-view-disclosure'
-(declare-function niwa-view-disclosure-data-substring
-                  "niwa-view-disclosure"
-                  (data-buf start end &optional properties))
-(declare-function niwa-view-disclosure-indent-text
-                  "niwa-view-disclosure" (text width))
-(declare-function niwa-view-disclosure-record-state
-                  "niwa-view-disclosure" (source vtype collapsed))
-(declare-function niwa-view-disclosure-section-bounds
-                  "niwa-view-disclosure" (&optional property))
-(declare-function niwa-view-disclosure-source-range
-                  "niwa-view-disclosure" (data-buffer start end))
-(declare-function niwa-view-disclosure-state-key
-                  "niwa-view-disclosure"
-                  (source vtype &optional previous-key))
-
 ;; `niwa-view-render'
-(declare-function niwa-view-render-add-display-properties
-                  "niwa-view-render" (start end &optional default-vtype))
 (autoload 'niwa-view-render-add-display-properties "niwa-view-render")
 
 ;; `niwa-view-segments'
@@ -136,16 +101,7 @@
                   "niwa-view-segments" ())
 (autoload 'niwa-view-segments-current-number "niwa-view-segments")
 
-;; `niwa-view-disclosure'
-(declare-function niwa-view-toggle-section "niwa-view-disclosure" ())
-
 ;; `niwa-view-tool-render'
-(declare-function niwa-view--execution-terminal-render-data
-                  "niwa-view-tool-render" (data-buf tool-use-id &optional yielded-id))
-(declare-function niwa-view--sandbox-summary-line
-                  "niwa-view-tool-render" (summary))
-(declare-function niwa-view--tool-call-parse "niwa-view-tool-render"
-                  (data-buf seg-start seg-end &optional raw))
 (autoload 'niwa-view--execution-terminal-render-data
   "niwa-view-tool-render")
 (autoload 'niwa-view--sandbox-summary-line "niwa-view-tool-render")

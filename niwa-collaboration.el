@@ -216,22 +216,11 @@
 (declare-function niwa-sleep-update "niwa-sleep" (&rest _))
 (autoload 'niwa-sleep-update "niwa-sleep")
 
-;; `niwa-structs'
-(declare-function niwa-session-name "niwa-structs" (session))
-(declare-function niwa-session-pending-follow-ups "niwa-structs" (session))
-(declare-function niwa-session-pending-input-failure-paused
-                  "niwa-structs" (session))
-(declare-function niwa-session-pending-input-paused
-                  "niwa-structs" (session))
-(declare-function niwa-session-session-id "niwa-structs" (session))
-
 ;; `niwa-transport'
 (declare-function niwa-transport-run-at-time "niwa-transport" (seconds function &rest args))
 (autoload 'niwa-transport-run-at-time "niwa-transport")
 
 ;; `niwa-utilities'
-(declare-function niwa--ui-timer-cancel "niwa-utilities" (timer))
-(declare-function niwa--ui-timer-pending-p "niwa-utilities" (timer))
 (autoload 'niwa--ui-timer-cancel "niwa-utilities")
 (autoload 'niwa--ui-timer-pending-p "niwa-utilities")
 

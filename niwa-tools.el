@@ -83,8 +83,6 @@
 (autoload 'niwa-mentions-commit-expansion "niwa-mentions")
 
 ;; `niwa-models'
-(declare-function niwa-model-effective-context-window "niwa-models"
-                  (&optional model))
 (autoload 'niwa-model-effective-context-window "niwa-models")
 
 ;; `niwa-reminders'

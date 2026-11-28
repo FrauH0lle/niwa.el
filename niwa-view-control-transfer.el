@@ -12,11 +12,6 @@
 (declare-function niwa-execution-stop-services "niwa-execution" (session))
 (autoload 'niwa-execution-stop-services "niwa-execution")
 
-;; `niwa-interaction-prompt'
-(declare-function niwa--prompt-framed-body
-                  "niwa-interaction-prompt" (content face))
-(declare-function niwa--prompt-keys "niwa-interaction-prompt" (hints))
-
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-save
                   "niwa-session-artifacts"
@@ -24,39 +19,9 @@
 (autoload 'niwa-session-artifacts-save "niwa-session-artifacts")
 
 ;; `niwa-session-control-transfer'
-(declare-function niwa-session-control-transfer--follow-published
-                  "niwa-session-control-transfer"
-                  (session buffer &optional force))
-(declare-function niwa-session-control-transfer-acquire
-                  "niwa-session-control-transfer" (session buffer))
-(declare-function niwa-session-control-transfer-decide
-                  "niwa-session-control-transfer" (session decision))
-(declare-function niwa-session-control-transfer-descriptor
-                  "niwa-session-control-transfer" (session read-only-p))
-(declare-function niwa-session-control-transfer-drain-blocker
-                  "niwa-session-control-transfer" (session))
 (declare-function niwa-session-codec-portable-authority-p
                   "niwa-session-codec" (session))
 (autoload 'niwa-session-codec-portable-authority-p "niwa-session-codec")
-(declare-function niwa-session-control-transfer-poll
-                  "niwa-session-control-transfer"
-                  (session buffer read-only-p))
-(declare-function niwa-session-control-transfer-register-drain
-                  "niwa-session-control-transfer" (session predicate))
-(declare-function niwa-session-control-transfer-register-observer
-                  "niwa-session-control-transfer" (session observer))
-(declare-function niwa-session-control-transfer-register-root-buffer
-                  "niwa-session-control-transfer" (session buffer))
-(declare-function niwa-session-control-transfer-request
-                  "niwa-session-control-transfer" (session))
-(declare-function niwa-session-control-transfer-take-over
-                  "niwa-session-control-transfer" (session buffer))
-(declare-function niwa-session-control-transfer-unregister-drain
-                  "niwa-session-control-transfer" (session predicate))
-(declare-function niwa-session-control-transfer-unregister-observer
-                  "niwa-session-control-transfer" (session observer))
-(declare-function niwa-session-control-transfer-unregister-root-buffer
-                  "niwa-session-control-transfer" (session buffer))
 (defvar niwa-session-follow-published)
 
 ;; `niwa-session-durability'
@@ -79,11 +44,6 @@
 (defvar niwa-session--save-failed)
 
 ;; `niwa-structs'
-(declare-function niwa-session-control-transfer
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 
@@ -99,8 +59,6 @@
 (autoload 'niwa-view-history-save "niwa-view-history")
 
 ;; `niwa-utilities'
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-user-error "niwa-utilities" (scope format-string &rest args))
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-user-error "niwa-utilities")
 

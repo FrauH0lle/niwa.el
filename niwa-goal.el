@@ -98,13 +98,6 @@
 (autoload 'niwa-reminders-queue-turn-event "niwa-reminders")
 
 ;; `niwa-structs'
-(declare-function niwa-goal--create "niwa-structs" (&rest slots))
-(declare-function niwa-session-enqueue-pending-input
-                  "niwa-structs" (session category entry))
-(declare-function niwa-session-enqueue-pending-reminder
-                  "niwa-structs" (session reminder))
-(declare-function niwa-session-pending-follow-ups
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
@@ -114,17 +107,11 @@
                   "niwa-system" (relative-path &optional replacements))
 (autoload 'niwa-system-render-prompt-file "niwa-system")
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
 ;; `niwa-tools'
 (declare-function niwa-tools--buffer-local-agent-invocation
                   "niwa-tools" (buffer))
 
 ;; `niwa-transport'
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (key path thunk))
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 
 ;; `niwa-turn'

@@ -30,76 +30,7 @@
                   "niwa-agents" (cl-x) t)
 (defvar niwa--agent-invocation)
 
-;; `niwa-execution-process'
-(declare-function niwa-execution-process-collect-stderr
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-create
-                  "niwa-execution-process" (&rest keys))
-(declare-function niwa-execution-process-discard-stderr
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-interrupt
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-launch-attempted-p
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-live-p
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-read
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-rebind-spool
-                  "niwa-execution-process" (child path))
-(declare-function niwa-execution-process-release
-                  "niwa-execution-process" (child &optional preserve-spool))
-(declare-function niwa-execution-process-relocate-spool
-                  "niwa-execution-process" (child destination))
-(declare-function niwa-execution-process-remote-group-status
-                  "niwa-execution-process" (group-id start-time workdir))
-(declare-function niwa-execution-process-spool-path
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-start
-                  "niwa-execution-process" (child &rest keys))
-(declare-function niwa-execution-process-status
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-stop
-                  "niwa-execution-process" (child reason))
-(declare-function niwa-execution-process-terminal-p
-                  "niwa-execution-process" (child))
-(declare-function niwa-execution-process-write
-                  "niwa-execution-process" (child input))
-
-;; `niwa-execution-scheduler'
-(declare-function niwa-execution-scheduler-cancel
-                  "niwa-execution-scheduler" (lease))
-(declare-function niwa-execution-scheduler-create
-                  "niwa-execution-scheduler" ())
-(declare-function niwa-execution-scheduler-release
-                  "niwa-execution-scheduler" (lease))
-(declare-function niwa-execution-scheduler-submit
-                  "niwa-execution-scheduler"
-                  (scheduler mode start &optional admit-p reject scope))
-
 ;; `niwa-execution-telemetry'
-(declare-function niwa-execution-telemetry-command-properties
-                  "niwa-execution-telemetry" (command))
-(declare-function niwa-execution-telemetry-context-create
-                  "niwa-execution-telemetry" (&rest keys))
-(declare-function niwa-execution-telemetry-context-properties
-                  "niwa-execution-telemetry" (context))
-(declare-function niwa-execution-telemetry-context-summary
-                  "niwa-execution-telemetry" (context))
-(declare-function niwa-execution-telemetry-finish
-                  "niwa-execution-telemetry" (context &rest properties))
-(declare-function niwa-execution-telemetry-mark-direct-fallback
-                  "niwa-execution-telemetry" (session facts))
-(declare-function niwa-execution-telemetry-prepare-resource-capture
-                  "niwa-execution-telemetry" (context command-text command))
-(declare-function niwa-execution-telemetry-record
-                  "niwa-execution-telemetry"
-                  (context event props &optional audit))
-(declare-function niwa-execution-telemetry-record-sandbox-attempt
-                  "niwa-execution-telemetry"
-                  (context facts started-p refused-p))
-(declare-function niwa-execution-telemetry-safe-facts
-                  "niwa-execution-telemetry" (facts))
 (defvar niwa-execution-telemetry-summary-cell)
 
 ;; `niwa-execution-spool'
@@ -107,12 +38,6 @@
 (autoload 'niwa-execution-spool-compress "niwa-execution-spool")
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-native-path
-                  "niwa-execution-target" (target path))
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
-(declare-function niwa-execution-target-workspace-root
-                  "niwa-execution-target" (cl-x) t)
 (autoload 'niwa-execution-target-native-path "niwa-execution-target")
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
 (autoload 'niwa-execution-target-workspace-root "niwa-execution-target")
@@ -190,19 +115,6 @@
   "niwa-session-durability")
 
 ;; `niwa-structs'
-(declare-function niwa-request-cancelled-p "niwa-structs" (cl-x) t)
-(declare-function niwa-request-session "niwa-structs" (cl-x) t)
-(declare-function niwa-session--set-execution-state
-                  "niwa-structs" (session state))
-(declare-function niwa-session-audit-target "niwa-structs" (session))
-(declare-function niwa-session-execution-state "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-rules "niwa-structs" (cl-x) t)
-(declare-function niwa-session-resource-grants "niwa-structs" (cl-x) t)
-(declare-function niwa-session-sandbox-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 
@@ -210,14 +122,6 @@
 (defvar niwa-memory-dirs)
 
 ;; `niwa-transport'
-(declare-function niwa-transport-busy-p
-                  "niwa-transport" (&optional path))
-(declare-function niwa-transport-cancel-pending
-                  "niwa-transport" (&optional key))
-(declare-function niwa-transport-run-at-time
-                  "niwa-transport" (seconds function &rest args))
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (key path thunk &optional on-cancel delay))
 (autoload 'niwa-transport-busy-p "niwa-transport")
 (autoload 'niwa-transport-cancel-pending "niwa-transport")
 (autoload 'niwa-transport-run-at-time "niwa-transport")
@@ -227,13 +131,6 @@
 (declare-function niwa-request-push-canceller
                   "niwa-turn" (request canceller))
 (autoload 'niwa-request-push-canceller "niwa-turn")
-
-;; `niwa-utilities'
-(declare-function niwa--head-tail-preview-parts
-                  "niwa-utilities"
-                  (head tail total-length &optional preview-size artifact))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 ;; `niwa-workspace'
 (defvar niwa-workspace-additional-roots)

@@ -37,49 +37,14 @@
 (defvar read-eval)
 
 ;; `niwa-agent-control'
-(declare-function niwa-agent-control-notify
-                  "niwa-agent-control" (session key function))
 (autoload 'niwa-agent-control-notify "niwa-agent-control")
-(declare-function niwa-agent-control-enqueue-execution-result
-                  "niwa-agent-control"
-                  (session owner body &optional execution-id wake meta
-                           acknowledgement))
-
-;; `niwa-agent-runtime'
-(declare-function niwa-agent-runtime-queue-execution-completion
-                  "niwa-agent-runtime"
-                  (context owner body &optional meta acknowledgement))
 
 ;; `niwa-agents'
 (defvar niwa--agent-invocation)
 
-;; `niwa-bash-analysis'
-(declare-function niwa-bash-analysis-analyze
-                  "niwa-bash-analysis" (source))
-(declare-function niwa-bash-analysis-prepare-read-only
-                  "niwa-bash-analysis" (source analysis &optional temporary-root))
-
-;; `niwa-execution'
-(declare-function niwa-execution-list
-                  "niwa-execution" (session owner))
-(declare-function niwa-execution-observe
-                  "niwa-execution"
-                  (session owner execution-id callback &rest keys))
-(declare-function niwa-execution-start-bash
-                  "niwa-execution" (callback &rest keys))
-(declare-function niwa-execution-stop
-                  "niwa-execution"
-                  (session owner execution-id callback))
-
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-environment
-                  "niwa-execution-target" (target))
 (declare-function niwa-execution-target-expand-path
                   "niwa-execution-target" (target path &optional directory))
-(declare-function niwa-execution-target-native-path
-                  "niwa-execution-target" (target path))
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
 
 ;; `niwa-interaction-prompt'
 (declare-function niwa--prompt-attribution-line
@@ -92,74 +57,22 @@
                   "niwa-pending-inputs" (session &optional data-buffer))
 (autoload 'niwa-pending-inputs-offer-root-event "niwa-pending-inputs")
 
-;; `niwa-pipeline'
-(declare-function niwa-pipeline-active-permission-approvals
-                  "niwa-pipeline" ())
-(declare-function niwa-pipeline-active-tool-use-id
-                  "niwa-pipeline" ())
-(declare-function niwa-pipeline-tool-results-dir
-                  "niwa-pipeline"
-                  (session buffer &optional request existing-only-p))
-
 ;; `niwa-queue'
-(declare-function niwa-queue--current-session "niwa-queue" ())
 (autoload 'niwa-queue--current-session "niwa-queue")
 
-;; `niwa-sandbox'
-(declare-function niwa-sandbox-status-text "niwa-sandbox" (facts))
-
 ;; `niwa-structs'
-(declare-function niwa-request-p "niwa-structs" (cl-x))
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-p "niwa-structs" (cl-x))
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record-audit
-                  "niwa-telemetry" (session event &rest props))
-
-;; `niwa-tool-exec-permission'
-(declare-function niwa-tool-exec-permission-check-bash-async
-                  "niwa-tool-exec-permission" (tool-struct input cont))
-(declare-function niwa-tool-exec-permission-check-eval-async
-                  "niwa-tool-exec-permission" (tool-struct input cont))
-(declare-function niwa-tool-exec-permission-current-context
-                  "niwa-tool-exec-permission"
-                  (tool-name args &optional session))
-(declare-function niwa-tool-exec-permission-default-directory
-                  "niwa-tool-exec-permission" ())
-(declare-function niwa-tool-exec-permission-effective-sandbox-request
-                  "niwa-tool-exec-permission"
-                  (input tool-name detail &optional eval-mode
-                         permission-context))
-(declare-function niwa-tool-exec-permission-eval-mode
-                  "niwa-tool-exec-permission" (args))
-(declare-function niwa-tool-exec-permission-eval-preserve-ui-p
-                  "niwa-tool-exec-permission" (args))
-
-;; `niwa-turn'
-(declare-function niwa-current-origin "niwa-turn" ())
-
 ;; `niwa-utilities'
-(declare-function niwa--duration-label "niwa-utilities" (seconds))
 (autoload 'niwa--duration-label "niwa-utilities")
-(declare-function niwa--clamped-integer
-                  "niwa-utilities" (value default minimum maximum))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 ;; `niwa-view-viewport'
 (declare-function niwa-view-call-preserving-window-configuration
                   "niwa-view-viewport" (thunk))
 (autoload 'niwa-view-call-preserving-window-configuration
   "niwa-view-viewport")
-
-;; `niwa-workspace'
-(declare-function niwa--all-allowed-roots
-                  "niwa-workspace" (&optional buffer))
 
 ;; `xml'
 (declare-function xml-escape-string "xml" (string))

@@ -21,12 +21,6 @@
 ;; `files'
 (defvar remote-file-name-inhibit-cache)
 
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-identity
-                  "niwa-execution-target" (cl-x) t)
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
-
 ;; `niwa-journal-pins'
 (declare-function niwa-journal-pins-present-p "niwa-journal-pins" (session-dir))
 (autoload 'niwa-journal-pins-present-p "niwa-journal-pins")
@@ -34,31 +28,6 @@
 ;; `niwa-session-collection'
 (declare-function niwa-session-collection-cancel
                   "niwa-session-collection" (session))
-
-;; `niwa-session-control-fs'
-(declare-function niwa-session-control-fs-create-file
-                  "niwa-session-control-fs"
-                  (path content &optional coding-system))
-(declare-function niwa-session-control-fs-delete-file
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-directory-p
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-list-directory
-                  "niwa-session-control-fs" (directory regexp))
-(declare-function niwa-session-control-fs-make-directory
-                  "niwa-session-control-fs" (path &optional parents))
-(declare-function niwa-session-control-fs-path-exists-p
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-physical-path
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-read-file
-                  "niwa-session-control-fs"
-                  (path &optional coding-system max-bytes))
-(declare-function niwa-session-control-fs-target-time
-                  "niwa-session-control-fs" (directory))
-(declare-function niwa-session-control-fs-write-file
-                  "niwa-session-control-fs"
-                  (path content &optional coding-system))
 
 ;; `niwa-session-control-transfer'
 (declare-function niwa-session-control-transfer-taken-over
@@ -126,50 +95,10 @@
 ;; `niwa-structs'
 (declare-function niwa-session-authority-mode-for-session
                   "niwa-structs" (session))
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-lease "niwa-structs" (cl-x) t)
-(declare-function niwa-session-lease-renewal-timer
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-lease-renewal-job
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-control-transfer
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-publication
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-active-p
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-job
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-preparation-token
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-queue
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-uncommitted-batches
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-publication-stopping-p
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session--create "niwa-structs" (&rest slots))
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 
-;; `niwa-transport'
-(declare-function niwa-transport-busy-p
-                  "niwa-transport" (&optional path))
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport"
-                  (key path thunk &optional on-cancel delay))
-
 ;; `niwa-utilities'
-(declare-function niwa--truncate-display
-                  "niwa-utilities" (text width &optional ellipsis))
-(declare-function niwa-diagnostic-scope "niwa-utilities" (owner))
-(declare-function niwa-diagnostic-warning "niwa-utilities" (scope type message &optional level buffer-name))
 (autoload 'niwa--truncate-display "niwa-utilities")
 (autoload 'niwa-diagnostic-scope "niwa-utilities")
 (autoload 'niwa-diagnostic-warning "niwa-utilities")

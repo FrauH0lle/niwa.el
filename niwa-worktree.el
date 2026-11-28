@@ -62,35 +62,6 @@ is opened; output is retained in `*niwa worktree setup*'."
 (autoload 'niwa--start-chat "niwa-chat")
 (autoload 'niwa--workspace-sessions "niwa-chat")
 
-;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-data-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-workspace
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-format-header
-                  "niwa-cockpit" (name scope state))
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-details
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-surface-key-help-text
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-quit
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-(declare-function niwa-cockpit-surface-selected
-                  "niwa-cockpit" (&optional no-error))
-
 ;; `niwa-execution-target'
 (declare-function niwa-execution-target-create
                   "niwa-execution-target" (workspace-root))
@@ -138,22 +109,12 @@ is opened; output is retained in `*niwa worktree setup*'."
 (defvar niwa-slash-commands)
 
 ;; `niwa-structs'
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-p "niwa-structs" (cl-x))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--current-request)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 
 ;; `niwa-utilities'
-(declare-function niwa--file-in-directory-p
-                  "niwa-utilities" (file directory))
-(declare-function niwa--file-relative-name-or-absolute
-                  "niwa-utilities" (file directory))
 (autoload 'niwa--file-in-directory-p "niwa-utilities")
 (autoload 'niwa--file-relative-name-or-absolute "niwa-utilities")
 

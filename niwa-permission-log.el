@@ -21,8 +21,6 @@
 (require 'niwa-utilities)
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
 
 ;; `niwa-permission-mode'
@@ -37,20 +35,7 @@
 (autoload 'niwa-session-publication-append-diagnostic
   "niwa-session-diagnostics")
 
-;; `niwa-structs'
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-log-pending
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-permission-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
 ;; `niwa-utilities'
-(declare-function niwa--diagnostic-entry-text "niwa-utilities" (entry))
 (autoload 'niwa--diagnostic-entry-text "niwa-utilities")
 
 

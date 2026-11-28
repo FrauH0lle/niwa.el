@@ -42,26 +42,6 @@
 (declare-function niwa--display-chat-buffer "niwa-chat" (chat-buffer))
 (autoload 'niwa--display-chat-buffer "niwa-chat")
 
-;; `niwa-cockpit'
-(declare-function niwa-cockpit-call-in-data
-                  "niwa-cockpit" (context function &rest args))
-(declare-function niwa-cockpit-call-in-view
-                  "niwa-cockpit" (context function &rest args))
-(declare-function niwa-cockpit-context-data-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-origin-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-view-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-workspace
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-show-help
-                  "niwa-cockpit" (buffer text))
-
 ;; `niwa-collaboration'
 (declare-function niwa-collaboration-room-summary
                   "niwa-collaboration" (data-buffer))
@@ -137,22 +117,6 @@
 (autoload 'niwa-memory-list-open "niwa-memory-list")
 
 ;; `niwa-models'
-(declare-function niwa-model-current-label "niwa-models"
-                  (&optional buffer))
-(declare-function niwa-model-current-provider-label "niwa-models"
-                  (&optional buffer))
-(declare-function niwa-model-resolve-provider "niwa-models"
-                  (spec &optional noerror))
-(declare-function niwa-model-resolve-tier "niwa-models"
-                  (tier &optional noerror))
-(declare-function niwa-model-resolve-workload "niwa-models"
-                  (workload &optional explicit-selector explicit-effort))
-(declare-function niwa-model-set-session-effort "niwa-models"
-                  (session effort &optional buffer))
-(declare-function niwa-model-set-session-provider "niwa-models"
-                  (session provider &optional buffer))
-(declare-function niwa-model-candidates "niwa-models" ())
-(declare-function niwa-model-supported-efforts "niwa-models" (model))
 (defvar niwa-model-tiers)
 (defvar niwa-model-workloads)
 
@@ -221,33 +185,6 @@
                   (&optional context))
 (autoload 'niwa-skills-count-label "niwa-skills-ui")
 (autoload 'niwa-skills-list-open "niwa-skills-ui")
-
-;; `niwa-structs'
-(declare-function niwa-goal-objective "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-plan-reference "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-reason "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-time-used-seconds "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-token-budget "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-tokens-incomplete-p "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-tokens-used "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-turns-run "niwa-structs" (cl-x) t)
-(declare-function niwa-session-authority-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-control-transfer
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-current-segment
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-plan-approval
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-preset-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-memory-observation "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 
 ;; `niwa-subscription-usage'
 (autoload 'niwa-subscription-usage-show "niwa-subscription-usage" nil t)

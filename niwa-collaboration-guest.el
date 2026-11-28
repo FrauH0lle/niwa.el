@@ -37,8 +37,6 @@
                   "niwa-collaboration" (value))
 (declare-function niwa-collaboration--publish-queue
                   "niwa-collaboration" (room))
-(declare-function niwa-collaboration--publish-status
-                  "niwa-collaboration" (room))
 (declare-function niwa-collaboration--queue-position
                   "niwa-collaboration" (room entry))
 (declare-function niwa-collaboration--room-data-buffer
@@ -74,26 +72,6 @@
 
 (defvar niwa-collaboration-needs-host-message)
 
-;; `niwa-collaboration-agent'
-(declare-function niwa-collaboration--agents-frame
-                  "niwa-collaboration-agent" (room))
-(declare-function niwa-collaboration--handle-fetch-agent
-                  "niwa-collaboration-agent" (room peer frame))
-(declare-function niwa-collaboration--handle-execution-result-get
-                  "niwa-collaboration-agent" (room peer frame))
-
-;; `niwa-collaboration-artifact'
-(declare-function niwa-collaboration--handle-artifact-get
-                  "niwa-collaboration-artifact" (room peer frame))
-(declare-function niwa-collaboration--handle-artifact-delete
-                  "niwa-collaboration-artifact" (room peer frame))
-(declare-function niwa-collaboration--handle-store-action
-                  "niwa-collaboration-artifact" (room peer frame))
-(declare-function niwa-collaboration--handle-store-list
-                  "niwa-collaboration-artifact" (room peer frame))
-(declare-function niwa-collaboration--store-frame
-                  "niwa-collaboration-artifact" (room &optional rows))
-
 ;; `niwa-collaboration-background'
 (declare-function niwa-collaboration--background-frame
                   "niwa-collaboration-background" (room))
@@ -104,14 +82,6 @@
 (autoload 'niwa-collaboration--background-frame "niwa-collaboration-background")
 (autoload 'niwa-collaboration--handle-background-stop "niwa-collaboration-background")
 (autoload 'niwa-collaboration--handle-background-locate "niwa-collaboration-background")
-
-;; `niwa-collaboration-discussions'
-(declare-function niwa-collaboration-discussions-handle
-                  "niwa-collaboration-discussions" (room peer frame))
-
-;; `niwa-collaboration-files'
-(declare-function niwa-collaboration-files-handle-upload
-                  "niwa-collaboration-files" (owner peer frame root))
 
 ;; `niwa-collaboration-history'
 (declare-function niwa-collaboration--handle-history-get
@@ -126,14 +96,6 @@
 ;; `niwa-collaboration-lobby'
 (declare-function niwa-collaboration-lobby--find
                   "niwa-collaboration-lobby" (workspace))
-
-;; `niwa-collaboration-presence'
-(declare-function niwa-collaboration-presence-handle
-                  "niwa-collaboration-presence" (room peer frame))
-(declare-function niwa-collaboration-presence-publish
-                  "niwa-collaboration-presence" (room))
-(declare-function niwa-collaboration-presence-state
-                  "niwa-collaboration-presence" (frame))
 
 ;; `niwa-collaboration-owner'
 (declare-function niwa-collaboration--handle-new-session
@@ -205,8 +167,6 @@
 (autoload 'niwa-view-enqueue-external-follow-up "niwa-pending-inputs")
 
 ;; `niwa-schedule'
-(declare-function niwa-schedule-late-delivery-text "niwa-schedule" (receipt))
-(declare-function niwa-schedule-latest-late-delivery "niwa-schedule" (session))
 (autoload 'niwa-schedule-late-delivery-text "niwa-schedule")
 (autoload 'niwa-schedule-latest-late-delivery "niwa-schedule")
 
@@ -224,19 +184,6 @@
 ;; `niwa-sleep'
 (declare-function niwa-sleep-update "niwa-sleep" (&rest _))
 (autoload 'niwa-sleep-update "niwa-sleep")
-
-;; `niwa-structs'
-(declare-function niwa-session-pending-follow-ups
-                  "niwa-structs" (session))
-(declare-function niwa-session-set-pending-inputs
-                  "niwa-structs" (session category entries))
-(declare-function niwa-session-workspace "niwa-structs" (session))
-(declare-function niwa-session-working-directory
-                  "niwa-structs" (session))
-(declare-function niwa-workspace-id "niwa-structs" (cl-x))
-(declare-function niwa-workspace-name "niwa-structs" (cl-x))
-(declare-function niwa-workspace-root "niwa-structs" (cl-x))
-(declare-function niwa-workspace-type "niwa-structs" (cl-x))
 
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-sanitize

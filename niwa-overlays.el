@@ -35,42 +35,7 @@
 (defvar niwa--view-buffer)
 
 ;; `niwa-instruction-registry'
-(declare-function niwa--instruction-activate-buffer
-                  "niwa-instruction-registry" (&optional buffer))
-(declare-function niwa--instruction-activate-workspace
-                  "niwa-instruction-registry" (&optional workspace))
-(declare-function niwa--instruction-buffer-workspace
-                  "niwa-instruction-registry" (buffer))
-(declare-function niwa--instruction-id
-                  "niwa-instruction-registry" (instruction))
-(declare-function niwa--instruction-inlinks
-                  "niwa-instruction-registry" (instruction))
-(declare-function niwa--instruction-operation-state-key
-                  "niwa-instruction-registry" ())
-(declare-function niwa--instruction-outlinks
-                  "niwa-instruction-registry" (instruction))
-(declare-function niwa--instruction-state
-                  "niwa-instruction-registry" (&optional key))
-(declare-function niwa-link-instructions
-                  "niwa-instruction-registry" (from-list to-list))
-(declare-function niwa--instruction-with-id
-                  "niwa-instruction-registry"
-                  (target-id &optional workspace))
-(declare-function niwa--instruction-with-uuid
-                  "niwa-instruction-registry"
-                  (uuid &optional workspace))
-(declare-function niwa--instruction-workspace-key
-                  "niwa-instruction-registry" (&optional workspace))
 (defvar niwa--instruction-state-key-override)
-
-;; `niwa-note-source'
-(declare-function niwa--delete-instruction
-                  "niwa-note-source"
-                  (instruction &optional buffer))
-(declare-function niwa-note-anchor-capture
-                  "niwa-note-source" (instruction))
-(declare-function niwa--instruction-persisted-properties
-                  "niwa-note-source" (instruction &optional source-only))
 
 ;; `niwa-overlay-ui'
 (declare-function niwa--update-instruction-overlay
@@ -87,9 +52,6 @@
                   "niwa-plan-handoff" (prompt selection))
 (autoload 'niwa-plan-handoff-append-implementation-input
   "niwa-plan-handoff")
-
-;; `niwa-structs'
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 
 ;; `niwa-view-fontify'
 (declare-function niwa-view--markdown-fontify-mode "niwa-view-fontify" ())

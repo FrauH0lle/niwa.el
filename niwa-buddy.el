@@ -94,9 +94,6 @@
 ;; `niwa-transport'
 (declare-function niwa-transport-busy-p "niwa-transport" (&optional path))
 
-;; `niwa-utilities'
-(declare-function niwa--unified-diff "niwa-utilities" (original current &optional context-lines))
-
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))
 (declare-function niwa-workspace--project-workspace "niwa-workspace" ())

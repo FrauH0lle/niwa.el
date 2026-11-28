@@ -24,8 +24,6 @@
 (require 'url-util)
 
 ;; `niwa-context-summary'
-(declare-function niwa-context-summary-generate "niwa-context-summary"
-                  (source purpose callback &rest args))
 (autoload 'niwa-context-summary-generate "niwa-context-summary")
 
 ;; `niwa-memory-review'
@@ -38,9 +36,6 @@
 (autoload 'niwa-model-resolve-workload "niwa-models")
 
 ;; `niwa-resource'
-(declare-function niwa-resource-encode-component "niwa-resource" (value))
-(declare-function niwa-resource-shared-accesses "niwa-resource" (workspace))
-(declare-function niwa-resource-work-shared-directory "niwa-resource" (workspace))
 (autoload 'niwa-resource-encode-component "niwa-resource")
 (autoload 'niwa-resource-shared-accesses "niwa-resource")
 (autoload 'niwa-resource-work-shared-directory "niwa-resource")

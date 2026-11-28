@@ -111,30 +111,10 @@
                   "niwa-execution" (session))
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-probe
-                  "niwa-execution-target"
-                  (target &optional refresh sandbox-mode))
-(declare-function niwa-execution-target-readiness-message
-                  "niwa-execution-target" (target))
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
 (autoload 'niwa-execution-target-probe "niwa-execution-target")
 (autoload 'niwa-execution-target-readiness-message
   "niwa-execution-target")
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
-
-;; `niwa-hooks'
-(declare-function niwa-hooks-event-plist "niwa-hooks"
-		  (event &optional session workspace &rest extra))
-(declare-function niwa-hooks-record-session-context "niwa-hooks"
-		  (session decision &optional event))
-(declare-function niwa-hooks-run-event "niwa-hooks"
-		  (event event-plist callback &optional session
-			 workspace request invocation))
-
-;; `niwa-models'
-(declare-function niwa-model-apply-session-policy
-                  "niwa-models" (session &optional buffer))
 
 ;; `niwa-pending-inputs'
 (defvar niwa-view--pending-guest-attribution)
@@ -161,8 +141,6 @@
 
 ;; `niwa-reminders'
 (defvar niwa-reminders-reconciliation-body)
-(declare-function niwa-reminders-install-defaults
-		  "niwa-reminders" (session))
 
 
 ;; `niwa-sandbox'
@@ -196,45 +174,13 @@
 (declare-function niwa-slash-capf "niwa-skills-ui" nil)
 
 ;; `niwa-structs'
-(declare-function niwa-goal-reason "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-reason-diagnostic "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-request-file-snapshots "niwa-structs"
-		  (cl-x) t)
-(declare-function niwa-request-untracked-effects "niwa-structs"
-                  (cl-x) t)
-(declare-function niwa-session-audit-session "niwa-structs" (cl-x) t)
-(declare-function niwa-session-buffer-name "niwa-structs"
-                  (session-name workspace))
-(declare-function niwa-session-dedicated-artifact "niwa-structs" (cl-x) t)
-(declare-function niwa-session-create "niwa-structs"
-		  (name workspace &optional working-directory session-id))
-(declare-function niwa-session-enqueue-pending-reminder "niwa-structs"
-                  (session body))
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-reminders "niwa-structs"
-                  (cl-x) t)
-(declare-function niwa-session-plan-metadata "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs"
-		  (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-id "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-name "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-type "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry-record "niwa-telemetry"
-                  (session event &rest props))
 (autoload 'niwa-telemetry-record "niwa-telemetry")
 
 ;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-format
-                  "niwa-tool-render-data" (render-data &optional tool-use-id))
 (autoload 'niwa-tool-render-data-format "niwa-tool-render-data")
 
 ;; `niwa-tool-repair'
@@ -250,27 +196,14 @@
                   "niwa-transcript-restore" ())
 
 ;; `niwa-transport'
-(declare-function niwa-transport-run-when-idle "niwa-transport"
-                  (key path thunk &optional on-cancel delay))
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 
 ;; `niwa-turn'
-(declare-function niwa-request-cancel "niwa-turn"
-                  (request &optional abort-plan-approval))
-(declare-function niwa-request-end
-                  "niwa-turn" (&optional abort-plan-approval))
 (autoload 'niwa-request-cancel "niwa-turn")
 (autoload 'niwa-request-end "niwa-turn")
 (defvar niwa--turn-settlements-pending)
 
 ;; `niwa-utilities'
-(declare-function niwa--insert-user-turn
-                  "niwa-utilities" (input))
-(declare-function niwa--optimize-transcript-buffer
-		  "niwa-utilities" nil)
-(declare-function niwa--transcript-org-mode "niwa-utilities" nil)
-(declare-function niwa-generate-diff "niwa-utilities"
-                  (original modified filepath callback &optional labels-real settlement))
 (autoload 'niwa--insert-user-turn "niwa-utilities")
 (autoload 'niwa--optimize-transcript-buffer "niwa-utilities")
 (autoload 'niwa--transcript-org-mode "niwa-utilities")

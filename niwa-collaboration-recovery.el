@@ -39,9 +39,6 @@
 (declare-function niwa-session-naming-rename "niwa-session-naming" (session buffer name &optional current-p))
 (autoload 'niwa-session-naming-rename "niwa-session-naming")
 
-;; `niwa-turn'
-(declare-function niwa-turn-busy-p "niwa-turn" (&optional buffer))
-
 (defun niwa-collaboration-recovery--recoverable-histories (session)
   "Return SESSION's retained native history scopes offered for recovery."
   (cl-loop for (scope . record) in (niwa-session-external-conversations session)

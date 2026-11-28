@@ -21,21 +21,6 @@
 (require 'niwa-structs)
 
 ;; `niwa-instruction-registry'
-(declare-function niwa--create-id "niwa-instruction-registry" ())
-(declare-function niwa--instruction-activate-buffer
-                  "niwa-instruction-registry" (&optional buffer))
-(declare-function niwa--instruction-activate-workspace
-                  "niwa-instruction-registry" (&optional workspace))
-(declare-function niwa--instruction-buffer-workspace
-                  "niwa-instruction-registry" (buffer))
-(declare-function niwa--instruction-id
-                  "niwa-instruction-registry" (instruction))
-(declare-function niwa--instruction-with-uuid
-                  "niwa-instruction-registry"
-                  (uuid &optional workspace))
-(declare-function niwa--instruction-workspace-key
-                  "niwa-instruction-registry" (&optional workspace))
-(declare-function niwa--retire-id "niwa-instruction-registry" (id))
 (defvar niwa--instruction-state-key-override)
 
 ;; `niwa-notes'

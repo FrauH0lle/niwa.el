@@ -344,9 +344,6 @@ See `niwa-library-provenance' for how installation methods are covered.")
 ;; `niwa-sleep'
 (declare-function niwa-sleep-stop "niwa-sleep" ())
 
-;; `niwa-structs'
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
-
 ;; `niwa-tool-render-data'
 (declare-function niwa-tool-render-data-install-provider-adapter
                   "niwa-tool-render-data" ())

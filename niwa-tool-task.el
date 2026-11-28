@@ -36,12 +36,7 @@
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 
-;; `niwa-turn'
-(declare-function niwa-current-turn "niwa-turn" (session))
-
 ;; `niwa-utilities'
-(declare-function niwa--truncate-display
-                  "niwa-utilities" (text width &optional ellipsis))
 (autoload 'niwa--truncate-display "niwa-utilities")
 
 ;; `niwa-view'

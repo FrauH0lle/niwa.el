@@ -19,57 +19,7 @@
 ;; so this is a load-time dependency rather than a lazy one.
 (require 'niwa-session-durability)
 
-;; `niwa-session-control-fs'
-(declare-function niwa-session-control-fs-directory-p
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-list-directory
-                  "niwa-session-control-fs" (directory regexp))
-(declare-function niwa-session-control-fs-make-directory
-                  "niwa-session-control-fs" (path &optional parents))
-(declare-function niwa-session-control-fs-path-exists-p
-                  "niwa-session-control-fs" (path))
-(declare-function niwa-session-control-fs-physical-path
-                  "niwa-session-control-fs" (path))
-
 ;; `niwa-session-durability'
-(declare-function niwa-session-durability--finite-nonnegative-number-p
-                  "niwa-session-durability" (value))
-(declare-function niwa-session-durability--bind-lease
-                  "niwa-session-durability" (session lease state &optional bytes predecessor))
-(declare-function niwa-session-durability--bind-latest
-                  "niwa-session-durability" (session latest directory now))
-(declare-function niwa-session-durability--claim-next
-                  "niwa-session-durability"
-                  (directory expected buffer-name
-                             &optional status unsettled-mutation-p
-                             unsettled-mutation transfer-generation))
-(declare-function niwa-session-durability--create-plist
-                  "niwa-session-durability" (path plist))
-(declare-function niwa-session-durability--ensure-lease-directory
-                  "niwa-session-durability" (directory))
-(declare-function niwa-session-durability-lease-head
-                  "niwa-session-durability" (directory &optional names))
-(declare-function niwa-session-durability--lease-path
-                  "niwa-session-durability" (session-dir))
-(declare-function niwa-session-durability--newest-generation
-                  "niwa-session-durability" (names))
-(declare-function niwa-session-durability-observe-lease
-                  "niwa-session-durability" (directory generation &optional extra))
-(declare-function niwa-session-durability--observed-names
-                  "niwa-session-durability" (observed))
-(declare-function niwa-session-durability--owned-lease-record-p
-                  "niwa-session-durability" (lease directory &optional now))
-(declare-function niwa-session-durability--portable-session-p
-                  "niwa-session-durability" (session))
-(declare-function niwa-session-durability-record-read
-                  "niwa-session-durability" (path))
-(declare-function niwa-session-durability-target-time
-                  "niwa-session-durability" (directory))
-(declare-function niwa-session-durability-valid-lease-p
-                  "niwa-session-durability" (lease))
-(declare-function niwa-session-durability-lease-release
-                  "niwa-session-durability"
-                  (session-dir &optional session))
 (defvar niwa-session-durability--client-id)
 (defvar niwa-session-durability--observed-time)
 
@@ -80,16 +30,6 @@
                   "niwa-session-recovery" (session &optional root-observation))
 (autoload 'niwa-session-recovery--root "niwa-session-recovery")
 (autoload 'niwa-session-recovery-refresh "niwa-session-recovery")
-
-;; `niwa-structs'
-(declare-function niwa-session-control-transfer
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-external-conversations "niwa-structs" (cl-x))
-(declare-function niwa-session-lease "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session-set-control-transfer
-                  "niwa-structs" (session transfer))
 
 
 (defcustom niwa-session-transfer-prompt-timeout 30

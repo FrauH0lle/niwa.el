@@ -33,7 +33,6 @@
 
 ;; `niwa-chat'
 (declare-function niwa--workspace-sessions "niwa-chat" (workspace))
-(declare-function niwa-session-dedicated-artifact "niwa-structs" (cl-x))
 (autoload 'niwa--workspace-sessions "niwa-chat")
 
 ;; `niwa-collaboration-guest'
@@ -160,15 +159,8 @@
 (autoload 'niwa-sleep-update "niwa-sleep")
 
 ;; `niwa-structs'
-(declare-function niwa-session-session-id "niwa-structs" (cl-x) t)
 (defvar niwa--session)
 (defvar niwa-user-dir)
-
-;; `niwa-workspace'
-(declare-function niwa-workspace "niwa-workspace" (&optional buffer))
-(declare-function niwa-workspace-name "niwa-workspace" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-workspace" (cl-x) t)
-(declare-function niwa-workspace-state-dir "niwa-workspace" (workspace))
 
 ;; `niwa-workspace-schedule'
 (declare-function niwa-workspace-schedule-list "niwa-workspace-schedule" (workspace))

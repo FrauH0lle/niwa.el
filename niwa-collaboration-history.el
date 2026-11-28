@@ -16,9 +16,6 @@
 (declare-function niwa-collaboration--broadcast "niwa-collaboration" (room frame))
 (declare-function niwa-collaboration--guest "niwa-collaboration" (room peer))
 (declare-function niwa-collaboration--room-for-session "niwa-collaboration" (session))
-;; `niwa-collaboration-artifact-projection'
-(declare-function niwa-collaboration--artifact-title
-                  "niwa-collaboration-artifact-projection" (session relative))
 ;; `niwa-collaboration-guest'
 (declare-function niwa-collaboration--request-id-p "niwa-collaboration-guest" (value))
 (declare-function niwa-collaboration--snapshot-chunks "niwa-collaboration-guest" (records &optional overhead))

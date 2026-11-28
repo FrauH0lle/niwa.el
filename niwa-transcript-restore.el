@@ -21,14 +21,6 @@
 (declare-function gptel-mode "ext:gptel" (&optional arg))
 (defvar gptel-mode)
 
-;; `niwa-transcript'
-(declare-function niwa-transcript-normalize-properties
-                  "niwa-transcript" ())
-(declare-function niwa-transcript--skip-leading-properties-drawer
-                  "niwa-transcript" (pos))
-(declare-function niwa-transcript--skip-leading-summary-block
-                  "niwa-transcript" (pos))
-
 ;; `org'
 (declare-function org-entry-delete "ext:org" (pom property))
 (declare-function org-entry-get

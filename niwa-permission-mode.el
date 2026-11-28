@@ -48,7 +48,6 @@
                   "niwa-view-composer" ())
 
 ;; `niwa-structs'
-(declare-function niwa-session-permission-mode "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--agent-invocation)
 (defvar niwa--current-request)

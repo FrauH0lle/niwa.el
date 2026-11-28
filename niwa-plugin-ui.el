@@ -19,31 +19,6 @@
 ;; `dired'
 (declare-function dired "dired" (dirname &optional switches))
 
-;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-workspace
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-format-header
-                  "niwa-cockpit" (name scope state))
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
-(declare-function niwa-cockpit-show-help
-                  "niwa-cockpit" (buffer text))
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-details
-                  "niwa-cockpit" ())
-(declare-function niwa-cockpit-surface-key-help-text
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-(declare-function niwa-cockpit-surface-selected
-                  "niwa-cockpit" (&optional no-error))
-
 ;; `niwa-menu'
 (declare-function niwa-menu-open "niwa-menu" (area))
 (autoload 'niwa-menu-open "niwa-menu" nil t)
@@ -61,79 +36,6 @@
 (autoload 'niwa-plugins-remove "niwa-plugin-lifecycle")
 (autoload 'niwa-plugins-update "niwa-plugin-lifecycle")
 (autoload 'niwa-plugins-check-updates "niwa-plugin-lifecycle")
-
-;; `niwa-plugin-registry'
-(declare-function niwa-plugin-description
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-error-manifest
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-error-message
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-error-p
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-error-root
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-hooks
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-name
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-p
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-root
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-shadowed
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-skills-dir
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugin-version
-                  "niwa-plugin-registry" (cl-x) t)
-(declare-function niwa-plugins-active-shadowed-source
-                  "niwa-plugin-registry" (plugin &optional workspace))
-(declare-function niwa-plugins-disable
-                  "niwa-plugin-registry" (plugin-name &optional workspace))
-(declare-function niwa-plugins-disable-hooks
-                  "niwa-plugin-registry" (plugin-name &optional workspace))
-(declare-function niwa-plugins-enable
-                  "niwa-plugin-registry" (plugin-name &optional workspace))
-(declare-function niwa-plugins-enable-hooks
-                  "niwa-plugin-registry" (plugin-name &optional workspace))
-(declare-function niwa-plugins-enabled-p
-                  "niwa-plugin-registry" (plugin &optional workspace))
-(declare-function niwa-plugins-find
-                  "niwa-plugin-registry" (name &optional workspace))
-(declare-function niwa-plugins-hook-consent-summary
-                  "niwa-plugin-registry" (plugin &optional workspace))
-(declare-function niwa-plugins-hook-rule-events
-                  "niwa-plugin-registry" (plugin))
-(declare-function niwa-plugins-hooks-enabled-p
-                  "niwa-plugin-registry" (plugin &optional workspace))
-(declare-function niwa-plugins-hooks-status
-                  "niwa-plugin-registry" (plugin &optional workspace))
-(declare-function niwa-plugins-item-name
-                  "niwa-plugin-registry" (item))
-(declare-function niwa-plugins-items
-                  "niwa-plugin-registry" (&optional workspace))
-(declare-function niwa-plugins-manifest-file
-                  "niwa-plugin-registry" (root))
-(declare-function niwa-plugins-pending-consent
-                  "niwa-plugin-registry" (&optional workspace))
-(declare-function niwa-plugins-update-available-p
-                  "niwa-plugin-registry" (plugin))
-(declare-function niwa-plugins-update-check-error
-                  "niwa-plugin-registry" (plugin))
-(declare-function niwa-plugins-plugin-data-dir
-                  "niwa-plugin-registry"
-                  (plugin-name &optional workspace))
-(declare-function niwa-plugins-skill-count
-                  "niwa-plugin-registry" (plugin))
-
-;; `niwa-plugins'
-(declare-function niwa-plugins-current-workspace "niwa-plugins" ())
-(declare-function niwa-plugins-refresh-session
-                  "niwa-plugins" (&optional context))
-
-;; `niwa-structs'
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 
 ;; `tabulated-list'
 (declare-function tabulated-list-get-id "tabulated-list" ())

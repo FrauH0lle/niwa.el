@@ -31,52 +31,6 @@
 ;; `niwa-agents'
 (defvar niwa--agent-invocation)
 
-;; `niwa-bash-analysis'
-(declare-function niwa-bash-analysis-analyze
-                  "niwa-bash-analysis" (source))
-
-;; `niwa-bash-policy'
-(declare-function niwa-bash-policy-allow-patterns
-                  "niwa-bash-policy" (command &optional permission-context))
-(declare-function niwa-bash-policy-buckets
-                  "niwa-bash-policy" (&optional permission-context))
-(declare-function niwa-bash-policy-check-permission
-                  "niwa-bash-policy" (command &rest keys))
-(declare-function niwa-bash-policy-command-names
-                  "niwa-bash-policy" (analysis))
-(declare-function niwa-bash-policy-commands-summary
-                  "niwa-bash-policy" (commands))
-(declare-function niwa-bash-policy-decision-specifier-value
-                  "niwa-bash-policy" (command))
-(declare-function niwa-bash-policy-effective-permission-mode
-                  "niwa-bash-policy" (&optional permission-context))
-(declare-function niwa-bash-policy-effective-sandbox-mode
-                  "niwa-bash-policy" (&optional permission-context))
-(declare-function niwa-bash-policy-explicit-deny-p
-                  "niwa-bash-policy"
-                  (buckets command &optional analysis))
-(declare-function niwa-bash-policy-resource-authority
-                  "niwa-bash-policy"
-                  (command permission-context request))
-(declare-function niwa-bash-policy-profile-segments
-                  "niwa-bash-policy" (command direct-buckets))
-(declare-function niwa-bash-policy-reusable-operation-p
-                  "niwa-bash-policy" (command))
-(declare-function niwa-bash-policy-rule-command
-                  "niwa-bash-policy" (command &optional permission-context))
-
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-create
-                  "niwa-execution-target" (workspace-root))
-(declare-function niwa-execution-target-expand-path
-                  "niwa-execution-target" (target path &optional directory))
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
-
-;; `niwa-permission-log'
-(declare-function niwa-permission-log
-                  "niwa-permission-log" (session event &rest props))
-
 ;; `niwa-permission-queue'
 (declare-function niwa-permission-request "niwa-permission-queue"
                   (entry &optional session))
@@ -85,68 +39,14 @@
 (autoload 'niwa-permission-request "niwa-permission-queue")
 (autoload 'niwa-permission-queue-entry "niwa-permission-queue")
 
-;; `niwa-permission-persistence'
-(declare-function niwa-permission-persistence-load-resource-grants
-                  "niwa-permission-persistence" (workspace))
-
-;; `niwa-permission-rules'
-(declare-function niwa-permission-rules-bucket-decision
-                  "niwa-permission-rules"
-                  (buckets tool-name path pattern domain name))
-(declare-function niwa-permission-rules-execution-level-decision
-                  "niwa-permission-rules"
-                  (buckets tool-name level pattern))
-(declare-function niwa-permission-rules-find
-                  "niwa-permission-rules"
-                  (rules tool-name &rest keys))
-(declare-function niwa-permission-rules-merge-resource-grant
-                  "niwa-permission-rules"
-                  (grants path access &optional recursive origin))
-(declare-function niwa-permission-rules-network-decision
-                  "niwa-permission-rules" (buckets tool-name pattern))
-(declare-function niwa-permission-rules-qualified-buckets
-                  "niwa-permission-rules" (buckets qualifier value))
-
-;; `niwa-permissions'
-(declare-function niwa-permission--apply-prompt-result
-                  "niwa-permissions"
-                  (result tool-name &optional session workspace path
-                          &rest keys))
-(declare-function niwa-permission--invocation-context
-                  "niwa-permissions" (&rest keys))
-(declare-function niwa-permission--normalize-outcome
-                  "niwa-permissions" (outcome))
-(declare-function niwa-permission-decision-raw-outcome
-                  "niwa-permissions" (decision))
-
 ;; `niwa-queue'
 (declare-function niwa-queue--current-session "niwa-queue" ())
 (autoload 'niwa-queue--current-session "niwa-queue")
 
 ;; `niwa-structs'
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-p "niwa-structs" (cl-x))
-(declare-function niwa-session-resource-grants "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--session)
 (defvar niwa--workspace)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-forwarded-audit-p
-                  "niwa-telemetry" (session))
-(declare-function niwa-telemetry-record-audit
-                  "niwa-telemetry" (session event &rest props))
-
-;; `niwa-turn'
-(declare-function niwa-current-origin "niwa-turn" ())
-
-;; `niwa-utilities'
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 
 
 ;;

@@ -60,21 +60,6 @@
 ;; `niwa-compact-run'
 (defvar niwa-compact-run-failure-count)
 
-;; `niwa-engine'
-(declare-function niwa-engine-external-p "niwa-engine" (backend))
-
-;; `niwa-execution'
-(declare-function niwa-execution-teardown-session
-                  "niwa-execution" (session))
-(declare-function niwa-execution-unsettled-mutation-p
-                  "niwa-execution" (session))
-
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-label
-                  "niwa-execution-target" (target &optional directory))
-(declare-function niwa-execution-target-native-root
-                  "niwa-execution-target" (cl-x) t)
-
 ;; `niwa-journal-capture'
 (declare-function niwa-journal-capture-seal-and-schedule "niwa-journal-capture"
                   (session buffer trigger &optional captures))
@@ -102,7 +87,6 @@
                   "niwa-plan-mode" (&optional session outcome))
 
 ;; `niwa-recovery'
-(declare-function niwa-recovery-dismiss "niwa-recovery" (session issue))
 (autoload 'niwa-recovery-dismiss "niwa-recovery")
 
 ;; `niwa-schedule'
@@ -149,23 +133,7 @@
 (autoload 'niwa-session-rewind-rewind "niwa-session-rewind")
 
 ;; `niwa-structs'
-(declare-function niwa-session-current-segment "niwa-structs" (cl-x) t)
 (declare-function niwa-session-collection-cancel "niwa-session-collection" (session))
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-session-execution-target
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-lease "niwa-structs" (cl-x) t)
-(declare-function niwa-session-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-publication
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-mode "niwa-structs" (cl-x) t)
-(declare-function niwa-session-preset-name "niwa-structs" (cl-x) t)
-(declare-function niwa-session-prompt-index "niwa-structs" (cl-x) t)
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-name "niwa-structs" (cl-x) t)
-(declare-function niwa-workspace-root "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
@@ -174,39 +142,11 @@
 (declare-function niwa-tool-display-string "niwa-tool-registry" (tool-name args &optional scope))
 
 ;; `niwa-tool-task'
-(declare-function niwa-tool-task-display-string
-                  "niwa-tool-task" (session show-completed))
-(declare-function niwa-tool-task-session-has-active-p
-                  "niwa-tool-task" (session))
-(declare-function niwa-toggle-tasks "niwa-tool-task" ())
 (defvar niwa-tool-task-status-keymap)
 
 ;; `niwa-tools'
 (declare-function niwa-tools-active-count "niwa-tools"
                   (&optional buffer))
-
-;; `niwa-transport'
-(declare-function niwa-transport-busy-p
-                  "niwa-transport" (&optional path))
-
-;; `niwa-turn'
-(declare-function niwa-request-state-label "niwa-turn"
-                  (&optional buffer))
-
-;; `niwa-view-agent'
-(declare-function niwa-view--on-agent-transcript-data-killed
-                  "niwa-view-agent" ())
-(declare-function niwa-view-agent-cleanup-parent
-                  "niwa-view-agent" (parent-view))
-(declare-function niwa-view-agent-handle-view-kill
-                  "niwa-view-agent" ())
-(declare-function niwa-view-agent-initialize
-                  "niwa-view-agent" (options data-buffer))
-(declare-function niwa-view-quit "niwa-view-agent" ())
-(declare-function niwa-view-close-agent-transcript
-                  "niwa-view-agent" ())
-(declare-function niwa-view-open-agent-transcript-at-point
-                  "niwa-view-agent" (&optional event))
 
 ;; `niwa-view-composer'
 (declare-function niwa-view--assert-live-tip
@@ -341,12 +281,6 @@
                   "niwa-view-viewport" ())
 (declare-function niwa-view-transcript-tail "niwa-view-viewport" ())
 (declare-function niwa-view-transcript-tail-marker "niwa-view-viewport" ())
-
-;; `niwa-view-zone'
-(declare-function niwa-view-zone-collapse-state
-                  "niwa-view-zone" (key &optional default))
-(declare-function niwa-view-zone-reconcile
-                  "niwa-view-zone" (zone start end fragments))
 
 ;; `org'
 (declare-function org-mode "ext:org" ())

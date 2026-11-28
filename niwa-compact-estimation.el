@@ -24,25 +24,11 @@
 (defvar gptel-reasoning-effort)
 
 ;; `niwa-models'
-(declare-function niwa-model-effective-context-window
-                  "niwa-models" (&optional model))
-(declare-function niwa-model-context-window
-                  "niwa-models" (&optional model))
-(declare-function niwa-model-resolve-workload
-                  "niwa-models"
-                  (workload &optional explicit-selector explicit-effort))
-(declare-function niwa-model-usable-input-tokens "niwa-models" (policy))
 (defvar niwa-model-context-limit)
 
 ;; `niwa-structs'
-(declare-function niwa-request-id "niwa-structs" (cl-x) t)
-(declare-function niwa-request-p "niwa-structs" (cl-x))
 (defvar niwa--current-request)
 (defvar niwa--session)
-
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
 
 (defcustom niwa-compact-estimation-token-threshold 0.80
   "Fraction of usable context that triggers auto-compaction."

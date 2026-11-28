@@ -15,10 +15,6 @@
 (require 'niwa-transcript-audit)
 (require 'niwa-utilities)
 
-;; `niwa-execution-telemetry'
-(declare-function niwa-execution-telemetry-sandbox-summary-class
-                  "niwa-execution-telemetry" (summary))
-
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-artifact-present-p
                   "niwa-session-artifacts" (session logical &optional committed-only))
@@ -68,34 +64,13 @@
   "niwa-session-persistence")
 
 ;; `niwa-structs'
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
 (defvar niwa--agent-invocation)
 (defvar niwa--session)
-
-;; `niwa-tool-render-data'
-(declare-function niwa-tool-render-data-for-tool
-                  "niwa-tool-render-data" (buffer tool-use-id))
-(declare-function niwa-tool-render-data-update
-                  "niwa-tool-render-data" (buffer tool-use-id updates))
-
-;; `niwa-transcript-audit'
-(declare-function niwa--format-hook-audit-record
-                  "niwa-transcript-audit" (record))
-(declare-function niwa-transcript-audit-records
-                  "niwa-transcript-audit" (text &optional type))
-(declare-function niwa-transcript-audit-spans
-                  "niwa-transcript-audit" (text &optional type))
 
 ;; `niwa-transcript-restore'
 (declare-function niwa-transcript-restore-properties
                   "niwa-transcript-restore" (&optional only-if-missing))
 (autoload 'niwa-transcript-restore-properties "niwa-transcript-restore")
-
-;; `niwa-utilities'
-(declare-function niwa--insert-at-active-response
-                  "niwa-utilities" (buffer text))
-(declare-function niwa--transcript-org-mode "niwa-utilities" ())
 
 ;; `org'
 (defvar org-agenda-file-menu-enabled)

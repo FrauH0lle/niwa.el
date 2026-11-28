@@ -51,29 +51,9 @@
 (autoload 'niwa-agent-control-wake-root-user "niwa-agent-control")
 
 ;; `niwa-cockpit'
-(declare-function niwa-cockpit-context-data-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-for-buffer
-                  "niwa-cockpit" (buffer))
-(declare-function niwa-cockpit-context-session
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-context-view-buffer
-                  "niwa-cockpit" (&optional context))
-(declare-function niwa-cockpit-current-context "niwa-cockpit" ())
-(declare-function niwa-cockpit-open-surface
-                  "niwa-cockpit" (surface &optional context))
-(declare-function niwa-cockpit-quit "niwa-cockpit" (&optional label))
-(declare-function niwa-cockpit-setup-tabulated-surface
-                  "niwa-cockpit" (surface))
 (defvar niwa-cockpit--context)
 (declare-function niwa--prompt-keys "niwa-interaction-prompt" (hints))
 (autoload 'niwa--prompt-keys "niwa-interaction-prompt")
-(declare-function niwa-cockpit-surface-context
-                  "niwa-cockpit" (&optional surface))
-(declare-function niwa-cockpit-surface-refresh
-                  "niwa-cockpit" (&optional selected-id))
-(declare-function niwa-cockpit-surface-selected
-                  "niwa-cockpit" (&optional no-error))
 
 ;; `niwa-collaboration'
 (defvar niwa-collaboration-guest-skills)
@@ -125,16 +105,6 @@
 (autoload 'niwa-permission-absence-clear "niwa-permission-queue")
 (autoload 'niwa-permission-absence-held-p "niwa-permission-queue")
 
-;; `niwa-prompt-submission'
-(declare-function niwa-prompt-submission-display-text
-                  "niwa-prompt-submission" (cl-x) t)
-(declare-function niwa-prompt-submission-outcome
-                  "niwa-prompt-submission" (cl-x) t)
-(declare-function niwa-prompt-submission-reserve
-                  "niwa-prompt-submission" (submission))
-(declare-function niwa-prompt-submission-restore
-                  "niwa-prompt-submission" (submission))
-
 ;; `niwa-session-artifacts'
 (declare-function niwa-session-artifacts-assert-new-mutation-authority
                   "niwa-session-artifacts" (session))
@@ -149,60 +119,12 @@
                   "niwa-skills-ui" (text))
 
 ;; `niwa-structs'
-(declare-function niwa-goal-id "niwa-structs" (cl-x) t)
-(declare-function niwa-goal-status "niwa-structs" (cl-x) t)
-(declare-function niwa-request-fsm "niwa-structs" (cl-x) t)
-(declare-function niwa-request-id "niwa-structs" (cl-x) t)
-(declare-function niwa-session--set-active-dropped-file-grants
-                  "niwa-structs" (session paths))
-(declare-function niwa-session--set-dropped-file-grants
-                  "niwa-structs" (session paths))
-(declare-function niwa-session-active-dropped-file-grants
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-add-dropped-file-grant
-                  "niwa-structs" (session path))
-(declare-function niwa-session-dropped-file-grants
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-enqueue-pending-input
-                  "niwa-structs" (session category entry))
-(declare-function niwa-session-goal "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-follow-ups
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-input-delivery-paused-p
-                  "niwa-structs" (session))
-(declare-function niwa-session-pending-input-failure-paused
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-input-paused
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-inputs
-                  "niwa-structs" (session category))
-(declare-function niwa-session-pending-plan-approval
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-pending-steering
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-plan-metadata
-                  "niwa-structs" (cl-x) t)
-(declare-function niwa-session-root-buffer "niwa-structs" (cl-x) t)
-(declare-function niwa-session-set-pending-input-failure-paused
-                  "niwa-structs" (session paused))
-(declare-function niwa-session-set-pending-input-paused
-                  "niwa-structs" (session paused))
-(declare-function niwa-session-set-pending-inputs
-                  "niwa-structs" (session category entries))
-(declare-function niwa-session-turn-count "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
 (defvar niwa--current-request)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 (defvar niwa--view-buffer)
 
-;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-
 ;; `niwa-transport'
-(declare-function niwa-transport-run-when-idle
-                  "niwa-transport" (key path thunk))
 (autoload 'niwa-transport-run-when-idle "niwa-transport")
 
 ;; `niwa-turn'
@@ -210,10 +132,6 @@
 (autoload 'niwa-turn-busy-p "niwa-turn")
 
 ;; `niwa-utilities'
-(declare-function niwa--normalize-message-text
-                  "niwa-utilities" (text))
-(declare-function niwa--warn-once
-                  "niwa-utilities" (scope key format &rest args))
 (autoload 'niwa--normalize-message-text "niwa-utilities")
 
 ;; `niwa-view'

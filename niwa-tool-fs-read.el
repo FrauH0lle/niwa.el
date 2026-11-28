@@ -31,33 +31,13 @@
 ;; `niwa-agent-conversation'
 (defvar niwa--agent-invocation)
 
-;; `niwa-agents'
-(declare-function niwa-agent-invocation-path "niwa-agents" (cl-x) t)
-
-;; `niwa-execution-target'
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
-
-;; `niwa-file-state'
-(declare-function niwa-session-read-is-duplicate-p
-                  "niwa-file-state" (session path offset limit))
-(declare-function niwa-session-record-file-access
-                  "niwa-file-state" (session path kind &optional offset limit))
-
 ;; `niwa-history-search'
 (declare-function niwa-history-search-start
                   "niwa-history-search" (callback args descriptor))
 (autoload 'niwa-history-search-start "niwa-history-search")
 
 ;; `niwa-pipeline'
-(declare-function niwa-pipeline-tool-results-dir
-                  "niwa-pipeline"
-                  (session buffer &optional request existing-only-p))
 (defvar niwa-pipeline--active-call-source)
-
-;; `niwa-resource'
-(declare-function niwa-resource-execute-async
-                  "niwa-resource" (attempt callback executor &optional options))
 
 ;; `niwa-request'
 (defvar niwa--current-request)
@@ -77,51 +57,11 @@
 (autoload 'niwa-tool-editing-view "niwa-tool-editing")
 
 ;; `niwa-structs'
-(declare-function niwa-session-execution-target "niwa-structs" (cl-x) t)
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace "niwa-structs" (cl-x) t)
-(declare-function niwa-session-workspace-instruction-hashes
-                  "niwa-structs" (cl-x) t)
 (defvar niwa--data-buffer)
 (defvar niwa--session)
 
 ;; `niwa-system'
-(declare-function niwa-system-workspace-config-files
-                  "niwa-system" (workspace &optional working-directory))
 (autoload 'niwa-system-workspace-config-files "niwa-system")
-
-;; `niwa-tool-fs'
-(declare-function niwa-tool-fs-display-path "niwa-tool-fs" (path))
-(declare-function niwa-tool-fs-executable-find "niwa-tool-fs" (name path))
-(declare-function niwa-tool-fs-handler-result "niwa-tool-fs" (result))
-(declare-function niwa-tool-fs-model-path "niwa-tool-fs" (path))
-(declare-function niwa-tool-fs-resource-attempt "niwa-tool-fs" (address))
-(declare-function niwa-tool-fs-resource-child-address
-                  "niwa-tool-fs"
-                  (address root path &optional address-prefix))
-(declare-function niwa-tool-fs-resource-rg-exclusions
-                  "niwa-tool-fs" (address))
-(declare-function niwa-tool-fs-strip-system-reminders
-                  "niwa-tool-fs" (result))
-(declare-function niwa-tool-fs-visible-path
-                  "niwa-tool-fs" (path &optional resource-address))
-
-;; `niwa-execution'
-(declare-function niwa-execution-run-helper
-                  "niwa-execution"
-                  (name command read-paths writable-roots &rest keys))
-
-;; `niwa-pipeline'
-(declare-function niwa-pipeline-handler-resumable "niwa-pipeline" (function))
-
-;; `niwa-turn'
-(declare-function niwa-current-origin "niwa-turn" ())
-
-;; `niwa-utilities'
-(declare-function niwa-start-helper-capturing-output
-                  "niwa-utilities"
-                  (callback name command read-paths &optional writable-roots session settlement))
 
 (defvar niwa-tool-fs-read--resource-address nil
   "Authored resource address for the current Read operation.")

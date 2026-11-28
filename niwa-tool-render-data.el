@@ -29,33 +29,7 @@
   "niwa-execution-transcript")
 
 ;; `niwa-structs'
-(declare-function niwa-session-save-path "niwa-structs" (cl-x) t)
 (defvar niwa--session)
-
-;; `niwa-tool-media'
-(declare-function niwa-tool-media-add-to-provider-result
-                  "niwa-tool-media" (backend parsed media-by-index))
-(declare-function niwa-tool-media-extract
-                  "niwa-tool-media"
-                  (result-string &optional tool-results-dir expected-tool-use-id
-                                 allow-payload-tool-use-id session))
-(declare-function niwa-tool-media-prepare-tool-result
-                  "niwa-tool-media"
-                  (backend tool-call tool-results-dir &optional session))
-(declare-function niwa-tool-media-strip-blocks
-                  "niwa-tool-media" (string))
-
-;; `niwa-transcript-audit'
-(declare-function niwa--format-hook-audit-record
-                  "niwa-transcript-audit" (record))
-(declare-function niwa--strip-hook-audit-blocks
-                  "niwa-transcript-audit" (string))
-(declare-function niwa-transcript-audit-spans
-                  "niwa-transcript-audit" (text &optional type))
-
-;; `niwa-utilities'
-(declare-function niwa--normalize-message-text
-                  "niwa-utilities" (text))
 
 ;; `subr'
 (defvar read-eval)

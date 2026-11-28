@@ -23,9 +23,6 @@
 (require 'niwa-transport)
 (require 'niwa-utilities)
 
-;; `niwa-utilities'
-(declare-function niwa-version "niwa-utilities" (&optional here message))
-
 ;; `niwa-agents'
 (declare-function niwa-agent-invocation-hook-rules
                   "niwa-agents" (cl-x) t)
@@ -34,14 +31,6 @@
                   "niwa-agents" (cl-x) t)
 
 ;; `niwa-execution-target'
-(declare-function niwa-execution-target-identity
-                  "niwa-execution-target" (cl-x) t)
-(declare-function niwa-execution-target-native-path
-                  "niwa-execution-target" (target path))
-(declare-function niwa-execution-target-remote-p
-                  "niwa-execution-target" (target))
-(declare-function niwa-execution-target-same-path-domain-p
-                  "niwa-execution-target" (left right))
 (autoload 'niwa-execution-target-identity "niwa-execution-target")
 (autoload 'niwa-execution-target-native-path "niwa-execution-target")
 (autoload 'niwa-execution-target-remote-p "niwa-execution-target")
@@ -92,16 +81,7 @@
 (declare-function niwa-skills--normalize-hooks
                   "niwa-skills-core" (hooks &optional scope))
 
-;; `niwa-structs'
-(declare-function niwa-session-working-directory "niwa-structs" (cl-x) t)
-
 ;; `niwa-telemetry'
-(declare-function niwa-telemetry-record
-                  "niwa-telemetry" (session event &rest props))
-(declare-function niwa-telemetry-record-audit
-                  "niwa-telemetry" (session event &rest props))
-(declare-function niwa-telemetry-start
-                  "niwa-telemetry" (session event &rest props))
 (autoload 'niwa-telemetry-forwarded-audit-p "niwa-telemetry")
 (autoload 'niwa-telemetry-record-audit "niwa-telemetry")
 

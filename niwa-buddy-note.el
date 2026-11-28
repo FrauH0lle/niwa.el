@@ -25,10 +25,6 @@
 (declare-function niwa-buddy-guide-payload "niwa-buddy" (beg end))
 (declare-function niwa-buddy-payload-lines "niwa-buddy" (payload))
 
-;; `niwa-notes'
-(declare-function niwa-note-close "niwa-notes" (note reason))
-(declare-function niwa-notes-closed "niwa-notes" (&optional workspace loaded-only))
-
 ;;
 ;;; Customization
 
