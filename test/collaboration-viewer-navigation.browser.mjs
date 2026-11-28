@@ -1500,6 +1500,19 @@ test('a small upward touchpad scroll releases following inside the bottom thresh
 const scrubbed = (target, search) => target.waitForURL(`http://localhost:8765/${search}`,
   {timeout: 10000, waitUntil: 'commit'}).catch(() => {});
 
+// A popup's sandboxed child frame can leave Playwright's locator waits stuck
+// under load although the frame's document is complete and evaluates fine, so
+// find the iframe and wait for the heading in the pages' own worlds, requiring
+// the heading to exist with a nonempty box.
+const insideArtifact = async target => {
+  const iframe = await target.waitForFunction(() => document.querySelector('#artifact-body iframe'));
+  const frame = await iframe.asElement().contentFrame();
+  await frame.waitForFunction(() => {
+    const box = document.getElementById('inside')?.getBoundingClientRect();
+    return Boolean(box && box.width > 0 && box.height > 0);
+  });
+};
+
 // Under load Chromium can open the tab while Playwright never reports it (the
 // target is attached, yet no `page` event comes). Retry only when the click
 // itself succeeded, the event timed out, and exactly one page target created
@@ -1670,7 +1683,7 @@ test('native new-tab artifact and version links restore the requested content wi
         await page.getByRole('menuitem', {name: 'Project artifacts'}).click();
         const row = page.locator('#store-list [data-store-id="page"]');
         const ready = async target => {
-          await target.frameLocator('#artifact-body iframe').locator('#inside').waitFor();
+          await insideArtifact(target);
           // A fresh tab knows only the store ID. The host's canonical name
           // must hydrate downloads, including saved versions and reloads.
           const downloaded = target.waitForEvent('download');
@@ -1718,7 +1731,7 @@ test('native new-tab transcript artifact and agent links retain their destinatio
         await draft(page);
         await newTab(page, card('tool:page'), gesture, {
           room: sessionRoom, length, route: {record: 'tool:page'},
-          ready: target => target.frameLocator('#artifact-body iframe').locator('#inside').waitFor(),
+          ready: insideArtifact,
         });
         // Membership in a store does not make a secondary file its primary
         // page. The record identity is necessary to fetch the right bytes.
