@@ -2858,9 +2858,11 @@ SPLICE rewrites any other row at point from the data buffer."
       (funcall splice)
       (niwa-view-render--invalidate-live-tail)
       ;; The splice drew the row from the transcript alone, without the
-      ;; running calls only the live render draws.
+      ;; running calls only the live render draws.  Queue that redraw behind
+      ;; the toggle: run here, it would delete the reader's row before the
+      ;; toggle restores point, collapsing point to the turn start.
       (when (and live niwa-view--pending-tool-calls)
-        (niwa-view--render-live-region niwa--data-buffer nil)))))
+        (niwa-view-render-live-update niwa--data-buffer)))))
 
 (defun niwa-view-render-settle (data-buf start end)
   "Exactly reconcile DATA-BUF's completed response from START through END.
