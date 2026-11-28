@@ -2445,7 +2445,7 @@ them are set, so the committing save keeps them."
                'niwa-session-rewind--prepare-buffers-for-restore)
               (lambda (_candidate _turn actual-plan &rest _) actual-plan))
              ((symbol-function 'niwa-session-rewind-execute-restore)
-              (lambda (_candidate _plan) receipt))
+              (lambda (_candidate _plan &rest _) receipt))
              ((symbol-function
                'niwa-session-rewind-rewind-publication-artifacts)
               (lambda (&rest _) nil))

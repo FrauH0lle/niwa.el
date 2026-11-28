@@ -22,6 +22,11 @@
 (require 'niwa-pin)
 (require 'niwa-notes)
 (require 'niwa-session-publication)
+(require 'niwa-claude-code-fork)
+(require 'niwa-chat)
+(require 'niwa-execution)
+;; Defines the changed-on-disk question a test stubs; it has no feature.
+(load "userlock" nil t)
 
 (defun niwa-test-rewind-reverts--call (turns current check &optional patch)
   "Record TURNS, install CURRENT bytes, and call CHECK in a real session.
@@ -754,6 +759,267 @@ With PATCH, run that ApplyPatch hunk through the real pipeline for capture."
              (should (equal "ONE\ntwo\n" (niwa-test--read-file path))))
          (with-current-buffer visiting (set-buffer-modified-p nil))
          (kill-buffer visiting)))))
+  :doc "a draft typed while native history is prepared stops Rewind, keeping draft and head"
+  (dolist (edit '(draft none))
+    (niwa-test-rewind-reverts--call
+     '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+     (lambda (buffer target path)
+       (let* ((session (buffer-local-value 'niwa--session buffer))
+              (directory (file-name-directory path))
+              (source (find-file-noselect path))
+              (head (plist-get (niwa-session-publication session) :head))
+              fork completion)
+         (setf (niwa-session-external-conversations session)
+               (list (cons "root" (list :engine 'claude-code :id "old" :host (system-name)
+                                        :directory directory :state 'ready
+                                        :boundaries (list (list :turn 1 :id "old" :host (system-name)
+                                                                :directory directory
+                                                                :message-id "answer-1"))))))
+         (unwind-protect
+             (progn
+               (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                         ((symbol-function 'niwa-claude-code-fork-histories)
+                          (lambda (_histories callback &rest _) (setq fork callback) :pending))
+                         ((symbol-function 'niwa--run-session-start-hooks) #'ignore))
+                 ;; Confirm, then type, then finish the native fork.
+                 (should (eq :pending (niwa-session-rewind-rewind
+                                       buffer target nil nil nil
+                                       (lambda (result error) (setq completion (list result error))))))
+                 (should fork)
+                 (when (eq edit 'draft)
+                   (with-current-buffer source
+                     (goto-char (point-max))
+                     (insert "draft\n")))
+                 (funcall fork nil nil #'ignore))
+               (if (eq edit 'none)
+                   (progn
+                     (should (car completion))
+                     (should (equal "one\ntwo\n" (niwa-test--read-file path))))
+                 (should-not (car completion))
+                 (should (string-match-p "unsaved edits" (cadr completion)))
+                 (should (string-match-p (regexp-quote path) (cadr completion)))
+                 (should (equal head (plist-get (niwa-session-publication session) :head)))
+                 (should (equal "ONE\ntwo\n" (niwa-test--read-file path)))
+                 (with-current-buffer source
+                   (should (buffer-modified-p))
+                   (should (equal "ONE\ntwo\ndraft\n" (buffer-string))))
+                 (with-current-buffer buffer
+                   (should (string-match-p "Reply 1" (buffer-string))))))
+           (with-current-buffer source (set-buffer-modified-p nil))
+           (kill-buffer source))))))
+  :doc "a draft typed while Redo prepares native history stops Redo, keeping draft and head"
+  (dolist (edit '(draft none))
+    (niwa-test-rewind-reverts--call
+     '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+     (lambda (buffer target path)
+       (let* ((session (buffer-local-value 'niwa--session buffer))
+              (directory (file-name-directory path))
+              fork completion source head redo)
+         (setf (niwa-session-external-conversations session)
+               (list (cons "root" (list :engine 'claude-code :id "old" :host (system-name)
+                                        :directory directory :state 'ready
+                                        :boundaries (list (list :turn 1 :id "old" :host (system-name)
+                                                                :directory directory
+                                                                :message-id "answer-1"))))))
+         ;; Publish turn 1 with its native history, then rewind its file change.
+         (niwa-session-artifacts-save session buffer t)
+         (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                   ((symbol-function 'niwa-claude-code-fork-histories)
+                    (lambda (_histories callback &rest _) (funcall callback nil nil #'ignore)))
+                   ((symbol-function 'niwa--run-session-start-hooks) #'ignore))
+           (niwa-session-rewind-rewind buffer target))
+         (should (equal "one\ntwo\n" (niwa-test--read-file path)))
+         (setq redo (plist-get (cl-find 1 (niwa-session-rewind-published-heads session)
+                                        :key (lambda (entry) (plist-get entry :turn-count)))
+                               :head)
+               head (plist-get (niwa-session-publication session) :head)
+               source (find-file-noselect path))
+         (should redo)
+         (unwind-protect
+             (progn
+               (cl-letf (((symbol-function 'niwa-claude-code-fork-histories)
+                          (lambda (_histories callback &rest _) (setq fork callback) :pending))
+                         ((symbol-function 'niwa--run-session-start-hooks) #'ignore))
+                 ;; Confirm, then type, then finish the native fork.
+                 (should (eq :pending (niwa-session-rewind-restore-head
+                                       session buffer redo (lambda (_impact) t) nil
+                                       (lambda (result error) (setq completion (list result error))))))
+                 (should fork)
+                 (when (eq edit 'draft)
+                   (with-current-buffer source
+                     (goto-char (point-max))
+                     (insert "draft\n")))
+                 (funcall fork nil nil #'ignore))
+               (if (eq edit 'none)
+                   (progn
+                     (should (car completion))
+                     (should (equal "ONE\ntwo\n" (niwa-test--read-file path))))
+                 (should-not (car completion))
+                 (should (string-match-p "Redo stopped" (cadr completion)))
+                 (should (equal head (plist-get (niwa-session-publication session) :head)))
+                 (should (equal "one\ntwo\n" (niwa-test--read-file path)))
+                 (with-current-buffer source
+                   (should (buffer-modified-p))
+                   (should (equal "one\ntwo\ndraft\n" (buffer-string))))))
+           (with-current-buffer source (set-buffer-modified-p nil))
+           (kill-buffer source))))))
+  :doc "a draft typed after the early check stops Rewind under the lease or at the write"
+  (dolist (point '(staging write))
+    (niwa-test-rewind-reverts--call
+     '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+     (lambda (buffer target path)
+       (let* ((session (buffer-local-value 'niwa--session buffer))
+              (other (file-name-concat (file-name-directory path) "other.txt"))
+              (source (find-file-noselect path))
+              (head (plist-get (niwa-session-publication session) :head))
+              (write (symbol-function 'niwa-pin-write-file-atomically))
+              (stop (symbol-function 'niwa-execution-stop-services))
+              (typed nil) stopped
+              (draft (lambda ()
+                       (unless typed
+                         (setq typed t)
+                         (with-current-buffer source
+                           (goto-char (point-max))
+                           (insert "draft\n"))))))
+         (unwind-protect
+             (let ((failure
+                    (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                              ((symbol-function 'niwa-pin-write-file-atomically)
+                               (lambda (file &rest args)
+                                 (when (and (eq point 'write) (equal file other)) (funcall draft))
+                                 (apply write file args)))
+                              ((symbol-function 'niwa-execution-stop-services)
+                               (lambda (&rest args) (setq stopped t) (apply stop args))))
+                      (let ((org-mode-hook
+                             (if (eq point 'staging)
+                                 (cons (lambda ()
+                                         (when (string-match-p "staging" (buffer-name)) (funcall draft)))
+                                       org-mode-hook)
+                               org-mode-hook)))
+                        (should-error (niwa-session-rewind-rewind buffer target))))))
+               (should typed)
+               ;; A draft typed before the lease stops Rewind before services stop.
+               (should (eq (eq point 'write) stopped))
+               (should (string-match-p "Rewind stopped" (error-message-string failure)))
+               (should (equal "ONE\ntwo\n" (niwa-test--read-file path)))
+               (should (equal "clean-1\n" (niwa-test--read-file other)))
+               (should (equal head (plist-get (niwa-session-publication session) :head)))
+               (with-current-buffer source
+                 (should (buffer-modified-p))
+                 (should (equal "ONE\ntwo\ndraft\n" (buffer-string)))))
+           (with-current-buffer source (set-buffer-modified-p nil))
+           (kill-buffer source))))))
+  :doc "a draft typed into one buffer during another file's write stops Rewind, even one equal to the plan's text"
+  ;; The second draft is exactly what Rewind would write to other.txt.
+  (dolist (text '("clean-1\ndraft\n" "clean-0\n"))
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+   (lambda (buffer target path)
+     (let* ((other (file-name-concat (file-name-directory path) "other.txt"))
+            (visiting (find-file-noselect other))
+            (write (symbol-function 'niwa-pin-write-file-atomically))
+            (head (plist-get (niwa-session-publication (buffer-local-value 'niwa--session buffer)) :head))
+            typed)
+       (unwind-protect
+           (let ((failure
+                  (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                            ((symbol-function 'niwa-pin-write-file-atomically)
+                             (lambda (file &rest args)
+                               ;; other.txt is already written; type into it during source.txt's write.
+                               (when (and (equal file path) (not typed))
+                                 (setq typed t)
+                                 ;; The user answers Emacs's changed-on-disk question and types.
+                                 (cl-letf (((symbol-function 'ask-user-about-supersession-threat) #'ignore))
+                                   (with-current-buffer visiting
+                                     (erase-buffer)
+                                     (insert text))))
+                               (apply write file args))))
+                    (should-error (niwa-session-rewind-rewind buffer target)))))
+             (should typed)
+             (should (string-match-p "Rewind stopped" (error-message-string failure)))
+             (should (equal "clean-1\n" (niwa-test--read-file other)))
+             (should (equal "ONE\ntwo\n" (niwa-test--read-file path)))
+             (should (equal head (plist-get (niwa-session-publication (buffer-local-value 'niwa--session buffer)) :head)))
+             (with-current-buffer visiting
+               (should (buffer-modified-p))
+               (should (equal text (buffer-string)))))
+         (with-current-buffer visiting (set-buffer-modified-p nil))
+         (kill-buffer visiting))))))
+  :doc "a draft typed during an immediate Redo stops it before files or history change"
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+   (lambda (buffer target path)
+     (let ((session (buffer-local-value 'niwa--session buffer))
+           (backup (symbol-function 'niwa-session-rewind--backup-restore-files))
+           (stop (symbol-function 'niwa-execution-stop-services))
+           source head redo typed stopped)
+       (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                 ((symbol-function 'niwa--run-session-start-hooks) #'ignore))
+         (niwa-session-rewind-rewind buffer target))
+       (should (equal "one\ntwo\n" (niwa-test--read-file path)))
+       (setq redo (plist-get (cl-find 1 (niwa-session-rewind-published-heads session)
+                                      :key (lambda (entry) (plist-get entry :turn-count)))
+                             :head)
+             head (plist-get (niwa-session-publication session) :head)
+             source (find-file-noselect path))
+       (should redo)
+       (unwind-protect
+           (let ((failure
+                  (cl-letf (((symbol-function 'niwa-session-rewind--backup-restore-files)
+                             (lambda (&rest args)
+                               ;; After confirmation, under the lease.
+                               (setq typed t)
+                               (with-current-buffer source
+                                 (goto-char (point-max))
+                                 (insert "draft\n"))
+                               (apply backup args)))
+                            ((symbol-function 'niwa-execution-stop-services)
+                             (lambda (&rest args) (setq stopped t) (apply stop args))))
+                    (should-error (niwa-session-rewind-restore-head
+                                   session buffer redo (lambda (_impact) t))))))
+             (should typed)
+             (should-not stopped)
+             (should (string-match-p "Redo stopped" (error-message-string failure)))
+             (should (equal "one\ntwo\n" (niwa-test--read-file path)))
+             (should (equal head (plist-get (niwa-session-publication session) :head)))
+             (with-current-buffer source
+               (should (buffer-modified-p))
+               (should (equal "one\ntwo\ndraft\n" (buffer-string)))))
+         (with-current-buffer source (set-buffer-modified-p nil))
+         (kill-buffer source)))))
+  :doc "publication failure after a deletion restores the file and its note's source"
+  (niwa-test-rewind-reverts--call
+   '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"
+   (lambda (buffer target path)
+     (let* ((session (buffer-local-value 'niwa--session buffer))
+            (workspace (buffer-local-value 'niwa--workspace buffer))
+            (source (find-file-noselect path))
+            deleted uuid)
+       ;; The file did not exist before turn 1, so Rewind deletes it.
+       (plist-put (cdr (assoc path (cdr (assq 1 (niwa-session-file-snapshots session)))))
+                  :pre-backup-name nil)
+       (unwind-protect
+           (progn
+             (with-current-buffer source
+               (setq-local niwa--workspace workspace)
+               (goto-char (point-min))
+               (setq uuid (overlay-get (niwa-note-create "keep my source") 'niwa-uuid)))
+             (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                       ((symbol-function 'niwa-session-publication-publish)
+                        (lambda (&rest _)
+                          (setq deleted (and (not (file-exists-p path))
+                                             (buffer-local-value 'niwa--buffer-source-missing source)))
+                          (error "Injected publication failure"))))
+               (should-error (niwa-session-rewind-rewind buffer target)))
+             (should deleted)
+             (should (equal "ONE\ntwo\n" (niwa-test--read-file path)))
+             (should-not (buffer-local-value 'niwa--buffer-source-missing source))
+             (let ((note (cl-find uuid (niwa-notes-open workspace) :test #'equal
+                                  :key (lambda (entry) (plist-get entry :uuid)))))
+               (should note)
+               (should-not (plist-get note :source-missing))))
+         (with-current-buffer source (set-buffer-modified-p nil))
+         (kill-buffer source)))))
   :doc "Rewind keeps point and note on an unchanged line"
   (niwa-test-rewind-reverts--call
    '(("one\ntwo\n" "ONE\ntwo\n")) "ONE\ntwo\n"

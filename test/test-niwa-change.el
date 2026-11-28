@@ -512,6 +512,35 @@
         (delete-file outside)
         (delete-directory root t))))
 
+  :doc "A replacement that changed text and then failed is reported, not kept as a draft"
+  (let* ((root (make-temp-file "change-partial-sync-" t))
+         (paths (mapcar (lambda (leaf) (file-name-concat root leaf)) '("a" "b")))
+         (replace (symbol-function 'niwa-instruction-replace-buffer-contents))
+         buffers)
+    (unwind-protect
+        (progn
+          (dolist (path paths) (write-region "old\n" nil path nil 'silent))
+          (setq buffers (mapcar #'find-file-noselect paths))
+          (cl-letf (((symbol-function 'niwa-instruction-replace-buffer-contents)
+                     (lambda (&rest args)
+                       (if (eq (current-buffer) (cadr buffers))
+                           (progn (goto-char (point-max)) (insert "half")
+                                  (error "Injected failure inside replacement"))
+                         (apply replace args)))))
+            (let ((failure (should-error
+                            (niwa-change-commit
+                             (mapcar (lambda (path) (list :path path :action 'write :content "new\n"))
+                                     paths))
+                            :type 'niwa-change-partial-rollback)))
+              (should (member (cadr paths) (nth 2 failure)))))
+          (dolist (path paths) (should (equal "old\n" (niwa-test--read-file path))))
+          (should (equal "old\n" (with-current-buffer (car buffers) (buffer-string)))))
+      (dolist (buffer buffers)
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer (set-buffer-modified-p nil))
+          (kill-buffer buffer)))
+      (delete-directory root t)))
+
   :doc "A buffer or change group that cannot be restored is named; the rest recovers"
   (dolist (step '(restore cancel))
     (let* ((root (make-temp-file "change-buffer-restore-" t))

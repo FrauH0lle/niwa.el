@@ -38,6 +38,7 @@
 ;; `niwa-note-source'
 (declare-function niwa--mark-buffer-source-missing
                   "niwa-note-source" (buffer))
+(defvar niwa--buffer-source-missing)
 
 (define-error 'niwa-change-partial-rollback
   "File change rollback incomplete")
@@ -290,6 +291,8 @@ Preserve `find-buffer-visiting' file identity and alias matching."
                 :maximum maximum
                 :point position
                 :modified (buffer-modified-p)
+                :chars-tick (buffer-chars-modified-tick)
+                :source-missing niwa--buffer-source-missing
                 :modtime (visited-file-modtime)
                 :file-current (verify-visited-file-modtime buffer)
                 :content (buffer-substring (point-min) (point-max))
@@ -342,6 +345,7 @@ Preserve `find-buffer-visiting' file identity and alias matching."
                             (plist-get snapshot :maximum))
           (goto-char (plist-get snapshot :point))
           (set-visited-file-modtime (plist-get snapshot :modtime))
+          (setq niwa--buffer-source-missing (plist-get snapshot :source-missing))
           (set-buffer-modified-p (plist-get snapshot :modified)))))))
 
 (defun niwa-change-rollback (receipt &optional cause)
@@ -391,11 +395,17 @@ attempting every other path."
                       (save-restriction
                         (widen)
                         (buffer-substring-no-properties (point-min) (point-max))))))
+          ;; A buffer the transaction never synchronized changed only by the
+          ;; user's hand, whatever its text now equals.
           (when (or (assoc path failures)
-                    (not (or (equal text (plist-get snapshot :content))
-                             (equal text (plist-get snapshot :expected-content)))))
+                    (if (plist-get snapshot :synced)
+                        (not (or (equal text (plist-get snapshot :content))
+                                 (equal text (plist-get snapshot :expected-content))))
+                      (/= (plist-get snapshot :chars-tick)
+                          (buffer-chars-modified-tick buffer))))
             (plist-put snapshot :preserve t)
-            (unless (assoc path failures)
+            ;; That user edit is kept without making the recovery incomplete.
+            (unless (or (assoc path failures) (not (plist-get snapshot :synced)))
               (push (cons path '(error "Buffer changed during the transaction")) failures))))))
     ;; A committed transaction has accepted its groups; only a failing commit
     ;; still holds them.
@@ -424,7 +434,7 @@ attempting every other path."
       (signal 'niwa-change-partial-rollback
               (list cause (delete-dups (mapcar #'car (nreverse failures))))))))
 
-(cl-defun niwa-change-commit (changes &key currentp mutate batch keep-links)
+(cl-defun niwa-change-commit (changes &key currentp mutate batch keep-links before-write)
   "Commit CHANGES as one filesystem and visited-buffer transaction.
 Each change has :path and :action `write' or `delete'.  A write supplies
 literal :bytes or :content text, and optionally :mode; otherwise it keeps
@@ -440,6 +450,8 @@ lists of before/after snapshots in one target program instead of
 individual forward mutations.  Buffer synchronization stays here.
 KEEP-LINKS makes the default pinned writer refuse to replace or remove a
 symlink at a written or deleted path, including during rollback.
+BEFORE-WRITE, when non-nil, is called with each path just before its
+write or delete and may signal to abort the transaction.
 
 Return a receipt for `niwa-change-rollback'.  On failure, roll back as it
 does and re-signal; an incomplete rollback signals
@@ -494,6 +506,7 @@ does and re-signal; an incomplete rollback signals
            (niwa-change--assert-current currentp)
            (unless (niwa-change-same-p snapshot (niwa-change-snapshot (plist-get change :path)))
              (error "File changed before its transaction write: %s" (plist-get change :path)))
+           (when before-write (funcall before-write (plist-get change :path)))
            (let* ((path (plist-get change :path))
                   (write (eq (plist-get change :action) 'write))
                   (after (list :path path :exists write
@@ -518,6 +531,10 @@ does and re-signal; an incomplete rollback signals
             (funcall batch snapshots expected))
           (dolist (snapshot buffer-snapshots)
             (niwa-change--assert-current currentp)
+            ;; Files are all written before buffers sync; a draft typed meanwhile
+            ;; refuses here, before its buffer is replaced or marked.
+            (when before-write (funcall before-write (plist-get snapshot :path)))
+            (plist-put snapshot :synced t)
             (with-current-buffer (plist-get snapshot :buffer)
               (if-let* ((text (plist-get snapshot :expected-content)))
                   (save-restriction

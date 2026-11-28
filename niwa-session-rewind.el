@@ -523,14 +523,20 @@ carries the plan-entry plist."
      (list :title "Restore results" :identity session
            :sections (list (list :id 'result :title title :body body))))))
 
-(defun niwa-session-rewind-execute-restore (session plan)
-  "Apply PLAN for SESSION as one checked change and return its receipt."
+(defun niwa-session-rewind-execute-restore (session plan &optional ticks operation)
+  "Apply PLAN for SESSION as one checked change and return its receipt.
+TICKS, from `niwa-session-rewind--visiting-ticks' at confirmation, are
+rechecked just before each path is written; OPERATION names the refusal."
   (let ((receipt
          (condition-case err
              (niwa-change-commit
               (delq nil (mapcar (lambda (entry)
                                   (niwa-session-rewind--restore-change session entry))
                                 plan))
+              :before-write
+              (lambda (path)
+                (niwa-session-rewind--assert-visiting-ticks
+                 (delq nil (list (assoc path ticks))) operation))
               ;; The preflight checks before the transaction; this keeps a
               ;; link planted later from being replaced at the write.
               :keep-links t)
@@ -1501,10 +1507,11 @@ drops it without pruning anything."
       :warning))))
 
 (defun niwa-session-rewind--commit-rewind
-    (session buffer target plan &optional boundary replan prepared)
+    (session buffer target plan &optional boundary replan prepared ticks)
   "Commit SESSION, BUFFER, TARGET, and file PLAN through one head CAS.
 BOUNDARY selects the turn side; REPLAN rechecks the confirmed plan.
-PREPARED supplies a candidate with independently forked native histories."
+PREPARED supplies a candidate with independently forked native histories.
+TICKS are the visiting buffers confirmed with PLAN, rechecked before writes."
   (let* ((workspace (niwa-session-workspace session))
          (save-path (niwa-session-save-path session))
          (publication
@@ -1568,8 +1575,9 @@ PREPARED supplies a candidate with independently forked native histories."
                      (error
                       "Captured files changed after Rewind confirmation")))
                  ;; Discard definitions before changing their source history.
+                 (niwa-session-rewind--assert-visiting-ticks ticks)
                  (niwa-execution-stop-services session)
-                 (setq receipt (niwa-session-rewind-execute-restore session plan))))
+                 (setq receipt (niwa-session-rewind-execute-restore session plan ticks))))
               (setq publish-attempted t)
               (condition-case publish-error
                   (niwa-session-publication-publish
@@ -1719,6 +1727,25 @@ Return the plan, its recheck function and force choice, or `:abort'."
       (if (eq plan :abort) :abort
         (list :plan plan :replan replan :force force)))))
 
+(defun niwa-session-rewind--visiting-ticks (plan)
+  "Return the buffer visiting each PLAN path and its modification tick."
+  (mapcar (lambda (entry)
+            (let* ((path (plist-get entry :path))
+                   (buffer (find-buffer-visiting path)))
+              (list path buffer (and buffer (buffer-chars-modified-tick buffer)))))
+          plan))
+
+(defun niwa-session-rewind--assert-visiting-ticks (ticks &optional operation)
+  "Refuse when a buffer visiting a TICKS path gained unsaved edits since then.
+A newly visiting buffer with unsaved edits refuses too.  OPERATION names
+the refused operation and defaults to Rewind."
+  (pcase-dolist (`(,path ,buffer ,tick) ticks)
+    (when-let* ((current (find-buffer-visiting path))
+                ((buffer-modified-p current))
+                ((not (and (eq current buffer) (= tick (buffer-chars-modified-tick current))))))
+      (user-error "%s stopped: %s has unsaved edits made after you confirmed.  Nothing changed and your edits are kept; save or discard them, then try again"
+                  (or operation "Rewind") path))))
+
 (defun niwa-session-rewind--choose-scope (operation detail)
   "Choose OPERATION's scope before reading working files, naming DETAIL."
   (pcase (car (read-multiple-choice
@@ -1836,11 +1863,15 @@ preparation returns `:pending'; local history still completes synchronously."
                   (when (buffer-live-p impact-buffer) (kill-buffer impact-buffer))))
               (when confirmed
                 (niwa-session-artifacts-assert-mutation-authority session buffer)
-                (let ((finish
+                (let* ((ticks (niwa-session-rewind--visiting-ticks prepared))
+                       (finish
                        (lambda (candidate)
+                         ;; Native preparation can wait; a draft typed meanwhile
+                         ;; must stop Rewind before files or history change.
+                         (niwa-session-rewind--assert-visiting-ticks ticks)
                          (niwa-session-rewind--commit-rewind
                           session buffer target prepared boundary
-                          (plist-get selection :replan) candidate)
+                          (plist-get selection :replan) candidate ticks)
                          (when-let* ((impact-buffer (get-buffer "*niwa-rewind-impact*")))
                            (quit-windows-on impact-buffer t)
                            (when (buffer-live-p impact-buffer) (kill-buffer impact-buffer)))
@@ -1977,7 +2008,8 @@ is forked asynchronously before restoration and returns `:pending'."
     result))
 
 (defun niwa-session-rewind--restore-head
-    (session buffer head &optional confirm-function conversation-only prepared complete confirmed-plan)
+    (session buffer head &optional confirm-function conversation-only prepared complete
+             confirmed-plan confirmed-ticks)
   "Restore SESSION and BUFFER to published HEAD through one head CAS.
 
 HEAD is an immutable published generation, as returned by
@@ -1998,7 +2030,8 @@ and the file plan the caller confirmed.  CONVERSATION-ONLY skips all working
 file reads and restores, including modified-buffer prompts.
 PREPARED supplies independently forked native histories; COMPLETE receives
 the asynchronous result and error string, if any.  CONFIRMED-PLAN supplies
-the file plan already confirmed before native preparation."
+the file plan already confirmed before native preparation, and
+CONFIRMED-TICKS its visiting buffers' ticks at that confirmation."
   (unless (niwa-session-codec-portable-authority-p session)
     (user-error "A workspace session is required to restore published heads"))
   (niwa-session-rewind-assert-stable-source session buffer "restoring")
@@ -2014,7 +2047,7 @@ the file plan already confirmed before native preparation."
          (source (copy-sequence session))
          (staging-buffer (generate-new-buffer " *niwa-restore-staging*"))
          (workspace (niwa-session-workspace session))
-         candidate plan receipt committed
+         candidate plan ticks receipt committed
          rollback-failures)
     (setf (niwa-session-publication source) publication)
     (unwind-protect
@@ -2067,14 +2100,18 @@ the file plan already confirmed before native preparation."
                       (funcall confirm-function
                                (niwa-session-rewind--restore-impact
                                 candidate plan)))
+              (setq ticks (if prepared confirmed-ticks
+                            (niwa-session-rewind--visiting-ticks plan)))
               (when (and (not prepared)
                          (niwa-session-external-conversations candidate))
                 (throw 'niwa-native-preparation
                        (niwa-session-rewind--prepare-native
                         session buffer candidate
                         (lambda (ready)
+                          ;; A draft typed while history was prepared stops Redo.
+                          (niwa-session-rewind--assert-visiting-ticks ticks "Redo")
                           (niwa-session-rewind--restore-head
-                           session buffer head nil conversation-only ready nil plan))
+                           session buffer head nil conversation-only ready nil plan ticks))
                         complete)))
               (make-directory file-backup-dir t)
               ;; Recheck, file backup, and file restore are one
@@ -2098,11 +2135,13 @@ the file plan already confirmed before native preparation."
                             candidate))))
                    (error "Captured files changed after restore confirmation"))
                  (niwa-session-rewind--backup-restore-files plan file-backup-dir)
+                 (niwa-session-rewind--assert-visiting-ticks ticks "Redo")
                  ;; Redo replaces history just as Rewind does.
                  (niwa-execution-stop-services session)
                  (when plan
                    (condition-case err
-                       (setq receipt (niwa-session-rewind-execute-restore candidate plan))
+                       (setq receipt (niwa-session-rewind-execute-restore
+                                      candidate plan ticks "Redo"))
                      (niwa-change-partial-rollback
                       (setq rollback-failures (nth 2 err))
                       (signal (car err) (cdr err)))))))
