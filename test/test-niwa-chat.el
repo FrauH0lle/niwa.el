@@ -1267,6 +1267,48 @@
           (should settled))
       (delete-directory root t))))
 
+(niwa-deftest niwa--end-sessions-on-exit/request-teardown ()
+  (let* ((root (make-temp-file "niwa-exit-command-" t))
+         (user-emacs-directory (file-name-as-directory root))
+         (workspace (niwa-workspace--create :type 'project :id root :root root))
+         (session (niwa-session-create "main" workspace root))
+         (request (niwa-request--create :session session))
+         (ready (file-name-concat root "ready"))
+         (release (file-name-concat root "release"))
+         (niwa-hook-rules
+          '((SessionEnd ((:matcher "exit" :hooks
+                          ((:type command :command
+                            "touch ready; while [ ! -f release ]; do sleep 0.02; done"
+                            :timeout 2)))))))
+         (niwa-session-end-hook nil)
+         timer)
+    (unwind-protect
+        (with-temp-buffer
+          (let ((buffer (current-buffer)))
+            (setq-local niwa--session session niwa--workspace workspace
+                        niwa--current-request request)
+            (add-hook 'kill-buffer-hook #'niwa--run-session-end-hooks nil t)
+            (setq timer (run-at-time
+                         0 0.02 (lambda ()
+                                  (when (file-exists-p ready)
+                                    (cancel-timer timer)
+                                    (when ,end-request
+                                      (with-current-buffer buffer (niwa-request-end)))
+                                    (with-temp-file release)))))
+            (cl-letf (((symbol-function 'buffer-list) (lambda (&rest _) (list buffer))))
+              (let ((result (with-timeout (4 'watchdog)
+                              (niwa--end-sessions-on-exit) 'settled)))
+                (should (file-exists-p release))
+                (should (eq ,end-request (niwa-request-cancelled-p request)))
+                (should (equal '(settled ok)
+                               (cons result (mapcar (lambda (entry) (plist-get entry :status))
+                                                    (niwa-session-hook-log session)))))))))
+      (when timer (cancel-timer timer))
+      (delete-directory root t)))
+  (end-request)
+  :doc "exit settles after request teardown during the command" t
+  :doc "exit settles with the same command and an uninterrupted request" nil)
+
 (niwa-deftest niwa--end-sessions-on-exit
   ()
   ,test

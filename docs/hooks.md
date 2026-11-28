@@ -195,7 +195,7 @@ event's telemetry span without running the remaining handlers or the
 caller's continuation, because the request that owned them is being torn
 down. Cancellation also stops command startup before preparation or launch;
 resources returned after cancellation during yielding startup are released.
-`Stop` and `StopFailure` handlers remain independent of request cancellation
+`Stop`, `StopFailure`, and `SessionEnd` handlers remain independent of request cancellation
 and retain their own timeout. Command completion waits for idle transport before
 advancing the handler chain when its sentinel interrupts remote I/O. The first terminal result is
 retained, the child is released immediately, and request cancellation remains
@@ -348,8 +348,8 @@ Command exit code handling:
 - exit 0 with empty stdout: success, no decision.
 - exit 0 with JSON stdout: parse as decision.
 - exit 2: deny/block/continue according to event, using stderr as reason.
-- other non-zero: hook failure.  Log it and fail open unless the event is
-  explicitly configured as fail-closed.
+- other non-zero exit or termination by signal: hook failure. Log it and fail
+  open unless the handler is explicitly configured as fail-closed.
 
 Handlers may set `:fail-closed t`.  For those handlers, timeout,
 unparseable required output, or non-zero failure blocks the triggering

@@ -2351,6 +2351,8 @@ record only that context was added, without duplicating the body."
                            (accept-process-output stderr-process 0 nil t))))
              (let ((code (process-exit-status proc)))
                (cond
+                ((eq (process-status proc) 'signal)
+                 (finish 'error (format "Hook terminated by signal %d" code)))
                 ((= code 0) (finish 'ok nil))
                 ((= code 2) (finish 'block nil))
                 (t (finish 'error
@@ -2475,7 +2477,7 @@ stable public event payload."
                  session
                  (niwa-hooks--log-entry
                   event event-plist handler 'ok :decision decision))
-                decision))
+                normalized))
           (let ((reason (format "Unknown hook function: %S" fn)))
             (niwa-hooks--log
              session
@@ -2742,7 +2744,7 @@ run only, innermost."
            event handlers payload session
            ;; Terminal hooks retain the request's rule layer above, but
            ;; outlive its teardown and are bounded by their own timeout.
-           (unless (memq event '(Stop StopFailure)) request)
+           (unless (memq event '(Stop StopFailure SessionEnd)) request)
            nil #'finish
            dispatch-buffer))))))
 

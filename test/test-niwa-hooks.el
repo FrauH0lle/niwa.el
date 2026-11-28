@@ -3375,6 +3375,36 @@ Return the words the hook scripts logged to ROOT's log file."
 			 (should-not decision))
 		     (delete-directory root t))))
 
+(defun niwa-hooks-test--return-cancelled (_event)
+  "Return a public hook value that looks like a teardown notification."
+  'cancelled)
+
+(niwa-deftest niwa-hooks-run-event/public-cancelled-result
+  (:doc "a native or configured return cannot cancel the dispatcher's continuation")
+  (let* ((root (make-temp-file "niwa-hooks-public-cancel" t))
+         (session (niwa-hooks-test--session root))
+         outcomes)
+    (unwind-protect
+        (progn
+          (dolist (source '(native configured))
+            (let* ((niwa-user-prompt-submit-functions
+                    (when (eq source 'native) '(niwa-hooks-test--return-cancelled)))
+                   (niwa-hook-rules
+                    `((UserPromptSubmit
+                       ((:hooks (,@(when (eq source 'configured)
+                                     '((:type elisp :function niwa-hooks-test--return-cancelled)))
+                                 (:type elisp :function niwa-hooks-test--declarative-capture-fn)))))))
+                   niwa-hooks-test--execution-order)
+              (niwa-hooks-run-event 'UserPromptSubmit '(:prompt "hello")
+                                    (lambda (decision)
+                                      (push (list 'callback decision) outcomes))
+                                    session)
+              (push (list source niwa-hooks-test--execution-order) outcomes)))
+          (should (equal (nreverse outcomes)
+                         '((callback nil) (native (declarative))
+                           (callback nil) (configured (declarative))))))
+      (delete-directory root t))))
+
 (niwa-deftest niwa-hooks-run-event/malformed-symbol-decision
   (:doc "does not expose malformed non-keyword symbol decisions to callers")
   (let* ((root (make-temp-file "niwa-hooks-malformed-symbol" t))
@@ -3566,6 +3596,39 @@ Return the words the hook scripts logged to ROOT's log file."
 			 (should (equal decision
 					'(:continue nil :stop-reason "blocked"))))
 		     (delete-directory root t))))
+
+(niwa-deftest niwa-hooks-run-event/sigint-is-not-exit-two
+  (:quiet t :doc "normal exit 2 blocks, but SIGINT follows the failure policy")
+  (let* ((root (make-temp-file "niwa-hooks-signal" t))
+         (session (niwa-hooks-test--session root))
+         outcomes)
+    (unwind-protect
+        (progn
+          (dolist (case '(("exit 2") ("kill -INT $$") ("kill -INT $$" :fail-closed t)))
+            (let* ((niwa-hook-rules
+                    `((PreToolUse
+                       ((:hooks ((:type command :command
+                                  ,(concat "cat >/dev/null; " (car case)) ,@(cdr case))))))))
+                   ;; Signal the process Emacs monitors, not a pipeline child
+                   ;; whose parent translates SIGINT to normal exit 130.
+                   (decision (cl-letf (((symbol-function 'niwa-hooks--command-process-command)
+                                        (lambda (command _remote) (list "sh" "-c" command))))
+                               (niwa-hooks-test--await
+                                (lambda (cb)
+                                  (niwa-hooks-run-event
+                                   'PreToolUse '(:tool-name "Bash") cb session)))))
+                   (entry (car (last (niwa-session-hook-log session)))))
+              (push (list decision entry) outcomes)))
+          (pcase-let ((`((,blocked ,_) (,open ,open-log) (,closed ,closed-log))
+                       (nreverse outcomes)))
+            (should (eq 'deny (plist-get blocked :permission-decision)))
+            (should-not open)
+            (dolist (entry (list open-log closed-log))
+              (should (eq 'error (plist-get entry :status))))
+            (should (plist-member closed :continue))
+            (should-not (plist-get closed :continue))
+            (should (string-match-p "signal\\|interrupt" (plist-get closed :stop-reason)))))
+      (delete-directory root t))))
 
 (niwa-deftest niwa-hooks-run-event/local-stderr-settlement
   (:quiet t :doc "drains local stderr before settling a fast hook")
