@@ -762,10 +762,11 @@ regular file FILE physically resolves to inside ROOT, otherwise a symbol:
 `ambiguous' for a `..' after a symlink, `outside' for a file outside
 ROOT, and `unavailable' for an unreadable, missing, or non-regular file.
 A symlinked word that resolves to no regular file stays checked as
-`unavailable', so retargeting it fails closed.  With RECORD, a script
-named through a different spelling is also listed under that spelling,
-so an approved reference whose link later vanishes is still recognized
-as `unavailable'; checks without RECORD compare physical files only."
+`unavailable', so retargeting it fails closed.  With RECORD, each script
+is also listed under its path relative to ROOT, the same under every
+spelling of ROOT.  That key only recognizes an approved reference that
+later went missing, which is then `unavailable'; a present script is
+checked by its physical file and digest alone."
   ;; shortcut: words only, no shell parsing; `$VAR/x', `cd x && ./y' and
   ;; files a script sources are not references.  Upgrade if hooks need them.
   (let* ((root (file-name-as-directory (expand-file-name root)))
@@ -796,9 +797,10 @@ as `unavailable'; checks without RECORD compare physical files only."
                        (inside (string-prefix-p physical-root file))
                        (digest (and regular inside (niwa-hooks--file-sha256 file))))
                   (when (or regular (assoc lexical trusted) (assoc file trusted)
+                            (assoc (file-relative-name lexical root) trusted)
                             (file-symlink-p lexical))
-                    (when (and record digest (not (equal file lexical)))
-                      (push (cons lexical digest) scripts))
+                    (when (and record digest)
+                      (push (cons (file-relative-name lexical root) digest) scripts))
                     (push (cons (if digest file lexical)
                                 (cond
                                  ((not inside) 'outside)

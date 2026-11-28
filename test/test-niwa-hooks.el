@@ -2262,12 +2262,14 @@ Return the words the hook scripts logged to ROOT's log file."
             ;; The unchanged script runs through either spelling.
             (should (equal '("a1") (runs root)))
             (should (equal '("a1") (runs alias)))
-            ;; The approved link itself is gone: the handler is refused.
+            ;; The approved link itself is gone: the handler is refused,
+            ;; also through a root spelling other than the approving one.
             (delete-file (file-name-concat hooks "a.sh"))
-            (let (diagnostics)
-              (niwa-test--with-captured-diagnostics diagnostics
-                (should-not (runs root)))
-              (should (string-match-p "a\\.sh is not consented" diagnostics))))
+            (dolist (dir (list alias root))
+              (let (diagnostics)
+                (niwa-test--with-captured-diagnostics diagnostics
+                  (should-not (runs dir)))
+                (should (string-match-p "a\\.sh is not consented" diagnostics)))))
         (niwa-hooks-invalidate-config)
         (delete-directory top t)))))
 
