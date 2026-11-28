@@ -525,7 +525,7 @@ Pending Inputs) and `d` drops the selected entry.
 Source instruction overlays gain normal-only `RET` for their action menu;
 insert-state Return still inserts a newline. Existing control bindings remain.
 
-All nine cockpit tables use normal-state `q` to quit, `gr` to refresh,
+All cockpit tables use normal-state `q` to quit, `gr` to refresh,
 `?` for help, and `RET` for details (Pending Inputs edits instead).
 Their existing action letters remain available, including `d`/`u`/`x` deletion
 marks in Pending Inputs. The following conflicts move explicitly rather than

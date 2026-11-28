@@ -1034,6 +1034,15 @@ with `(interpreted-function-p (symbol-function 'niwa-transcript-segments))`.
 - **Ordinary progress and success messages**: lowercase `"niwa: ..."`
   remains fine. The diagnostic change does not require attributing every
   informational message or third-party diagnostic.
+- **Evil support**: every user-facing mode, keymap and overlay action must
+  work after `niwa-evil-setup` without shadowing Evil navigation. Read-only
+  buffers start in normal state with their action keys bound there; editable
+  buffers keep typing in insert state and their control keys in both states.
+  Move conflicting single-letter actions as the README's Evil table does
+  (`g` -> `gr`, `h`/`j`/`k`/`l` -> uppercase). Tabulated cockpits set up through
+  `niwa-cockpit-setup-tabulated-surface` get this automatically; register any
+  other new mode or user-facing map in `niwa-evil.el` and cover it in
+  `test/test-niwa-evil.el`.
 
 ## Loading and initialization
 

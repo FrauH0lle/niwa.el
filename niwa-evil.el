@@ -24,6 +24,9 @@
 (defvar evil-normal-state-map)
 (defvar evil-state)
 
+;; `niwa-cockpit'
+(defvar niwa-cockpit--surface)
+
 ;; `niwa-note-source'
 (declare-function niwa-instruction-replacement-end "niwa-note-source" (&optional buffer))
 (declare-function niwa-instruction-replacement-hold "niwa-note-source" (&optional buffer))
@@ -33,14 +36,6 @@
 
 ;; `niwa-view-composer'
 (declare-function niwa-view-composer-draft-start "niwa-view-composer" (&optional view))
-
-(defconst niwa-evil--cockpit-modes
-  '(niwa-artifacts-list-mode niwa-background-list-mode
-    niwa-memory-list-mode niwa-pending-inputs-mode
-    niwa-permissions-list-mode niwa-plugins-list-mode
-    niwa-skills-list-mode niwa-tools-list-mode
-    niwa-worktree-list-mode)
-  "Tabulated cockpits whose generated local maps need Evil bindings.")
 
 (defconst niwa-evil--map-features
   '((niwa-report niwa-report-mode-map)
@@ -150,8 +145,12 @@ conflicting native actions, preserving vanilla behavior in other states."
   map)
 
 (defun niwa-evil--cockpit (&rest _)
-  "Adapt the current cockpit's generated map after surface setup."
-  (when (memq major-mode niwa-evil--cockpit-modes)
+  "Adapt the current cockpit's generated map after surface setup.
+Every tabulated cockpit goes through surface setup, so new cockpits need
+no registration here.  Setup runs in the mode body, before Evil chooses
+the buffer's state, so the initial state applies to this buffer too."
+  (when (bound-and-true-p niwa-cockpit--surface)
+    (evil-set-initial-state major-mode 'normal)
     (niwa-evil--adapt-map (current-local-map))))
 
 (defun niwa-evil--key-help (text)
@@ -247,10 +246,9 @@ is harmless.  No evil-collection dependency is needed."
     (require 'niwa-overlays)
     (setq niwa-evil--installed t)
     (evil-set-initial-state 'niwa-surface-mode 'insert)
-    (dolist (mode (append niwa-evil--cockpit-modes
-                          '(niwa-view-mode niwa-composer-mode
-                            niwa-report-mode niwa-notes-list-mode
-                            niwa-worktree-setup-mode)))
+    (dolist (mode '(niwa-view-mode niwa-composer-mode
+                    niwa-report-mode niwa-notes-list-mode
+                    niwa-worktree-setup-mode))
       (evil-set-initial-state mode 'normal))
     (dolist (entry niwa-evil--map-features)
       (eval-after-load (car entry)
