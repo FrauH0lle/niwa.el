@@ -12,6 +12,7 @@
 (require 'niwa-view)
 (require 'niwa-view-agent)
 (require 'niwa-view-composer)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
 (require 'niwa-tool-ui)

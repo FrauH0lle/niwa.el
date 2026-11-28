@@ -146,6 +146,9 @@
 (declare-function niwa-view--zone-separator "niwa-view" (label))
 (declare-function niwa-view-activate-at-point "niwa-view" (&optional event))
 (declare-function niwa-view-rerender "niwa-view" (&optional buffer))
+(declare-function niwa-view-next-display "niwa-view" ())
+(declare-function niwa-view-previous-display "niwa-view" ())
+(declare-function niwa-view-toggle-transcript "niwa-view" ())
 (defvar niwa-view-mode-map)
 
 ;; `niwa-view-composer'
@@ -165,28 +168,23 @@
                   "niwa-view-disclosure" (source vtype))
 (declare-function niwa-view-toggle-section "niwa-view-disclosure" ())
 
-;; `niwa-view-render'
-(declare-function niwa-view--retire-tool-renderings
-                  "niwa-view-render" (data-buf start end))
+;; `niwa-view-redraw'
+(declare-function niwa-view--full-rerender "niwa-view-redraw" ())
 (declare-function niwa-view-render--full-now
-                  "niwa-view-render" (&optional transcript-buffer source-changed-p))
+                  "niwa-view-redraw" (&optional transcript-buffer source-changed-p))
+(declare-function niwa-view-render-batched-full "niwa-view-redraw" ())
+
+;; `niwa-view-render'
 (declare-function niwa-view-render-mutate
                   "niwa-view-render" (key function &optional replacement cleanup))
 (declare-function niwa-view-render-terminal "niwa-view-render" ())
 (defvar niwa-view-render--terminal-p)
 (declare-function niwa-view--debug-log "niwa-view-render" (event &rest data))
-(declare-function niwa-view--full-rerender "niwa-view-render" ())
-(declare-function niwa-view-render-batched-full "niwa-view-render" ())
-(declare-function niwa-view--insert-rendered-tool "niwa-view-render" (rendering source))
-(declare-function niwa-view--segment-rendering "niwa-view-render" (data-buf seg-start seg-end &optional collapsed-only))
 (declare-function niwa-view--tool-block-bounds
                   "niwa-view-render" (seg-start seg-end))
-(declare-function niwa-view-next-display "niwa-view-render" ())
-(declare-function niwa-view-previous-display "niwa-view-render" ())
 (declare-function niwa-view-render-add-display-properties
                   "niwa-view-render"
                   (start end &optional default-vtype))
-(declare-function niwa-view-toggle-transcript "niwa-view-render" ())
 
 ;; `niwa-view-segments'
 (declare-function niwa-view-historical-segment-p "niwa-view-segments" ())
@@ -206,6 +204,12 @@
 (declare-function niwa-view-stream-stop "niwa-view-stream" ())
 (defvar niwa-view--data-turn-start)
 (defvar niwa-view--in-flight-turn-start)
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--insert-rendered-tool "niwa-view-tool-render" (rendering source))
+(declare-function niwa-view--retire-tool-renderings
+                  "niwa-view-tool-render" (data-buf start end))
+(declare-function niwa-view--segment-rendering "niwa-view-tool-render" (data-buf seg-start seg-end &optional collapsed-only))
 
 ;; `niwa-view-viewport'
 (declare-function niwa-view-call-preserving-user-view-state

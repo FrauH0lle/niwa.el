@@ -123,7 +123,7 @@ Chat / view
   niwa-transcript-audit.el hidden audit record encoding and structural parsing
   niwa-transcript-restore.el  transcript property restoration via the canonical grammar
   niwa-context-summary.el  stateless validated continuation/handoff/digest summary generation
-  niwa-view.el             view mode, zones, and session coordination
+  niwa-view.el             view mode, zones, session coordination, navigation and at-point variant/fork/rewind commands
   niwa-view-agent.el       agent transcript inspection, status rows, refresh
   niwa-view-execution.el   background-work panel: agent and execution rows, inline inspection, actions
   niwa-view-composer.el    dock fitting, submission, root dispatch, fork/send flow
@@ -143,10 +143,12 @@ Chat / view
   niwa-plan-mode.el        Plan conversations and proposal approval UI
   niwa-view-interaction.el interaction registration, ordering, callback overlays, redraw
   niwa-view-control-transfer.el cooperative transfer polling, presentation, and commands
-  niwa-view-disclosure.el  source-backed transcript disclosure state and actions
+  niwa-view-disclosure.el  source-backed disclosure state, content and actions, turn collapse/expand
   niwa-view-prepare.el     deferred large-tool parsing, source validation, job lifecycle
   niwa-activity-group.el   activity-group rule shared by the view and browser
-  niwa-view-render.el      transcript projection, source mapping, live navigation
+  niwa-view-render.el      transcript projection, source mapping, live updates, segment state
+  niwa-view-redraw.el      full re-render planning, batched installation, latest-turn refresh
+  niwa-view-tool-render.el tool renderer interpreter for niwa-tool-render-data: rows, child calls, cache
   niwa-view-segments.el    historical session segment projection and navigation
   niwa-view-stream.el      request progress, view animation timer, streaming redraws
   niwa-gptel-stream-bridge.el private gptel stream compatibility advice

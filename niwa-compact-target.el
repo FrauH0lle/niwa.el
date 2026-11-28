@@ -172,10 +172,6 @@
 (declare-function niwa--same-file-p "niwa-utilities" (a b))
 (autoload 'niwa--same-file-p "niwa-utilities")
 
-;; `niwa-view-render'
-(declare-function niwa-view--full-rerender "niwa-view-render"
-                  (&optional transcript-buffer source-changed-p))
-
 ;; `niwa-view-agent'
 (declare-function niwa-view-agent-live-transcript-start
                   "niwa-view-agent" (invocation))
@@ -186,6 +182,10 @@
                   "niwa-view-disclosure" ())
 (declare-function niwa-view-disclosure-rebase-compaction-tool-states
                   "niwa-view-disclosure" (states data-buffer))
+
+;; `niwa-view-redraw'
+(declare-function niwa-view--full-rerender "niwa-view-redraw"
+                  (&optional transcript-buffer source-changed-p))
 
 ;; `niwa-view-stream'
 (declare-function niwa-view-stream-end-progress

@@ -149,8 +149,6 @@
                   "niwa-view-render" (&optional data-buf start end))
 (declare-function niwa-view--history-insertion-marker
                   "niwa-view-render" ())
-(declare-function niwa-view--refresh-tool-row
-                  "niwa-view-render" (data-buffer tool-use-id))
 (declare-function niwa-view--render-live-region
                   "niwa-view-render" (data-buf settle-p &optional start end))
 (declare-function niwa-view--retire-pending-decorations
@@ -166,6 +164,10 @@
 
 ;; `niwa-transcript-audit'
 (defvar niwa--hook-audit-open)
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--refresh-tool-row
+                  "niwa-view-tool-render" (data-buffer tool-use-id))
 
 ;; `niwa-view-viewport'
 (declare-function niwa-view-call-preserving-user-view-state

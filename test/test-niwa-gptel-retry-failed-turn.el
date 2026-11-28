@@ -14,6 +14,7 @@
                            "niwa-session-test-support"))
 (require 'niwa-turn)
 (require 'niwa-chat)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-gptel-retry)
 (require 'niwa-session-rewind)

@@ -11,8 +11,10 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
 (require 'niwa-view)
+(require 'niwa-view-disclosure)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
+(require 'niwa-view-tool-render)
 
 (niwa-deftest niwa-view-render--mouse-gesture ()
   ,test

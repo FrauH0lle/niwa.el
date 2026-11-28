@@ -99,28 +99,18 @@
                   "niwa-view-render" (data-buf seg-start seg-end))
 (declare-function niwa-view--clean-reasoning-text
                   "niwa-view-render" (text))
-(declare-function niwa-view--generic-tool-rendering
-                  "niwa-view-render" (name args result &optional collapsed-only render-data))
-(declare-function niwa-view--invoke-renderer
-                  "niwa-view-render" (tool render-data args result))
 (declare-function niwa-view--mail-attribute
                   "niwa-view-render" (open-tag attribute))
-(declare-function niwa-view--rendering-status
-                  "niwa-view-render" (rendering &optional render-data))
 (declare-function niwa-view--request-summary-details
                   "niwa-view-render" (render-data))
 (declare-function niwa-view--request-summary-line
                   "niwa-view-render" (render-data))
 (declare-function niwa-view--request-summary-render-data-from-text
                   "niwa-view-render" (text))
-(declare-function niwa-view--sandbox-summary-line
-                  "niwa-view-render" (summary))
 (declare-function niwa-view--scaffolding-only-p
                   "niwa-view-render" (data-buf seg-start seg-end))
 (declare-function niwa-view--tool-block-bounds
                   "niwa-view-render" (seg-start seg-end))
-(declare-function niwa-view--tool-call-parse
-                  "niwa-view-render" (data-buf start end &optional raw))
 (declare-function niwa-view--tool-group-entry-p
                   "niwa-view-render" (entry))
 (declare-function niwa-view--user-turn-text
@@ -132,6 +122,18 @@
 ;; `niwa-view-audit'
 (declare-function niwa-view-audit-displayed-p "niwa-view-audit" (record))
 (autoload 'niwa-view-audit-displayed-p "niwa-view-audit")
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--generic-tool-rendering
+                  "niwa-view-tool-render" (name args result &optional collapsed-only render-data))
+(declare-function niwa-view--invoke-renderer
+                  "niwa-view-tool-render" (tool render-data args result))
+(declare-function niwa-view--rendering-status
+                  "niwa-view-tool-render" (rendering &optional render-data))
+(declare-function niwa-view--sandbox-summary-line
+                  "niwa-view-tool-render" (summary))
+(declare-function niwa-view--tool-call-parse
+                  "niwa-view-tool-render" (data-buf start end &optional raw))
 
 (require 'niwa-activity-group)
 (require 'niwa-collaboration-artifact-projection)

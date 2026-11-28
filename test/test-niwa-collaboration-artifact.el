@@ -27,6 +27,7 @@
 (require 'niwa-transcript)
 (require 'niwa-view-agent)
 (require 'niwa-view-render)
+(require 'niwa-view-tool-render)
 (require 'niwa-workspace)
 
 (require 'niwa-artifact-store)

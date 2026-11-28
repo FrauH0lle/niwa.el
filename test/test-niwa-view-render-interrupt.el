@@ -11,8 +11,10 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
 (require 'niwa-view)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-prepare)
+(require 'niwa-view-tool-render)
 
 (defvar niwa-interrupt-test--ids nil
   "Generated turn identities assigned canonical ordinals during one snapshot.")

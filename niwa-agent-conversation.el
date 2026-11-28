@@ -174,10 +174,6 @@
 ;; `niwa-view'
 (declare-function niwa-view-rerender "niwa-view" (&optional buffer))
 
-;; `niwa-view-render'
-(declare-function niwa-view--refresh-tool-row "niwa-view-render"
-                  (data-buffer tool-use-id))
-
 ;; `niwa-view-agent'
 (declare-function niwa-view-agent-live-transcript-post-tool
                   "niwa-view-agent" (args))
@@ -191,6 +187,10 @@
 (autoload 'niwa-view-agent-live-transcript-pre-tool "niwa-view-agent")
 (autoload 'niwa-view-agent-live-transcript-stream "niwa-view-agent")
 (autoload 'niwa-view-refresh-agent-rendering "niwa-view-agent")
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--refresh-tool-row "niwa-view-tool-render"
+                  (data-buffer tool-use-id))
 
 ;; `org-element'
 (declare-function org-element-cache-reset "ext:org-element"

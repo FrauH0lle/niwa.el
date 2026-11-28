@@ -272,6 +272,15 @@
 (autoload 'niwa-request-state-label "niwa-turn")
 (autoload 'niwa-turn-busy-p "niwa-turn")
 
+;; `niwa-view'
+(declare-function niwa-view-next-display "niwa-view" ())
+(declare-function niwa-view-next-user-query "niwa-view" ())
+(declare-function niwa-view-previous-display "niwa-view" ())
+(declare-function niwa-view-previous-user-query "niwa-view" ())
+(declare-function niwa-view-rewind-at-point "niwa-view" ())
+(declare-function niwa-view-switch-conversation-variant-at-point
+                  "niwa-view" ())
+
 ;; `niwa-view-agent'
 (declare-function niwa-view-agent-active-rows "niwa-view-agent" (session))
 (autoload 'niwa-view-agent-active-rows "niwa-view-agent")
@@ -308,15 +317,6 @@
   "niwa-view-control-transfer" nil t)
 (defvar niwa-session--read-only-mode)
 (defvar niwa-session-follow-published)
-
-;; `niwa-view-render'
-(declare-function niwa-view-next-display "niwa-view-render" ())
-(declare-function niwa-view-next-user-query "niwa-view-render" ())
-(declare-function niwa-view-previous-display "niwa-view-render" ())
-(declare-function niwa-view-previous-user-query "niwa-view-render" ())
-(declare-function niwa-view-rewind-at-point "niwa-view-render" ())
-(declare-function niwa-view-switch-conversation-variant-at-point
-                  "niwa-view-render" ())
 
 ;; `niwa-view-segments'
 (declare-function niwa-view-go-to-chat "niwa-view-segments"

@@ -17,14 +17,13 @@
 ;; `niwa-view'
 (declare-function niwa-view--unattended-p "niwa-view" (&optional buffer))
 
+;; `niwa-view-redraw'
+(declare-function niwa-view-render--refresh-source "niwa-view-redraw" (data start end))
+(declare-function niwa-view-render-batched-full "niwa-view-redraw" ())
+
 ;; `niwa-view-render'
 (declare-function niwa-view--debug-log "niwa-view-render" (event &rest fields))
-(declare-function niwa-view--prepare-tool-segment "niwa-view-render" (data start end))
 (declare-function niwa-view--render-live-region "niwa-view-render" (data settle &optional start end))
-(declare-function niwa-view--segment-rendering "niwa-view-render" (data start end &optional collapsed))
-(declare-function niwa-view--tool-cache-key "niwa-view-render" (data start end collapsed))
-(declare-function niwa-view-render-batched-full "niwa-view-render" ())
-(declare-function niwa-view-render--refresh-source "niwa-view-render" (data start end))
 (declare-function niwa-view-render-mutate "niwa-view-render" (key function &optional replacement cleanup))
 (defvar niwa-view--data-turn-start)
 (defvar niwa-view-render--parse-checkpoint)
@@ -34,6 +33,11 @@
 
 ;; `niwa-view-stream'
 (declare-function niwa-view-stream-in-flight-turn-start-position "niwa-view-stream" ())
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--prepare-tool-segment "niwa-view-tool-render" (data start end))
+(declare-function niwa-view--segment-rendering "niwa-view-tool-render" (data start end &optional collapsed))
+(declare-function niwa-view--tool-cache-key "niwa-view-tool-render" (data start end collapsed))
 
 (defvar niwa-view-prepare-enabled nil
   "Non-nil while a scheduled projection may defer large collapsed tools.

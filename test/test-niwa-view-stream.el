@@ -17,6 +17,7 @@
 (require 'niwa-view-interaction)
 (require 'niwa-view-native)
 (require 'niwa-view-power)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-segments)
 (require 'niwa-view-stream)
@@ -36,6 +37,7 @@
 (require 'niwa-tool-repair-diagnostics)
 (require 'niwa-transport)
 (require 'niwa-transcript-audit)
+(require 'niwa-view-tool-render)
 (require 'niwa-view-zone)
 (eval-when-compile (require 'tramp))
 

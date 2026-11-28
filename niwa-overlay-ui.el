@@ -120,9 +120,9 @@
 ;; `niwa-view-disclosure'
 (declare-function niwa-view-toggle-section "niwa-view-disclosure" ())
 
-;; `niwa-view-render'
-(declare-function niwa-view--full-rerender "niwa-view-render" ())
-(autoload 'niwa-view--full-rerender "niwa-view-render")
+;; `niwa-view-redraw'
+(declare-function niwa-view--full-rerender "niwa-view-redraw" ())
+(autoload 'niwa-view--full-rerender "niwa-view-redraw")
 
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))

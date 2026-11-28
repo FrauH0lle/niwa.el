@@ -28,6 +28,7 @@
 (require 'niwa-turn)
 (require 'niwa-view)
 (require 'niwa-view-agent)
+(require 'niwa-view-tool-render)
 (require 'niwa-workspace)
 (require 'niwa-workspace-identity)
 (require 'niwa-worktree)

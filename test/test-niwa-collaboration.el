@@ -40,6 +40,7 @@
 (require 'niwa-view-disclosure)
 (require 'niwa-view-input-files)
 (require 'niwa-view-render)
+(require 'niwa-view-tool-render)
 (require 'niwa-workspace)
 (require 'niwa-skills-invoke)
 (require 'niwa-skills-ui)

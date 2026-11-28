@@ -19,6 +19,7 @@
 (require 'niwa-tool-exec)
 (require 'niwa-tool-ptc)
 (require 'niwa-transcript-restore)
+(require 'niwa-view-tool-render)
 
 (niwa-deftest niwa-collaboration-tool-presentation
   ()

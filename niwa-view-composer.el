@@ -401,6 +401,8 @@
 ;; `niwa-view'
 (declare-function niwa-view--abort-data-buffer
                   "niwa-view" (data-buffer))
+(declare-function niwa-view-fork-point-at-point
+                  "niwa-view" ())
 (autoload 'niwa-view--abort-data-buffer "niwa-view")
 (defvar niwa-view--side-conversation-p)
 
@@ -462,14 +464,10 @@
                   "niwa-view-render" (text))
 (declare-function niwa-view--inline-skill-prompt-summary-body
                   "niwa-view-render" (render-data))
-(declare-function niwa-view--insert-rendered-tool
-                  "niwa-view-render" (rendering source))
 (declare-function niwa-view--insert-user-message
                   "niwa-view-render"
                   (text &optional kind hook-context prompt-summary-body
                         prompt-summary-source hook-audits attribution user-source))
-(declare-function niwa-view-fork-point-at-point
-                  "niwa-view-render" ())
 (autoload 'niwa-view--append-request-summary "niwa-view-render")
 (defvar niwa-view--display-map)
 
@@ -493,6 +491,10 @@
 (defvar niwa-view--data-turn-start)
 (defvar niwa-view--in-flight-turn-start)
 (defvar niwa-view--rail-attention-map)
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--insert-rendered-tool
+                  "niwa-view-tool-render" (rendering source))
 
 ;; `niwa-worktree'
 (declare-function niwa-worktree-fork-preflight

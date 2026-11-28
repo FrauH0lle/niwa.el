@@ -17,7 +17,7 @@
 (declare-function niwa-tool-render-data-format "niwa-tool-render-data"
                   (render-data &optional tool-use-id))
 (declare-function niwa-view--setup "niwa-view" (view-buf data-buf &optional options))
-(declare-function niwa-view--full-rerender "niwa-view-render"
+(declare-function niwa-view--full-rerender "niwa-view-redraw"
                   (&optional transcript-buffer source-changed-p))
 (declare-function niwa-view--interaction-rebuild "niwa-view-interaction"
                   (&optional owned visits))

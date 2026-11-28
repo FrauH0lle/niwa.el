@@ -20,6 +20,7 @@
 (require 'niwa-structs)
 (require 'niwa-view)
 (require 'niwa-view-control-transfer)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 
 (defmacro test-niwa-view-control-transfer--with-pair

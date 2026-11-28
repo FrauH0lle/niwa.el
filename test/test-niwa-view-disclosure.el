@@ -19,6 +19,7 @@
 (require 'niwa-view-disclosure)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
+(require 'niwa-view-tool-render)
 
 ;; `niwa-session-persistence'
 (defvar niwa-session--read-only-mode)

@@ -20,7 +20,9 @@
 (require 'niwa-view)
 (require 'niwa-view-agent)
 (require 'niwa-view-composer)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
+(require 'niwa-view-tool-render)
 (require 'niwa-view-zone)
 (require 'niwa-workspace)
 

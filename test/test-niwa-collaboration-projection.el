@@ -22,6 +22,7 @@
 (require 'niwa-session-codec)
 (require 'niwa-session-durability)
 (require 'niwa-session-publication)
+(require 'niwa-view-tool-render)
 
 (niwa-deftest niwa-collaboration--agent-mailbox ()
   ,test

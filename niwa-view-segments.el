@@ -58,6 +58,9 @@
 (declare-function niwa-view-composer-set-historical-visible
                   "niwa-view-composer" (visible))
 
+;; `niwa-view-disclosure'
+(declare-function niwa-view--expand-turn "niwa-view-disclosure" ())
+
 ;; `niwa-view-render'
 (declare-function niwa-view-render-capture-segment-state
                   "niwa-view-render" ())
@@ -66,7 +69,6 @@
 (autoload 'niwa-view-render-mutate "niwa-view-render")
 (declare-function niwa-view-render-project-segment
                   "niwa-view-render" (data-buffer state direction))
-(declare-function niwa-view--expand-turn "niwa-view-render" ())
 (declare-function niwa-view-render-toggle-user-input
                   "niwa-view-render" ())
 (autoload 'niwa-view-render-capture-segment-state "niwa-view-render")

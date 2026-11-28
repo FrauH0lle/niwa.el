@@ -226,9 +226,9 @@
 (declare-function niwa-view-composer-display "niwa-view-pair" (view-window))
 (declare-function niwa-view-transcript-window "niwa-view-pair" (&optional window))
 
-;; `niwa-view-render'
+;; `niwa-view-redraw'
 (declare-function niwa-view--full-rerender
-                  "niwa-view-render"
+                  "niwa-view-redraw"
                   (&optional transcript-buffer source-changed-p))
 
 ;; `niwa-view-stream'

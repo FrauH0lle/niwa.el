@@ -75,9 +75,9 @@
 ;; `niwa-view'
 (declare-function niwa-view-rerender "niwa-view" (&optional buffer))
 
-;; `niwa-view-render'
-(declare-function niwa-view-render-refresh-latest-turn "niwa-view-render" (data-buf))
-(autoload 'niwa-view-render-refresh-latest-turn "niwa-view-render")
+;; `niwa-view-redraw'
+(declare-function niwa-view-render-refresh-latest-turn "niwa-view-redraw" (data-buf))
+(autoload 'niwa-view-render-refresh-latest-turn "niwa-view-redraw")
 
 ;; `niwa-view-stream'
 (declare-function niwa-view-stream-claim-progress "niwa-view-stream" (view status owner))

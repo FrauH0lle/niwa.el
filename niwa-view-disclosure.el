@@ -3,14 +3,17 @@
 ;;; Commentary:
 
 ;; Owns source-backed transcript disclosure identity, remembered state,
-;; expansion/collapse actions, and the public section-toggle command.  The
-;; renderer remains responsible for interpreting and projecting transcript
-;; content; historical segment buffers belong to `niwa-view-segments'.
+;; expansion/collapse actions, and the public section-toggle command.  It
+;; also builds disclosure content (collapsed summaries and expanded bodies)
+;; and collapses or expands whole turns.  `niwa-view-render' remains
+;; responsible for projecting transcript turns and folding regions;
+;; historical segment buffers belong to `niwa-view-segments'.
 
 ;;; Code:
 
 (eval-when-compile
   (require 'cl-lib))
+(require 'niwa-view-render)
 
 ;; `niwa-structs'
 (defvar niwa--data-buffer)
@@ -22,6 +25,8 @@
 ;; `niwa-transcript'
 (declare-function niwa-transcript-segments
                   "niwa-transcript" (start end))
+(declare-function niwa-transcript-summary-body
+                  "niwa-transcript" (source))
 (autoload 'niwa-transcript-segments "niwa-transcript")
 
 ;; `niwa-utilities'
@@ -34,50 +39,16 @@
 (defvar niwa-view--display-map)
 
 ;; `niwa-view-audit'
+(declare-function niwa-view--format-hook-audit-block
+                  "niwa-view-audit" (record expanded))
 (declare-function niwa-view-audit-toggle-hook-audit
                   "niwa-view-audit" ())
+(autoload 'niwa-view--format-hook-audit-block "niwa-view-audit")
 (autoload 'niwa-view-audit-toggle-hook-audit "niwa-view-audit")
 
-;; `niwa-view-render'
-(declare-function niwa-view-render-apply-fold "niwa-view-render" (request))
-(declare-function niwa-view-render-fold-request
-                  "niwa-view-render" (vtype collapsed))
-(declare-function niwa-view-render-mutate
-                  "niwa-view-render" (key function &optional replacement cleanup))
-(autoload 'niwa-view-render-apply-fold "niwa-view-render")
-(autoload 'niwa-view-render-fold-request "niwa-view-render")
-(autoload 'niwa-view-render-mutate "niwa-view-render")
-(declare-function niwa-view-render-add-display-properties
-                  "niwa-view-render" (start end &optional default-vtype))
-(declare-function niwa-view-render-child-calls-end
-                  "niwa-view-render" (start limit source &optional parent-depth))
-(declare-function niwa-view-render-collapsed-disclosure
-                  "niwa-view-render" (data-buf source vtype))
-(declare-function niwa-view-render-insert-expanded-disclosure
-                  "niwa-view-render" (data-buf source vtype header))
-(declare-function niwa-view-render-section-body-end
-                  "niwa-view-render" (start limit))
-(declare-function niwa-view-render-set-fold
-                  "niwa-view-render" (source vtype collapsed splice))
-(declare-function niwa-view-render-toggle-child-call
-                  "niwa-view-render" ())
-(declare-function niwa-view-render-toggle-hook-context
-                  "niwa-view-render" ())
-(declare-function niwa-view-render-toggle-turn
-                  "niwa-view-render" (collapsed))
-(declare-function niwa-view-render-toggle-user-input
-                  "niwa-view-render" ())
-(autoload 'niwa-view-render-add-display-properties "niwa-view-render")
-(autoload 'niwa-view-render-child-calls-end "niwa-view-render")
-(autoload 'niwa-view-render-collapsed-disclosure "niwa-view-render")
-(autoload 'niwa-view-render-insert-expanded-disclosure
-  "niwa-view-render")
-(autoload 'niwa-view-render-section-body-end "niwa-view-render")
-(autoload 'niwa-view-render-set-fold "niwa-view-render")
-(autoload 'niwa-view-render-toggle-child-call "niwa-view-render")
-(autoload 'niwa-view-render-toggle-hook-context "niwa-view-render")
-(autoload 'niwa-view-render-toggle-turn "niwa-view-render")
-(autoload 'niwa-view-render-toggle-user-input "niwa-view-render")
+;; `niwa-view-redraw'
+(declare-function niwa-view--compaction-header
+                  "niwa-view-redraw" (&optional open))
 
 ;; `niwa-view-segments'
 (declare-function niwa-view-segments-display-buffer
@@ -561,6 +532,410 @@ knows the freshly rendered span was rewritten after insertion."
                              pos (marker-position to-marker) boundaries))))))
               toggled)
           (set-marker to-marker nil))))))
+
+
+
+;;
+;;; Disclosure content
+
+(defun niwa-view--response-summary (data-buf data-start data-end)
+  "Build a one-line response summary for DATA-START..DATA-END in DATA-BUF."
+  (let* ((text
+          (niwa-view--visible-response-text
+           (niwa-view-disclosure-data-substring
+            data-buf data-start data-end)))
+         (trimmed (string-trim text))
+         (lines (split-string trimmed "\n"))
+         (non-empty (seq-drop-while #'string-empty-p lines))
+         (first-line (or (car non-empty) ""))
+         (line-count (length lines)))
+    (niwa-view--operation-line
+     (string-trim niwa-view--response-glyph)
+     'niwa-view-response-marker
+     (concat (niwa-view-disclosure-truncate-line first-line 80)
+             (if (> line-count 1) "..." ""))
+     nil (format "(%d lines)" line-count)
+     'niwa-view-response-summary)))
+
+(defun niwa-view--prompt-drawer-body (data-buf data-start data-end)
+  "Return prompt disclosure text for DATA-START..DATA-END in DATA-BUF."
+  (with-current-buffer data-buf
+    (save-excursion
+      (goto-char data-start)
+      (if (re-search-forward "^:PROMPT:\n" data-end t)
+          (let ((body-start (point)))
+            (if (re-search-forward "^:END:[ \t]*\n?" data-end t)
+                (buffer-substring-no-properties
+                 body-start (match-beginning 0))
+              (buffer-substring-no-properties body-start data-end)))
+        (niwa-view--user-turn-text
+         (list (list 'user data-start data-end)) data-buf)))))
+
+(defun niwa-view--disclosure-rendering
+    (data-buf vtype data-start data-end &optional collapsed-only)
+  "Return the tool rendering behind a VTYPE disclosure, or nil.
+The section is DATA-START..DATA-END in DATA-BUF.  Nil means it has no tool
+rendering and builds its own text.  The
+compaction summary never does, so it skips the tool parse.  COLLAPSED-ONLY
+requests summary-only renderer work."
+  (cond
+   ((eq vtype 'compaction-summary) nil)
+   ((eq vtype 'tool-group)
+    (niwa-view--tool-group-rendering-from-source
+     data-buf data-start data-end))
+   (t
+    (let ((candidate (niwa-view--segment-rendering
+                      data-buf data-start data-end collapsed-only)))
+      (and (eq vtype (or (plist-get candidate :vtype) 'tool-summary))
+           candidate)))))
+
+(defun niwa-view-render-insert-expanded-disclosure
+    (data-buf source vtype header)
+  "Insert expanded VTYPE content from SOURCE in DATA-BUF.
+HEADER is retained for disclosure kinds whose collapsed label remains visible.
+Return the normalized source coordinates used for the insertion."
+  (let* ((trimmed
+          (and (eq vtype 'thinking-summary)
+               (niwa-view--reasoning-source-bounds
+                data-buf (car source) (cdr source))))
+         (source (if trimmed
+                     (niwa-view-disclosure-source-range
+                      data-buf (car trimmed) (cdr trimmed))
+                   source))
+         (data-start (car source))
+         (data-end (cdr source))
+         (rendering
+          (niwa-view--disclosure-rendering
+           data-buf vtype data-start data-end))
+         (start (point)))
+    (if rendering
+        (progn
+          (niwa-view--render-expanded-body rendering source)
+          (niwa-view-render-add-display-properties
+           start (point) (plist-get rendering :vtype)))
+      (let ((text (niwa-view-disclosure-data-substring
+                   data-buf data-start data-end
+                   (memq vtype '(hook-audit thinking-summary))))
+            body-start)
+        (when (eq vtype 'thinking-summary)
+          (setq text
+                (niwa-view--fontify-as
+                 (string-trim (niwa-view--clean-reasoning-text text))
+                 'markdown-mode)))
+        (when (eq vtype 'compaction-summary)
+          (setq header (concat (niwa-view--compaction-header t) "\n")
+                text
+                (niwa-view--fontify-as
+                 (with-current-buffer data-buf
+                   (niwa-transcript-summary-body source))
+                 'markdown-mode)))
+        (when (eq vtype 'response)
+          (setq text (niwa-view--fontify-response (string-trim text))))
+        (when (eq vtype 'prompt-summary)
+          (let* ((source-text
+                  (niwa-view-disclosure-data-substring
+                   data-buf data-start data-end t))
+                 (inline-body
+                  (niwa-view--inline-skill-prompt-summary-body source-text))
+                 (drawer-body
+                  (string-trim
+                   (niwa-view--prompt-drawer-body
+                    data-buf data-start data-end))))
+            (setq text
+                  (niwa-view--fontify-as
+                   (or inline-body
+                       (unless (string-empty-p drawer-body) drawer-body)
+                       (string-trim
+                        (niwa-view--user-turn-text
+                         (list (list 'user data-start data-end)) data-buf)))
+                   'markdown-mode))))
+        (when (eq vtype 'hook-context)
+          (setq text
+                (niwa-view--format-hook-context-block
+                 (niwa-view--hook-context-events-from-text text) t)))
+        (when (eq vtype 'hook-audit)
+          (setq text
+                (if-let* ((record
+                           (and header
+                                (get-text-property
+                                 0 'niwa-view-hook-audit-record header))))
+                    (niwa-view--format-hook-audit-block record t)
+                  (mapconcat
+                   (lambda (record)
+                     (niwa-view--format-hook-audit-block record t))
+                   (niwa-view--hook-audit-records-from-text text) ""))))
+        (when (eq vtype 'system-reminder-summary)
+          (let ((source-text
+                 (niwa-view-disclosure-data-substring
+                  data-buf data-start data-end t)))
+            (setq text
+                  (niwa-view--fontify-as
+                   (or (niwa-view--inline-skill-reminder-body source-text)
+                       (niwa-view--system-reminder-body-from-text text)
+                       text)
+                   'markdown-mode))))
+        (when (string-empty-p text)
+          (setq text "[section no longer available]"))
+        (when header
+          (insert header))
+        (setq body-start (point))
+        (insert text)
+        (unless (eq (char-before) ?\n)
+          (insert "\n"))
+        (when (eq vtype 'response)
+          (niwa-view--decorate-agent-result-blocks start (point))
+          (niwa-view--decorate-agent-message-blocks start (point))
+          (niwa-view--decorate-markdown-in-range start (point)))
+        (when (memq vtype
+                    '(thinking-summary tool-summary prompt-summary
+                      system-reminder-summary agent-handle compaction-summary))
+          (add-text-properties
+           body-start (point) '(line-prefix "    " wrap-prefix "    ")))
+        (niwa-view-render-add-display-properties start (point) vtype)))
+    source))
+
+(defun niwa-view-render-collapsed-disclosure (data-buf source vtype)
+  "Return collapsed disclosure data for SOURCE and VTYPE in DATA-BUF.
+The result contains normalized `:source', `:summary', and `:face' values."
+  (let* ((trimmed
+          (and (eq vtype 'thinking-summary)
+               (niwa-view--reasoning-source-bounds
+                data-buf (car source) (cdr source))))
+         (source (if trimmed
+                     (niwa-view-disclosure-source-range
+                      data-buf (car trimmed) (cdr trimmed))
+                   source))
+         (data-start (car source))
+         (data-end (cdr source))
+         (rendering
+          (niwa-view--disclosure-rendering
+           data-buf vtype data-start data-end t))
+         (summary
+          (if rendering
+              (niwa-view--rendering-header-block rendering)
+            (pcase vtype
+              ('tool-summary
+               (niwa-view--tool-one-liner data-buf data-start data-end))
+              ('thinking-summary
+               (niwa-view--thinking-summary data-buf data-start data-end))
+              ('compaction-summary (niwa-view--compaction-header))
+              ('response
+               (niwa-view--response-summary
+                data-buf data-start data-end))
+              ('prompt-summary
+               (niwa-view--operation-line
+                "◆" 'niwa-view-response-marker "Prompt" nil nil
+                'niwa-view-tool-summary))
+              ('hook-context
+               (propertize "  \u25c7 hook context added"
+                           'font-lock-face 'niwa-view-hook-context))
+              ('hook-audit
+               (propertize "  \u25c7 hook audit"
+                           'font-lock-face 'niwa-view-hook-audit))
+              ('system-reminder-summary
+               (niwa-view--system-reminder-summary
+                data-buf data-start data-end)))))
+         (face
+          (pcase vtype
+            ((or 'tool-summary 'tool-group 'agent-handle 'prompt-summary)
+             'niwa-view-tool-summary)
+            ('thinking-summary 'niwa-view-thinking-summary)
+            ('compaction-summary 'niwa-view-separator)
+            ('response 'niwa-view-response-summary)
+            ('hook-context 'niwa-view-hook-context)
+            ('hook-audit 'niwa-view-hook-audit)
+            ('system-reminder-summary 'niwa-view-system-reminder))))
+    (and summary
+         (list :source source
+               :summary (niwa-view--summary-with-face summary face)))))
+
+
+;;
+;;; Turn-level expand/collapse
+
+(defun niwa-view--user-turn-summary (start end)
+  "Build a one-line summary for a user turn between START and END.
+Return nil when the body is a single line -- short turns are already
+compact enough that folding adds no value."
+  (save-excursion
+    (goto-char start)
+    ;; Skip the "You\n" header line.
+    (forward-line 1)
+    (let ((body-start (point)))
+      (when (< body-start end)
+        (let* ((body-end (save-excursion
+                           (goto-char end)
+                           (skip-chars-backward "\n")
+                           (point)))
+               (body-lines (max 0 (count-lines body-start body-end))))
+          (when (> body-lines 1)
+            (let ((first-line
+                   (buffer-substring-no-properties
+                    body-start
+                    (min (save-excursion
+                           (goto-char body-start)
+                           (line-end-position))
+                         body-end))))
+              (format "%s... (%d lines)"
+                      (niwa-view-disclosure-truncate-line first-line 80)
+                      body-lines))))))))
+
+(defun niwa-view--assistant-turn-summary (start end)
+  "Build a one-line summary for an assistant turn between START and END.
+Scans the rendered view for response/tool/thinking sections and
+synthesizes a preview with tool counters."
+  (let ((tool-count 0)
+        (has-thinking nil)
+        (reminder-count 0)
+        (response-preview nil))
+    (save-excursion
+      (let ((pos start))
+        (while (< pos end)
+          (let ((vtype (get-text-property pos 'niwa-view-type))
+                (next (or (next-single-property-change
+                           pos 'niwa-view-type nil end)
+                          end)))
+            (pcase vtype
+              ('thinking-summary (setq has-thinking t))
+              ('system-reminder-summary (cl-incf reminder-count))
+              ('tool-summary (cl-incf tool-count))
+              ('response
+               (unless response-preview
+                 (let* ((line-end (save-excursion
+                                    (goto-char pos)
+                                    (line-end-position)))
+                        (raw (buffer-substring-no-properties
+                              pos (min line-end next end))))
+                   (setq response-preview (string-trim raw))))))
+            (setq pos next)))))
+    (let ((body-lines (max 0 (1- (count-lines start end)))))
+      (cond
+       ((and response-preview (not (string-empty-p response-preview)))
+        (format "Assistant — %s (%d lines%s%s%s)"
+                (niwa-view-disclosure-truncate-line response-preview 80)
+                body-lines
+                (if has-thinking ", thinking" "")
+                (cond ((= tool-count 0) "")
+                      ((= tool-count 1) ", 1 tool")
+                      (t (format ", %d tools" tool-count)))
+                (cond ((= reminder-count 0) "")
+                      ((= reminder-count 1) ", 1 reminder")
+                      (t (format ", %d reminders" reminder-count)))))
+       ((or has-thinking (> tool-count 0) (> reminder-count 0))
+        (format "Assistant — [%s%s%s%s%s]"
+                (if has-thinking "thinking" "")
+                (if (and has-thinking
+                         (or (> tool-count 0) (> reminder-count 0)))
+                    ", " "")
+                (cond ((= tool-count 0) "")
+                      ((= tool-count 1) "1 tool")
+                      (t (format "%d tools" tool-count)))
+                (if (and (> tool-count 0) (> reminder-count 0)) ", " "")
+                (cond ((= reminder-count 0) "")
+                      ((= reminder-count 1) "1 reminder")
+                      (t (format "%d reminders" reminder-count)))))
+       (t "Assistant")))))
+
+(defun niwa-view--collapse-turn ()
+  "Collapse the turn at point into a one-line summary.
+Stashes the original propertized text on the summary so expand can
+restore the turn with all inner section state intact.  Signals a
+`user-error' when the turn is too short to benefit from folding."
+  (let* ((bounds (niwa-view-disclosure-section-bounds
+                  'niwa-view-turn-id))
+         (role (get-text-property (point) 'niwa-view-turn-role))
+         (id (get-text-property (point) 'niwa-view-turn-id)))
+    (unless (and bounds role id)
+      (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "No turn at point"))
+    (niwa-view-stream-in-flight-turn-start-position)
+    (let* ((turn-start (car bounds))
+           (turn-end (cdr bounds))
+           (stash (buffer-substring turn-start turn-end))
+           (context (get-text-property turn-start 'niwa-view-turn-context))
+           (source (get-text-property turn-start 'niwa-view-source))
+           (prompt-preview
+            (get-text-property turn-start 'niwa-view-prompt-preview))
+           (variant-start
+            (text-property-not-all
+             turn-start turn-end
+             'niwa-view-variant-fork-point-id nil))
+           (variant-button
+            (when variant-start
+              (buffer-substring
+               variant-start
+               (or (next-single-property-change
+                    variant-start
+                    'niwa-view-variant-fork-point-id nil turn-end)
+                   turn-end))))
+           (summary (pcase role
+                      ('user (niwa-view--user-turn-summary
+                              turn-start turn-end))
+                      ('assistant (niwa-view--assistant-turn-summary
+                                   turn-start turn-end))))
+           (face (pcase role
+                   ('user 'niwa-view-user-header)
+                   ('assistant 'niwa-view-assistant-header))))
+      (unless summary
+        (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "Turn is already compact"))
+      (let ((inhibit-read-only t))
+        (save-excursion
+          (goto-char turn-start)
+          ;; Let the input marker ride forward across our delete+insert
+          ;; so it keeps spanning the rendered content afterwards.
+          (let ((tail-type (marker-insertion-type (niwa-view-transcript-tail-marker))))
+            (set-marker-insertion-type (niwa-view-transcript-tail-marker) t)
+            (unwind-protect
+                (progn
+                  (delete-region turn-start turn-end)
+                  (insert (propertize (concat summary
+                                              (when variant-button
+                                                (concat "  " variant-button))
+                                              "\n\n")
+                                      'font-lock-face face
+                                      'niwa-view-type 'turn-summary
+                                      'niwa-view-source source
+                                      'niwa-view-turn-role role
+                                      'niwa-view-prompt-preview prompt-preview
+                                      'niwa-view-turn-id id
+                                      'niwa-view-turn-context context
+                                      'niwa-view-collapsed t
+                                      'niwa-view-stash stash
+                                      'read-only t
+                                      'keymap niwa-view--display-map
+                                      'front-sticky '(read-only keymap)
+                                      'rear-nonsticky '(read-only keymap)))
+                  ;; The trailing blank line is not a visible prompt header.
+                  (when prompt-preview
+                    (remove-text-properties
+                     (- (point) 2) (point)
+                     '(niwa-view-prompt-preview nil))))
+              (set-marker-insertion-type (niwa-view-transcript-tail-marker) tail-type))))))))
+
+(defun niwa-view--expand-turn ()
+  "Restore a collapsed turn at point from its stashed content."
+  (let* ((bounds (niwa-view-disclosure-section-bounds
+                  'niwa-view-turn-id))
+         (stash (get-text-property (point) 'niwa-view-stash)))
+    (unless (and bounds stash)
+      (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "No collapsed turn at point"))
+    (niwa-view-stream-in-flight-turn-start-position)
+    (let ((inhibit-read-only t))
+      (save-excursion
+        (goto-char (car bounds))
+        (let ((tail-type (marker-insertion-type (niwa-view-transcript-tail-marker))))
+          (set-marker-insertion-type (niwa-view-transcript-tail-marker) t)
+          (unwind-protect
+              (progn
+                (delete-region (car bounds) (cdr bounds))
+                (insert stash))
+            (set-marker-insertion-type (niwa-view-transcript-tail-marker) tail-type)))))))
+
+(defun niwa-view-render-toggle-turn (collapsed)
+  "Expand the current turn when COLLAPSED, otherwise collapse it."
+  (niwa-view-stream-in-flight-turn-start-position)
+  (if collapsed
+      (niwa-view--expand-turn)
+    (niwa-view--collapse-turn)))
 
 
 

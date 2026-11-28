@@ -296,14 +296,16 @@
                   "niwa-view-interaction" ())
 (autoload 'niwa-view--interaction-rebuild "niwa-view-interaction")
 
+;; `niwa-view-redraw'
+(declare-function niwa-view-render-refresh-latest-turn
+                  "niwa-view-redraw" (data))
+(autoload 'niwa-view-render-refresh-latest-turn "niwa-view-redraw")
+
 ;; `niwa-view-render'
 (declare-function niwa-view--append-request-summary
                   "niwa-view-render"
                   (data-buf search-start &optional extra))
-(declare-function niwa-view-render-refresh-latest-turn
-                  "niwa-view-render" (data))
 (autoload 'niwa-view--append-request-summary "niwa-view-render")
-(autoload 'niwa-view-render-refresh-latest-turn "niwa-view-render")
 
 ;; `niwa-workspace'
 (declare-function niwa-workspace "niwa-workspace" (&optional buffer))

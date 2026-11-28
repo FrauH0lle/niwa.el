@@ -17,6 +17,7 @@
 (require 'niwa-view-composer)
 (require 'niwa-view-native)
 (require 'niwa-view-pair)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
 (require 'niwa-session-persistence)

@@ -92,6 +92,9 @@
 (autoload 'niwa-view-open-agent-transcript "niwa-view-agent")
 (defvar niwa-view--agent-path)
 
+;; `niwa-view-redraw'
+(declare-function niwa-view--full-rerender "niwa-view-redraw" ())
+
 ;; `niwa-view-segments'
 (declare-function niwa-view-go-to-segment "niwa-view-segments"
                   (&optional number))
@@ -119,19 +122,8 @@
                   (source vtype &optional previous-key))
 
 ;; `niwa-view-render'
-(declare-function niwa-view--execution-terminal-render-data
-                  "niwa-view-render" (data-buf tool-use-id &optional yielded-id))
-(declare-function niwa-view--full-rerender "niwa-view-render" ())
-(declare-function niwa-view--sandbox-summary-line
-                  "niwa-view-render" (summary))
-(declare-function niwa-view--tool-call-parse "niwa-view-render"
-                  (data-buf seg-start seg-end &optional raw))
 (declare-function niwa-view-render-add-display-properties
                   "niwa-view-render" (start end &optional default-vtype))
-(autoload 'niwa-view--execution-terminal-render-data
-  "niwa-view-render")
-(autoload 'niwa-view--sandbox-summary-line "niwa-view-render")
-(autoload 'niwa-view--tool-call-parse "niwa-view-render")
 (autoload 'niwa-view-render-add-display-properties "niwa-view-render")
 
 ;; `niwa-view-segments'
@@ -146,6 +138,18 @@
 
 ;; `niwa-view-disclosure'
 (declare-function niwa-view-toggle-section "niwa-view-disclosure" ())
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--execution-terminal-render-data
+                  "niwa-view-tool-render" (data-buf tool-use-id &optional yielded-id))
+(declare-function niwa-view--sandbox-summary-line
+                  "niwa-view-tool-render" (summary))
+(declare-function niwa-view--tool-call-parse "niwa-view-tool-render"
+                  (data-buf seg-start seg-end &optional raw))
+(autoload 'niwa-view--execution-terminal-render-data
+  "niwa-view-tool-render")
+(autoload 'niwa-view--sandbox-summary-line "niwa-view-tool-render")
+(autoload 'niwa-view--tool-call-parse "niwa-view-tool-render")
 
 (require 'niwa-tool-render-data)
 (require 'niwa-transcript-audit)

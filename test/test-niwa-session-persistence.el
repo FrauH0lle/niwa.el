@@ -35,6 +35,7 @@
 (require 'niwa-session-publication)
 (require 'niwa-utilities)
 (require 'niwa-view-composer)
+(require 'niwa-view-redraw)
 (require 'niwa-execution)
 (require 'niwa-journal-capture)
 (require 'niwa-journal-test-support

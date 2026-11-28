@@ -15,6 +15,7 @@
 (require 'niwa-view-execution)
 (require 'niwa-view-audit)
 (require 'niwa-view-composer)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
 (require 'niwa-execution)

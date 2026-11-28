@@ -28,6 +28,7 @@
 (require 'niwa-tool-exec)
 (require 'niwa-tool-ptc)
 (require 'niwa-execution-transcript)
+(require 'niwa-view-tool-render)
 
 (defun niwa-view-audit-test--publish (session &rest paths)
   "Publish explicit archive PATHS for read-only audit lookup in SESSION."

@@ -4,13 +4,10 @@
 
 ;; Defines the shared ephemeral surface mode and coordinates the user-facing
 ;; chat view, session lifecycle, and managed zones.  `niwa-view-composer'
-;; owns editable input and submission;
-;; `niwa-view-prepare'
-(declare-function niwa-view-prepare-resume "niwa-view-prepare" ())
-(defvar niwa-view-prepare-enabled)
-
-;; `niwa-view-render' owns the transcript projection.  The gptel data
-;; buffer remains the authoritative conversation.
+;; owns editable input and submission; `niwa-view-render' owns the
+;; transcript projection.  The gptel data buffer remains the authoritative
+;; conversation.  This module also holds the view's navigation commands and
+;; the conversation variant, fork and rewind commands at point.
 ;;
 ;; Architecture:
 ;;   data buffer (org-mode, gptel) <--- authoritative
@@ -41,6 +38,9 @@
 
 ;; `browse-url'
 (declare-function browse-url "browse-url" (url &optional new-window))
+
+;; `gptel'
+(defvar gptel-display-buffer-action)
 
 ;; `gptel-request'
 (declare-function gptel--model-name "ext:gptel-request" (model))
@@ -125,6 +125,28 @@
 (autoload 'niwa-session-artifacts-read-segment "niwa-session-artifacts")
 (autoload 'niwa-session-artifacts-segment-summary-bounds
   "niwa-session-artifacts")
+(declare-function niwa-session-artifacts-fork-point-at-source
+                  "niwa-session-artifacts"
+                  (buffer source-start source-end &optional fork-points))
+
+;; `niwa-session-catalog'
+(declare-function niwa-session-persistence-choose-conversation-variant
+                  "niwa-session-catalog"
+                  (variants current-session-id))
+(declare-function niwa-session-persistence-conversation-variants
+                  "niwa-session-catalog"
+                  (session fork-point-id &optional sessions))
+
+;; `niwa-session-persistence'
+(declare-function niwa-session-persistence-restore
+                  "niwa-session-persistence"
+                  (session-dir &optional lifecycle-source
+                               session-override workspace))
+
+;; `niwa-session-rewind'
+(declare-function niwa-session-rewind-rewind
+                  "niwa-session-rewind" (buffer target &optional boundary scope confirm-function complete))
+(autoload 'niwa-session-rewind-rewind "niwa-session-rewind")
 
 ;; `niwa-structs'
 (declare-function niwa-session-current-segment "niwa-structs" (cl-x) t)
@@ -220,7 +242,10 @@
   "niwa-view-control-transfer")
 
 ;; `niwa-view-disclosure'
+(declare-function niwa-view--expand-turn "niwa-view-disclosure" ())
 (declare-function niwa-view-toggle-section "niwa-view-disclosure" ())
+(declare-function niwa-view-disclosure-section-bounds
+                  "niwa-view-disclosure" (&optional property))
 
 ;; `niwa-view-history'
 (declare-function niwa-view-history-save
@@ -248,32 +273,32 @@
 ;; `niwa-view-path'
 (declare-function niwa-view-path-teardown "niwa-view-path" ())
 
+;; `niwa-view-prepare'
+(declare-function niwa-view-prepare-resume "niwa-view-prepare" ())
+(defvar niwa-view-prepare-enabled)
+
+;; `niwa-view-redraw'
+(declare-function niwa-view--full-rerender
+                  "niwa-view-redraw"
+                  (&optional transcript-buffer source-changed-p))
+(declare-function niwa-view-render-batched-full "niwa-view-redraw" ())
+(declare-function niwa-view-render-resume-batch "niwa-view-redraw" ())
+
 ;; `niwa-view-render'
 (declare-function niwa-view--after-header-position
                   "niwa-view-render" ())
-(declare-function niwa-view--expand-turn "niwa-view-render" ())
-(declare-function niwa-view--full-rerender
-                  "niwa-view-render"
-                  (&optional transcript-buffer source-changed-p))
 (declare-function niwa-view--history-tail-position
                   "niwa-view-render" ())
 (declare-function niwa-view--non-history-view-position-p
                   "niwa-view-render" (pos))
 (declare-function niwa-view--prompt-preview
                   "niwa-view-render" (text shared-display))
-(declare-function niwa-view--refresh-tool-row
-                  "niwa-view-render" (data-buffer tool-use-id))
-(declare-function niwa-view-next-display "niwa-view-render" ())
-(declare-function niwa-view-previous-display "niwa-view-render" ())
-(declare-function niwa-view-render-batched-full "niwa-view-render" ())
 (declare-function niwa-view-render-initialize
                   "niwa-view-render" ())
 (declare-function niwa-view-render-mutate
                   "niwa-view-render" (key function &optional replacement cleanup))
-(declare-function niwa-view-render-resume-batch "niwa-view-render" ())
 (declare-function niwa-view-render-toggle-user-input
                   "niwa-view-render" ())
-(declare-function niwa-view-toggle-transcript "niwa-view-render" ())
 (declare-function niwa-view--user-turn-text
                   "niwa-view-render" (segments data-buf))
 
@@ -282,6 +307,13 @@
                   "niwa-view-segments" ())
 (declare-function niwa-view-segments-jump-to-prompt
                   "niwa-view-segments" (segment source-pos &optional window))
+(declare-function niwa-view-go-to-segment
+                  "niwa-view-segments" (&optional number))
+(declare-function niwa-view-return-to-latest-segment
+                  "niwa-view-segments" (&optional _event))
+(declare-function niwa-view-segments-display-buffer
+                  "niwa-view-segments" ())
+(autoload 'niwa-view-segments-display-buffer "niwa-view-segments")
 
 ;; `niwa-view-stream'
 (declare-function niwa-view--refresh-animation-options
@@ -299,6 +331,10 @@
 (declare-function niwa-view--spinner-active-p "niwa-view-stream" ())
 (declare-function niwa-view-stream--schedule-execution-row-recovery
                   "niwa-view-stream" (data-buffer tool-use-id))
+
+;; `niwa-view-tool-render'
+(declare-function niwa-view--refresh-tool-row
+                  "niwa-view-tool-render" (data-buffer tool-use-id))
 
 ;; `niwa-view-viewport'
 (declare-function niwa-view-transcript-tail-initialize
@@ -2205,6 +2241,290 @@ tweaks via `customize-face' apply uniformly."
                ((equal header
                        (buffer-substring-no-properties (point-min) end))))
      end)))
+
+
+;;
+;;; Navigation
+
+(defun niwa-view--display-navigation-limit ()
+  "Return the upper bound for display/chrome navigation."
+  (or (niwa-view-transcript-tail) (point-max)))
+
+(defun niwa-view--next-fragment-position (limit)
+  "Return the next navigatable fragment position before LIMIT."
+  (save-excursion
+    (and (< (point) limit)
+         (niwa-view-zone-next limit))))
+
+(defun niwa-view--next-turn-position (limit)
+  "Return the next rendered turn position before LIMIT, or nil."
+  (let ((origin (point)))
+    (save-excursion
+      (niwa-view-next-turn)
+      (let ((pos (point)))
+        (and (> pos origin)
+             (< pos limit)
+             (get-text-property pos 'niwa-view-source)
+             pos)))))
+
+(defun niwa-view--previous-fragment-position ()
+  "Return the previous navigatable fragment position."
+  (save-excursion
+    (niwa-view-zone-previous (point-min))))
+
+(defun niwa-view--previous-turn-position ()
+  "Return the previous rendered turn position, or nil."
+  (let ((origin (point)))
+    (save-excursion
+      (niwa-view-prev-turn)
+      (let ((pos (point)))
+        (and (< pos origin)
+             (get-text-property pos 'niwa-view-source)
+             pos)))))
+
+(defun niwa-view-next-display ()
+  "Move point to the next navigatable fragment or rendered turn."
+  (interactive)
+  (let* ((limit (niwa-view--display-navigation-limit)))
+    (when (> (point) limit)
+      (goto-char limit))
+    (let* ((fragment-pos (niwa-view--next-fragment-position limit))
+           (turn-pos (niwa-view--next-turn-position limit))
+           (target (car (sort (delq nil (list fragment-pos turn-pos)) #'<))))
+      (when target
+        (goto-char target)))))
+
+(defun niwa-view-previous-display ()
+  "Move point to the previous navigatable fragment or rendered turn."
+  (interactive)
+  (let ((limit (niwa-view--display-navigation-limit)))
+    (when (> (point) limit)
+      (goto-char limit))
+    (let* ((fragment-pos (niwa-view--previous-fragment-position))
+           (turn-pos (niwa-view--previous-turn-position))
+           (target (car (sort (delq nil (list fragment-pos turn-pos)) #'>))))
+      (when target
+        (goto-char target)))))
+
+(defun niwa-view--user-query-positions (limit)
+  "Return visible user query header positions before LIMIT."
+  (let ((pos (point-min))
+        positions)
+    (while (< pos limit)
+      (when (eq (get-text-property pos 'niwa-view-turn-role) 'user)
+        (push pos positions))
+      (setq pos
+            (or (next-single-property-change
+                 pos 'niwa-view-turn-role nil limit)
+                limit)))
+    (nreverse positions)))
+
+(defun niwa-view-next-user-query ()
+  "Move point to the next user query header."
+  (interactive)
+  (let* ((limit (niwa-view--display-navigation-limit))
+         (origin (min (point) limit))
+         (target (cl-find-if
+                  (lambda (pos) (> pos origin))
+                  (niwa-view--user-query-positions limit))))
+    (when target
+      (goto-char target))))
+
+(defun niwa-view-previous-user-query ()
+  "Move point to the previous user query header."
+  (interactive)
+  (let* ((limit (niwa-view--display-navigation-limit))
+         (origin (min (point) limit))
+         target)
+    (dolist (pos (niwa-view--user-query-positions limit))
+      (when (< pos origin)
+        (setq target pos)))
+    (when target
+      (goto-char target))))
+
+(defun niwa-view-next-turn ()
+  "Move point to the next turn header."
+  (interactive)
+  (let ((pos (point))
+        (limit (or (niwa-view-transcript-tail) (point-max)))
+        (cur-source (get-text-property (point) 'niwa-view-source)))
+    ;; Move past the current turn (skip all positions with the same source)
+    (when cur-source
+      (while (and (< pos limit)
+                  (equal (get-text-property pos 'niwa-view-source)
+                         cur-source))
+        (setq pos (next-single-property-change
+                   pos 'niwa-view-source nil limit))))
+    ;; Find next position that has a source (skip separators)
+    (while (and (< pos limit)
+                (not (get-text-property pos 'niwa-view-source)))
+      (setq pos (next-single-property-change
+                 pos 'niwa-view-source nil limit)))
+    (goto-char (min pos limit))))
+
+(defun niwa-view-prev-turn ()
+  "Move point to the previous turn header."
+  (interactive)
+  (let ((pos (point))
+        (cur-source (get-text-property (point) 'niwa-view-source)))
+    ;; Move before the current turn (skip all positions with the same source)
+    (when cur-source
+      (while (and (> pos (point-min))
+                  (equal (get-text-property pos 'niwa-view-source)
+                         cur-source))
+        (setq pos (or (previous-single-property-change pos 'niwa-view-source)
+                       (point-min)))))
+    ;; Skip separator regions (no source)
+    (while (and (> pos (point-min))
+                (not (get-text-property pos 'niwa-view-source)))
+      (setq pos (or (previous-single-property-change pos 'niwa-view-source)
+                     (point-min))))
+    ;; Now pos is inside the previous turn -- find its start
+    (let ((target-source (get-text-property pos 'niwa-view-source)))
+      (when target-source
+        (while (and (> pos (point-min))
+                    (equal (get-text-property (1- pos) 'niwa-view-source)
+                           target-source))
+          (setq pos (or (previous-single-property-change pos 'niwa-view-source)
+                         (point-min))))))
+    (goto-char pos)))
+
+(defun niwa-view-toggle-transcript ()
+  "Toggle between the view buffer and the raw data buffer."
+  (interactive)
+  (if-let* ((data-buffer (niwa-view-segments-display-buffer)))
+      (switch-to-buffer data-buffer)
+    (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "No data buffer associated with this view")))
+
+
+;;
+;;; Conversation variant, fork and rewind commands
+
+(defun niwa-view--settled-response-at-point ()
+  "Return the stable settled response target at point."
+  (let* ((bounds (niwa-view-disclosure-section-bounds
+                  'niwa-view-turn-id))
+         (role (and bounds
+                    (get-text-property
+                     (car bounds) 'niwa-view-turn-role)))
+         (source (and bounds
+                      (get-text-property (car bounds) 'niwa-view-source)))
+         (data-buffer (niwa-view-segments-display-buffer)))
+    (unless (and (eq role 'assistant)
+                 (consp source)
+                 (buffer-live-p data-buffer))
+      (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "Point is not on an assistant response"))
+    (or (niwa-session-artifacts-fork-point-at-source
+         data-buffer (car source) (cdr source))
+        (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "Assistant response is not a settled fork point"))))
+
+(defun niwa-view-fork-point-at-point ()
+  "Return the stable assistant fork point at point."
+  (niwa-view--settled-response-at-point))
+
+(defun niwa-view-goto-conversation-variant (fork-point-id)
+  "Move point to the assistant header for FORK-POINT-ID."
+  (let ((limit (or (niwa-view-transcript-tail) (point-max)))
+        (pos (point-min))
+        found)
+    (while (and (< pos limit) (not found))
+      (if (equal fork-point-id
+                 (get-text-property
+                  pos 'niwa-view-variant-fork-point-id))
+          (setq found pos)
+        (setq pos
+              (or (next-single-property-change
+                   pos 'niwa-view-variant-fork-point-id nil limit)
+                  limit))))
+    (unless found
+      (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "Conversation fork point is no longer available"))
+    (goto-char found)
+    (when-let* ((bounds (niwa-view-disclosure-section-bounds
+                        'niwa-view-turn-id)))
+      (goto-char (car bounds)))))
+
+(defun niwa-view-switch-conversation-variant (fork-point-id)
+  "Open the sole related session at FORK-POINT-ID."
+  (let* ((session
+          (and (buffer-live-p niwa--data-buffer)
+               (buffer-local-value 'niwa--session
+                                   niwa--data-buffer)))
+         (_ (unless session
+              (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "Active view has no niwa session")))
+         (session-id (niwa-session-session-id session))
+         (variants
+          (niwa-session-persistence-conversation-variants
+           session fork-point-id))
+         (alternatives
+          (cl-remove
+           session-id variants
+           :test #'equal
+           :key (lambda (entry)
+                  (plist-get (plist-get entry :summary) :session-id))))
+         (target
+          (pcase (length alternatives)
+            (0 (niwa-diagnostic-user-error (niwa-diagnostic-scope (current-buffer)) "No related conversation variant survives"))
+            (1 (car alternatives))
+            (_
+             (niwa-session-persistence-choose-conversation-variant
+              variants session-id))))
+         (target-data
+          (niwa-session-persistence-restore
+           (plist-get target :save-path)))
+         (target-view
+          (buffer-local-value 'niwa--view-buffer target-data)))
+    (unless (buffer-live-p target-view)
+      (error "Conversation variant has no live view"))
+    (with-current-buffer target-view
+      (let ((target-session
+             (and (buffer-live-p niwa--data-buffer)
+                  (buffer-local-value 'niwa--session
+                                      niwa--data-buffer))))
+        (when-let* ((segment
+                     (cl-loop
+                      for (number . prompts)
+                      in (niwa-session-prompt-index target-session)
+                      when (cl-find
+                            fork-point-id prompts
+                            :test #'equal
+                            :key (lambda (prompt)
+                                   (plist-get prompt :fork-point-id)))
+                      return number))
+                    ((/= segment
+                         (or (niwa-session-current-segment target-session)
+                             1))))
+          (niwa-view-go-to-segment segment)))
+      (niwa-view-goto-conversation-variant fork-point-id))
+    (display-buffer target-view gptel-display-buffer-action)
+    target-data))
+
+(defun niwa-view-switch-conversation-variant-at-point ()
+  "Switch variants at the settled assistant turn at point."
+  (interactive)
+  (niwa-view-switch-conversation-variant
+   (plist-get (niwa-view-fork-point-at-point) :fork-point-id)))
+
+(defun niwa-view-rewind-at-point ()
+  "Rewind the session keeping the settled assistant turn at point.
+
+The turn under point is the last one kept: everything after it is
+discarded.  Point names a response you are looking at, so the boundary
+falls after it; `niwa-rewind' instead picks one of your prompts and
+returns to just before it."
+  (interactive)
+  (let* ((view (current-buffer))
+         (session niwa--session)
+         (scope (niwa-diagnostic-scope session)))
+    (niwa-session-rewind-rewind
+     niwa--data-buffer (niwa-view--settled-response-at-point)
+     'after 'choose nil
+     (lambda (result failure)
+       (if failure
+           (niwa-diagnostic-warning scope 'niwa failure)
+         (when (and result (buffer-live-p view)
+                    (eq session (buffer-local-value 'niwa--session view)))
+           (with-current-buffer view
+             (niwa-view-return-to-latest-segment))))))))
 
 (provide 'niwa-view)
 

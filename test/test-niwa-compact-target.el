@@ -29,6 +29,7 @@
 (require 'niwa-utilities)
 (require 'niwa-view)
 (require 'niwa-view-composer)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
 (require 'niwa-workspace)

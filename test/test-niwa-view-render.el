@@ -19,11 +19,13 @@
 (require 'niwa-view-agent)
 (require 'niwa-view-audit)
 (require 'niwa-view-composer)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-segments)
 
 ;; Focused dependencies moved with the rendering tests.
 (require 'niwa-view-stream)
+(require 'niwa-view-tool-render)
 (require 'niwa-view-viewport)
 (require 'niwa-transcript)
 (require 'niwa-transcript-audit)
@@ -3757,20 +3759,21 @@
   (should (equal "niwa-view-render"
                  (niwa-view-render-test--owner
                   'niwa-view--group-into-turns)))
-  :doc "owns incremental and full transcript rendering"
+  :doc "owns incremental rendering and delegates full re-renders"
   (dolist (symbol '(niwa-view-render-live-update
-                    niwa-view-render-settle
-                    niwa-view--full-rerender))
+                    niwa-view-render-settle))
     (should (equal "niwa-view-render"
                    (niwa-view-render-test--owner symbol))))
-  :doc "delegates source-backed disclosure while retaining navigation"
+  (should (equal "niwa-view-redraw"
+                 (niwa-view-render-test--owner 'niwa-view--full-rerender)))
+  :doc "delegates source-backed disclosure and navigation"
   (dolist (symbol '(niwa-view-toggle-section
                     niwa-view-disclosure-section-bounds))
     (should (equal "niwa-view-disclosure"
                    (niwa-view-render-test--owner symbol))))
   (dolist (symbol '(niwa-view-next-display
                     niwa-view-next-turn))
-    (should (equal "niwa-view-render"
+    (should (equal "niwa-view"
                    (niwa-view-render-test--owner symbol)))))
 
 (niwa-deftest niwa-view--fontify-response ()

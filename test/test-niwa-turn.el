@@ -19,6 +19,7 @@
 (require 'niwa-turn)
 (require 'niwa-view)
 (require 'niwa-view-composer)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-workspace)
 (require 'niwa-workspace-identity)

@@ -25,6 +25,7 @@
 (require 'niwa-view)
 (require 'niwa-view-render)
 (require 'niwa-structs)
+(require 'niwa-view-tool-render)
 (require 'niwa-workspace)
 (require 'helpers
          (file-name-concat

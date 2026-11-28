@@ -11,8 +11,10 @@
            (or buffer-file-name load-file-name byte-compile-current-file))
           "helpers"))
 (require 'niwa-view)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-prepare)
+(require 'niwa-view-tool-render)
 
 (defun niwa-prepare-test--wait (predicate)
   "Run callbacks until PREDICATE holds, with a bounded test deadline."

@@ -25,6 +25,7 @@
 (require 'niwa-view-composer)
 (require 'niwa-view-interaction)
 (require 'niwa-view-pair)
+(require 'niwa-view-redraw)
 (require 'niwa-view-render)
 (require 'niwa-view-stream)
 (require 'niwa-view-zone)

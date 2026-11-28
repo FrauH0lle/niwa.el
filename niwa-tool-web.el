@@ -57,9 +57,9 @@
 ;; `niwa-turn'
 (declare-function niwa-current-origin "niwa-turn" ())
 
-;; `niwa-view-render'
-(declare-function niwa-view-data-buffer-major-mode "niwa-view-render" ())
-(autoload 'niwa-view-data-buffer-major-mode "niwa-view-render")
+;; `niwa-view-tool-render'
+(declare-function niwa-view-data-buffer-major-mode "niwa-view-tool-render" ())
+(autoload 'niwa-view-data-buffer-major-mode "niwa-view-tool-render")
 
 ;; `url-http'
 (defvar url-http-data)
