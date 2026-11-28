@@ -594,33 +594,63 @@
         (advice-remove 'niwa-notes-open count-build)
         (advice-remove 'niwa--restore-file-instructions count-restore)))))
 
+(niwa-deftest niwa-tool-note-write/no-op-edit (:quiet t)
+  ,test
+  (test)
+  :doc "an edit without text or tags still syncs the workspace once"
+  (niwa-tool-note-test--workspace
+    (let ((id (niwa-tool-note-test--create data-buf file))
+          (sync (symbol-function 'niwa-instruction-store-sync))
+          (syncs 0))
+      (cl-letf (((symbol-function 'niwa-instruction-store-sync)
+                 (lambda (&rest args) (cl-incf syncs) (apply sync args))))
+        (should (eq 'success (plist-get (niwa-tool-note-test--write
+                                         data-buf (vector (list :action "edit" :id id))) :status))))
+      (should (= 1 syncs)))))
+
 (niwa-deftest niwa-tool-note-write/post-submit-mark-failure (:quiet t)
   ,test
   (test)
-  :doc "retry text identifies the submitted note even when marking it sent fails"
+  :doc "after the first sent note fails to render, only the other needs local repair"
   (niwa-tool-note-test--workspace
     (require 'niwa-chat) ; Load the transport owner before replacing its entry point.
     (let* ((id (niwa-tool-note-test--create data-buf file))
+           (second-id (niwa-tool-note-test--create data-buf file))
+           (render (symbol-function 'niwa-notes--render))
+           (failed-render nil)
            (gptel--known-presets nil)
            (niwa-preset--registry nil)
            (transcripts nil)
            (outcome
             (cl-letf (((symbol-function 'niwa--send-request)
                        (lambda (&rest _) (push (buffer-string) transcripts)))
-                      ((symbol-function 'niwa-note-mark-sent)
-                       (lambda (&rest _) (error "Injected mark failure"))))
+                      ((symbol-function 'niwa-notes--render)
+                       (lambda (note)
+                         (if (and transcripts (not failed-render) (eq 'sent (overlay-get note 'niwa-note-state)))
+                             (progn (setq failed-render (overlay-get note 'niwa-uuid))
+                                    (error "Injected sent render failure"))
+                           (funcall render note)))))
               (niwa-define-preset niwa-test-send :description "Isolated note conversation")
               (overlay-put (niwa-note-resolve id workspace) 'niwa-note-settings
                            '(:preset niwa-test-send))
-              (niwa-tool-note-test--write data-buf (vector (list :action "send" :id id)))))
+              (niwa-tool-note-test--write data-buf (vector (list :action "send" :id id)
+                                                           (list :action "send" :id second-id)))))
            (report (plist-get outcome :result)))
       (ert-info (report)
         (should (= 1 (length transcripts)))
         (should (string-search "Finding" (car transcripts)))
         (should (eq 'error (plist-get outcome :status)))
-        (should (string-search "Injected mark failure" report))
-        (should (string-match-p (concat "dispatched Note #[0-9]+ notes://"
-                                        (regexp-quote id) "\\.md") report))))))
+        (should (string-search "Injected sent render failure" report))
+        (should (member failed-render (list id second-id)))
+        (dolist (uuid (list id second-id))
+          (let ((label (format "Note #%s notes://%s.md"
+                               (overlay-get (niwa-note-resolve uuid workspace) 'niwa-id) uuid)))
+            (should (string-search (concat "dispatched " label) report))
+            (if (equal uuid failed-render)
+                (progn (should (string-search (concat "marked " label) report))
+                       (should-not (string-search (concat "repair local sent state for " label) report)))
+              (should-not (string-search (concat "marked " label) report))
+              (should (string-search (concat "repair local sent state for " label) report)))))))))
 
 (provide 'test-niwa-tool-note)
 ;;; test-niwa-tool-note.el ends here

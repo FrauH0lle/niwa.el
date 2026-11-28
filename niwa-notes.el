@@ -694,13 +694,15 @@ Default to the note at point.  Taking Buddy's remark first keeps it as yours."
   "Return the workspace owning the first live note in NOTES."
   (niwa--instruction-buffer-workspace (overlay-buffer (car notes))))
 
-(defun niwa-note-mark-sent (notes session-id)
+(defun niwa-note-mark-sent (notes session-id &optional on-marked)
   "Mark live NOTES sent in conversation SESSION-ID, then touch the store once.
-A note keeps its existing session id."
+A note keeps its existing session id.  Call ON-MARKED, if supplied, with
+each note after updating its state and before rendering it."
   (dolist (note notes)
     (unless (overlay-get note 'niwa-note-session-id)
       (overlay-put note 'niwa-note-session-id session-id))
     (overlay-put note 'niwa-note-state 'sent)
+    (when on-marked (funcall on-marked note))
     (niwa-notes--render note)
     (niwa-note-conversation-refresh-hint note))
   (when notes (niwa-instruction-store-touch (niwa-notes--workspace notes))))

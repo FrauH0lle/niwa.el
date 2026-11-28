@@ -219,13 +219,19 @@
 
 (defun niwa-note-write--report (outcome &optional failure)
   "Describe OUTCOME in effect order, qualifying retry guidance after FAILURE."
-  (let (completed incomplete)
+  (let ((marked (and failure (make-hash-table :test #'equal))) completed incomplete)
     (dolist (entry (niwa-note-write--outcome-effects outcome))
       (pcase-let ((`(,kind ,label . ,_) entry))
         (pcase kind
           ('queued nil)
           ('incomplete (push (concat "prepared change not attached to " label) incomplete))
-          (_ (push (format "%s %s" kind label) completed)))))
+          (_ (push (format "%s %s" kind label) completed)
+             ;; Newest first: all mark acknowledgements precede dispatch here.
+             (when marked
+               (pcase kind
+                 ('marked (puthash label t marked))
+                 ('dispatched (unless (gethash label marked)
+                                (push (concat "repair local sent state for " label) incomplete)))))))))
     (if (not failure) (string-join completed "\n")
       (string-join (append (list failure)
                            (when completed (cons "Completed effects (do not repeat):" completed))
@@ -247,7 +253,7 @@
               (dolist (operation operations)
                 (niwa-note-write--apply operation session outcome))
               (niwa-note-write--send outcome))
-          (when (cl-some (lambda (entry) (not (memq (car entry) '(queued unchanged incomplete))))
+          (when (cl-some (lambda (entry) (not (memq (car entry) '(queued incomplete))))
                          (niwa-note-write--outcome-effects outcome))
             (niwa-instruction-store-sync workspace)))
       (error

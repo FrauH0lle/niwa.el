@@ -368,7 +368,9 @@ sync to the caller's batch.  ON-EFFECT is as in `niwa-note-send-batch'."
         (when (or initial (cl-some (lambda (item)
                                      (not (eq 'sent (overlay-get item 'niwa-note-state))))
                                    notes))
-          (niwa-note-mark-sent members (niwa-session-session-id session))
+          (niwa-note-mark-sent members (niwa-session-session-id session)
+                               (when on-effect
+                                 (lambda (item) (funcall on-effect 'marked (list item)))))
           (unless defer-write (niwa-instruction-store-flush t)))
         (let ((view (buffer-local-value 'niwa--view-buffer data)))
           (unless no-display
@@ -401,7 +403,8 @@ refuses rather than losing either thread.  Interactively, choose loaded notes.
 NO-DISPLAY leaves focus alone; DEFER-WRITE lets a batch caller sync the store.
 ON-EFFECT, if non-nil, receives (KIND NOTES): `keep-from-buddy' with each
 kept note in a singleton list before rendering, `dispatched' with submitted
-members or `reopened' with requested notes before marking."
+members or `reopened' with requested notes before marking, and `marked'
+with each locally marked note in a singleton list before rendering."
   (interactive
    (progn
      (niwa--instruction-activate-buffer)
