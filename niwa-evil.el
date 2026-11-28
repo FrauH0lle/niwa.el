@@ -15,6 +15,7 @@
 ;; `evil'
 (declare-function evil-define-key* "evil-core" (state keymap key def &rest bindings))
 (declare-function evil-exit-visual-state "evil-states" (&optional repeat))
+(declare-function evil-initial-state "evil-core" (mode &optional default follow-parent checked-modes))
 (declare-function evil-normal-state "evil-states" (&optional arg))
 (declare-function evil-set-command-property "evil-common" (command property value))
 (declare-function evil-set-initial-state "evil-core" (mode state))
@@ -148,9 +149,11 @@ conflicting native actions, preserving vanilla behavior in other states."
   "Adapt the current cockpit's generated map after surface setup.
 Every tabulated cockpit goes through surface setup, so new cockpits need
 no registration here.  Setup runs in the mode body, before Evil chooses
-the buffer's state, so the initial state applies to this buffer too."
+the buffer's state, so the initial state applies to this buffer too.  A
+state the user chose for the mode is kept."
   (when (bound-and-true-p niwa-cockpit--surface)
-    (evil-set-initial-state major-mode 'normal)
+    (unless (evil-initial-state major-mode)
+      (evil-set-initial-state major-mode 'normal))
     (niwa-evil--adapt-map (current-local-map))))
 
 (defun niwa-evil--key-help (text)

@@ -435,6 +435,20 @@ independently of the product's primitive change hooks."
       (should (= 4 (line-number-at-pos)))
       (niwa-evil-test--keys "g g")
       (should (= 1 (point)))))
+  :doc "a cockpit enters normal state unless the user chose another state"
+  (unwind-protect
+      (dolist (case '((nil . normal) (emacs . emacs)))
+        (evil-set-initial-state 'niwa-schedules-list-mode (car case))
+        (with-temp-buffer
+          (niwa-schedules-list-mode)
+          (evil-local-mode 1)
+          (unwind-protect
+              (progn
+                (should (eq evil-state (cdr case)))
+                (should (eq (evil-initial-state 'niwa-schedules-list-mode)
+                            (cdr case))))
+            (evil-local-mode -1))))
+    (evil-set-initial-state 'niwa-schedules-list-mode nil))
   :doc "generated cockpit help names normal-state remapped actions"
   (niwa-evil-test--buffer
     (let ((help (niwa-cockpit-surface-key-help-text
