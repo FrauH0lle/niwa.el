@@ -11,6 +11,8 @@
           "niwa-engine-test-support"))
 (require 'niwa-acp-turn)
 (require 'niwa-claude-code)
+(require 'niwa-collaboration)
+(require 'niwa-collaboration-transport)
 (require 'niwa-mcp)
 (require 'niwa-mcp-tools)
 (require 'niwa-plan-mode)
@@ -927,6 +929,42 @@ BODY delivers the receipt and a Read call through `connection', `content' and
       (should (eq 'error (plist-get (niwa-engine-info request) :niwa-acp-outcome)))
       (should (string-match-p "had already acted, so it was not retried"
                               (format "%s" (plist-get (niwa-engine-info request) :error))))))
+
+  :doc "a re-sent prompt retracts its abandoned attempt from the transcript, rooms and native identity"
+  (niwa-engine-test--with-session
+    ;; Longer than the retry's 1.5 s of silence, so only the first attempt stalls.
+    (let* ((niwa-provider-stall-timeout 2.0)
+           (room (list :session session :data-buffer buffer
+                       :guests (make-hash-table :test #'eql) :transport 'transport))
+           (niwa-collaboration--rooms (niwa-test-room-registry room))
+           (projection (lambda () (format "%S" (plist-get room :records)))))
+      (add-hook 'gptel-post-stream-hook #'niwa-collaboration--safe-post-response nil t)
+      (cl-letf (((symbol-function 'niwa-collaboration--transport-send) (lambda (&rest _) t))
+                ((symbol-function 'niwa-collaboration--transport-control) #'ignore))
+        (niwa-acp-turn-start
+         request
+         (lambda (mcp _hook)
+           (list :command (executable-find "python3")
+                 :args (list niwa-test--acp-peer) :cwd root :mcp mcp))
+         [((type . "text") (text . "stall-boundary"))] nil)
+        ;; The peer first sees the abandoned attempt, reasoning included.
+        (niwa-test--await 5 "Peer did not see the abandoned attempt"
+          (string-search "stalling" (funcall projection)))
+        (should (string-search "pondering" (funcall projection)))
+        ;; It loses all of it while the retry is still silent.
+        (niwa-test--await 5 "Peer kept the abandoned attempt"
+          (not (string-search "stalling" (funcall projection))))
+        (should-not (string-search "pondering" (funcall projection)))
+        (should-not (string-search "recovered" (buffer-string)))
+        (should (niwa-turn-busy-p buffer))
+        (niwa-test--await 8 "Retried turn did not settle" (not (niwa-turn-busy-p buffer))))
+      (should (eq 'success (plist-get (niwa-engine-info request) :niwa-acp-outcome)))
+      ;; The stored answer is exactly the retry's, without the abandoned
+      ;; text or reasoning block.
+      (should (equal ":PROPERTIES:\n:GPTEL_BOUNDS: ((response (56 65)))\n:END:\nrecovered\n"
+                     (buffer-substring-no-properties (point-min) (point-max))))
+      ;; The retry sent no message id; the abandoned one must not survive.
+      (should-not (plist-get (niwa-engine-info request) :niwa-native-message-id))))
 
   :doc "a child whose re-sent prompt stalls again settles with an honest error"
   (niwa-engine-test--with-session

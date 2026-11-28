@@ -27,6 +27,9 @@
 ;; `niwa-goal'
 (declare-function niwa-goal-capture-request "niwa-goal" (request))
 
+;; `niwa-view'
+(declare-function niwa-view-rerender "niwa-view" (&optional buffer))
+
 (defconst niwa-acp-turn--lost-reply-limit 8
   "Lost MCP replies one turn records for diagnosis.")
 
@@ -207,7 +210,7 @@ for it; duplicate or late continuations cannot start a cancelled turn."
          ;; Native identities of calls the adapter announced on stdout.
          (announced (make-hash-table :test #'equal))
          pending draining server connection configuration finished cancellation-held started terminal-pending
-         last-end last-send send-context (holds 0) stall-status)
+         last-end last-send send-context (holds 0) stall-status attempt)
     (unless (and (buffer-live-p buffer)
                  (if root-p
                      (and (eq request (buffer-local-value 'niwa--current-request buffer))
@@ -263,6 +266,37 @@ for it; duplicate or late continuations cannot start a cancelled turn."
              (when (buffer-live-p buffer)
                (niwa-view-stream-release-progress
                 (buffer-local-value 'niwa--view-buffer buffer) (car claim)))))
+         (mark-attempt ()
+           ;; Insertion markers as this physical prompt began, as gptel retry
+           ;; keeps them per sample.
+           (let ((info (niwa-engine-info request)))
+             (setq attempt
+                   (mapcar (lambda (key)
+                             (cons key (when-let* ((marker (plist-get info key)))
+                                         (copy-marker marker (marker-insertion-type marker)))))
+                           '(:position :tracking-marker :reasoning-marker)))))
+         (retract-attempt ()
+           ;; A prompt is re-sent only before any tool or compaction, so all
+           ;; its abandoned attempt streamed is provisional: text, reasoning
+           ;; and the native message it belonged to.
+           (let* ((info (niwa-engine-info request))
+                  (start (or (alist-get :tracking-marker attempt) (alist-get :position attempt)))
+                  (end (or (plist-get info :tracking-marker) (plist-get info :position))))
+             (niwa-gptel-stream-bridge-discard-batch info)
+             (with-current-buffer buffer
+               (let ((inhibit-read-only t))
+                 (when (< start end) (delete-region start end))))
+             (dolist (key '(:position :tracking-marker :reasoning-marker))
+               (setq info (plist-put info key (alist-get key attempt))))
+             (dolist (key '(:niwa-acp-reasoning :reasoning-block :niwa-native-message-id))
+               (setq info (plist-put info key nil)))
+             (setf (niwa-engine-info request) info)
+             (mark-attempt)
+             (with-current-buffer buffer
+               (when-let* ((view niwa--view-buffer) ((buffer-live-p view)))
+                 (niwa-view-rerender view))
+               ;; Views, rooms and live agent transcripts follow stream edits here.
+               (run-hooks 'gptel-post-stream-hook))))
          (enqueue (operation &optional terminal reject)
            (if (or finished (and (not terminal) (cancelled)))
                (when reject (funcall reject))
@@ -612,7 +646,10 @@ for it; duplicate or late continuations cannot start a cancelled turn."
                                                  ;; automatic OAuth-contention resend.
                                                  (apply #'note 'acp-prompt-send :resend (and resend t)
                                                         send-context)
-                                                 (setq last-send (float-time)))))
+                                                 (setq last-send (float-time))
+                                                 ;; Queued after the abandoned attempt's events.
+                                                 (enqueue (lambda () (if resend (retract-attempt) (mark-attempt)))
+                                                          t))))
                               (setq configuration
                                     (plist-put configuration :exit-observer
                                                (lambda (process)

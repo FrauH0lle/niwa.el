@@ -370,6 +370,22 @@ for line in sys.stdin:
                     else:
                         chunk("stalling")
                     pending = request_id
+            elif prompt == "stall-boundary":
+                # Reasoning and text with a message id, then silence; the
+                # retry stays silent for 1.5 s, then answers without an id.
+                stalls += 1
+                if stalls > 1:
+                    time.sleep(1.5)
+                    chunk("recovered")
+                    reply(request_id, {"stopReason": "end_turn"})
+                else:
+                    for kind, text in (("agent_thought_chunk", "pondering"),
+                                       ("agent_message_chunk", "stalling")):
+                        print(json.dumps({"jsonrpc": "2.0", "method": "session/update", "params": {
+                            "sessionId": session_id, "update": {
+                                "sessionUpdate": kind, "messageId": "m-abandoned",
+                                "content": {"type": "text", "text": text}}}}), flush=True)
+                    pending = request_id
             elif prompt.startswith("periodic:"):
                 # Updates every 0.3 s, then silence (commands) or an answer (text).
                 stalls += 1
