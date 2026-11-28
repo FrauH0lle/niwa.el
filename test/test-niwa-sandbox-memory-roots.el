@@ -13,6 +13,7 @@
           "helpers"))
 (require 'niwa-sandbox)
 (require 'niwa-permission-rules)
+(require 'niwa-plugin-registry)
 (defvar niwa-sessions-directory)
 
 (niwa-deftest niwa-sandbox-prepare/stores-survive-replacement
@@ -137,6 +138,39 @@
                 (ert-info ((buffer-string)) (should (eq 0 status)))))
             (dolist (file files)
               (should (equal (list file "other") (list file (funcall contents file))))))
+        (when prepared (niwa-sandbox-cleanup prepared))
+        (delete-directory root t)))))
+
+(niwa-deftest niwa-sandbox-prepare/plugin-consent-store
+  (:doc "a confined child cannot write or create the user's hook consent store")
+  (let ((niwa-sandbox-mode 'required)
+        (niwa-sandbox--probe-cache nil))
+    (skip-unless (plist-get (niwa-sandbox-probe) :available))
+    (let* ((root (file-name-as-directory (make-temp-file "niwa-sandbox-consent-" t)))
+           ;; A writable root that holds the user directory, as a workspace
+           ;; at home would.
+           (niwa-user-dir (file-name-as-directory (file-name-concat root "user")))
+           (niwa-protected-paths
+            (eval (car (get 'niwa-protected-paths 'standard-value)) t))
+           (store (niwa-plugins--consent-file))
+           prepared)
+      (unwind-protect
+          (progn
+            ;; Reading consent, as hook resolution does before any tool
+            ;; runs, creates the empty store the mount then covers.
+            (should-not (niwa-plugins--read-consent))
+            (should (file-exists-p store))
+            (setq prepared
+                  (niwa-sandbox-prepare
+                   (list "sh" "-c"
+                         "if (printf x > \"$1\") 2>/dev/null; then exit 1; fi; if rm -f \"$1\" 2>/dev/null && [ ! -e \"$1\" ]; then exit 2; fi"
+                         "sh" store)
+                   root (list root)))
+            (should (eq 'confined (plist-get prepared :state)))
+            (should (zerop (apply #'call-process (car (plist-get prepared :command))
+                                  nil nil nil (cdr (plist-get prepared :command)))))
+            (should (equal "nil\n" (with-temp-buffer (insert-file-contents store)
+                                                      (buffer-string)))))
         (when prepared (niwa-sandbox-cleanup prepared))
         (delete-directory root t)))))
 

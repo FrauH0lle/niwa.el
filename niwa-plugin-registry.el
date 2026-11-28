@@ -415,14 +415,30 @@ not carry consent.  They live in the user's consent store, see
   (file-name-concat niwa-user-dir "plugin-consent.eld"))
 
 (defun niwa-plugins--workspace-key (workspace)
-  "Return WORKSPACE's identity in the consent store, as project trust keys it.
-A remote workspace's identity includes its TRAMP prefix, so consent is
-per client machine."
-  (format "%S:%s" (niwa-workspace-type workspace) (niwa-workspace-id workspace)))
+  "Return WORKSPACE's physical identity in the consent store.
+The root's symlinks are resolved, on the target for a remote root, so a
+retargeted link names a different checkout.  A remote identity keeps its
+TRAMP prefix, so consent is per client machine and per alias."
+  (let ((root (directory-file-name (expand-file-name (niwa-workspace-root workspace)))))
+    (concat (or (file-remote-p root) "") (file-local-name (file-truename root)))))
+
+(defun niwa-plugins--consent-source (source)
+  "Return SOURCE's physical identity: an absolute source with links resolved.
+A source relative to the workspace is anchored by the workspace key."
+  (if (and (stringp source) (file-name-absolute-p source))
+      (file-truename source)
+    source))
 
 (defun niwa-plugins--read-consent ()
-  "Return the records in the user's consent store."
+  "Return the records in the user's consent store.
+A missing store is created empty first, so the protected-path mount
+covers it before any confined child starts."
   (let ((file (niwa-plugins--consent-file)))
+    (unless (file-exists-p file)
+      (ignore-errors
+        (make-directory niwa-user-dir t)
+        (with-file-modes #o600
+          (write-region "nil\n" nil file nil 'silent nil 'excl))))
     (and (file-readable-p file)
          (niwa-plugins--parse-state
           (with-temp-buffer (insert-file-contents file) (buffer-string))))))
@@ -440,7 +456,8 @@ given for; the registry also compares its fingerprint and scripts."
                               (lambda (record)
                                 (and (equal key (plist-get record :workspace))
                                      (equal (car entry) (plist-get record :plugin))
-                                     (equal (plist-get plist :source-root)
+                                     (equal (niwa-plugins--consent-source
+                                             (plist-get plist :source-root))
                                             (plist-get record :source))))
                               records)))
                 (cons (car entry)
@@ -455,7 +472,7 @@ changed, so another client's consent or revocation survives."
   (let* ((key (niwa-plugins--workspace-key workspace))
          (consent (lambda (state name)
                     (let ((plist (cdr (assoc name state))))
-                      (list (plist-get plist :source-root)
+                      (list (niwa-plugins--consent-source (plist-get plist :source-root))
                             (niwa-plugins--keys plist t)))))
          (changes (cl-loop for name in (delete-dups (mapcar #'car (append old new)))
                            for after = (funcall consent new name)

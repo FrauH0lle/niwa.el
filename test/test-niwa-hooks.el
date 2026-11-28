@@ -2129,6 +2129,52 @@ Return the words the hook scripts logged to ROOT's log file."
         (delete-directory copy t)
         (delete-directory user-dir t)))))
 
+(niwa-deftest niwa-hooks-run-event/plugin-consent-physical-root
+  (:doc "retargeting a workspace symlink to another checkout drops its consent")
+  (let* ((top (file-name-as-directory (make-temp-file "niwa-hooks-plugin-link" t)))
+         (real (file-name-concat top "a/"))
+         (other (file-name-concat top "b/"))
+         (root (file-name-concat top "link/"))
+         (user-dir (file-name-concat top "user/"))
+         (plugin-root (file-name-concat real ".niwa" "plugins" "repo/"))
+         (script (file-name-concat plugin-root "hooks" "a.sh"))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory (file-name-concat user-dir ".agents" "plugins"))
+         (niwa-hook-rules nil)
+         (niwa-hooks-slow-threshold nil))
+    (skip-unless (not (eq system-type 'windows-nt)))
+    (cl-flet ((runs ()
+                (niwa-hooks-invalidate-config)
+                (let ((workspace (niwa-hooks-test--workspace root)))
+                  (niwa-test--with-captured-diagnostics nil
+                    (niwa-hooks-test--run-logged
+                     root (niwa-session-create "s" workspace root) workspace)))))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory script) t)
+            (with-temp-file script (insert "#!/bin/sh\ncat >/dev/null\necho a1 >> log\n"))
+            (set-file-modes script #o755)
+            (with-temp-file (file-name-concat plugin-root "hooks" "hooks.json")
+              (insert "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":"
+                      "[{\"type\":\"command\",\"command\":\"echo a1 >> log\"}]}]}}"))
+            (niwa-hooks-test--write-plugin-manifest
+             plugin-root "{\"name\":\"demo\",\"hooks\":\"hooks/hooks.json\"}")
+            (make-symbolic-link (directory-file-name real) (directory-file-name root))
+            (cl-letf (((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+              ;; Written through the real path; the link sees it while it
+              ;; points there, since consent names the physical root.
+              (should (niwa-plugins-enable "demo" (niwa-hooks-test--workspace real))))
+            (should (equal '("a1") (runs)))
+            ;; An inline command names no script, so only workspace consent decides.
+            ;; The same path now names another checkout with the same plugin.
+            (copy-directory real other nil t t)
+            (delete-file (file-name-concat other "log"))
+            (delete-file (directory-file-name root))
+            (make-symbolic-link (directory-file-name other) (directory-file-name root))
+            (should-not (runs)))
+        (niwa-hooks-invalidate-config)
+        (delete-directory top t)))))
+
 (niwa-deftest niwa-hooks-run-event/plugin-script-consent
   (:doc "runs a plugin hook script only while its consented content is unchanged")
   (let* ((root (file-name-as-directory

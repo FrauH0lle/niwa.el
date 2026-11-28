@@ -460,7 +460,7 @@
                     ,@(mapcar (lambda (name)
                                 (list "/srv/" (concat niwa-user-dir name)))
                               '("permissions.eld" "trusted-hooks.eld"
-                                "hooks.el" "hooks.json"))
+                                "plugin-consent.eld" "hooks.el" "hooks.json"))
                     ;; A workspace at home must not reach user hook files.
                     (,home ,(concat home ".agents/hooks.el"))
                     (,home ,(concat home ".agents/hooks.json"))
@@ -507,7 +507,7 @@
                   (eval (car (get 'niwa-protected-paths 'standard-value)) t)))
             (dolist (dir (list link real))
               (dolist (name '("permissions.eld" "trusted-hooks.eld"
-                              "hooks.el" "hooks.json"))
+                              "plugin-consent.eld" "hooks.el" "hooks.json"))
                 (should (eq 'ask (niwa-check-permission
                                   "ApplyPatch" :tool-struct tool
                                   :path (concat dir name)

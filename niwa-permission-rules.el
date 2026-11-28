@@ -141,7 +141,7 @@ Example:
     ,@(mapcan (lambda (dir)
                 (mapcar (lambda (name)
                           (cons (file-name-concat dir name) 'read-only))
-                        '("permissions.eld" "trusted-hooks.eld"
+                        '("permissions.eld" "trusted-hooks.eld" "plugin-consent.eld"
                           "hooks.el" "hooks.json")))
               ;; A symlinked user dir also reaches the stores by its
               ;; physical name, which the checker does not map back.
