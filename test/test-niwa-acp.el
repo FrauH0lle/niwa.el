@@ -147,6 +147,26 @@
       (await (lambda () completions))
       (should (= 1 (length completions)))))
 
+  :doc "command-list refreshes are not progress; text deltas are"
+  (dolist (case '(("periodic:commands" 2 1) ("periodic:text" 1 0)))
+    (ert-info ((car case))
+      (let* ((statuses nil) (sends 0) (start (float-time))
+             (niwa-provider-stall-timeout 1.0)
+             (niwa-acp-test--launch-options
+              ;; Each status records when it appeared.
+              (list :stall-observer (lambda (_text) (push (- (float-time) start) statuses))
+                    :send-observer (lambda (_resend) (cl-incf sends)))))
+        (niwa-acp-test--with-connection nil
+          (let (outcome)
+            (niwa-acp-prompt connection `[((type . "text") (text . ,(car case)))]
+                             #'ignore (lambda (value) (setq outcome value)))
+            (await (lambda () outcome))
+            (should (eq 'success (plist-get outcome :status)))
+            (should (= (nth 1 case) sends))
+            (should (= (nth 2 case) (length statuses)))
+            ;; The refreshes last 3 s; the stall is seen while they continue.
+            (when statuses (should (< (car statuses) 2.5))))))))
+
   :doc "a prompt silent after one update is cancelled and re-sent once"
   (let* ((statuses nil) (sends 0)
          (niwa-provider-stall-timeout 1.0)
@@ -168,9 +188,30 @@
         (should (string-match-p "\\`No response from the provider for .* · retrying" (car statuses)))
         (should (eq 'idle (niwa-acp-state connection))))))
 
+  :doc "a completed compaction then a stall ends the turn without a resend"
+  (let* ((sends 0) (niwa-provider-stall-timeout 1.0)
+         (niwa-acp-test--launch-options
+          (list :send-observer (lambda (_resend) (cl-incf sends))
+                :compaction t
+                :meta '((compactionEvents
+                         . [((sessionUpdate . "compaction_update") (compactionId . "compact-1")
+                             (status . "completed")
+                             (summary . [((type . "text") (text . "Summary"))]))])))))
+    (niwa-acp-test--with-connection nil
+      (should-not failure)
+      (let (outcome)
+        ;; The fixture emits the compaction before the prompt's one update.
+        (niwa-acp-prompt connection [((type . "text") (text . "stall-once"))]
+                         #'ignore (lambda (value) (setq outcome value)))
+        (await (lambda () outcome))
+        (should (eq 'error (plist-get outcome :status)))
+        (should (string-match-p "had already acted, so it was not retried"
+                                (plist-get outcome :message)))
+        (should (= 1 sends)))))
+
   :doc "a re-sent prompt that stalls again, or a stall after a tool call, ends with an error"
   (dolist (case '(("wait" 2 "again after a retry; the turn ended")
-                  ("stall-after-tool" 1 "had called tools, so it was not retried")))
+                  ("stall-after-tool" 1 "had already acted, so it was not retried")))
     (ert-info ((car case))
       (let* ((sends 0) (niwa-provider-stall-timeout 1.0)
              (niwa-acp-test--launch-options

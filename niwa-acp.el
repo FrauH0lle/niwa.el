@@ -30,6 +30,11 @@
 (defvar niwa-acp--auth-expiry-warned (make-hash-table :test #'equal)
   "Pairs of expiry reader and timestamp already warned about this Emacs session.")
 
+(defconst niwa-acp--progress-updates
+  '("agent_message_chunk" "agent_thought_chunk" "tool_call" "tool_call_update"
+    "plan" "compaction_update" "compaction_summary_chunk")
+  "Session updates that show a prompt making progress, for stall detection.")
+
 (defconst niwa-acp--control-timeout 30
   "Seconds allowed for startup and cancellation acknowledgement.")
 
@@ -627,10 +632,19 @@ ends the turn with an error."
         turn)
     (cl-labels
         ((observe (notification)
-           (when (equal "session/update" (alist-get 'method notification))
-             (plist-put turn :progress-at (float-time))
-             (when (equal "tool_call" (alist-get 'sessionUpdate
-                                                 (alist-get 'update (alist-get 'params notification))))
+           (let ((kind (and (equal "session/update" (alist-get 'method notification))
+                            (alist-get 'sessionUpdate
+                                       (alist-get 'update (alist-get 'params notification))))))
+             ;; Output, reasoning, tool or plan progress; housekeeping such as
+             ;; command-list refreshes is not an answer.
+             (when (member kind niwa-acp--progress-updates)
+               (plist-put turn :progress-at (float-time)))
+             ;; A tool call or a materialized compaction (it rotates the
+             ;; transcript) cannot be replayed safely.
+             (when (or (equal "tool_call" kind)
+                       (and (equal "compaction_update" kind)
+                            (equal "completed"
+                                   (alist-get 'status (alist-get 'update (alist-get 'params notification))))))
                (plist-put turn :acted t)))
            (funcall event notification))
          (arm (delay)
@@ -665,7 +679,7 @@ ends the turn with an error."
                   :message (niwa-provider-stall-message
                             (if (plist-get turn :retried)
                                 ", again after a retry; the turn ended"
-                              "; the turn had called tools, so it was not retried")))))
+                              "; the turn had already acted, so it was not retried")))))
          (send ()
            (when (niwa-acp--check-auth-expiry connection)
              (when-let* ((observer (plist-get (niwa-acp-launch connection) :send-observer)))

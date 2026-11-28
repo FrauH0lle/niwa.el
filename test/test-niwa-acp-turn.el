@@ -925,7 +925,7 @@ BODY delivers the receipt and a Read call through `connection', `content' and
       (should (= 1 executions))
       (should (= 1 prompts))
       (should (eq 'error (plist-get (niwa-engine-info request) :niwa-acp-outcome)))
-      (should (string-match-p "had called tools, so it was not retried"
+      (should (string-match-p "had already acted, so it was not retried"
                               (format "%s" (plist-get (niwa-engine-info request) :error))))))
 
   :doc "a child whose re-sent prompt stalls again settles with an honest error"

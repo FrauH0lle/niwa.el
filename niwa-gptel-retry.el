@@ -473,9 +473,16 @@ Retained agent turns have no root request: their runtime owns the machine."
   (niwa-gptel-retry--unwatch state)
   (when (and niwa-provider-stall-timeout (plist-get info :stream))
     (plist-put state :progress-at (float-time))
-    (plist-put state :stall-timer
-               (niwa-transport-run-at-time niwa-provider-stall-timeout
-                                           #'niwa-gptel-retry--stall-check state info))))
+    (niwa-gptel-retry--arm state info niwa-provider-stall-timeout)))
+
+(defun niwa-gptel-retry--arm (state info delay)
+  "Arm STATE's only stall check for attempt INFO after DELAY seconds.
+A held timer still fires after cancellation, so the check confirms that its
+timer is still STATE's current one before acting."
+  (let ((cell (list nil)))
+    (setcar cell (niwa-transport-run-at-time delay #'niwa-gptel-retry--stall-check
+                                             state info cell))
+    (plist-put state :stall-timer (car cell))))
 
 (defun niwa-gptel-retry--unwatch (state)
   "Stop STATE's stall watch."
@@ -483,11 +490,13 @@ Retained agent turns have no root request: their runtime owns the machine."
     (cancel-timer timer)
     (plist-put state :stall-timer nil)))
 
-(defun niwa-gptel-retry--stall-check (state info)
+(defun niwa-gptel-retry--stall-check (state info cell)
   "Retire attempt INFO if STATE's provider made no progress for the timeout.
+CELL holds this check's timer; a superseded timer does nothing.
 A live transport is killed so its own cleanup settles the stall error;
 without one, the attempt settles directly.  The first stall is retried;
 a second stall's code is not retryable."
+  (when (eq (car cell) (plist-get state :stall-timer))
   (plist-put state :stall-timer nil)
   (let* ((fsm (plist-get state :fsm))
          (timeout niwa-provider-stall-timeout)
@@ -495,9 +504,7 @@ a second stall's code is not retryable."
     (when (and remaining (niwa-gptel-retry--live-p state info)
                (memq (gptel-fsm-state fsm) '(WAIT TYPE MRESEND)))
       (if (> remaining 0)
-          (plist-put state :stall-timer
-                     (niwa-transport-run-at-time remaining #'niwa-gptel-retry--stall-check
-                                                 state info))
+          (niwa-gptel-retry--arm state info remaining)
         (let* ((again (plist-get state :stalled))
                (error-data
                 (list :code (if again "stream_stalled_again" "stream_stalled")
@@ -515,7 +522,7 @@ a second stall's code is not retryable."
             (plist-put (gptel-fsm-info fsm) :niwa-retry-provider-error error-data)
             (dolist (entry transports)
               (niwa-transport-resume-process (car entry))
-              (kill-process (car entry)))))))))
+              (kill-process (car entry))))))))))
 
 (defun niwa-gptel-retry--capture-process (info &rest _)
   "Record the curl that gptel is about to feed attempt INFO's request.

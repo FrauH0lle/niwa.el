@@ -246,5 +246,22 @@ The write resumes against a dead process, and nothing is retried."
       (should-not (niwa-retry-stall-test--orphans))
       (should-not niwa-gptel-retry--states))))
 
+(ert-deftest niwa-gptel-retry-stall/superseded-check-keeps-successor ()
+  "Arm A, arm B, deliver A: B stays STATE's cancellable timer.
+A cancelled timer held by TRAMP still fires after its replacement exists."
+  (niwa-retry-test--with-http nil
+    (let ((niwa-provider-stall-timeout 300)
+          (state (list :fsm fsm))
+          (info (list :stream t)))
+      (niwa-gptel-retry--watch state info)
+      (let ((a (pop scheduled)))
+        (niwa-gptel-retry--watch state info)
+        (let ((b (plist-get state :stall-timer)))
+          (should (memq b timer-list))
+          (apply (nth 1 a) (nth 2 a))
+          (should (eq b (plist-get state :stall-timer)))
+          (niwa-gptel-retry--unwatch state)
+          (should-not (memq b timer-list)))))))
+
 (provide 'test-niwa-gptel-retry-stall)
 ;;; test-niwa-gptel-retry-stall.el ends here

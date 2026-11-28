@@ -370,6 +370,26 @@ for line in sys.stdin:
                     else:
                         chunk("stalling")
                     pending = request_id
+            elif prompt.startswith("periodic:"):
+                # Updates every 0.3 s, then silence (commands) or an answer (text).
+                stalls += 1
+                if stalls > 1:
+                    chunk("recovered")
+                    reply(request_id, {"stopReason": "end_turn"})
+                else:
+                    for index in range(10):
+                        time.sleep(0.3)
+                        if prompt == "periodic:text":
+                            chunk("more ")
+                        else:
+                            print(json.dumps({"jsonrpc": "2.0", "method": "session/update", "params": {
+                                "sessionId": session_id, "update": {
+                                    "sessionUpdate": "available_commands_update",
+                                    "availableCommands": []}}}), flush=True)
+                    if prompt == "periodic:text":
+                        reply(request_id, {"stopReason": "end_turn"})
+                    else:
+                        pending = request_id
             elif prompt == "late":
                 time.sleep(1.5)
                 chunk("late")
