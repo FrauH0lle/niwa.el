@@ -192,7 +192,7 @@ function host(lobbyRunning, records, sharedItem, coldAgent, archives, agentRecor
   };
 }
 
-async function open(browser, {lobbyRunning = true, records = [], sharedItem = null, coldAgent = false,
+async function open(browser, {agentDelay = 0, lobbyRunning = true, records = [], sharedItem = null, coldAgent = false,
                               archives = null, agentRecords = null, viewport = {width: 1200, height: 800},
                               touch = false, lobbySessions = null} = {}) {
   const context = await browser.newContext({viewport, hasTouch: touch});
@@ -223,10 +223,13 @@ async function open(browser, {lobbyRunning = true, records = [], sharedItem = nu
     page.joined.push(id);
     // Crypto completion order is not wire order; match the real transport's queues.
     let inbound = Promise.resolve(), outbound = Promise.resolve();
-    const reply = frame => {
+    const send = frame => {
       outbound = outbound.then(async () => socket.send(await seal(keys[id], frame)));
       return outbound;
     };
+    // A slow host answers a transcript fetch after the viewer has polled again.
+    const reply = frame => agentDelay && frame.t === 'agent'
+      ? new Promise(done => setTimeout(() => done(send(frame)), agentDelay)) : send(frame);
     page.push[id] = reply;
     page.dropConnection = () => socket.close({code: 1001});
     // Bind the connection as the host does; unbound frames are dropped.
@@ -363,6 +366,17 @@ test('wake-up and late-delivery patches leave the active lobby row and pointer p
     const opened = page.waitForEvent('host-frame', {predicate: f => f.t === 'open-session'});
     await page.mouse.up();
     assert.equal((await opened).id, 'room15');
+  } finally { await browser.close(); }
+});
+
+test('a transcript answer slower than the poll interval still renders', async () => {
+  const browser = await chromium.launch();
+  try {
+    // The viewer polls a live transcript every 2.5 s; every answer here takes longer.
+    const page = await open(browser, {agentDelay: 3200});
+    await page.goto(`${tierLink(sessionRoom, 32)}?agent=${encodeURIComponent('/root/reviewer')}`);
+    await page.locator('#agent-transcript').getByText('The retained agent transcript.', {exact: true})
+      .waitFor({timeout: 15000});
   } finally { await browser.close(); }
 });
 

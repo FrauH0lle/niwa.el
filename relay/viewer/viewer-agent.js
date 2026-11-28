@@ -14,8 +14,12 @@
     const pinnedPrompt = window.niwaPinnedPrompt.create({
       pin: document.getElementById('agent-pinned-prompt'), transcript, scroll: transcript,
       edge: panel.querySelector('.topbar'), column: transcript});
-    const view = {path: null, row: null, reqId: 0, digest: null, staging: null,
-                  timer: null, artifact: null};
+    // Request ids rise by one per fetch, so the answers still acceptable are
+    // exactly FLOOR..reqId: a slow host answers an earlier poll after the next
+    // one went out, and an answer retires its own id and every older one.
+    // STAGED holds each request's chunks apart until its final one.
+    const view = {path: null, row: null, reqId: 0, floor: 1, digest: null,
+                  staged: new Map(), timer: null, artifact: null};
     let requestSequence = 0;
     let roster = [];
 
@@ -37,7 +41,6 @@
     function fetch() {
       if (!view.path) return;
       view.reqId = ++requestSequence;
-      view.staging = null;
       const frame = {t: 'fetch-agent', reqId: view.reqId, path: view.path};
       if (Number.isSafeInteger(view.segment)) frame.segment = view.segment;
       if (view.digest) frame.known = view.digest;
@@ -93,7 +96,8 @@
       view.segment = Number.isSafeInteger(row.segment) ? row.segment : null;
       view.row = {...row};
       view.digest = null;
-      view.staging = null;
+      view.staged.clear();
+      view.floor = requestSequence + 1;
       view.artifact = artifact;
       if (title) title.textContent = row.path;
       if (metaEl) metaEl.textContent = (view.segment ? `Segment ${view.segment} · ` : '') + meta(row);
@@ -130,7 +134,8 @@
       if (view.timer) clearInterval(view.timer);
       view.timer = null;
       view.reqId = 0;
-      view.staging = null;
+      view.floor = 1;
+      view.staged.clear();
       if (transcript) transcript.replaceChildren(el('p', 'panel-note', message));
     }
 
@@ -144,8 +149,9 @@
       view.path = null;
       view.row = null;
       view.digest = null;
-      view.staging = null;
+      view.staged.clear();
       view.artifact = null;
+      view.floor = view.reqId + 1;
       if (panel) panel.hidden = true;
       if (transcript) transcript.replaceChildren();
     }
@@ -163,9 +169,18 @@
       }
     }
 
+    function settle(reqId) {
+      view.floor = reqId + 1;
+      for (const id of view.staged.keys()) if (id <= reqId) view.staged.delete(id);
+    }
+
     function handle(frame) {
-      if (!view.path || frame.reqId !== view.reqId) return;
+      if (!view.path || !Number.isSafeInteger(frame.reqId)
+          || frame.reqId < view.floor || frame.reqId > view.reqId) return;
       if (typeof frame.error === 'string') {
+        settle(frame.reqId);
+        // The error replaces the transcript: never claim its old digest.
+        view.digest = null;
         if (view.artifact) { artifactError(frame.error); return; }
         view.toolId = null;
         if (transcript) {
@@ -174,14 +189,18 @@
         return;
       }
       if (frame.unchanged === true) {
+        settle(frame.reqId);
+        // Unchanged vouches for the transcript on screen only when its digest
+        // is the displayed one; otherwise the next poll asks for the records.
+        if (frame.digest !== view.digest) view.digest = null;
         if (view.artifact) artifactError('The agent returned no records to resolve this artifact.');
         return;
       }
-      (view.staging ||= []).push(
+      if (!view.staged.has(frame.reqId)) view.staged.set(frame.reqId, []);
+      view.staged.get(frame.reqId).push(
         ...(Array.isArray(frame.records) ? frame.records : []));
       if (frame.final === true) {
-        const records = view.staging;
-        view.staging = null;
+        const records = view.staged.get(frame.reqId);
         view.digest = typeof frame.digest === 'string' ? frame.digest : null;
         if (view.artifact) {
           const requested = view.artifact;
@@ -196,6 +215,7 @@
           openArtifact(resolved);
           return;
         }
+        settle(frame.reqId);
         renderRecords(records);
       }
     }

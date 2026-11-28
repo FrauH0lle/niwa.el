@@ -255,6 +255,48 @@ controller.resolveArtifact({id: childRecord.id});
 assert.equal(sent.length, beforeInvalid);
 assert.match(textOf(nodes['agent-transcript']), /no valid agent context/);
 controller.close();
+// A host slower than the poll interval answers an earlier poll after later
+// ones went out, however many that is, and that answer still renders.
+const record = (id, text, kind = 'assistant') => ({id, kind, text});
+const shown = () => textOf(nodes['agent-transcript']);
+controller.open({path: '/root/slow'});
+const oldest = sent.at(-1).reqId;
+for (let n = 0; n < 12; n++) poll();
+controller.handle({reqId: oldest, digest: 's1', final: true, records: [record('s', 'Slow answer')]});
+assert.match(shown(), /Slow answer/);
+// Chunks of two replies interleave: each reply is assembled on its own, and a
+// late older final cannot replace a newer completed answer.
+controller.open({path: '/root/chunks'});
+const a = sent.at(-1).reqId;
+poll();
+const b = sent.at(-1).reqId;
+controller.handle({reqId: a, digest: 'da', final: false, records: [record('a1', 'A-one', 'user')]});
+controller.handle({reqId: b, digest: 'db', final: false, records: [record('b1', 'B-one', 'user')]});
+controller.handle({reqId: a, digest: 'da', final: true, records: [record('a2', 'A-final')]});
+assert.match(shown(), /A-one.*A-final/s);
+assert.doesNotMatch(shown(), /B-one/);
+controller.handle({reqId: b, digest: 'db', final: true, records: [record('b2', 'B-final')]});
+assert.match(shown(), /B-one.*B-final/s);
+assert.doesNotMatch(shown(), /A-one|A-final/);
+controller.handle({reqId: a, digest: 'da2', final: true, records: [record('x', 'Stale')]});
+assert.doesNotMatch(shown(), /Stale/);
+// "Unchanged" vouches for the screen only with the displayed digest.
+poll();
+assert.equal(sent.at(-1).known, 'db');
+controller.handle({reqId: sent.at(-1).reqId, digest: 'other', unchanged: true});
+poll();
+assert.equal(sent.at(-1).known, undefined);
+// An error replaces the transcript, so its old digest must not be claimed.
+controller.handle({reqId: sent.at(-1).reqId, digest: 'db', final: true, records: [record('b3', 'Again')]});
+poll();
+assert.equal(sent.at(-1).known, 'db');
+controller.handle({reqId: sent.at(-1).reqId, error: 'host busy'});
+assert.match(shown(), /host busy/);
+poll();
+assert.equal(sent.at(-1).known, undefined);
+controller.handle({reqId: sent.at(-1).reqId, digest: 'db', final: true, records: [record('b4', 'Recovered')]});
+assert.match(shown(), /Recovered/);
+controller.close();
 connected = false;
 controller.resolveArtifact(requested);
 new Promise(resolve => setImmediate(resolve)).then(() => {
