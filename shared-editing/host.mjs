@@ -12,6 +12,7 @@ import {
   filesOf,
   applyUpdate,
   patch,
+  patchBoardInverse,
   putElement,
   putFile,
   pruneFiles,
@@ -764,8 +765,9 @@ export async function handle(request) {
         }
       }
       if (action === 'patch' || changes.length) {
-        if (before.kind === 'whiteboard') patch(doc, changes);
-        else patchDocument(doc, changes);
+        if (before.kind === 'document') patchDocument(doc, changes);
+        else if (action === 'revert') patchBoardInverse(doc, changes);
+        else patch(doc, changes);
       }
       if (title !== undefined) doc.getMap('meta').set('title', title);
       if (background) {

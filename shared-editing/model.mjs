@@ -363,8 +363,20 @@ export function applyUpdate(doc, bytes) {
   }
 }
 export function patch(doc, changes) {
+  patchBatch(doc, changes);
+  validate(doc);
+}
+const PATCH_LIMIT = 200;
+// History can span more than one public patch. Only the completed candidate
+// must fit the board limits; intermediate batches are never published.
+export function patchBoardInverse(candidate, changes) {
+  for (let i = 0; i < changes.length; i += PATCH_LIMIT)
+    patchBatch(candidate, changes.slice(i, i + PATCH_LIMIT));
+  validate(candidate);
+}
+function patchBatch(doc, changes) {
   check(
-    Array.isArray(changes) && changes.length > 0 && changes.length <= 200,
+    Array.isArray(changes) && changes.length > 0 && changes.length <= PATCH_LIMIT,
     'Expected 1 to 200 changes',
   );
   const elements = doc.getMap('elements'),
@@ -405,5 +417,4 @@ export function patch(doc, changes) {
       else putElement(doc, change.after);
     }
   });
-  validate(doc);
 }

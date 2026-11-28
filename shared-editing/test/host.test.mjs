@@ -444,6 +444,39 @@ test('a board keeps its canvas background through edits, history, export and imp
 });
 
 
+for (const count of [200, 201]) {
+  test(`undoing a restore of ${count} shapes commits once`, async () => {
+    const actor = 'Alice';
+    const empty = await handle({ action: 'create', id: 'board', kind: 'whiteboard', title: 'Board',
+      actor, opId: 'create' });
+    const changes = Array.from({ length: count }, (_, i) => ({ id: `s${i}`, after: rect(`s${i}`, i, 0) }));
+    const patch = (state, opId, changes) => handle({ action: 'patch', state, opId, changes, actor });
+    let full = await patch(empty.state, 'first', changes.slice(0, 200));
+    if (count > 200) {
+      await assert.rejects(patch(empty.state, 'oversized', changes), /Expected 1 to 200 changes/);
+      full = await patch(full.state, 'last', changes.slice(200));
+    }
+    const { state, result } = await handle({ action: 'restore', state: full.state, actor,
+      opId: 'clear', target: empty.state.crdt });
+    assert.deepEqual(result.content, []);
+    const removed = state.transactions[0].changes;
+    assert.equal(removed.length, count);
+    const undo = state => handle({ action: 'revert', state, actor, opId: 'undo', transaction: 'clear' });
+    const undone = await undo(state);
+    assert.deepEqual(undone.result.content, full.result.content);
+    assert.equal(undone.state.revision, state.revision + 1);
+    assert.deepEqual(undone.state.transactions.slice(1), state.transactions);
+    assert.equal(undone.state.transactions[0].changes.length, count);
+    if (count > 200) {
+      const id = removed[200].id;
+      const conflict = await patch(state, 'intervening', [{ id, after: rect(id, -1, 0) }]);
+      const original = structuredClone(conflict.state);
+      await assert.rejects(undo(conflict.state), e => e.code === 'stale' && e.targets[0].id === id);
+      assert.deepEqual(conflict.state, original);
+    }
+  });
+}
+
 test('restoring a saved version is one revertible change that keeps history', async () => {
   const made = await handle({ action: 'create', id: 'board1', kind: 'whiteboard', title: 'Design',
     actor: 'Alice', opId: 'create1' });
