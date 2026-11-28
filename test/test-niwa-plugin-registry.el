@@ -1003,6 +1003,54 @@
       (delete-directory user-dir t)
       (delete-directory workspace-root t))))
 
+(niwa-deftest niwa-plugins--adopt-legacy/exclusive-destinations
+  (:doc "an outside creator winning during adoption keeps its entry; no write passes a failed adoption")
+  (let* ((user-dir (file-name-as-directory (make-temp-file "niwa-plugins-adopt-" t)))
+         (workspace-root (file-name-as-directory
+                          (make-temp-file "niwa-plugins-adopt-ws-" t)))
+         (workspace (niwa-plugins-test--workspace workspace-root))
+         (niwa-user-dir user-dir)
+         (niwa-plugin-install-directory (file-name-concat user-dir ".agents" "plugins"))
+         (legacy (niwa-plugins--project-state-file workspace))
+         (local (niwa-plugins-state-file workspace))
+         (run (symbol-function 'niwa-session-control-fs-run-program))
+         (names (lambda () (sort (mapcar #'car (niwa-plugins--read-state workspace))
+                                 #'string<)))
+         competed)
+    (unwind-protect
+        (progn
+          (make-directory (file-name-directory legacy) t)
+          (write-region (niwa-plugins--state-text '(("old" :enabled t))) nil legacy nil 'silent)
+          (cl-letf (((symbol-function 'niwa-session-control-fs-run-program)
+                     (lambda (operations &rest args)
+                       (let ((at (cl-position-if
+                                  (lambda (op) (and (memq (plist-get op :op) '(write create))
+                                                    (equal local (plist-get op :path))))
+                                  operations)))
+                         (if (or competed (not at)
+                                 (not (cl-find 'delete-file operations
+                                               :key (lambda (op) (plist-get op :op)))))
+                             (apply run operations args)
+                           (setq competed t)
+                           (let ((checked (apply run (seq-take operations at) args)))
+                             ;; Another tool creates the state after the checks.
+                             (write-region (niwa-plugins--state-text '(("other" :enabled t)))
+                                           nil local nil 'silent)
+                             (append checked (apply run (nthcdr at operations) args))))))))
+            (niwa-plugins--write-state-entry "x" '(:enabled t) workspace))
+          (should competed)
+          (should-not (file-exists-p legacy))
+          (should (equal '("old" "other" "x") (funcall names)))
+          ;; An adoption that keeps failing stops the write.
+          (write-region (niwa-plugins--state-text '(("new" :enabled t))) nil legacy nil 'silent)
+          (cl-letf (((symbol-function 'niwa-plugins--adopt-legacy) #'ignore))
+            (should-error (niwa-plugins--write-state-entry "y" '(:enabled t) workspace)
+                          :type 'user-error))
+          (should (file-exists-p legacy))
+          (should-not (assoc "y" (niwa-plugins--read-file local))))
+      (delete-directory user-dir t)
+      (delete-directory workspace-root t))))
+
 (niwa-deftest niwa-plugins-plugin-data-dir
   (:vars* ((workspace-root (file-name-as-directory
                             (make-temp-file "niwa-plugins-root-ws-" t)))

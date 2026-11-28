@@ -671,9 +671,16 @@ migrates and deletes shared files."
                              (and data (niwa-plugins--parse-strict
                                         (decode-coding-string data 'utf-8-unix) file)))
                            bytes (list legacy local base))))
-    ;; Recheck the index right before anything destructive.
-    (when (and (car state) (eq 'untracked (niwa-plugins--tracking workspace legacy t)))
-      (let ((results
+    ;; Recheck the index right before anything destructive.  Return `skip'
+    ;; when there is nothing to adopt, nil when a destination changed.
+    (if (not (and (car state) (eq 'untracked (niwa-plugins--tracking workspace legacy t))))
+        'skip
+      (let* ((put (lambda (path data content coding)
+                    ;; A destination read absent is created exclusively, so a
+                    ;; creator outside the lock keeps its file.
+                    (list :op (if data 'write 'create) :path path
+                          :content content :coding coding)))
+             (results
              (niwa-session-artifacts-fenced-results
               proof
               (niwa-session-control-fs-run-program
@@ -681,28 +688,26 @@ migrates and deletes shared files."
                 proof
                 (list (list :op 'make-directory
                           :path (directory-file-name (file-name-directory local))
-                          :optional t)
-                    (if (nth 1 bytes)
-                        (list :op 'verify-hash :path local
-                              :content (secure-hash 'sha256 (nth 1 bytes)))
-                      (list :op 'absent :path local))
-                    (list :op 'verify-hash :path legacy
-                          :content (secure-hash 'sha256 (car bytes)))
-                    ;; State, then base, then removal: after a crash at any
-                    ;; point the next read merges the same changes again.
-                    (list :op 'write :path local
-                          :content (niwa-plugins--state-text
-                                    (niwa-plugins--merge-legacy
-                                     (nth 2 state) (car state) (nth 1 state)))
-                          :coding 'utf-8-unix)
-                    (list :op 'write :path base :content (car bytes)
-                          :coding 'no-conversion)
-                    (list :op 'delete-file :path legacy)))
+                          :optional t))
+                ;; Every input merged is proven unchanged.
+                (cl-loop for path in (list legacy local base) for data in bytes
+                         when data
+                         collect (list :op 'verify-hash :path path
+                                       :content (secure-hash 'sha256 data)))
+                ;; State, then base, then removal: after a crash or conflict
+                ;; at any point the next attempt rereads and merges again.
+                (list (funcall put local (nth 1 bytes)
+                               (niwa-plugins--state-text
+                                (niwa-plugins--merge-legacy
+                                 (nth 2 state) (car state) (nth 1 state)))
+                               'utf-8-unix)
+                      (funcall put base (nth 2 bytes) (car bytes) 'no-conversion)
+                      (list :op 'delete-file :path legacy)))
                (niwa-plugins--lock-directory workspace)))))
         (unless (cl-some (lambda (result)
                            (memq (plist-get result :status) '(mismatch absent conflict)))
-                         (seq-take (cdr results) 2))
-          (mapc #'niwa-session-control-fs-program-value (nthcdr 3 results))
+                         (cdr results))
+          (mapc #'niwa-session-control-fs-program-value (cdr results))
           t)))))
 
 (defun niwa-plugins--read-state (&optional workspace)
@@ -723,7 +728,7 @@ say, the file is left alone and read as tracked."
         ((not (eq 'untracked (niwa-plugins--tracking workspace project)))
          (niwa-plugins--read-file project))
         ((and (not (file-remote-p local))
-              (ignore-errors (niwa-plugins--adopt-legacy workspace)))
+              (eq t (ignore-errors (niwa-plugins--adopt-legacy workspace))))
          (niwa-plugins--read-file local))
         (t (or (niwa-plugins--read-file local)
                (niwa-plugins--read-file project))))
@@ -856,18 +861,23 @@ file, activation goes there and hook consent stays under `state/'."
   (let ((local (or (niwa-plugins-state-file workspace)
                    (error "No workspace for plugin state")))
         (project (niwa-plugins--project-state-file workspace)))
-    ;; Adopts an untracked legacy file first, so it is not written around.
-    ;; Remotely the adoption migrates and deletes shared files, so it runs
-    ;; inside the session's fence with the lease proof; reads never adopt.
-    (if (not (file-remote-p local))
-        (niwa-plugins--read-state workspace)
-      (when (and (file-exists-p project)
-                 (eq 'untracked (niwa-plugins--tracking workspace project)))
-        (let ((session (or (niwa-plugins--state-session workspace)
-                           (user-error "Remote plugin state requires its live session"))))
-          (ignore-errors
-            (niwa-session-artifacts-call-fenced
-             session (lambda (&optional proof) (niwa-plugins--adopt-legacy workspace proof)))))))
+    ;; Adopts an untracked legacy file first, so it is not written around:
+    ;; each attempt rereads every input, and no write proceeds past a
+    ;; failed adoption.  Remotely the adoption migrates and deletes shared
+    ;; files, so it runs inside the session's fence with the lease proof.
+    (when (and (file-exists-p project)
+               (eq 'untracked (niwa-plugins--tracking workspace project)))
+      (let ((session (and (file-remote-p local)
+                          (or (niwa-plugins--state-session workspace)
+                              (user-error "Remote plugin state requires its live session")))))
+        (unless (cl-loop
+                 repeat 3
+                 thereis (if session
+                             (niwa-session-artifacts-call-fenced
+                              session (lambda (&optional proof)
+                                        (niwa-plugins--adopt-legacy workspace proof)))
+                           (niwa-plugins--adopt-legacy workspace)))
+          (user-error "Older plugin state changed during each of three adoptions; try again"))))
     ;; A local program pins parents and locks `.niwa/', so both must exist.
     ;; Remote writes create nothing before publication.
     (unless (file-remote-p local)

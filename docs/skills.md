@@ -151,7 +151,11 @@ file, so hooks wait for one new consent. If an older client writes it again,
 its activation changes since the last adopted file are merged in, again
 without hook consent. The adoption writes the new state before it records
 the adopted file and removes the old one, so an interrupted adoption repeats
-on the next read without losing changes. For a remote workspace, reading
+on the next read without losing changes. It proves every file it merged is
+unchanged and creates a missing destination exclusively; if another writer
+got there first, the old file stays and the adoption rereads and merges
+again, and a change that cannot adopt it is refused rather than written
+around it. For a remote workspace, reading
 never adopts: until a plugin-state change adopts it with the session's lease
 proof inside the same locked program, listing reads the files as they are.
 
