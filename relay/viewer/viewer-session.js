@@ -275,7 +275,7 @@
 
     const notSent = 'Request not sent. Check your connection and try again.';
     function sendRequest(frame) {
-      return state.connected && send(frame).catch(() => false);
+      return send(frame).catch(() => false);
     }
 
     // A fork settles through the same reply and notice as a new session.

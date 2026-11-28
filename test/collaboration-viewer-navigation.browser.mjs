@@ -2166,6 +2166,24 @@ test('a whiteboard opened from the lobby opens in its editor', async () => {
   }
 });
 
+test('an owner creates a session from a lobby without a room welcome', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await open(browser);
+    await page.goto(tierLink(lobbyRoom, 64));
+    await page.click('#lobby-new');
+    await page.fill('#new-session-name', 'design');
+    await page.fill('#new-session-prompt', 'Review the draft');
+    const [frame] = await Promise.all([
+      page.waitForEvent('host-frame', {predicate: f => f.t === 'new-session', timeout: 3000}),
+      page.click('#new-session-create'),
+    ]);
+    assert.equal(frame.name, 'design');
+    assert.equal(frame.prompt, 'Review the draft');
+    await page.locator('#invites').getByText(/waiting for the host/).waitFor({timeout: 3000});
+  } finally { await browser.close(); }
+});
+
 test('a lobby taller than the viewport opens at its top', async () => {
   const browser = await chromium.launch();
   try {

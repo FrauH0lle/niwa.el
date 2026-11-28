@@ -60,12 +60,13 @@ function build(tierBytes, seed, models = [], roomId = 'here', deliver = () => tr
   const sent = [];
   const modelRequests = [];
   const notices = [];
-  const state = {mode: 'ask', owner: tierBytes === 64, connected: true, turnCount: 2, models};
+  const state = {mode: 'ask', owner: tierBytes === 64, connected: false, turnCount: 2, models};
   const controller = window.niwaSessionView.create({
     state,
     send: async frame => {
+      if (!deliver(frame)) return false;
       (frame.t === 'session-models' ? modelRequests : sent).push(frame);
-      return deliver(frame);
+      return true;
     },
     el: (tag, className, text) => element(document, tag, className, text),
     encode: base64urlEncode,
@@ -254,7 +255,6 @@ for (const fork of [false, true]) {
       {kind: 'file', getAsFile: () => new File(['draft'], 'draft.txt')},
     ]}});
     const submit = () => fork ? controller.fork('fp-1') : sheet.close('create');
-    state.connected = false;
     submit();
     await tick();
     if (!fork) assert.equal(nodes['new-session-prompt'].value, 'my draft');
@@ -271,11 +271,11 @@ for (const fork of [false, true]) {
     accepted = true;
     submit();
     await tick();
-    assert.equal(sent.length, 2);
+    assert.equal(sent.length, 1);
     assert.match(cards(nodes)[0], /waiting for the host/);
     if (!fork) {
       assert.equal(nodes['new-session-prompt'].value, '');
-      assert.equal(sent[1].images[0].data, btoa('draft'));
+      assert.equal(sent[0].images[0].data, btoa('draft'));
     }
   });
 }
@@ -516,6 +516,7 @@ test('Reasoning effort follows the picked model', async () => {
 // History actions stay owner-only and connected, and Rewind confirms its scope.
 for (const tier of [32, 48, 64]) {
   const {controller, sent, state, nodes} = build(tier);
+  state.connected = true;
   const button = new Element('button');
   controller.historyAction('rewind', 'fp-1', button, 1);
   assert.equal(sent.length, 0);
@@ -536,6 +537,7 @@ for (const tier of [32, 48, 64]) {
 // releases controls even when the host never sent a reply.
 {
   const {controller, sent, nodes, notices, state} = build(64);
+  state.connected = true;
   const button = new Element('button');
   controller.historyAction('rewind', 'fp-1', button, 1);
   state.turnCount = 3;
