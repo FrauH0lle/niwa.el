@@ -121,7 +121,9 @@ share its activation set: niwa then reads which plugins are enabled from it
 and writes activation changes back to it, but keeps hook consent in
 `state/`, so a tracked file can list plugins and never enable their hooks.
 An untracked top-level `.niwa/plugins.eld` is where older versions kept the
-state. niwa moves it into `state/` on the next read, keeping which plugins
+state. niwa moves it into `state/` on the next read only when Git proves it
+untracked, rechecking the index right before; if Git cannot answer, the file
+is left alone and read like a tracked one. The move keeps which plugins
 are enabled but not their hook consent: nothing proves who last wrote that
 file, so hooks wait for one new consent. If an older client writes it again,
 its activation changes since the last adopted file are merged in, again

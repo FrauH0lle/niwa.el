@@ -435,23 +435,39 @@ is writable to confined children and may be tracked.")
           activation))
 
 (defvar niwa-plugins--tracked-cache (make-hash-table :test #'equal)
-  "Whether Git tracks a project plugin file, by path and modification time.")
+  "Recent Git answers for project plugin files, by path.")
 
-(defun niwa-plugins--tracked-p (workspace file)
-  "Return non-nil when Git tracks WORKSPACE's project plugin FILE."
-  ;; shortcut: keyed by FILE's modification time, so staging or untracking
-  ;; an unchanged file is seen at its next change; key on the index if needed.
-  (let ((key (list file (file-attribute-modification-time (file-attributes file)))))
-    (pcase (gethash key niwa-plugins--tracked-cache 'unknown)
-      ('unknown
-       (puthash key
-                (let ((default-directory
-                       (file-name-as-directory (niwa-workspace-root workspace))))
-                  (eq 0 (ignore-errors
-                          (process-file "git" nil nil nil "ls-files" "--error-unmatch"
-                                        "--" (file-local-name file)))))
-                niwa-plugins--tracked-cache))
-      (known known))))
+(defun niwa-plugins--tracking (workspace file &optional fresh)
+  "Return `tracked', `untracked' or `unknown' for WORKSPACE's plugin FILE.
+`unknown' means Git could not answer; a file is `untracked' outside any
+repository only when no `.git' entry exists above it, since a broken
+worktree pointer also fails as \"not a git repository\".  FRESH skips the
+cache, as a destructive adoption must."
+  (let ((mtime (file-attribute-modification-time (file-attributes file)))
+        (cached (gethash file niwa-plugins--tracked-cache)))
+    ;; shortcut: a 2 s answer keyed by FILE's mtime spares repeated reads a Git
+    ;; call; an index change shows within it, and always before an adoption.
+    (if (and (not fresh) cached (equal mtime (car cached))
+             (< (float-time (time-since (nth 1 cached))) 2))
+        (nth 2 cached)
+      (let ((answer
+             (with-temp-buffer
+               (let* ((default-directory
+                       (file-name-as-directory (niwa-workspace-root workspace)))
+                      (status (condition-case nil
+                                  (process-file "git" nil t nil "ls-files" "-z" "--"
+                                                (file-local-name file))
+                                (error nil))))
+                 (cond
+                  ((eq status 0) (if (> (buffer-size) 0) 'tracked 'untracked))
+                  ((and (integerp status)
+                        (not (locate-dominating-file default-directory ".git")))
+                   'untracked)
+                  (t 'unknown))))))
+        (if (eq answer 'unknown)
+            (remhash file niwa-plugins--tracked-cache)
+          (puthash file (list mtime (current-time) answer) niwa-plugins--tracked-cache))
+        answer))))
 
 (defun niwa-plugins--merge-legacy (base legacy local)
   "Return LOCAL with LEGACY's activation changes since BASE, never consent."
@@ -487,7 +503,8 @@ more.  A concurrent change leaves the file for the next read."
                           (and data (niwa-plugins--parse-state
                                      (decode-coding-string data 'utf-8-unix))))
                         bytes)))
-    (when (car state)
+    ;; Recheck the index right before anything destructive.
+    (when (and (car state) (eq 'untracked (niwa-plugins--tracking workspace legacy t)))
       (let ((results
              (niwa-session-control-fs-run-program
               (list (list :op 'make-directory
@@ -521,13 +538,14 @@ more.  A concurrent change leaves the file for the next read."
 A tracked top-level file supplies activation, and the file under
 `state/' only hook consent.  An untracked one is an older client's
 and is adopted first; until that succeeds it lists plugins without
-enabling hooks."
+enabling hooks.  When Git cannot say, the file is left alone and read
+as tracked."
   (when workspace
     (let ((project (niwa-plugins--project-state-file workspace))
           (local (niwa-plugins-state-file workspace)))
       (cond
        ((not (file-exists-p project)) (niwa-plugins--read-file local))
-       ((niwa-plugins--tracked-p workspace project)
+       ((not (eq 'untracked (niwa-plugins--tracking workspace project)))
         (niwa-plugins--with-consent (niwa-plugins--read-file project)
                                     (niwa-plugins--read-file local)))
        ((ignore-errors (niwa-plugins--adopt-legacy workspace))
@@ -668,7 +686,7 @@ file, activation goes there and hook consent stays under `state/'."
       (niwa-session-control-fs-make-directory
        (directory-file-name (file-name-directory local)) t))
     (let ((project (and (file-exists-p project)
-                        (niwa-plugins--tracked-p workspace project)
+                        (not (eq 'untracked (niwa-plugins--tracking workspace project)))
                         project)))
       (unless (cl-loop repeat 3
                        thereis (niwa-plugins--try-update workspace function local project))
