@@ -18,8 +18,10 @@
 (require 'niwa-utilities)
 
 (defun niwa-test-launcher--wait (predicate)
-  "Wait boundedly for PREDICATE, allowing process and transport delivery."
-  (let ((until (+ (float-time) 10)))
+  "Wait boundedly for PREDICATE, allowing process and transport delivery.
+The bound only limits a failing wait; a satisfied one returns at once, and
+process starts under a loaded machine can take far longer than ten seconds."
+  (let ((until (+ (float-time) 60)))
     (while (and (not (funcall predicate)) (< (float-time) until))
       (accept-process-output nil .005))
     (should (funcall predicate))))

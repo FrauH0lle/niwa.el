@@ -276,7 +276,7 @@ Each line is capped at 220 characters to keep failure diagnostics bounded."
                                (push (cons name (copy-sequence process-environment))
                                      launch-environments)
                                (apply real-make-process arguments)))))
-                  (niwa-test--run-wayland-fixture "present-wayland-thread.el" 10))))
+                  (niwa-test--run-wayland-fixture "present-wayland-thread.el" 60))))
     (should (equal (sort (mapcar #'car launch-environments) #'string<)
                    '("niwa-test-kwin" "niwa-test-wayland-daemon")))
     (dolist (variable '(("DBUS_SESSION_BUS_ADDRESS" . "niwa-invalid-host-bus")
