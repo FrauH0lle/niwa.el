@@ -426,8 +426,10 @@ thumbnail is missing, queue it for the current view buffer."
           (unless committed
             ;; Return the reserved slot; a miss may be retried.
             (when entry (cl-decf (cdr entry)))
-            ;; Only a decode failure of the unchanged source is final;
-            ;; kills, launch and publication failures stay retryable.
+            ;; A nonzero converter exit on the unchanged source is final
+            ;; for this session, whether it was a decode error or a
+            ;; transient one; kills, launch and publication failures stay
+            ;; retryable.  The full-size preview remains either way.
             (when (and entry
                        (eq (process-status process) 'exit)
                        (/= 0 (process-exit-status process))
