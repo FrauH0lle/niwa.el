@@ -38,6 +38,7 @@ Binds `runtime', a scratch `dir' for sources and a `session'."
           (niwa-view-thumbnail--jobs (make-hash-table :test #'equal))
           (niwa-view-thumbnail--queue nil)
           (niwa-view-thumbnail--process nil)
+          (niwa-view-thumbnail--misses (make-hash-table :test #'equal))
           (max-image-size nil)
           (image-scaling-factor 1))
      (set-file-modes runtime #o700)
@@ -576,6 +577,36 @@ CODER is the ImageMagick output coder, PNG by default."
         (should (niwa-view-thumbnail-image later 300))
         (should (= niwa-view-thumbnail--max-entries
                    (cdr (gethash session niwa-view-thumbnail--sessions))))))))
+
+(niwa-deftest niwa-view-thumbnail--sentinel/miss ()
+  ,test
+  (test)
+  :doc "a rejected source converts once until the image is replaced"
+  (skip-unless (executable-find "magick"))
+  (niwa-thumbnail-test--with-state
+    (let* ((file (file-name-concat dir "broken.png"))
+           (make (symbol-function 'make-process))
+           (conversions 0))
+      ;; A valid header with no image data: magick fails to decode it.
+      (niwa-thumbnail-test--header-png file 1600 800)
+      (with-temp-buffer
+        (setq-local niwa--session session)
+        (cl-letf (((symbol-function 'make-process)
+                   (lambda (&rest args)
+                     (when (equal "niwa-thumbnail" (plist-get args :name))
+                       (cl-incf conversions))
+                     (apply make args))))
+          (dotimes (_ 2)
+            (should-not (niwa-view-thumbnail-image file 300))
+            (niwa-thumbnail-test--wait))
+          (should (= 1 conversions))
+          (should (zerop (cdr (gethash session niwa-view-thumbnail--sessions))))
+          (niwa-thumbnail-test--real-png file 1600 800)
+          (set-file-times file '(1000 0 0 1000))
+          (should-not (niwa-view-thumbnail-image file 300))
+          (niwa-thumbnail-test--wait)
+          (should (= 2 conversions))
+          (should (niwa-view-thumbnail-image file 300)))))))
 
 (provide 'test-niwa-view-thumbnail)
 

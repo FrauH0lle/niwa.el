@@ -95,6 +95,14 @@ regexp matching the file's first bytes.")
 (defvar niwa-view-thumbnail--process nil
   "The running conversion, or nil.")
 
+(defvar niwa-view-thumbnail--misses (make-hash-table :test #'equal)
+  "Output files whose unchanged source the converter rejected.
+Keys sit in a session directory and encode source and converter identity,
+so changed metadata or a new converter misses this table.")
+
+(defconst niwa-view-thumbnail--max-misses 256
+  "Most remembered rejections; a full table starts over.")
+
 (cl-defstruct (niwa-view-thumbnail--job
                (:constructor niwa-view-thumbnail--job-create)
                (:copier nil))
@@ -303,7 +311,9 @@ thumbnail is missing, queue it for the current view buffer."
                         :width max-width
                         :height (ceiling (/ (* max-width (float height)) width))
                         :scale 1)
-        (niwa-view-thumbnail--request file source cap session entry path)
+        ;; A source the converter already rejected keeps its original.
+        (unless (gethash file niwa-view-thumbnail--misses)
+          (niwa-view-thumbnail--request file source cap session entry path))
         nil))))
 
 (defun niwa-view-thumbnail--request (file source cap session entry path)
@@ -416,6 +426,19 @@ thumbnail is missing, queue it for the current view buffer."
           (unless committed
             ;; Return the reserved slot; a miss may be retried.
             (when entry (cl-decf (cdr entry)))
+            ;; Only a decode failure of the unchanged source is final;
+            ;; kills, launch and publication failures stay retryable.
+            (when (and entry
+                       (eq (process-status process) 'exit)
+                       (/= 0 (process-exit-status process))
+                       (ignore-errors
+                         (equal (niwa-view-thumbnail--job-source job)
+                                (niwa-view-thumbnail--source
+                                 (car (niwa-view-thumbnail--job-source job))))))
+              (when (<= niwa-view-thumbnail--max-misses
+                        (hash-table-count niwa-view-thumbnail--misses))
+                (clrhash niwa-view-thumbnail--misses))
+              (puthash file t niwa-view-thumbnail--misses))
             (ignore-errors (delete-file part)))
           (niwa-view-thumbnail--start))))))
 
@@ -462,6 +485,10 @@ Runs from `niwa-session-end-hook' and from the owning data buffer's
                (when (eq session (niwa-view-thumbnail--job-session job))
                  (remhash file niwa-view-thumbnail--jobs)))
              niwa-view-thumbnail--jobs)
+    (maphash (lambda (file _)
+               (when (string-prefix-p (car entry) file)
+                 (remhash file niwa-view-thumbnail--misses)))
+             niwa-view-thumbnail--misses)
     (when-let* ((process niwa-view-thumbnail--process)
                 ((eq session (niwa-view-thumbnail--job-session
                               (process-get process 'niwa-view-thumbnail-job)))))
