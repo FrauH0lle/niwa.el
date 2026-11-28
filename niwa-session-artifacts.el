@@ -858,15 +858,43 @@ history to the receiving child's own transcript."
       (setf (niwa-session-allocation-in-progress session) pending)
       (unwind-protect (funcall function)
         (setf (niwa-session-allocation-in-progress session) nil)
-        (dolist (buffer (cdr pending))
-          (when (buffer-live-p buffer)
-            (niwa-session-persistence-autosave-soon buffer)))))))
+        (dolist (waiter (nreverse (cdr pending)))
+          (if (functionp waiter)
+              (funcall waiter)
+            (when (buffer-live-p waiter)
+              (niwa-session-persistence-autosave-soon waiter))))))))
 
 (defun niwa-session-artifacts-defer-first-save (session buffer)
   "If SESSION is allocating, queue BUFFER for a checkpoint and return non-nil."
   (when-let* ((pending (niwa-session-allocation-in-progress session)))
     (when (buffer-live-p buffer)
       (cl-pushnew buffer (cdr pending)))
+    t))
+
+(defun niwa-session-artifacts-defer-strict-save
+    (session buffer settled force acknowledge &optional before-save)
+  "If SESSION is allocating, arrange a strict save and return non-nil.
+After the owner exits, run BEFORE-SAVE, if any, in BUFFER, then save with
+SETTLED and FORCE.  Call ACKNOWLEDGE with (SUCCESS ERROR) after the attempt."
+  (when-let* ((pending (niwa-session-allocation-in-progress session)))
+    (let ((path (buffer-local-value 'default-directory buffer)))
+      (cl-labels ((cancel () (funcall acknowledge nil '(error "Deferred session save canceled")))
+                  (retry ()
+                    (let ((err (condition-case err
+                                   (with-current-buffer buffer
+                                     (unless (eq niwa--session session)
+                                       (error "Session changed before deferred save"))
+                                     (when before-save (funcall before-save))
+                                     (unless (niwa-session-artifacts-save session buffer settled force)
+                                       (error "Deferred session save did not publish"))
+                                     nil)
+                                 ((error quit) err))))
+                      (funcall acknowledge (not err) err))))
+        (push (lambda ()
+                (unless (niwa-transport-run-when-idle
+                         (gensym "strict-save") path #'retry #'cancel 0)
+                  (cancel)))
+              (cdr pending))))
     t))
 
 (defun niwa-session-artifacts-allocate (session buffer)
@@ -2059,10 +2087,12 @@ mark the latest assistant response
 A portable session whose durable state is byte for byte the committed one
 performs no target transaction.  FORCE publishes anyway, for a caller that
 must materialize a snapshot rather than record a change.  TOKEN is the caller's
-gate token.  A save requested during first allocation returns nil and queues
-its authoritative buffer for a checkpoint after the owner exits."
+gate token.  During first allocation a best-effort save queues a checkpoint
+and returns nil.  A strict synchronous caller must retry after allocation."
   (if (niwa-session-allocation-in-progress session)
       (progn
+        (when (or settled force)
+          (user-error "Session is still allocating; save not published.  Retry after allocation"))
         (niwa-session-artifacts-defer-first-save
          session (niwa-session-persistence-authoritative-buffer buffer))
         nil)

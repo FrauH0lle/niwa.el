@@ -1047,6 +1047,47 @@ ENTRIES is an alist of logical names and their content strings."
       (niwa-workspace-clear-registry))))
 
 
+(niwa-deftest niwa-session-artifacts-save/force-after-allocation-failure (:quiet t)
+  ,test
+  (test)
+  (let* ((root (make-temp-file "niwa-force-after-failure-" t))
+         (workspace (test-niwa-session-persistence--make-workspace root))
+         (session (niwa-session-create "main" workspace))
+         (buffer (generate-new-buffer " *clean strict save*"))
+         (original (symbol-function 'niwa-session-artifacts-save))
+         attempted outcome)
+    (unwind-protect
+        (with-current-buffer buffer
+          (org-mode)
+          (setq-local niwa--session session)
+          (niwa-session-set-root-buffer session buffer)
+          (set-buffer-modified-p nil)
+          (cl-letf (((symbol-function 'niwa-session-artifacts-save)
+                     (lambda (s b &rest args)
+                       (setq attempted (list s b args (niwa-session-allocation-in-progress s)))
+                       (apply original s b args))))
+            (should-error
+             (niwa-session-artifacts--call-with-first-allocation
+              session
+              (lambda ()
+                (should (string-match-p
+                         "save not published.*Retry"
+                         (error-message-string
+                          (should-error (funcall original session buffer nil t)
+                                        :type 'user-error))))
+                (should (niwa-session-artifacts-defer-strict-save
+                         session buffer nil t (lambda (ok err) (setq outcome (list ok err)))))
+                (should-not (or attempted outcome))
+                (signal 'file-error '("Owner's first save failed"))))
+             :type 'file-error)
+            (niwa-test--await 5 "No strict save acknowledgement" outcome)
+            (should (equal attempted (list session buffer '(nil t) nil)))
+            (should (equal outcome '(t nil)))
+            (should (niwa-session-artifacts-artifact-present-p session "session.meta.eld" t))))
+      (test-niwa-session-persistence--release-and-kill buffer session)
+      (niwa-workspace-clear-registry)
+      (delete-directory root t))))
+
 (niwa-deftest niwa-session-artifacts-save/overlapping-first-saves (:quiet t)
   ,test
   (test)

@@ -238,7 +238,7 @@ workspace."
   ;; round trips for directories that were created by an earlier save in the
   ;; same process.
   durable-tree-ensured
-  allocation-in-progress ; nil or (mkdir-started-p . deferred-checkpoint-buffers)
+  allocation-in-progress ; nil or (mkdir-started-p . waiters): checkpoint buffers or strict dispatch functions
   ;; Sub-agent transcript index.  Alist of
   ;; (AGENT-ID . PLIST) where PLIST has :agent-type, :description,
   ;; :path (relative to save-path), :status (running | completed |

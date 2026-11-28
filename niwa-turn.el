@@ -212,6 +212,7 @@
 (autoload 'niwa-session-artifacts-assert-mutation-authority
   "niwa-session-artifacts")
 (autoload 'niwa-session-artifacts-save "niwa-session-artifacts")
+(autoload 'niwa-session-artifacts-defer-strict-save "niwa-session-artifacts")
 
 ;; `niwa-session-codec'
 (declare-function niwa-session-codec-portable-authority-p "niwa-session-codec" (session))
@@ -891,7 +892,8 @@ Warm local saves use the publication queue when a continuation is available."
         (unless (plist-get (niwa-engine-info fsm) :niwa-save-state)
           (let* ((session niwa--session)
                  (resume (and niwa--turn-resume
-                              (niwa-session-publication-async-eligible-p session)
+                              (or (niwa-session-allocation-in-progress session)
+                                  (niwa-session-publication-async-eligible-p session))
                               niwa--turn-resume))
                  prepared retired
                  (finish
@@ -935,24 +937,30 @@ Warm local saves use the publication queue when a continuation is available."
                     (progn
                       (setf (niwa-engine-info fsm)
                             (plist-put (niwa-engine-info fsm) :niwa-save-state 'waiting))
-                      (niwa-session-publication-submit
-                       session
-                       (lambda ()
-                         (unless (niwa--turn-current-p fsm)
-                           (error "Turn replaced before session save"))
-                         (with-current-buffer chat-buffer
-                           (niwa-session-artifacts-recover-working-directory session)
-                           (niwa-session-artifacts-check-target-incarnation session chat-buffer)
-                           (funcall retire)
-                           (setq prepared
-                                 (niwa-session-artifacts-call-with-checkpoint
-                                  session (lambda () (niwa-session-artifacts-prepare-save
-                                                      session chat-buffer t nil t))))
-                           (prog1 (plist-get prepared :artifacts)
-                             (setf (plist-get prepared :artifacts) nil))))
-                       finish nil t
-                       (lambda (batch) (funcall (plist-get prepared :select-staged) batch))
-                       (lambda () (funcall resume t))))
+                      (unless (niwa-session-artifacts-defer-strict-save
+                               session chat-buffer t nil finish
+                               (lambda ()
+                                 (unless (niwa--turn-current-p fsm)
+                                   (error "Turn replaced before session save"))
+                                 (funcall retire)))
+                        (niwa-session-publication-submit
+                         session
+                         (lambda ()
+                           (unless (niwa--turn-current-p fsm)
+                             (error "Turn replaced before session save"))
+                           (with-current-buffer chat-buffer
+                             (niwa-session-artifacts-recover-working-directory session)
+                             (niwa-session-artifacts-check-target-incarnation session chat-buffer)
+                             (funcall retire)
+                             (setq prepared
+                                   (niwa-session-artifacts-call-with-checkpoint
+                                    session (lambda () (niwa-session-artifacts-prepare-save
+                                                        session chat-buffer t nil t))))
+                             (prog1 (plist-get prepared :artifacts)
+                               (setf (plist-get prepared :artifacts) nil))))
+                         finish nil t
+                         (lambda (batch) (funcall (plist-get prepared :select-staged) batch))
+                         (lambda () (funcall resume t)))))
                   (funcall retire)
                   (unless (niwa-session-artifacts-save session chat-buffer t)
                     (error "Session auto-save did not publish"))
