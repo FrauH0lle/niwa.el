@@ -265,7 +265,7 @@ body.editor #board-shortcuts { width:660px; }
   body.editor #conversation-state { padding:4px 18px; }
   body.editor .editor-bar { min-height:40px; padding-top:2px; padding-bottom:2px; }
   body.editor #formatting > button { min-width:28px; width:28px; padding:4px; }
-  body.editor #formatting select { min-width:0; width:90px; margin-right:2px; font-size:12px; }
+  body.editor #formatting select { min-width:0; width:90px; margin-right:2px; }
   body.editor #formatting summary { padding:6px 4px; font-size:12px; }
 }
 

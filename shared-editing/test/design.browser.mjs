@@ -226,3 +226,18 @@ test('approved editor controls on the production bundle', async t => {
     }
   });
 });
+
+// Safari zooms the page when a focused field is under 16px; the compact
+// landscape toolbar narrows the select without shrinking its text.
+test('the paragraph-style select stays at 16px on phones, upright and on its side', async t => {
+  const {open} = await editorFixture(t);
+  for (const viewport of [{width: 667, height: 375}, {width: 375, height: 629}]) {
+    const {page, frame} = await open({kind: 'document', viewport});
+    const select = frame.locator('#formatting select');
+    assert.equal(await select.evaluate(node => getComputedStyle(node).fontSize), '16px',
+                 `${viewport.width}x${viewport.height}`);
+    if (viewport.height === 375)
+      assert.equal(await select.evaluate(node => getComputedStyle(node).width), '90px', 'the landscape select stays compact');
+    await page.close();
+  }
+});
