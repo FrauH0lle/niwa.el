@@ -95,11 +95,13 @@ starts a fresh session for each run.
   headless resume that finds another client holding the lease closes its
   read-only buffer and leaves the session to that holder; resuming with the
   lease, or regaining it through a control transfer, arms the wake-ups. A
-  wake-up never fires in two conversations: forks start without wake-ups, Save
-  As durably clears the original's wake-ups and index entry before it writes
-  the copy that carries them (a failed clear stops Save As; a later failure
-  gives them back), and Rewind and Restore keep the live session's wake-ups
-  rather than an earlier head's. Every handover is at most once: a crash can
+  wake-up never fires in two conversations. Forks start without wake-ups.
+  Save As first clears the parent's stored wake-ups and index entry. If that
+  clear fails, Save As stops. If the parent was cleared but the child never
+  publishes, Save As restores the parent's wake-ups. Once the child publishes,
+  it keeps the wake-ups even if the live session cannot adopt its lease.
+  Rewind and Restore keep the live session's wake-ups rather than an earlier
+  head's. Every handover is at most once: a crash can
   lose a wake-up, never duplicate it, as the firing commit already ensures.
 - **Workspace schedules.** `create` with `target` `workspace` stores a name,
   the run prompt, the same timing forms, an optional expiry (no default), a
