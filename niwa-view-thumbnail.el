@@ -108,20 +108,40 @@ so changed metadata or a new converter misses this table.")
                (:copier nil))
   file source cap session views timer)
 
+(defun niwa-view-thumbnail--converter-identity ()
+  "Return `magick' on PATH as (PROGRAM . VERSION), or nil, without running it."
+  (let ((default-directory "/"))
+    (when-let* ((program (executable-find "magick"))
+                (truename (file-truename program))
+                (attributes (file-attributes truename 'integer)))
+      ;; The binary's identity versions the output without a subprocess.
+      (cons program
+            (list truename (file-attribute-size attributes)
+                  (file-attribute-modification-time attributes))))))
+
 (defun niwa-view-thumbnail--converter ()
   "Return `magick' as (PROGRAM . VERSION), or nil when unavailable."
   (when (eq niwa-view-thumbnail--converter 'unknown)
     (setq niwa-view-thumbnail--converter
-          (let ((default-directory "/"))
-            (when-let* ((program (executable-find "magick"))
-                        (truename (file-truename program))
-                        (attributes (file-attributes truename 'integer)))
-              (niwa-view-thumbnail--probe-coders program)
-              ;; The binary's identity versions the output without a subprocess.
-              (cons program
-                    (list truename (file-attribute-size attributes)
-                          (file-attribute-modification-time attributes)))))))
+          (niwa-view-thumbnail--converter-identity))
+    (when niwa-view-thumbnail--converter
+      (niwa-view-thumbnail--probe-coders (car niwa-view-thumbnail--converter))))
   niwa-view-thumbnail--converter)
+
+(defvar niwa-view-thumbnail--converter-checked 0
+  "When a remembered miss last re-read the converter's identity.")
+
+(defun niwa-view-thumbnail--converter-changed-p ()
+  "Return non-nil when `magick' changed since it was detected.
+Reads its identity at most once a minute; a change forgets the converter
+and its coder listing so the next use detects them afresh."
+  (when (< 60 (- (float-time) niwa-view-thumbnail--converter-checked))
+    (setq niwa-view-thumbnail--converter-checked (float-time))
+    (unless (equal niwa-view-thumbnail--converter
+                   (niwa-view-thumbnail--converter-identity))
+      (setq niwa-view-thumbnail--converter 'unknown
+            niwa-view-thumbnail--coders 'unknown)
+      t)))
 
 (defun niwa-view-thumbnail--probe-coders (program)
   "Record which table coders PROGRAM can read, asynchronously.
@@ -311,9 +331,14 @@ thumbnail is missing, queue it for the current view buffer."
                         :width max-width
                         :height (ceiling (/ (* max-width (float height)) width))
                         :scale 1)
-        ;; A source the converter already rejected keeps its original.
-        (unless (gethash file niwa-view-thumbnail--misses)
-          (niwa-view-thumbnail--request file source cap session entry path))
+        ;; A source the converter already rejected keeps its original,
+        ;; unless that converter has since been replaced: then retry once
+        ;; under the new converter's key.
+        (if (not (gethash file niwa-view-thumbnail--misses))
+            (niwa-view-thumbnail--request file source cap session entry path)
+          (when (niwa-view-thumbnail--converter-changed-p)
+            (remhash file niwa-view-thumbnail--misses)
+            (niwa-view-thumbnail-image path max-width)))
         nil))))
 
 (defun niwa-view-thumbnail--request (file source cap session entry path)

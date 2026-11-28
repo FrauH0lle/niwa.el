@@ -39,6 +39,7 @@ Binds `runtime', a scratch `dir' for sources and a `session'."
           (niwa-view-thumbnail--queue nil)
           (niwa-view-thumbnail--process nil)
           (niwa-view-thumbnail--misses (make-hash-table :test #'equal))
+          (niwa-view-thumbnail--converter-checked 0)
           (max-image-size nil)
           (image-scaling-factor 1))
      (set-file-modes runtime #o700)
@@ -607,6 +608,56 @@ CODER is the ImageMagick output coder, PNG by default."
           (niwa-thumbnail-test--wait)
           (should (= 2 conversions))
           (should (niwa-view-thumbnail-image file 300)))))))
+
+(niwa-deftest niwa-view-thumbnail--converter-changed-p ()
+  ,test
+  (test)
+  :doc "a remembered miss re-reads the converter once a minute; only a change retries"
+  (skip-unless (executable-find "magick"))
+  (niwa-thumbnail-test--with-state
+    (let* ((file (niwa-thumbnail-test--header-png
+                  (file-name-concat dir "broken.png") 1600 800))
+           (make (symbol-function 'make-process))
+           (identity (symbol-function 'niwa-view-thumbnail--converter-identity))
+           (replaced nil)
+           (conversions 0)
+           (reads 0))
+      (with-temp-buffer
+        (setq-local niwa--session session)
+        (cl-letf (((symbol-function 'make-process)
+                   (lambda (&rest args)
+                     (when (equal "niwa-thumbnail" (plist-get args :name))
+                       (cl-incf conversions))
+                     (apply make args)))
+                  ((symbol-function 'niwa-view-thumbnail--converter-identity)
+                   (lambda ()
+                     (cl-incf reads)
+                     (let ((found (funcall identity)))
+                       (if replaced (cons (car found) '(replaced)) found)))))
+          (should-not (niwa-view-thumbnail-image file 300))
+          (niwa-thumbnail-test--wait)
+          (should (= 1 conversions))
+          ;; Unchanged converter: one identity read, no new conversion.
+          (setq reads 0)
+          (dotimes (_ 2)
+            (should-not (niwa-view-thumbnail-image file 300))
+            (niwa-thumbnail-test--wait))
+          (should (= 1 reads))
+          (should (= 1 conversions))
+          ;; Within the minute a replaced converter is not yet noticed.
+          (setq replaced t)
+          (should-not (niwa-view-thumbnail-image file 300))
+          (should (= 1 conversions))
+          ;; After it, the change drops the miss and retries once.
+          (setq niwa-view-thumbnail--converter-checked 0)
+          (should-not (niwa-view-thumbnail-image file 300))
+          (niwa-thumbnail-test--wait)
+          (should (= 2 conversions))
+          (should (equal '(replaced) (cdr niwa-view-thumbnail--converter)))
+          ;; The new converter rejects it too; that miss holds.
+          (should-not (niwa-view-thumbnail-image file 300))
+          (niwa-thumbnail-test--wait)
+          (should (= 2 conversions)))))))
 
 (provide 'test-niwa-view-thumbnail)
 
