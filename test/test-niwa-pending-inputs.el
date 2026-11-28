@@ -1396,7 +1396,7 @@
       (should (equal before
                      (niwa-session-pending-steering session)))
       (should (eq 'reserved
-                  (niwa-prompt-submission-state submission))))))
+                  (niwa-prompt-submission-state submission)))))
 
   :doc "after confirmation, an arrival survives and a newly dispatching mark refuses everything"
   (dolist (race '(arrival dispatching))
@@ -1437,7 +1437,7 @@
           (should (equal (list steering) (niwa-session-pending-steering session)))
           (should (equal (list follow-up) (niwa-session-pending-follow-ups session)))
           (should (= 0 releases))
-          (should (eq 'reserved (niwa-prompt-submission-state submission)))))))
+          (should (eq 'reserved (niwa-prompt-submission-state submission))))))))
 
 (niwa-deftest niwa-pending-inputs-resume-after-failure ()
   ,test
